@@ -38,14 +38,6 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
   await expect(page.locator("#readout-project")).not.toHaveText("—");
   await expect(page.locator("#readout-speech")).toHaveText("Not set up");
   await page.screenshot({ path: testInfo.outputPath("empty-screen.png"), fullPage: true });
-  if (process.env.PICARD_SITE_CAPTURE === "1") {
-    // The public screenshot shows the real interface, with the local project name removed.
-    await page.locator("#readout-project").evaluate((node) => {
-      node.textContent = "Example project";
-      node.removeAttribute("title");
-    });
-    await page.screenshot({ path: "site/assets/console.png", fullPage: true });
-  }
 });
 
 test("the main screen shows only the conversation; the side panel tiles open their own settings", async ({ page }, testInfo) => {

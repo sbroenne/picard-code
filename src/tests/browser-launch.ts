@@ -19,6 +19,7 @@ const phrases = process.argv.includes("--approval") ? ["Computer, request an app
   : process.argv.includes("--choose") ? ["Computer, ask a question and let me choose", ""]
   : process.argv.includes("--unsafe") ? ["Computer, show unsafe output", ""]
   : process.argv.includes("--fresh") ? ["Computer, hello there", "New log entry", "Is anyone there"]
+  : process.argv.includes("--example") ? ["Computer, why is the settings test failing?", ""]
   : ["Computer, hello there", "Hello again", ""];
 const speech = process.argv.includes("--speech") ? speechFixture(phrases).service : undefined;
 const soundIndex = process.argv.indexOf("--sounds");

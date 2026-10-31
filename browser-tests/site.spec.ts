@@ -45,9 +45,12 @@ for (const width of [1440, 390]) {
     page.on("response", (response) => { if (response.status() >= 400) failures.push(response.url()); });
     page.on("requestfailed", (request) => failures.push(request.url()));
     await page.goto(address);
-    await expect(page).toHaveTitle("Picard Code — Help shape the computer");
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("You speak.The computer answers.");
+    await expect(page).toHaveTitle("Picard Code — A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard");
+    await expect(page.locator("main h1, main h2").first()).toHaveText(/tribute/i);
     await expect(page.getByRole("link", { name: "Help shape the computer", exact: true })).toBeVisible();
+    await expect(page.locator(".console figcaption")).toContainText("no real model, project, or speech service");
+    await expect(page.locator(".site-footer")).toContainText("Not connected with or endorsed by Sir Patrick Stewart");
     await expect(page.locator("script, iframe, audio, video")).toHaveCount(0);
     await page.locator(".console").scrollIntoViewIfNeeded();
     await expect.poll(() => page.locator("img").evaluateAll((images) =>

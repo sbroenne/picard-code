@@ -73,9 +73,12 @@ glows.
 
 ## Public project website
 
-The separate static site in `site/` introduces the project and welcomes
-contributions. It uses the same original palette, but works on phone-sized
-screens too. It does not host the app, access a microphone, or connect to
-local services. Its interface screenshot uses a labeled test stand-in.
+The separate static site in `site/` is a tribute first: it opens with the
+dedication to Sir Patrick Stewart and Captain Jean-Luc Picard, explains how
+that tribute shapes the computer, and then shows the app and welcomes
+contributions. It uses the app's palette, condensed capitals and frame shapes,
+but works on phone-sized screens too. It does not host the app, access a
+microphone, or connect to local services. Its interface screenshot is a staged
+example from the labeled test stand-in, and its caption says so.
 Setup and contribution details stay in the repository rather than being
 maintained twice.
