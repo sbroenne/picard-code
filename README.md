@@ -21,8 +21,9 @@ captain, you speak to the computer.
 
 You need Node.js **22.12 or newer**, GitHub Copilot access, and either the Azure
 or local speech setup below for spoken conversation. The development
-setup includes an official OpenCode copy, so a separate global OpenCode
-installation is optional when running from source.
+setup includes an official OpenCode 2 copy (the `@opencode/cli` package), so a
+separate global OpenCode installation is optional when running from source.
+OpenCode 1 is not supported.
 
 ```sh
 npm install
@@ -67,14 +68,17 @@ not copy credentials from `gh`, your browser, the Copilot app, or another tool.
 
 If OpenCode is not connected:
 
-1. In another terminal in this repository, run `npm run opencode` (or `opencode`
-   if installed globally).
-2. Type `/connect` and choose **GitHub Copilot**.
+1. In another terminal in this repository, run `npm run opencode -- auth login`
+   (Windows: `npm.cmd run opencode -- auth login`; or `opencode auth login` if
+   installed globally).
+2. Choose **GitHub Copilot** from the list.
 3. Open the official device sign-in address OpenCode shows. Check that GitHub
    is signed in to the account you want, then enter OpenCode's displayed code
    and approve the connection yourself.
 4. Return to Picard Code, open **Settings** and choose **Refresh connection**.
    Pick one of the Copilot models OpenCode reports as available.
+
+`npm run opencode -- auth list` shows whether GitHub Copilot is connected.
 
 ## The main screen and Settings
 
@@ -152,8 +156,9 @@ than substituting another provider.
   Say the option's name or, for example,
   "the second one". A reply containing "not" or "don't" is never taken as a
   choice, and when only the offered answers are allowed, anything else is
-  asked again. To skip a question, use **Skip question** on screen. Several
-  questions at once are answered on screen.
+  asked again. **Skip question** on screen declines the question; OpenCode then
+  stops the work, and the computer says so. Several questions at once are
+  answered on screen.
 - "Computer, stop listening" stops microphone capture without cancelling OpenCode's work.
   **Stop work** cancels the current OpenCode request. These are separate
   controls.
@@ -174,22 +179,32 @@ than substituting another provider.
   blocks remain readable. **Copy** copies the reply text.
 - **Allow once** or **Deny** answers an actual OpenCode approval request. There
   is no automatic approval or “always allow” shortcut, and approvals cannot be
-  given by voice. After **Deny**, the computer says the action was not carried out.
+  given by voice. **Deny** stops the work, and the computer says the action was
+  not carried out.
 - Questions from OpenCode can also be answered on screen. **Stop work** asks OpenCode to stop the current conversation.
 
-**Every file change or command asks first.** The computer can always act,
-but OpenCode's default settings allow many tools without asking, so Picard
-Code adds rules to each of its conversations that turn every such "allow" into
-"ask". Reading and searching the project still go ahead without asking.
-Picard Code copies your own OpenCode rules when it does this, so anything you
-have blocked stays blocked; it never removes a block or allows something your
-rules ask about. There is no automatic approval.
+**OpenCode's own rules decide what asks first.** Picard Code adds no rules of
+its own and never answers an approval for you. Out of the box, OpenCode 2
+changes files and runs commands **without asking**; only reading `.env` files
+asks. To be asked before changes and commands, add rules to `opencode.json`
+in your project or in OpenCode's global settings folder, for example:
 
-One limit: when OpenCode wants to start a **helper** for part of the work, that
-also asks first. If you allow it, the helper can change files and run commands
-without asking again, because OpenCode's helpers keep only your blocking rules.
-The approval screen says so. Installed extensions and agent configuration also
-matter.
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permissions": [
+    { "action": "shell", "resource": "*", "effect": "ask" },
+    { "action": "edit", "resource": "*", "effect": "ask" }
+  ]
+}
+```
+
+Each effect is `allow`, `deny` or `ask`. See OpenCode's
+[permission rules](https://opencode.ai/v2/docs/permissions/) for the other
+actions, such as `subagent` for helpers and `webfetch` for web pages. Whatever
+asks shows **Allow once** or **Deny** on screen; there is no automatic
+approval, and Picard Code never starts OpenCode with its `--auto` option.
+Installed extensions and agent configuration also matter.
 
 The interface runs locally, but OpenCode sends messages and relevant project
 content to GitHub Copilot. Because the microphone stays on, **MAI listening
@@ -376,7 +391,8 @@ behind these choices, with its evidence limits, is in
 ## Reuse an existing OpenCode server
 
 Reuse is explicit; Picard Code never assumes an unrelated server on port 4096
-belongs to it. Start OpenCode bound to this computer with a password. Set the
+belongs to it. The server must be OpenCode 2. Start OpenCode bound to this
+computer with a password. Set the
 same password in the Picard Code terminal, then:
 
 ```sh
@@ -427,11 +443,11 @@ npm run test:behavior:live
 ```
 
 The server and browser tests use a clearly labeled local test server that follows
-OpenCode's connection format, with the **official OpenCode client**. They cover live replies, saved
+OpenCode 2's connection format, through Picard Code's own OpenCode client. They cover live replies, saved
 conversations, approvals, questions, folder boundaries, browser request
 protection, safe text rendering, and the desktop layout. They do not claim
 to have called Copilot or executed a shell command. Speech tests use an
-artificial browser microphone and an explicitly separate speech test service
+artificial browser microphone and simulated speakers, with an explicitly separate speech test service
 to check automatic turns, follow-up context, paused listening during playback,
 deliberate approvals, and separate stopping controls. They also use silent
 stand-in sound files to check that each computer sound plays once at the right
@@ -478,12 +494,14 @@ and repeat the browser checks.
 
 ## If something goes wrong
 
-- **Missing OpenCode:** install OpenCode from [opencode.ai](https://opencode.ai)
-  or run `npm install` for the included development copy. Restart the terminal
-  after a global installation.
-- **npm blocks OpenCode's setup script:** recent npm versions ask for approval.
-  Review the official package, then use `npm install-scripts approve opencode-ai`
-  followed by `npm rebuild opencode-ai`.
+- **Missing OpenCode:** install OpenCode 2 from
+  [opencode.ai](https://opencode.ai/v2/docs/) or run `npm install` for the
+  included development copy. Restart the terminal after a global installation.
+- **npm blocks OpenCode's setup script:** the setup script picks the right
+  OpenCode program for your computer. This repository already allows it in
+  `package.json`. If npm still asks, review the official package, then use
+  `npm install-scripts approve @opencode/cli` followed by
+  `npm rebuild @opencode/cli`.
 - **Browser cannot connect:** open the full launch address printed in the
   terminal, including its temporary key. It must use `127.0.0.1`, not a different
   hostname. Do not share that address.
@@ -510,13 +528,13 @@ and repeat the browser checks.
 
 ## References
 
-Implemented against OpenCode **1.19.5**, using its supported server interface
-through `@opencode-ai/sdk/v2`:
+Implemented against OpenCode **2.2.5** (`@opencode/cli`), talking directly to
+the local server that `opencode serve` provides:
 
-- [Server and authentication](https://opencode.ai/docs/server/)
-- [Official JavaScript/TypeScript client](https://opencode.ai/docs/sdk/)
-- [GitHub Copilot setup](https://opencode.ai/docs/providers/#github-copilot)
-- [Tool permission rules](https://opencode.ai/docs/permissions/)
+- [OpenCode 2 documentation](https://opencode.ai/v2/docs/)
+- [Moving from OpenCode 1](https://opencode.ai/v2/docs/migrate-v1/)
+- [Providers, including GitHub Copilot](https://opencode.ai/v2/docs/providers/)
+- [Permission rules](https://opencode.ai/v2/docs/permissions/)
 - [MAI live listening](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/mai-transcribe-2-streaming-realtime)
 - [MAI speaking voices](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/mai-voices)
 - [faster-whisper](https://github.com/SYSTRAN/faster-whisper)

@@ -2,12 +2,12 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readFile, realpath } from "node:fs/promises";
 import { resolve, sep, extname } from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import type { OpencodeClient, Event } from "@opencode-ai/sdk/v2";
-import type { AppState, BrowserEvent } from "../shared/types.js";
-import { chatMessage, copilotModels, errorMessage } from "./engine.js";
+import type { AppState, BrowserEvent, FormField, FormValue } from "../shared/types.js";
+import { chatMessages, copilotModels, errorMessage } from "./engine.js";
+import { partID } from "./history.js";
+import type { OpenCode, OpenCodeEvent } from "./opencode.js";
 import { projectDirectory } from "./process.js";
 import { COMPUTER_MANNER } from "./instructions.js";
-import { rulesToAdd } from "./confirm.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechService } from "./speech-types.js";
 import { describeSpeechSettings, mergeSpeechSettings, readSpeechSettings, saveSpeechSettings, speechFromSettings, speechSettingsFile } from "./speech.js";
@@ -55,8 +55,66 @@ function json(response: ServerResponse, status: number, value: unknown) {
   response.end(JSON.stringify(value));
 }
 
+/** Checks a form answer against the form, so only answers OpenCode asked for are passed on. */
+export function checkAnswer(fields: FormField[], answer: unknown): Record<string, FormValue> {
+  if (!answer || typeof answer !== "object" || Array.isArray(answer)) throw new HttpError(400, "Answer the question before continuing.");
+  const given = answer as Record<string, unknown>;
+  if (!Object.keys(given).length) throw new HttpError(400, "Answer the question before continuing.");
+  const result: Record<string, FormValue> = {};
+  for (const [key, value] of Object.entries(given)) {
+    const field = fields.find((item) => item.key === key);
+    if (!field || field.type === "external") throw new HttpError(400, "That answer does not match the question.");
+    const label = field.title || field.description || "this question";
+    if (field.type === "string") {
+      if (typeof value !== "string" || !value.trim() || value.length > 4096) throw new HttpError(400, `Write an answer for ${label}.`);
+      if (field.options?.length && field.custom !== true && !field.options.some((option) => option.value === value)) throw new HttpError(400, "Choose one of the offered answers.");
+    } else if (field.type === "multiselect") {
+      if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.trim() && item.length <= 4096)) throw new HttpError(400, `Choose answers for ${label}.`);
+      if (field.custom !== true && value.some((item) => !field.options.some((option) => option.value === item))) throw new HttpError(400, "Choose only the offered answers.");
+    } else if (field.type === "boolean") {
+      if (typeof value !== "boolean") throw new HttpError(400, `Answer yes or no for ${label}.`);
+    } else if (typeof value !== "number" || !Number.isFinite(value) || field.type === "integer" && !Number.isInteger(value)) {
+      throw new HttpError(400, `Enter a number for ${label}.`);
+    }
+    result[key] = value as FormValue;
+  }
+  return result;
+}
+
+const SESSION_CHANGES = /^session\.(text\.ended|reasoning\.ended|step\.(started|ended|failed)|tool\.(input\.started|called|success|failed)|compaction\.ended)$/;
+
+/** Turns one OpenCode event for a known conversation into what the browser needs. */
+export function browserEvents(event: OpenCodeEvent): BrowserEvent[] {
+  const data = event.data;
+  const sessionID = typeof data.sessionID === "string" ? data.sessionID : "";
+  const delta = /^session\.(text|reasoning)\.delta$/.exec(event.type);
+  if (delta && typeof data.assistantMessageID === "string" && typeof data.ordinal === "number" && typeof data.delta === "string") {
+    const kind = delta[1] as "text" | "reasoning";
+    return [{ type: "delta", sessionID, messageID: data.assistantMessageID, partID: partID(data.assistantMessageID, kind, data.ordinal), partType: kind, delta: data.delta }];
+  }
+  if (SESSION_CHANGES.test(event.type)) return [{ type: "changed", sessionID }];
+  if (event.type === "session.execution.started") return [{ type: "state" }];
+  if (event.type === "session.execution.succeeded" || event.type === "session.execution.interrupted") return [{ type: "state" }, { type: "changed", sessionID }];
+  if (event.type === "session.execution.failed") {
+    return [{ type: "state" }, { type: "changed", sessionID }, { type: "error", sessionID, message: errorMessage(data.error) }];
+  }
+  if (event.type === "session.retry.scheduled") return [{ type: "retry", sessionID, message: errorMessage(data.error) }];
+  if (/^(permission\.(asked|replied)|form\.(created|replied|cancelled)|session\.(created|renamed|deleted|archived))$/.test(event.type)) return [{ type: "state" }];
+  return [];
+}
+
+function eventSession(event: OpenCodeEvent) {
+  const data = event.data;
+  if (typeof data.sessionID === "string") return data.sessionID;
+  for (const key of ["form", "request", "info"]) {
+    const inner = data[key];
+    if (inner && typeof inner === "object" && "sessionID" in inner && typeof inner.sessionID === "string") return inner.sessionID;
+  }
+  return undefined;
+}
+
 export interface AppOptions {
-  client: OpencodeClient;
+  client: OpenCode;
   project: string;
   webRoot: string;
   port?: number;
@@ -85,35 +143,47 @@ export async function startApp(options: AppOptions) {
   const speechFile = options.speechFile ?? await speechSettingsFile();
   const startSpeech = options.startSpeech ?? ((settings) => speechFromSettings(settings));
 
+  // OpenCode reports only whether work runs; a scheduled retry is remembered from its event.
+  const retrying = new Map<string, string>();
+
   const sessions = async (project: string) => {
-    const result = await client.session.list({ directory: project, limit: 100 }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-    return result.data.filter((session) => sameDirectory(session.directory, project) && !session.parentID && !session.time.archived);
+    const result = await client.sessions(project);
+    return result.filter((session) => sameDirectory(session.location.directory, project) && !session.parentID && !session.time.archived);
   };
 
   const assertSession = async (id: string, project: string) => {
-    const result = await client.session.get({ sessionID: id, directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-    if (!sameDirectory(result.data.directory, project)) throw new HttpError(403, "That conversation belongs to another project folder.");
-    return result.data;
+    const result = await client.session(id, project);
+    if (!sameDirectory(result.location.directory, project) || result.parentID) throw new HttpError(403, "That conversation belongs to another project folder.");
+    return result;
+  };
+
+  const working = async (project: string) => {
+    const [active, current] = await Promise.all([client.active(project), sessions(project)]);
+    const ids = new Set(current.map((session) => session.id));
+    return active.filter((id) => ids.has(id));
   };
 
   const state = async (project: string): Promise<AppState> => {
-    const [health, models, conversations, statuses, permissions, questions] = await Promise.all([
-      client.global.health({ throwOnError: true, signal: AbortSignal.timeout(5000) }),
+    const [info, models, conversations, active, permissions, questions] = await Promise.all([
+      client.info(),
       copilotModels(client, project),
       sessions(project),
-      client.session.status({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) }),
-      client.permission.list({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) }),
-      client.question.list({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) }),
+      client.active(project),
+      client.permissions(project),
+      client.forms(project),
     ]);
     const ids = new Set(conversations.map((session) => session.id));
+    for (const id of retrying.keys()) if (!active.includes(id)) retrying.delete(id);
     return {
       project,
-      version: health.data.version,
+      version: info.version,
       ...models,
       conversations: conversations.map((session) => ({ id: session.id, title: session.title, updated: session.time.updated })),
-      statuses: Object.fromEntries(Object.entries(statuses.data).filter(([id]) => ids.has(id))),
-      permissions: permissions.data.filter((request) => ids.has(request.sessionID)),
-      questions: questions.data.filter((request) => ids.has(request.sessionID)),
+      statuses: Object.fromEntries(active.filter((id) => ids.has(id)).map((id) => [id, retrying.has(id)
+        ? { type: "retry" as const, message: retrying.get(id) }
+        : { type: "busy" as const }])),
+      permissions: permissions.filter((request) => ids.has(request.sessionID)),
+      questions: questions.filter((request) => ids.has(request.sessionID)),
       speech: { configured: !!speech,
         listening: speech?.selection?.listening ?? "mai",
         speaking: speech?.selection?.speaking ?? "mai",
@@ -137,33 +207,25 @@ export async function startApp(options: AppOptions) {
       controller.abort();
     }, 15_000);
     try {
-      const result = await client.event.subscribe({ directory: project }, {
-        signal: controller.signal,
-        sseMaxRetryAttempts: 0,
-        onSseError: (error: unknown) => {
-          send({ type: "connection", connected: false, message: `OpenCode's live connection stopped. ${errorMessage(error)}` });
-        },
-      });
-      // The SDK's stream is lazy; its first read establishes the upstream connection.
-      const first = await result.stream.next();
+      const stream = client.events(controller.signal);
+      // The first event confirms OpenCode's live connection is open.
+      const first = await stream.next();
       if (first.done) throw new Error("OpenCode closed its live connection before it was ready.");
       clearTimeout(startup);
       send({ type: "connection", connected: true });
-      for await (const event of result.stream) {
+      for await (const event of stream) {
         if (controller.signal.aborted || directory !== project) break;
-        if (event.type === "session.created" && sameDirectory(event.properties.info.directory, project)) {
-          ids.add(event.properties.info.id);
+        if (event.type === "session.created" && typeof event.data.sessionID === "string" && !event.data.parentID) {
+          const location = event.data.location;
+          if (location && typeof location === "object" && "directory" in location && typeof location.directory === "string" && sameDirectory(location.directory, project)) ids.add(event.data.sessionID);
         }
-        const properties = event.properties;
-        const part = "part" in properties ? properties.part : undefined;
-        const info = "info" in properties ? properties.info : undefined;
-        const id = "sessionID" in properties ? properties.sessionID :
-          part && typeof part === "object" && "sessionID" in part ? part.sessionID :
-          info && typeof info === "object" && "sessionID" in info ? info.sessionID : undefined;
-        if (typeof id !== "string" || !ids.has(id)) continue;
-        if (!/^(message\.|session\.(created|updated|deleted|status|idle|error)$|permission\.|question\.)/.test(event.type)) continue;
-        send({ type: "opencode", event });
+        const id = eventSession(event);
+        if (!id || !ids.has(id)) continue;
+        if (event.type === "session.retry.scheduled") retrying.set(id, errorMessage(event.data.error));
+        else if (/^session\.(step\.started|execution\.)/.test(event.type)) retrying.delete(id);
+        for (const item of browserEvents(event)) send(item);
       }
+      if (!controller.signal.aborted && directory === project) throw new Error("OpenCode closed its live connection.");
     } catch (error) {
       if (!controller.signal.aborted) send({ type: "connection", connected: false, message: errorMessage(error) });
     } finally {
@@ -257,28 +319,20 @@ export async function startApp(options: AppOptions) {
         }
         if (path === "/api/refresh" && method === "POST") {
           await body(request);
-          const statuses = await client.session.status({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-          const current = new Set((await sessions(project)).map((session) => session.id));
-          if (Object.entries(statuses.data).some(([id, status]) => current.has(id) && status.type !== "idle")) {
-            throw new HttpError(409, "Stop the current work before refreshing the Copilot connection.");
-          }
+          if ((await working(project)).length) throw new HttpError(409, "Stop the current work before refreshing the Copilot connection.");
           for (const stream of streams) stream.end();
-          await client.instance.dispose({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
+          await client.reload(project);
           json(response, 200, { refreshed: true });
           return;
         }
         if (path === "/api/project" && method === "POST") {
           const data = await body(request);
-          const statuses = await client.session.status({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-          const current = new Set((await sessions(project)).map((session) => session.id));
-          if (Object.entries(statuses.data).some(([id, status]) => current.has(id) && status.type !== "idle")) {
-            throw new HttpError(409, "Stop the current work before changing the project folder.");
-          }
+          if ((await working(project)).length) throw new HttpError(409, "Stop the current work before changing the project folder.");
           let next: string;
           try { next = await projectDirectory(textField(data, "path", 4096)); }
           catch (error) { throw new HttpError(400, `Could not open that folder. ${errorMessage(error)}`); }
-          const check = await client.path.get({ directory: next }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-          if (!sameDirectory(check.data.directory, next)) throw new HttpError(409, "OpenCode did not select that folder. Restart Picard Code with --project instead.");
+          const check = await client.location(next);
+          if (!sameDirectory(check.directory, next)) throw new HttpError(409, "OpenCode did not select that folder. Restart Picard Code with --project instead.");
           directory = next;
           for (const stream of streams) stream.end();
           json(response, 200, await state(next));
@@ -286,11 +340,8 @@ export async function startApp(options: AppOptions) {
         }
         if (path === "/api/conversations" && method === "POST") {
           const data = await body(request);
-          const result = await client.session.create({
-            directory: project,
-            title: typeof data.title === "string" ? data.title.trim().slice(0, 120) || "New conversation" : "New conversation",
-          }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-          json(response, 201, { id: result.data.id, title: result.data.title, updated: result.data.time.updated });
+          const result = await client.createSession(project, typeof data.title === "string" ? data.title.trim().slice(0, 120) || "New conversation" : "New conversation");
+          json(response, 201, { id: result.id, title: result.title, updated: result.time.updated });
           return;
         }
         const match = /^\/api\/conversations\/([^/]+)\/(messages|send|stop)$/.exec(path);
@@ -298,13 +349,12 @@ export async function startApp(options: AppOptions) {
           const id = match[1]!;
           const session = await assertSession(id, project);
           if (match[2] === "messages" && method === "GET") {
-            const result = await client.session.messages({ directory: project, sessionID: id }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-            json(response, 200, result.data.map(chatMessage));
+            json(response, 200, chatMessages(await client.messages(id, project)));
             return;
           }
           if (match[2] === "stop" && method === "POST") {
             await body(request);
-            await client.session.abort({ directory: project, sessionID: id }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
+            await client.interrupt(id, project);
             json(response, 200, { stopped: true });
             return;
           }
@@ -317,30 +367,12 @@ export async function startApp(options: AppOptions) {
             if (!models.some((model) => model.providerID === providerID && model.modelID === modelID)) {
               throw new HttpError(400, "Connect GitHub Copilot in OpenCode and choose an available model.");
             }
-            const status = await client.session.status({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-            if (status.data[id] && status.data[id]?.type !== "idle") throw new HttpError(409, "Wait for the current reply, or stop it before sending another message.");
-            if (session.title === "New conversation") {
-              await client.session.update({ directory: project, sessionID: id, title: text.slice(0, 60) }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-            }
-            // Every request may make changes, so every change or command must ask first.
-            const agents = await client.app.agents({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-            const build = agents.data.find((agent) => agent.name === "build");
-            if (!build) throw new HttpError(502, "OpenCode's build agent is missing, so nothing was sent. Check your OpenCode settings.");
-            const add = rulesToAdd(build.permission, session.permission ?? []);
-            if (add) {
-              const updated = await client.session.update({ directory: project, sessionID: id, permission: add }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-              if (rulesToAdd(build.permission, updated.data.permission ?? [])) {
-                throw new HttpError(502, "OpenCode did not accept the rule to ask before changes, so nothing was sent.");
-              }
-            }
-            await client.session.promptAsync({
-              directory: project,
-              sessionID: id,
-              agent: "build",
-              system: COMPUTER_MANNER,
-              model: { providerID, modelID },
-              parts: [{ type: "text", text }],
-            }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
+            if ((await client.active(project)).includes(id)) throw new HttpError(409, "Wait for the current reply, or stop it before sending another message.");
+            if (session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
+            if (session.model?.id !== modelID || session.model.providerID !== providerID) await client.setModel(id, project, { id: modelID, providerID });
+            // Picard Code's conversation manner travels with the conversation, not as a file in the project.
+            await client.setInstructions(id, project, "picard-manner", COMPUTER_MANNER);
+            await client.prompt(id, project, text);
             json(response, 202, { accepted: true });
             return;
           }
@@ -350,35 +382,17 @@ export async function startApp(options: AppOptions) {
           const data = await body(request);
           const requestID = approval[2]!;
           if (approval[1] === "permissions") {
-            const pending = await client.permission.list({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-            const item = pending.data.find((item) => item.id === requestID);
+            const item = (await client.permissions(project)).find((item) => item.id === requestID);
             if (!item) throw new HttpError(409, "That approval is no longer waiting. Refresh the conversation.");
             await assertSession(item.sessionID, project);
             if (data.reply !== "once" && data.reply !== "reject") throw new HttpError(400, "Choose Allow once or Deny.");
-            await client.permission.reply({ directory: project, requestID, reply: data.reply }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
+            await client.replyPermission(item.sessionID, requestID, project, data.reply);
           } else {
-            const pending = await client.question.list({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-            const item = pending.data.find((item) => item.id === requestID);
+            const item = (await client.forms(project)).find((item) => item.id === requestID);
             if (!item) throw new HttpError(409, "That question is no longer waiting. Refresh the conversation.");
             await assertSession(item.sessionID, project);
-            if (data.reject === true) {
-              await client.question.reject({ directory: project, requestID }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-            } else {
-              const answers = data.answers;
-              if (!Array.isArray(answers) || answers.length !== item.questions.length ||
-                !answers.every((answer) => Array.isArray(answer) && answer.length > 0 && answer.every((value) => typeof value === "string" && value.trim() && value.length <= 4096))) {
-                throw new HttpError(400, "Answer each question before continuing.");
-              }
-              for (let index = 0; index < item.questions.length; index++) {
-                const question = item.questions[index]!;
-                const answer: string[] = answers[index];
-                if (!question.multiple && answer.length !== 1) throw new HttpError(400, "Choose one answer for this question.");
-                if (question.custom === false && answer.some((value) => !question.options.some((option) => option.label === value))) {
-                  throw new HttpError(400, "Choose one of the offered answers.");
-                }
-              }
-              await client.question.reply({ directory: project, requestID, answers }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
-            }
+            if (data.skip === true) await client.cancelForm(item.sessionID, requestID, project);
+            else await client.replyForm(item.sessionID, requestID, project, checkAnswer(item.fields, data.answer));
           }
           json(response, 200, { answered: true });
           return;

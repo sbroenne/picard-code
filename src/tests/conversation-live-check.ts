@@ -43,11 +43,11 @@ try {
     ?? models.models.find((model) => model.modelID === "gpt-5-mini")
     ?? models.defaultModel;
   assert.ok(choice, "Complete OpenCode's official Copilot sign-in before this real conversation check.");
-  const subscription = await engine.client.event.subscribe({ directory: project }, { signal: controller.signal, sseMaxRetryAttempts: 0 });
+  const events = engine.client.events(controller.signal);
   observation = (async () => {
-    for await (const event of subscription.stream) {
-      if (event.type === "message.part.delta" && event.properties.field === "text") {
-        const id = event.properties.sessionID;
+    for await (const event of events) {
+      if (event.type === "session.text.delta" && typeof event.data.sessionID === "string") {
+        const id = event.data.sessionID;
         deltas.set(id, (deltas.get(id) ?? 0) + 1);
       }
     }
@@ -89,11 +89,10 @@ try {
   assert.ok(receivedAudio > 16000, "Actual chosen speaking service must return audible-length audio.");
   assert.equal(audioWhileSpeaking, 0, "Playback must not be transcribed as another user request.");
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
-  const conversations = await engine.client.session.list({ directory: project }, { throwOnError: true });
-  sessionID = conversations.data[0]?.id;
+  sessionID = (await engine.client.sessions(project))[0]?.id;
   assert.ok(sessionID);
-  const saved = await engine.client.session.messages({ directory: project, sessionID }, { throwOnError: true });
-  assert.ok(saved.data.some((message) => message.info.role === "assistant" && message.parts.some((part) => part.type === "text" && /connection is ready/i.test(part.text))));
+  const saved = await engine.client.messages(sessionID, project);
+  assert.ok(saved.some((message) => message.type === "assistant" && "content" in message && message.content.some((item) => item.type === "text" && /connection is ready/i.test(item.text))));
   if (observationError) throw observationError;
   assert.ok((deltas.get(sessionID) ?? 0) > 0, "The real Copilot answer must produce live text updates, not only a saved final reply.");
   await page.screenshot({ path: resolve(directory, `${name}-conversation.png`), fullPage: true });
@@ -104,12 +103,7 @@ try {
   await browser?.close();
   try {
     if (engine) {
-      const conversations = await engine.client.session.list({ directory: project }, { throwOnError: true });
-      for (const conversation of conversations.data) {
-        if (resolve(conversation.directory) === project) {
-          await engine.client.session.delete({ directory: project, sessionID: conversation.id }, { throwOnError: true });
-        }
-      }
+      for (const conversation of await engine.client.sessions(project)) await engine.client.deleteSession(conversation.id, project);
     }
   } finally {
     try { await app?.close(); }

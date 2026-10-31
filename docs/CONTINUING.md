@@ -17,14 +17,18 @@ npm run build
 npm test
 ```
 
-If npm asks to approve OpenCode's setup script, review it, then run
-`npm install-scripts approve opencode-ai` and `npm rebuild opencode-ai`.
+Picard Code uses OpenCode 2 (the `@opencode/cli` package); `npm install`
+brings the tested copy. If npm asks to approve OpenCode's setup script, review
+it, then run `npm install-scripts approve @opencode/cli` and
+`npm rebuild @opencode/cli`.
 
 ## 2. Connect GitHub Copilot through OpenCode
 
-Each computer needs its own sign-in. Run `npm run opencode`, type `/connect`,
+Each computer needs its own sign-in. Run `npm run opencode -- auth login`,
 choose **GitHub Copilot**, and approve the official GitHub device sign-in
 yourself with the `sbroenne` account. Do not copy tokens from another computer.
+`npm run opencode -- auth list` shows whether it is connected. A sign-in made
+with OpenCode 1 does not carry over; sign in again.
 
 ## 3. Choose speech
 

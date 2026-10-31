@@ -1,4 +1,4 @@
-import type { QuestionInfo } from "@opencode-ai/sdk/v2";
+import type { FormField, FormRequest } from "./types.js";
 import { speakable } from "./speech.js";
 
 export type SpokenAnswer = { answer: string } | { retry: string };
@@ -14,16 +14,31 @@ function either(words: string[]) {
   return words.length < 3 ? words.join(" or ") : `${words.slice(0, -1).join(", ")}, or ${words.at(-1)}`;
 }
 
-/** Only single-answer questions are asked aloud; anything else stays on screen. */
-export function canAskAloud(questions: QuestionInfo[]) {
-  return questions.length === 1 && !questions[0]!.multiple && (questions[0]!.options.length > 0 || questions[0]!.custom !== false);
+type TextField = Extract<FormField, { type: "string" }>;
+
+/** The one question a form asks aloud: a single visible text answer, with or without offered choices. */
+export function spokenField(form: FormRequest): TextField | undefined {
+  const visible = form.fields.filter((field) => !field.hidden);
+  const field = visible[0];
+  if (visible.length !== 1 || field?.type !== "string" || field.when?.length) return undefined;
+  return field;
 }
 
-export function spokenQuestion(question: QuestionInfo) {
-  const labels = question.options.map((option) => option.label);
+/** Only single-answer questions are asked aloud; anything else stays on screen. */
+export function canAskAloud(form: FormRequest) {
+  return !!spokenField(form);
+}
+
+const custom = (field: TextField) => !field.options?.length || field.custom === true;
+
+export function spokenQuestion(form: FormRequest) {
+  const field = spokenField(form);
+  if (!field) return "Additional information is required. Please answer the questions on screen.";
+  const question = field.description?.trim() || field.title?.trim() || form.title.trim();
+  const labels = (field.options ?? []).map((option) => option.label);
   const choices = labels.length ? ` The options are ${either(labels)}.` : "";
-  const other = labels.length && question.custom !== false ? " You may also give a different answer." : "";
-  return speakable(`${question.question.trim()}${choices}${other}`);
+  const other = labels.length && custom(field) ? " You may also give a different answer." : "";
+  return speakable(`${question}${choices}${other}`);
 }
 
 /**
@@ -31,9 +46,10 @@ export function spokenQuestion(question: QuestionInfo) {
  * are matched conservatively; a negated or unclear reply is never turned into a
  * choice. Free wording is passed on unchanged only when the question allows it.
  */
-export function matchSpokenAnswer(question: QuestionInfo, transcript: string): SpokenAnswer {
-  const labels = question.options.map((option) => option.label);
-  const custom = question.custom !== false;
+export function matchSpokenAnswer(field: TextField, transcript: string): SpokenAnswer {
+  const options = field.options ?? [];
+  const labels = options.map((option) => option.label);
+  const valueOf = (label: string) => options.find((option) => option.label === label)!.value;
   const said = normalize(transcript);
   const retry = labels.length ? `Please choose ${either(labels)}.` : "Please give your answer.";
   if (!said) return { retry };
@@ -41,14 +57,14 @@ export function matchSpokenAnswer(question: QuestionInfo, transcript: string): S
     return { retry: `The question is still open. To skip it, choose Skip question on screen. Otherwise, ${labels.length ? `say ${either(labels)}` : "give your answer"}.` };
   }
   const exact = labels.find((label) => normalize(label) === said);
-  if (exact) return { answer: exact };
+  if (exact) return { answer: valueOf(exact) };
   const ordinal = /^(?:the )?(?:option |number |choice )?(\w+)(?: one| option)?(?: please)?$/.exec(said)?.[1];
   const position = ordinal ? ORDINALS.findIndex((pattern) => pattern.test(ordinal)) : -1;
-  if (position >= 0 && position < labels.length) return { answer: labels[position]! };
+  if (position >= 0 && position < labels.length) return { answer: valueOf(labels[position]!) };
   if (!NEGATION.test(said)) {
     const mentioned = labels.filter((label) => normalize(label) && ` ${said} `.includes(` ${normalize(label)} `));
-    if (mentioned.length === 1) return { answer: mentioned[0]! };
+    if (mentioned.length === 1) return { answer: valueOf(mentioned[0]!) };
   }
-  if (custom) return { answer: transcript.trim() };
+  if (custom(field)) return { answer: transcript.trim() };
   return { retry };
 }

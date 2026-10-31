@@ -146,6 +146,9 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .question-option input { margin-right: 9px; accent-color: var(--gold); }
 .question-option small { display: block; margin: 4px 0 0 25px; color: var(--muted); }
 .custom-answer { display: block; width: 100%; color: var(--text); background: var(--ink); border: 2px solid #6b5426; padding: 10px; border-radius: 0 14px 14px 0; margin-top: 10px; }
+.question-title { margin: 0 0 4px; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; }
+.question-link { display: inline-block; margin: 6px 0; color: var(--gold); }
+.question-field small { display: block; color: var(--muted); overflow-wrap: anywhere; }
 
 /* Voice console: the heart of the screen. One status, always in view. */
 .console { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 22px; padding: 16px 0 12px; border-top: 6px solid var(--peach); }

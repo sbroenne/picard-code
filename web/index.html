@@ -79,7 +79,7 @@
         <div class="field-grid">
           <label for="model">Model</label>
           <select id="model" disabled><option>Waiting for Copilot</option></select>
-          <p class="muted span">Every file change or command asks first. Choose Allow once or Deny on screen.</p>
+          <p class="muted span">OpenCode's own rules decide which actions ask first. Out of the box it changes files and runs commands without asking. When it asks, choose Allow once or Deny on screen.</p>
         </div>
       </section>
 
@@ -95,8 +95,8 @@
           <p id="copilot-status" class="readout-line">Checking</p>
           <p id="workspace-caption" class="muted"></p>
           <ol>
-            <li>In a terminal in the Picard Code folder, run <code>npm run opencode</code>.</li>
-            <li>Type <code>/connect</code> and choose <strong>GitHub Copilot</strong>.</li>
+            <li>In a terminal in the Picard Code folder, run <code>npm run opencode -- auth login</code>.</li>
+            <li>Choose <strong>GitHub Copilot</strong> from the list.</li>
             <li>Open <a href="https://github.com/login/device" target="_blank" rel="noreferrer">GitHub's device sign-in</a>, check your account, and enter the code OpenCode gives you.</li>
           </ol>
           <p class="muted">Your account needs Copilot access. A GitHub command-line sign-in does not connect Copilot. No password or token is entered here.</p>

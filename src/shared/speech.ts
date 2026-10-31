@@ -139,6 +139,7 @@ export function spokenReply(message: ReplyMessage) {
   const text = replyText(message);
   if (text.trim()) return spokenSummary(text);
   const failed = failedTools(message);
+  if (failed.some((part) => /dismissed this question/i.test(part.text))) return "Question skipped. The work has stopped.";
   if (failed.some((part) => /reject|denied|declined|not allowed/i.test(part.text))) return "Request denied. The action was not carried out.";
   if (failed.length) return "Unable to complete the request. The action failed. The details are on screen.";
   return "The work finished without a written reply.";

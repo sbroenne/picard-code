@@ -1,9 +1,8 @@
 import "./style.css";
-import type { Event, PermissionRequest, QuestionRequest } from "@opencode-ai/sdk/v2";
-import type { AppState, BrowserEvent, ChatMessage, Conversation, ModelChoice, SpeechSettings } from "../src/shared/types";
-import { chatPart, errorMessage } from "../src/shared/messages";
+import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings } from "../src/shared/types";
+import { errorMessage } from "../src/shared/messages";
 import { replyFailed, spokenReply, spokenSummary } from "../src/shared/speech";
-import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../src/shared/questions";
+import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../src/shared/questions";
 import { addressed, voiceCommand } from "../src/shared/wake";
 import { VoiceConversation } from "./voice";
 
@@ -37,9 +36,13 @@ let historyLoading = false;
 let selectionRevision = 0;
 let historyRevision = 0;
 let historyTimer: ReturnType<typeof setTimeout> | undefined;
+// A reload was asked for while one was running, or is waiting to start.
+let historyAgain = false;
+let historyDue = false;
 let approvalKey = "";
 let renderScheduled = false;
-const historyEvents: Event[] = [];
+/** Reply text that is still being written, shown until the stored conversation catches up. */
+const live = new Map<string, { sessionID: string; messageID: string; partType: "text" | "reasoning"; text: string }>();
 let voiceTurn: { session: string; known: Set<string> } | undefined;
 let spokenDecision = "";
 let spokenQuestionID: string | undefined;
@@ -112,17 +115,18 @@ function askedQuestion() {
   if (!spokenQuestionID || answering || state?.permissions.some((item) => item.sessionID === selected)) return undefined;
   const waiting = state?.questions.filter((item) => item.sessionID === selected) ?? [];
   const request = waiting.length === 1 && waiting[0]!.id === spokenQuestionID ? waiting[0] : undefined;
-  return request && canAskAloud(request.questions) ? request : undefined;
+  return request && canAskAloud(request) ? request : undefined;
 }
 
 async function answerAloud(text: string) {
   const request = askedQuestion();
   if (!request) throw new Error("The question is no longer waiting. Check the conversation on screen.");
-  const result = matchSpokenAnswer(request.questions[0]!, text);
+  const field = spokenField(request)!;
+  const result = matchSpokenAnswer(field, text);
   if ("retry" in result) { voice.speak(result.retry); return; }
   answering = true;
   try {
-    await api(`questions/${encodeURIComponent(request.id)}`, { answers: [[result.answer]] });
+    await api(`questions/${encodeURIComponent(request.id)}`, { answer: { [field.key]: result.answer } });
     spokenQuestionID = undefined;
     await refreshState();
   } finally {
@@ -200,7 +204,7 @@ function voiceControls() {
   element("privacy-detail").textContent = `The microphone stays on while Picard Code is open, until you say “Computer, stop listening”. Click the computer panel to listen again. It listens on this computer for speech; ${cloudListening
     ? "when it hears some, that speech goes to Azure, which may process it outside Europe, to be understood."
     : "Whisper understands it on this computer."} ${cloudSpeaking
-    ? "Reply text goes to Azure for speaking." : "Kokoro speaks locally."} Only requests that start with “Computer” are sent to Copilot; other speech is shown as not sent and dropped. While work runs, only “Computer, stop” is acted on. Listening pauses while the computer speaks. Every file change or command asks first, and approvals always need a button. Stop speaking interrupts playback, not work.`;
+    ? "Reply text goes to Azure for speaking." : "Kokoro speaks locally."} Only requests that start with “Computer” are sent to Copilot; other speech is shown as not sent and dropped. While work runs, only “Computer, stop” is acted on. Listening pauses while the computer speaks. OpenCode's own rules decide which actions ask first; when one does, approval always needs a button. Stop speaking interrupts playback, not work.`;
   element("stop-speaking").hidden = !voice.speechPending;
 }
 
@@ -215,7 +219,7 @@ function markDisclosed() {
 }
 
 function completeVoiceReply() {
-  if (!voiceTurn || voiceTurn.session !== selected || busy() || pending() || submitting || historyLoading) return;
+  if (!voiceTurn || voiceTurn.session !== selected || busy() || pending() || submitting || historyLoading || historyDue) return;
   const reply = messages.findLast((message) => message.role === "assistant" && !voiceTurn!.known.has(message.id));
   if (!reply) return;
   voiceTurn = undefined;
@@ -251,7 +255,7 @@ async function perform(action: () => Promise<void> | void) {
 
 function modelValue(choice: ModelChoice) { return JSON.stringify([choice.providerID, choice.modelID]); }
 function busy() {
-  return !!selected && !!state?.statuses[selected] && state.statuses[selected]?.type !== "idle";
+  return !!selected && !!state?.statuses[selected];
 }
 function pending() {
   return !!selected && (state?.permissions.some((item) => item.sessionID === selected) || state?.questions.some((item) => item.sessionID === selected));
@@ -330,9 +334,9 @@ function renderState() {
     const waiting = state.questions.filter((item) => item.sessionID === selected).length;
     if (!question) {
       voice.speak("Captain, approval is required. Review the requested action on screen, then choose Allow once or Deny.");
-    } else if (waiting === 1 && canAskAloud(question.questions)) {
+    } else if (waiting === 1 && canAskAloud(question)) {
       spokenQuestionID = question.id;
-      voice.speak(spokenQuestion(question.questions[0]!));
+      voice.speak(spokenQuestion(question));
     } else {
       voice.speak("Additional information is required. Please answer the questions on screen.");
     }
@@ -357,8 +361,9 @@ function renderMessages() {
   const container = element("messages");
   container.replaceChildren();
   // The latest request and its reply fill the screen; earlier ones stay small above.
-  const latest = messages.findLastIndex((message) => message.role === "user");
-  messages.forEach((message, index) => {
+  const list = shown();
+  const latest = list.findLastIndex((message) => message.role === "user");
+  list.forEach((message, index) => {
     const article = make("article", `message ${index >= latest ? "current" : "earlier"}`);
     article.dataset.role = message.role;
     const header = make("div", "message-header");
@@ -409,21 +414,23 @@ function permissionPanel(request: PermissionRequest) {
   const panel = make("section", "approval");
   panel.append(make("h3", undefined, "Approval required."));
   const actions: Record<string, string> = {
-    bash: "run a command",
+    shell: "run a command",
     edit: "change a file",
-    read: "read files",
+    read: "read a file",
     glob: "find files",
     grep: "search file contents",
-    external_directory: "access files outside this project",
+    external_directory: "use files outside this project",
     webfetch: "open a web page",
     websearch: "search the web",
-    task: "start a helper",
+    subagent: "start a helper",
+    skill: "use a skill",
+    question: "ask a question",
   };
-  const action = actions[request.permission] ?? `use the "${request.permission}" tool`;
+  const action = actions[request.action] ?? `use the "${request.action}" tool`;
   panel.append(make("p", undefined, `OpenCode wants to ${action}. Review the requested action before allowing it.`));
-  // OpenCode's helpers do not inherit the ask-first rules, only the deny rules.
-  if (request.permission === "task") panel.append(make("p", "approval-warning", "If you allow it, the helper can change files and run commands without asking again. Rules that block an action still apply."));
-  panel.append(make("pre", undefined, `${request.patterns.join("\n")}\n\n${JSON.stringify(request.metadata, null, 2)}`));
+  if (request.message) panel.append(make("p", undefined, request.message));
+  const metadata = request.metadata && Object.keys(request.metadata).length ? `\n\n${JSON.stringify(request.metadata, null, 2)}` : "";
+  panel.append(make("pre", undefined, `${request.resources.join("\n")}${metadata}`.trim()));
   const buttons = make("div", "approval-actions");
   buttons.append(
     button("Allow once", "peach-button", () => answerRequest(panel, `permissions/${encodeURIComponent(request.id)}`, { reply: "once" })),
@@ -433,51 +440,101 @@ function permissionPanel(request: PermissionRequest) {
   return panel;
 }
 
-function questionPanel(request: QuestionRequest) {
+/** One question in an OpenCode form, with a way to read its current answer. */
+function formField(request: FormRequest, field: FormField, index: number) {
+  const box = make("fieldset", "question-field");
+  box.append(make("legend", undefined, field.description?.trim() || field.title?.trim() || request.title));
+  if (field.description && field.title) box.prepend(make("p", "question-title", field.title));
+  const name = `question-${request.id}-${index}`;
+  const choice = (type: "radio" | "checkbox", value: string, label: string, detail?: string, checked = false) => {
+    const node = make("label", "question-option");
+    const input = make("input");
+    input.type = type;
+    input.name = name;
+    input.value = value;
+    input.checked = checked;
+    node.append(input, document.createTextNode(label));
+    if (detail) node.append(make("small", undefined, detail));
+    box.append(node);
+    return input;
+  };
+  const writeIn = (label: string) => {
+    const node = make("label", "question-option", label);
+    const input = make("input", "custom-answer");
+    input.type = "text";
+    input.maxLength = 4096;
+    node.append(input);
+    box.append(node);
+    return input;
+  };
+  let read: () => FormValue | undefined = () => undefined;
+  if (field.type === "string") {
+    const options = field.options ?? [];
+    const inputs = options.map((option) => choice("radio", option.value, option.label, option.description, option.value === field.default));
+    const custom = !options.length || field.custom === true ? writeIn(options.length ? "Or write your answer" : "Your answer") : undefined;
+    if (custom && !options.length && field.default) custom.value = field.default;
+    if (custom && field.maxLength) custom.maxLength = Math.min(field.maxLength, 4096);
+    read = () => custom?.value.trim() || inputs.find((input) => input.checked)?.value;
+  } else if (field.type === "multiselect") {
+    const inputs = field.options.map((option) => choice("checkbox", option.value, option.label, option.description, field.default?.includes(option.value)));
+    const custom = field.custom === true ? writeIn("Or add your own answer") : undefined;
+    read = () => {
+      const values = inputs.filter((input) => input.checked).map((input) => input.value);
+      if (custom?.value.trim()) values.push(custom.value.trim());
+      return values.length ? values : undefined;
+    };
+  } else if (field.type === "boolean") {
+    const yes = choice("radio", "yes", "Yes", undefined, field.default === true);
+    const no = choice("radio", "no", "No", undefined, field.default === false);
+    read = () => yes.checked ? true : no.checked ? false : undefined;
+  } else if (field.type === "number" || field.type === "integer") {
+    const node = make("label", "question-option", "Your answer");
+    const input = make("input", "custom-answer");
+    input.type = "number";
+    input.step = field.type === "integer" ? "1" : "any";
+    if (field.minimum !== undefined) input.min = String(field.minimum);
+    if (field.maximum !== undefined) input.max = String(field.maximum);
+    if (field.default !== undefined) input.value = String(field.default);
+    node.append(input);
+    box.append(node);
+    read = () => input.value.trim() === "" ? undefined : Number(input.value);
+  } else if (field.type === "external") {
+    // A page OpenCode wants opened, such as a sign-in. Only web addresses are linked.
+    const safe = /^https?:\/\//i.test(field.url);
+    const link = make(safe ? "a" : "span", "question-link", safe ? "Open the page" : field.url);
+    if (link instanceof HTMLAnchorElement) { link.href = field.url; link.target = "_blank"; link.rel = "noopener noreferrer"; }
+    box.append(link, make("small", undefined, field.url));
+  }
+  return { field, box, read };
+}
+
+function questionPanel(request: FormRequest) {
   const form = make("form", "approval");
   form.append(make("h3", undefined, "Additional information required."));
-  const answers: (() => string[])[] = [];
-  request.questions.forEach((question, index) => {
-    const field = make("fieldset", "question-field");
-    field.append(make("legend", undefined, question.question));
-    const inputs: HTMLInputElement[] = [];
-    question.options.forEach((option) => {
-      const label = make("label", "question-option");
-      const input = make("input");
-      input.type = question.multiple ? "checkbox" : "radio";
-      input.name = `question-${request.id}-${index}`;
-      input.value = option.label;
-      inputs.push(input);
-      label.append(input, document.createTextNode(option.label), make("small", undefined, option.description));
-      field.append(label);
-    });
-    let custom: HTMLInputElement | undefined;
-    if (question.custom !== false) {
-      const label = make("label", "question-option", "Or write your answer");
-      custom = make("input", "custom-answer");
-      custom.type = "text";
-      custom.maxLength = 4096;
-      label.append(custom);
-      field.append(label);
-    }
-    answers.push(() => {
-      const choices = inputs.filter((input) => input.checked).map((input) => input.value);
-      if (custom?.value.trim()) return question.multiple ? [...choices, custom.value.trim()] : [custom.value.trim()];
-      return choices;
-    });
-    form.append(field);
-  });
+  const fields = request.fields.filter((field) => !field.hidden).map((field, index) => formField(request, field, index));
+  const value = (key: string) => fields.find((item) => item.field.key === key)?.read();
+  const visible = (field: FormField) => (field.when ?? []).every((rule) => rule.op === "eq" ? value(rule.key) === rule.value : value(rule.key) !== rule.value);
+  const update = () => { for (const item of fields) item.box.hidden = !visible(item.field); };
+  for (const item of fields) form.append(item.box);
+  form.addEventListener("input", update);
+  form.addEventListener("change", update);
+  update();
   const actions = make("div", "approval-actions");
   const submit = make("button", "peach-button", "Send answer");
   submit.type = "submit";
-  actions.append(submit, button("Skip question", "deny-button", () => answerRequest(form, `questions/${encodeURIComponent(request.id)}`, { reject: true })));
+  actions.append(submit, button("Skip question", "deny-button", () => answerRequest(form, `questions/${encodeURIComponent(request.id)}`, { skip: true })));
   form.append(actions);
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     void perform(async () => {
-      const values = answers.map((answer) => answer());
-      if (values.some((value) => !value.length)) throw new Error("Choose or write an answer to each question.");
-      await answerRequest(form, `questions/${encodeURIComponent(request.id)}`, { answers: values });
+      const answer: Record<string, FormValue> = {};
+      for (const item of fields) {
+        if (item.field.type === "external" || !visible(item.field)) continue;
+        const given = item.read();
+        if (given !== undefined) answer[item.field.key] = given;
+        else if (item.field.required || fields.length === 1) throw new Error("Choose or write an answer to each question.");
+      }
+      await answerRequest(form, `questions/${encodeURIComponent(request.id)}`, { answer });
     });
   });
   return form;
@@ -500,69 +557,56 @@ function renderApprovals() {
   }
 }
 
-function applyMessageEvent(event: Event) {
-  if (event.type === "message.updated" && event.properties.info.sessionID === selected) {
-    const info = event.properties.info;
-    let message = messages.find((item) => item.id === info.id);
-    if (!message) { message = { id: info.id, role: info.role, parts: [] }; messages.push(message); }
-    message.role = info.role;
-    if (info.role === "assistant" && info.error) message.error = errorMessage(info.error);
-    scheduleRender();
-  } else if (event.type === "message.part.updated" && event.properties.part.sessionID === selected) {
-    const part = event.properties.part;
-    const converted = chatPart(part);
-    if (!converted) return;
-    let message = messages.find((item) => item.id === part.messageID);
-    if (!message) { message = { id: part.messageID, role: "assistant", parts: [] }; messages.push(message); }
-    const index = message.parts.findIndex((item) => item.id === part.id);
-    if (index < 0) message.parts.push(converted);
-    else message.parts[index] = converted;
-    scheduleRender();
-  } else if (event.type === "message.part.delta" && event.properties.sessionID === selected) {
-    const { messageID, partID, field, delta } = event.properties;
-    const part = messages.find((item) => item.id === messageID)?.parts.find((item) => item.id === partID);
-    if (part && field === "text") { part.text += delta; scheduleRender(); }
-    else {
-      clearTimeout(historyTimer);
-      historyTimer = setTimeout(() => { void perform(loadHistory); }, 200);
-    }
-  } else if (event.type === "message.removed" && event.properties.sessionID === selected) {
-    messages = messages.filter((message) => message.id !== event.properties.messageID);
-    scheduleRender();
-  } else if (event.type === "message.part.removed" && event.properties.sessionID === selected) {
-    const message = messages.find((item) => item.id === event.properties.messageID);
-    if (message) message.parts = message.parts.filter((part) => part.id !== event.properties.partID);
-    scheduleRender();
+/** The stored conversation with any reply text that is still being written. */
+function shown(): ChatMessage[] {
+  const pieces = [...live].filter(([, piece]) => piece.sessionID === selected);
+  if (!pieces.length) return messages;
+  const result = structuredClone(messages);
+  for (const [id, piece] of pieces) {
+    let message = result.find((item) => item.id === piece.messageID);
+    if (!message) { message = { id: piece.messageID, role: "assistant", parts: [] }; result.push(message); }
+    const part = message.parts.find((item) => item.id === id);
+    if (!part) message.parts.push({ id, type: piece.partType, text: piece.text });
+    else if (part.text.length < piece.text.length) part.text = piece.text;
+  }
+  return result;
+}
+
+/** Drops live text once the stored conversation holds all of it. */
+function pruneLive() {
+  for (const [id, piece] of live) {
+    const stored = messages.find((item) => item.id === piece.messageID)?.parts.find((item) => item.id === id);
+    if (piece.sessionID !== selected || stored && stored.text.length >= piece.text.length) live.delete(id);
   }
 }
 
-function handleEvent(event: Event) {
-  if (!state) return;
-  if (event.type.startsWith("message.")) {
-    if (historyLoading) historyEvents.push(event);
-    else applyMessageEvent(event);
-  }
-  if (event.type === "session.status") {
+function scheduleHistory() {
+  historyDue = true;
+  clearTimeout(historyTimer);
+  historyTimer = setTimeout(() => { void perform(loadHistory); }, 200);
+}
+
+function handleEvent(event: BrowserEvent) {
+  if (!state || event.type === "connection") return;
+  if (event.type === "delta") {
+    if (event.sessionID !== selected) return;
+    const piece = live.get(event.partID) ?? { sessionID: event.sessionID, messageID: event.messageID, partType: event.partType, text: "" };
+    piece.text += event.delta;
+    live.set(event.partID, piece);
+    scheduleRender();
+  } else if (event.type === "changed") {
+    if (event.sessionID === selected) scheduleHistory();
+  } else if (event.type === "state") {
     statusEvents++;
-    state.statuses[event.properties.sessionID] = event.properties.status;
-    if (event.properties.sessionID === selected && event.properties.status.type === "retry") {
-      notice(`OpenCode is retrying. ${event.properties.status.message}`);
-    }
-    controls();
-    if (event.properties.sessionID === selected && event.properties.status.type === "idle") void perform(loadHistory);
-  } else if (event.type === "session.idle") {
-    statusEvents++;
-    state.statuses[event.properties.sessionID] = { type: "idle" };
-    controls();
-    if (event.properties.sessionID === selected) void perform(loadHistory);
-  } else if (event.type === "session.error") {
-    if (!event.properties.sessionID || event.properties.sessionID === selected) {
-      const message = errorMessage(event.properties.error);
-      notice(message);
-      if (voiceTurn) { voiceTurn = undefined; voice.speak(spokenSummary(message), event.properties.error?.name !== "MessageAbortedError"); }
-    }
-  } else if (event.type.startsWith("permission.") || event.type.startsWith("question.") || ["session.created", "session.updated", "session.deleted"].includes(event.type)) {
     void perform(refreshState);
+  } else if (event.type === "retry") {
+    statusEvents++;
+    state.statuses[event.sessionID] = { type: "retry", message: event.message };
+    if (event.sessionID === selected) notice(`OpenCode is retrying. ${event.message}`);
+    controls();
+  } else if (event.type === "error" && event.sessionID === selected) {
+    notice(event.message);
+    if (voiceTurn) { voiceTurn = undefined; voice.speak(spokenSummary(event.message), true); }
   }
 }
 
@@ -579,44 +623,31 @@ async function refreshState() {
   if (revision !== selectionRevision && state?.project !== next.project) return;
   state = next;
   renderState();
+  completeVoiceReply();
 }
 
 async function loadHistory() {
-  if (!selected || historyLoading) return;
+  if (!selected) return;
+  if (historyLoading) { historyAgain = true; return; }
+  historyDue = false;
+  clearTimeout(historyTimer);
   const id = selected;
   const revision = ++historyRevision;
-  const baseline = structuredClone(messages);
   historyLoading = true;
-  historyEvents.length = 0;
   controls();
   try {
     const loaded = await api<ChatMessage[]>(`conversations/${encodeURIComponent(id)}/messages`);
     if (selected !== id || revision !== historyRevision) return;
-    const buffered = historyEvents.splice(0);
-    // Replay against the pre-request state, not the snapshot: the snapshot can
-    // already contain some of these deltas. Appending them again duplicates words.
-    messages = baseline;
-    for (const event of buffered) applyMessageEvent(event);
-    const replayed = messages;
     messages = loaded;
-    for (const candidate of replayed) {
-      const snapshot = messages.find((item) => item.id === candidate.id);
-      if (!snapshot) {
-        if (buffered.some((event) => event.type === "message.updated" && event.properties.info.id === candidate.id)) messages.push(candidate);
-        continue;
-      }
-      for (const part of candidate.parts) {
-        const current = snapshot.parts.find((item) => item.id === part.id);
-        if (!current) snapshot.parts.push(part);
-        else if ((part.type === "text" || part.type === "reasoning") && part.text.startsWith(current.text)) current.text = part.text;
-      }
-    }
-    for (const event of buffered) {
-      if (event.type === "message.removed" || event.type === "message.part.removed") applyMessageEvent(event);
-    }
+    pruneLive();
     renderMessages();
   } finally {
-    if (selected === id && revision === historyRevision) { historyLoading = false; controls(); completeVoiceReply(); }
+    if (selected === id && revision === historyRevision) {
+      historyLoading = false;
+      controls();
+      if (historyAgain) { historyAgain = false; void perform(loadHistory); }
+      else completeVoiceReply();
+    }
   }
 }
 
@@ -636,7 +667,7 @@ function openEvents() {
           await loadHistory();
         }
         controls();
-      } else handleEvent(data.event);
+      } else handleEvent(data);
     });
   });
   events.addEventListener("error", () => {
@@ -652,7 +683,10 @@ async function selectConversation(id: string) {
   selectionRevision++;
   historyRevision++;
   historyLoading = false;
+  historyAgain = false;
+  historyDue = false;
   clearTimeout(historyTimer);
+  live.clear();
   messages = [];
   notice();
   if (openDrawer() === "records") closeDrawer();
@@ -670,7 +704,10 @@ function startFresh() {
   selectionRevision++;
   historyRevision++;
   historyLoading = false;
+  historyAgain = false;
+  historyDue = false;
   clearTimeout(historyTimer);
+  live.clear();
   messages = [];
   notice();
   renderState();
@@ -840,6 +877,7 @@ element("project-form").addEventListener("submit", (event) => {
     selected = undefined;
     selectionRevision++;
     historyRevision++;
+    live.clear();
     messages = [];
     state = next;
     location.hash = "";

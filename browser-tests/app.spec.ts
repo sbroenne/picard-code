@@ -51,7 +51,7 @@ test("the main screen shows only the conversation; setup and options stay in sli
   await page.getByRole("link", { name: "Options" }).click();
   await expect(page).toHaveURL(/#options$/);
   await expect(page.getByLabel("Model")).toBeVisible();
-  await expect(page.getByText("Every file change or command asks first. Choose Allow once or Deny on screen.")).toBeVisible();
+  await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeVisible();
   await expect(page.getByLabel("Mode", { exact: true })).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("Model")).toBeHidden();

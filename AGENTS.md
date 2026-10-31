@@ -24,12 +24,10 @@ original TNG-inspired look.
 
 - **Plain English** in everything users or the owner read: interface text,
   errors, docs, issues and pull requests. Avoid jargon.
-- **Never weaken approvals.** Every file change or command asks first:
-  `src/server/confirm.ts` copies the user's OpenCode rules into each
-  conversation with every "allow" (except reading and searching) turned into
-  "ask", and keeps every deny. Do not add automatic approval, "always allow",
-  voice approval, or remove deny rules. Approvals need a button. Never send
-  `tools` with a prompt; OpenCode would replace these rules.
+- **Never weaken approvals.** OpenCode's own permission rules decide what
+  asks first; Picard Code adds no rules and answers no approval itself. Do not
+  add automatic approval, "always allow", voice approval, OpenCode's `--auto`
+  option, or remove deny rules. Approvals need a button (Allow once or Deny).
 - **Truthful results.** Never claim work succeeded, ran, or was heard before the
   real result arrives. Never replace a real error with a vague or themed message.
   No silent fallback from one speech service to another.

@@ -3,7 +3,7 @@ import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startApp } from "./app.js";
-import { makeClient, localServerUrl, errorMessage } from "./engine.js";
+import { checkVersion, makeClient, localServerUrl, errorMessage } from "./engine.js";
 import { projectDirectory, startEngine, openBrowser } from "./process.js";
 import { loadSpeech } from "./speech.js";
 import type { SpeechService } from "./speech-types.js";
@@ -33,7 +33,7 @@ async function main() {
   --speaking      mai (Azure, preferred) or kokoro (local)
   --help, -h      Show these instructions
 
-First connect GitHub Copilot in OpenCode: run "npm run opencode", type /connect,
+First connect GitHub Copilot in OpenCode: run "npm run opencode -- auth login",
 choose GitHub Copilot, and approve the device sign-in using your account.
 An existing gh sign-in is not a Copilot sign-in.`);
     return;
@@ -72,10 +72,9 @@ An existing gh sign-in is not a Copilot sign-in.`);
       const password = process.env.OPENCODE_SERVER_PASSWORD;
       if (!password) throw new Error("To reuse OpenCode, set OPENCODE_SERVER_PASSWORD to that server's password in this terminal. Never put it in a browser address.");
       client = makeClient(baseUrl, password, process.env.OPENCODE_SERVER_USERNAME ?? "opencode");
-      const health = await client.global.health({ throwOnError: true, signal: AbortSignal.timeout(5000) });
-      if (!health.data.healthy) throw new Error("The existing OpenCode server is not healthy.");
+      await client.info();
       // Make sure unauthenticated callers cannot use the reused server.
-      const unauthenticated = await fetch(`${baseUrl}/global/health`, { redirect: "error", signal: AbortSignal.timeout(5000) });
+      const unauthenticated = await fetch(`${baseUrl}/api/info`, { redirect: "error", signal: AbortSignal.timeout(5000) });
       if (unauthenticated.status !== 401) throw new Error("The existing OpenCode server is not password-protected. Restart it with OPENCODE_SERVER_PASSWORD.");
     } else {
       console.log("Starting OpenCode on this computer...");
@@ -89,9 +88,10 @@ An existing gh sign-in is not a Copilot sign-in.`);
         }
       });
     }
-    const path = await client.path.get({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
+    await checkVersion(client);
+    const path = await client.location(project);
     controller.signal.throwIfAborted();
-    if (resolve(path.data.directory) !== project) throw new Error("OpenCode did not select the requested project folder.");
+    if (resolve(path.directory) !== project) throw new Error("OpenCode did not select the requested project folder.");
     // A speech mistake should not stop the app; it is shown on the settings page so it can be fixed there.
     let speech: SpeechService | undefined;
     let speechError: string | undefined;

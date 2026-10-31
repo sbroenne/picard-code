@@ -8,8 +8,9 @@ const microphoneFile = join(folder, "utterance.wav");
 const soundFolder = join(folder, "sounds");
 // Silent stand-ins for the downloaded sounds; each has its own length so the test can tell them apart.
 const SOUND_LENGTHS = { "request-accepted": 0.3, "processing": 0.5, "input-failed": 0.4, "request-failed": 0.6 };
+// Simulated speaker output keeps the browser's audio clock running even when this computer's real speakers are unavailable.
 test.use({ permissions: ["microphone"], launchOptions: { args: [
-  "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream",
+  "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--disable-audio-output",
   `--use-file-for-fake-audio-capture=${microphoneFile}`,
 ] } });
 function wave(rate: number, audio: Buffer) {
@@ -160,7 +161,7 @@ test("a question is asked aloud; a negated reply is not taken as a choice; a cle
   const spoken = spokenText(page);
   await launch(page, "question");
   await startListening(page);
-  await expect(page.locator(".message[data-role=assistant]")).toContainText('Your test answer was received: [["Explain first"]].', { timeout: 25000 });
+  await expect(page.locator(".message[data-role=assistant]").last()).toContainText('Your test answer was received: [["Explain first"]].', { timeout: 25000 });
   expect(spoken[0]).toBe("Which approach should I use? The options are Small change or Explain first.");
   expect(spoken[1]).toBe("Please choose Small change or Explain first.");
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
@@ -219,7 +220,7 @@ test("Allow once lets the requested action go ahead", async ({ page }, info) => 
   await expect(page.getByText("OpenCode wants to run a command. Review the requested action before allowing it.")).toBeVisible();
   await page.screenshot({ path: info.outputPath("approval-screen.png"), fullPage: true });
   await page.getByRole("button", { name: "Allow once" }).click();
-  await expect(page.locator(".message[data-role=assistant]")).toContainText("The test approval was answered.", { timeout: 15000 });
+  await expect(page.locator(".message[data-role=assistant]").last()).toContainText("The test approval was answered.", { timeout: 15000 });
   await page.getByRole("button", { name: "Stop listening" }).click();
 });
 
@@ -240,6 +241,17 @@ test("a question can also be answered by choosing on screen", async ({ page }) =
   await page.getByRole("radio", { name: "Explain first" }).check();
   await page.getByRole("button", { name: "Send answer" }).click();
   await expect(page.locator("#messages")).toContainText('Your test answer was received: [["Explain first"]].', { timeout: 15000 });
+  await page.getByRole("button", { name: "Stop listening" }).click();
+});
+
+test("skipping a question stops the work and says so", async ({ page }) => {
+  const spoken = spokenText(page);
+  await launch(page, "choose");
+  await startListening(page);
+  await expect(page.getByRole("heading", { name: "Additional information required." })).toBeVisible({ timeout: 15000 });
+  await page.getByRole("button", { name: "Skip question" }).click();
+  await expect.poll(() => spoken.at(-1), { timeout: 10000 }).toBe("Question skipped. The work has stopped.");
+  await expect(page.getByRole("heading", { name: "Additional information required." })).toBeHidden();
   await page.getByRole("button", { name: "Stop listening" }).click();
 });
 

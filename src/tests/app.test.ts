@@ -4,9 +4,11 @@ import { mkdtemp, mkdir, readFile, writeFile, rm, realpath } from "node:fs/promi
 import { resolve, join } from "node:path";
 import { request as httpRequest } from "node:http";
 import { startFixture } from "./fixture.js";
-import { startApp } from "../server/app.js";
+import { browserEvents, checkAnswer, startApp } from "../server/app.js";
+import { chatMessages, STOPPED } from "../server/history.js";
+import type { SessionMessage } from "../server/opencode.js";
 import { localServerUrl, makeClient } from "../server/engine.js";
-import type { AppState, SpeechSettings } from "../shared/types.js";
+import type { AppState, FormField, SpeechSettings } from "../shared/types.js";
 import type { AppOptions } from "../server/app.js";
 import { speechFixture } from "./speech-fixture.js";
 
@@ -81,7 +83,7 @@ test("local browser access needs the launch token; unrelated sites and hosts are
   assert.equal((await fetch(`${context.app.origin}/%2e%2e%5cpackage.json`)).status, 403);
 });
 
-test("saved conversations and project context use the actual SDK; other folders cannot be controlled", async (t) => {
+test("saved conversations and project context go through OpenCode; other folders cannot be controlled", async (t) => {
   const context = await setup();
   t.after(context.cleanup);
   await context.login();
@@ -103,7 +105,7 @@ test("saved conversations and project context use the actual SDK; other folders 
   assert.equal((await context.request(`conversations/${session.id}/stop`, {})).status, 403);
 });
 
-test("prompt_async produces actual streamed deltas and a saved reply through the SDK", async (t) => {
+test("a request streams live text and a saved reply, with Picard's manner sent per conversation", async (t) => {
   const context = await setup();
   t.after(context.cleanup);
   await context.login();
@@ -117,28 +119,25 @@ test("prompt_async produces actual streamed deltas and a saved reply through the
   assert.equal(accepted.status, 202);
   let observed = "";
   const deadline = Date.now() + 5000;
-  while (!observed.includes("session.idle") && Date.now() < deadline) {
+  const finished = () => observed.includes('"delta"') && observed.lastIndexOf('"state"') > observed.lastIndexOf('"delta"');
+  while (!finished() && Date.now() < deadline) {
     const chunk = await reader.read();
     observed += new TextDecoder().decode(chunk.value);
   }
-  assert.match(observed, /message\.part\.delta/);
-  assert.match(observed, /session\.idle/);
+  assert.match(observed, /"type":"delta"/);
+  assert.match(observed, /"type":"changed"/);
   const messages = await (await context.request(`conversations/${session.id}/messages`)).json();
   assert.equal(messages[1].parts[0].text, "A genuinely streamed reply from the test fixture.");
-  const prompt = context.fixture.requests.find((request) => request.path.endsWith("/prompt_async"))!;
+  const prompt = context.fixture.requests.find((request) => request.path.endsWith("/prompt"))!;
   assert.equal(prompt.directory, context.directory);
-  assert.equal(prompt.data.agent, "build");
-  assert.equal(prompt.data.tools, undefined);
-  assert.equal(prompt.data.permission, undefined);
-  // The ask-first rules are set on the conversation before the request, and only once.
-  const rules = context.fixture.requests.filter((request) => request.method === "PATCH" && Array.isArray(request.data.permission));
-  assert.equal(rules.length, 1);
-  assert.ok(context.fixture.requests.indexOf(rules[0]!) < context.fixture.requests.indexOf(prompt));
-  assert.deepEqual((rules[0]!.data.permission as { permission: string }[])[0], { permission: "picard-code", pattern: "confirm-changes", action: "ask" });
-  assert.ok((rules[0]!.data.permission as { permission: string; pattern: string; action: string }[])
-    .some((rule) => rule.permission === "bash" && rule.pattern === "rm *" && rule.action === "deny"), "the stand-in's deny rule is kept");
-  assert.match(String(prompt.data.system), /brief, precise, neutral/i);
-  assert.match(String(prompt.data.system), /Never invent completion/);
+  assert.deepEqual(prompt.data, { text: "Hello computer" }, "only the user's own words are sent, unchanged");
+  const manner = context.fixture.instructions.get(session.id)?.["picard-manner"] ?? "";
+  assert.match(manner, /brief, precise, neutral/i);
+  assert.match(manner, /Never invent completion/);
+  const prepared = context.fixture.requests.filter((request) => request.method !== "GET" && /\/session\/.+\/(model|instructions\/entries\/picard-manner)$/.test(request.path));
+  assert.equal(prepared.length, 2);
+  assert.ok(prepared.every((request) => context.fixture.requests.indexOf(request) < context.fixture.requests.indexOf(prompt)));
+  assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/reply")), false);
 });
 
 test("approvals and questions stay pending until the user answers; no automatic approval", async (t) => {
@@ -148,23 +147,83 @@ test("approvals and questions stay pending until the user answers; no automatic 
   const session = await (await context.request("conversations", {})).json();
   const send = (text: string) => context.request(`conversations/${session.id}/send`, { text, providerID: "github-copilot", modelID: "fixture-model" });
   assert.equal((await send("Request an approval")).status, 202);
+  await new Promise((resolve) => setTimeout(resolve, 100));
   let state = await (await context.request("state")).json() as AppState;
   assert.equal(state.permissions.length, 1);
-  assert.equal(context.fixture.requests.filter((request) => request.path.includes("/permission/")).length, 0);
+  assert.equal(state.statuses[session.id]?.type, "busy");
+  assert.equal(context.fixture.requests.filter((request) => request.path.endsWith("/reply")).length, 0);
   assert.equal((await context.request("refresh", {})).status, 409);
   assert.equal((await context.request("project", { path: context.other })).status, 409);
   assert.equal((await send("Another message")).status, 409);
   const permission = state.permissions[0]!;
   assert.equal((await context.request(`permissions/${permission.id}`, { reply: "always" })).status, 400);
-  assert.equal((await context.request(`permissions/${permission.id}`, { reply: "once" })).status, 200);
+  assert.equal((await context.request(`permissions/${permission.id}`, { reply: "reject" })).status, 200);
+  assert.equal(context.fixture.requests.at(-1)?.data.decision, "reject");
   assert.equal((await context.request(`permissions/${permission.id}`, { reply: "once" })).status, 409);
-  await context.request(`conversations/${session.id}/stop`, {});
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  const denied = await (await context.request(`conversations/${session.id}/messages`)).json();
+  assert.match(JSON.stringify(denied.at(-1)), /declined this tool call/);
+
   assert.equal((await send("Ask a question")).status, 202);
+  await new Promise((resolve) => setTimeout(resolve, 100));
   state = await (await context.request("state")).json() as AppState;
   const question = state.questions[0]!;
-  assert.equal((await context.request(`questions/${question.id}`, { answers: [] })).status, 400);
-  assert.equal((await context.request(`questions/${question.id}`, { answers: [["Explain first"]] })).status, 200);
-  assert.equal(context.fixture.requests.at(-1)?.data.answers instanceof Array, true);
+  assert.equal((await context.request(`questions/${question.id}`, { answer: {} })).status, 400);
+  assert.equal((await context.request(`questions/${question.id}`, { answer: { other: "x" } })).status, 400);
+  assert.equal((await context.request(`questions/${question.id}`, { answer: { q0: "Explain first" } })).status, 200);
+  assert.deepEqual(context.fixture.requests.at(-1)?.data, { answer: { q0: "Explain first" } });
+
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  assert.equal((await send("Ask a question")).status, 202);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  state = await (await context.request("state")).json() as AppState;
+  assert.equal((await context.request(`questions/${state.questions[0]!.id}`, { skip: true })).status, 200);
+  assert.equal(context.fixture.requests.at(-1)?.method, "DELETE");
+});
+
+test("answers are checked against the question before they reach OpenCode", () => {
+  const fields: FormField[] = [
+    { key: "pick", type: "string", title: "Pick", options: [{ value: "a", label: "A" }], custom: false },
+    { key: "free", type: "string", title: "Free" },
+    { key: "many", type: "multiselect", title: "Many", options: [{ value: "x", label: "X" }, { value: "y", label: "Y" }] },
+    { key: "ok", type: "boolean", title: "Okay" },
+    { key: "count", type: "integer", title: "Count" },
+    { key: "page", type: "external", title: "Page", url: "https://example.com" },
+  ];
+  assert.deepEqual(checkAnswer(fields, { pick: "a", free: "anything", many: ["x"], ok: true, count: 3 }), { pick: "a", free: "anything", many: ["x"], ok: true, count: 3 });
+  for (const bad of [undefined, [], {}, { pick: "b" }, { free: " " }, { many: ["z"] }, { ok: "yes" }, { count: 1.5 }, { page: "x" }, { unknown: "x" }]) {
+    assert.throws(() => checkAnswer(fields, bad), /./, JSON.stringify(bad));
+  }
+});
+
+test("OpenCode events become the few browser updates the screen needs", () => {
+  const event = (type: string, data: Record<string, unknown>) => ({ type, data });
+  assert.deepEqual(browserEvents(event("session.text.delta", { sessionID: "s", assistantMessageID: "m", ordinal: 0, delta: "Hi" })),
+    [{ type: "delta", sessionID: "s", messageID: "m", partID: "m:text:0", partType: "text", delta: "Hi" }]);
+  assert.deepEqual(browserEvents(event("session.tool.failed", { sessionID: "s" })), [{ type: "changed", sessionID: "s" }]);
+  assert.deepEqual(browserEvents(event("session.execution.failed", { sessionID: "s", error: { message: "No route." } })),
+    [{ type: "state" }, { type: "changed", sessionID: "s" }, { type: "error", sessionID: "s", message: "No route." }]);
+  assert.deepEqual(browserEvents(event("permission.asked", { sessionID: "s" })), [{ type: "state" }]);
+  assert.deepEqual(browserEvents(event("session.text.started", { sessionID: "s" })), []);
+});
+
+test("saved history keeps real errors and explains stopped work", () => {
+  const at = { created: 1 };
+  const history = [
+    { id: "u1", type: "user", text: "Run it", time: at },
+    { id: "a1", type: "assistant", content: [{ type: "tool", id: "c", name: "shell", state: { status: "error", input: {}, error: { type: "aborted", message: "The user declined this tool call" } } }], error: { type: "aborted", message: "Step interrupted" }, time: at },
+    { id: "u2", type: "user", text: "Again", time: at },
+    { id: "a2", type: "assistant", content: [{ type: "text", text: "Starting" }], error: { type: "aborted", message: "Step interrupted" }, time: at },
+    { id: "u3", type: "user", text: "Once more", time: at },
+    { id: "i3", type: "idle", outcome: "failed", error: { type: "provider", message: "The model cannot be reached." }, time: at },
+  ] as unknown as SessionMessage[];
+  const chat = chatMessages(history);
+  assert.equal(chat.length, 6);
+  assert.equal(chat[1]!.error, undefined, "a declined action already explains itself");
+  assert.match(chat[1]!.parts[0]!.text, /^shell/);
+  assert.equal(chat[3]!.error, STOPPED);
+  assert.equal(chat[5]!.role, "assistant");
+  assert.equal(chat[5]!.error, "The model cannot be reached.");
 });
 
 test("missing Copilot authorization is an honest setup state, not a fallback to another provider", async (t) => {

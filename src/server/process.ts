@@ -46,9 +46,10 @@ export async function openCodeCommand(): Promise<{ command: string; prefix: stri
       ? { command: process.execPath, prefix: [file] }
       : { command: file, prefix: [] };
   }
+  // Prefer the copy installed with Picard Code; it is the version Picard Code was checked against.
   const paths = [
-    ...(process.env.PATH ?? "").split(delimiter),
     fileURLToPath(new URL("../../node_modules/.bin/", import.meta.url)),
+    ...(process.env.PATH ?? "").split(delimiter),
   ];
   for (const path of paths) {
     const directory = path.replace(/^"|"$/g, "");
@@ -60,17 +61,13 @@ export async function openCodeCommand(): Promise<{ command: string; prefix: stri
     if (await exists(join(directory, "opencode.exe"))) return { command: join(directory, "opencode.exe"), prefix: [] };
     // npm's Windows .cmd wrapper cannot be safely spawned without a shell.
     for (const entry of [
-      join(directory, "node_modules", "opencode-ai", "bin", "opencode.exe"),
-      join(directory, "..", "opencode-ai", "bin", "opencode.exe"),
-      join(directory, "node_modules", "opencode-ai", "bin", "opencode"),
-      join(directory, "..", "opencode-ai", "bin", "opencode"),
+      join(directory, "node_modules", "@opencode", "cli", "bin", "opencode.exe"),
+      join(directory, "..", "@opencode", "cli", "bin", "opencode.exe"),
     ]) {
-      if (await exists(entry)) return extname(entry) === ".exe"
-        ? { command: entry, prefix: [] }
-        : { command: process.execPath, prefix: [entry] };
+      if (await exists(entry)) return { command: entry, prefix: [] };
     }
   }
-  throw new Error("OpenCode is not installed or is not on PATH. Install it from https://opencode.ai, then restart your terminal.");
+  throw new Error("OpenCode is not installed or is not on PATH. Run npm install in the Picard Code folder, or install OpenCode 2 from https://opencode.ai, then restart your terminal.");
 }
 
 export async function stopOwnedProcess(child: ChildProcess): Promise<void> {
@@ -135,8 +132,8 @@ export async function startEngine(directory: string, signal?: AbortSignal) {
       if (failed) throw failed;
       if (child.exitCode !== null || child.signalCode !== null) throw new Error(`OpenCode stopped during startup (exit ${child.exitCode ?? child.signalCode}). Run opencode in your terminal to check its configuration.`);
       try {
-        const health = await client.global.health({ signal: AbortSignal.timeout(1000), throwOnError: true });
-        if (health.data.healthy) return { client, child, close: () => stopOwnedProcess(child) };
+        await client.info(1000);
+        return { client, child, close: () => stopOwnedProcess(child) };
       } catch (error) {
         if (failed) throw failed;
         if (Date.now() >= deadline) throw error;

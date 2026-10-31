@@ -6,6 +6,7 @@ import { setTimeout as wait } from "node:timers/promises";
 import { Utterance, replyFailed, speakable, spokenReply, spokenSummary, type SpeechEvent } from "../shared/speech.js";
 import { addressed, voiceCommand } from "../shared/wake.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
+import type { FormField, FormRequest } from "../shared/types.js";
 import { speakingDocument } from "../server/azure-speech.js";
 import { DEFAULT_MAI_VOICE } from "../server/speech.js";
 import { attachSpeech } from "../server/speech-bridge.js";
@@ -164,25 +165,29 @@ test("only a final error or an unexplained failed action counts as a failed requ
 });
 
 test("spoken question answers match only clear, offered choices and keep the user's own words", () => {
-  const question = { header: "Direction", question: "Which approach should I use?", options: [{ label: "Small change", description: "" }, { label: "Explain first", description: "" }] };
+  const question = { key: "q0", type: "string" as const, title: "Direction", description: "Which approach should I use?", options: [{ value: "small", label: "Small change" }, { value: "explain", label: "Explain first" }], custom: true };
   const closed = { ...question, custom: false };
-  assert.equal(spokenQuestion(question), "Which approach should I use? The options are Small change or Explain first. You may also give a different answer.");
-  assert.equal(spokenQuestion(closed), "Which approach should I use? The options are Small change or Explain first.");
-  assert.deepEqual(matchSpokenAnswer(question, "Explain first."), { answer: "Explain first" });
-  assert.deepEqual(matchSpokenAnswer(question, "the second one"), { answer: "Explain first" });
-  assert.deepEqual(matchSpokenAnswer(question, "Option 1"), { answer: "Small change" });
-  assert.deepEqual(matchSpokenAnswer(question, "Let's go with the small change please"), { answer: "Small change" });
+  const form = (...fields: FormField[]): FormRequest => ({ id: "frm", sessionID: "ses", title: "Questions", fields });
+  assert.equal(spokenQuestion(form(question)), "Which approach should I use? The options are Small change or Explain first. You may also give a different answer.");
+  assert.equal(spokenQuestion(form(closed)), "Which approach should I use? The options are Small change or Explain first.");
+  assert.equal(spokenQuestion(form({ key: "name", type: "string", title: "Branch name" })), "Branch name");
+  assert.deepEqual(matchSpokenAnswer(question, "Explain first."), { answer: "explain" }, "the offered value is sent, not the label");
+  assert.deepEqual(matchSpokenAnswer(question, "the second one"), { answer: "explain" });
+  assert.deepEqual(matchSpokenAnswer(question, "Option 1"), { answer: "small" });
+  assert.deepEqual(matchSpokenAnswer(question, "Let's go with the small change please"), { answer: "small" });
   assert.deepEqual(matchSpokenAnswer(question, "Not the small change."), { answer: "Not the small change." }, "A negated reply must never become that choice.");
   assert.deepEqual(matchSpokenAnswer(closed, "Not the small change."), { retry: "Please choose Small change or Explain first." });
   assert.deepEqual(matchSpokenAnswer(closed, "small change or explain first"), { retry: "Please choose Small change or Explain first." });
   assert.deepEqual(matchSpokenAnswer(closed, "Something else entirely"), { retry: "Please choose Small change or Explain first." });
   const skip = matchSpokenAnswer(question, "Skip");
   assert.match("retry" in skip ? skip.retry : "", /Skip question on screen/);
-  const negativeLabel = { ...closed, options: [{ label: "Do not change files", description: "" }, { label: "Change files", description: "" }] };
-  assert.deepEqual(matchSpokenAnswer(negativeLabel, "do not change files"), { answer: "Do not change files" });
-  assert.equal(canAskAloud([question]), true);
-  assert.equal(canAskAloud([{ ...question, multiple: true }]), false);
-  assert.equal(canAskAloud([question, question]), false);
+  const negativeLabel = { ...closed, options: [{ value: "keep", label: "Do not change files" }, { value: "change", label: "Change files" }] };
+  assert.deepEqual(matchSpokenAnswer(negativeLabel, "do not change files"), { answer: "keep" });
+  assert.equal(canAskAloud(form(question)), true);
+  assert.equal(canAskAloud(form({ key: "many", type: "multiselect", options: question.options })), false);
+  assert.equal(canAskAloud(form(question, { ...question, key: "q1" })), false);
+  assert.equal(canAskAloud(form({ ...question, when: [{ key: "x", op: "eq", value: "y" }] } as FormField)), false);
+  assert.equal(canAskAloud(form(question, { ...question, key: "q1", hidden: true })), true);
 });
 
 test("MAI speaking uses the British default voice with its neutral style unless configured otherwise", () => {
