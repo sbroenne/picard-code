@@ -1,0 +1,15 @@
+node_modules/
+dist/
+web-dist/
+test-results/
+playwright-report/
+.env
+.env.*
+!.env.example
+*.log
+.picard-speech.json
+.picard-voice/
+__pycache__/
+.picard-test-*/
+.picard-live-check-*/
+.impeccable/hook.cache.json

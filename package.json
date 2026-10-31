@@ -1,0 +1,40 @@
+{
+  "name": "picard-code",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An unofficial computer-display-inspired local browser interface for OpenCode.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "bin": {
+    "picard-code": "./dist/server/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && vite build",
+    "start": "node dist/server/cli.js",
+    "test": "node --test dist/tests/*.test.js",
+    "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json",
+    "test:browser": "playwright test",
+    "opencode": "opencode",
+    "test:live": "node dist/tests/live-check.js",
+    "test:speech:live": "node dist/tests/speech-live-check.js",
+    "test:speech:local": "node dist/tests/speech-local-check.js",
+    "test:conversation:live": "node dist/tests/conversation-live-check.js"
+  },
+  "dependencies": {
+    "@opencode-ai/sdk": "1.19.5",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.1",
+    "opencode-ai": "1.19.5",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.0"
+  },
+  "allowScripts": {
+    "opencode-ai@1.19.5": true
+  }
+}
