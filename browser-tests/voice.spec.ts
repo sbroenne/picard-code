@@ -82,7 +82,7 @@ function status(page: import("@playwright/test").Page) {
 async function startListening(page: import("@playwright/test").Page) {
   await expect.poll(async () => `${await status(page).textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 15000 })
     .toMatch(/Standing by|Listening|Understanding|Click anywhere/);
-  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#voice-console").click();
+  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#messages").click();
   await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
 }
 
@@ -100,7 +100,7 @@ function sounds(page: import("@playwright/test").Page) {
 
 test.setTimeout(60000);
 
-test("listening stays on; “Computer” starts a task, follow-ups need no “Computer”; stopping is remembered", async ({ page }, info) => {
+test("listening stays on; “Computer” starts a task, follow-ups need no “Computer”; the app always opens listening", async ({ page }, info) => {
   await launch(page);
   await expect(page.getByRole("button", { name: "Start listening" })).toHaveCount(0);
   await expect(page.getByRole("textbox")).toHaveCount(0);
@@ -113,7 +113,7 @@ test("listening stays on; “Computer” starts a task, follow-ups need no “Co
   // The original words are sent unchanged, including "Computer"; the follow-up needed no "Computer".
   await expect(page.locator(".message[data-role=user]").first()).toContainText("Computer, hello there");
   await expect(page.locator(".message[data-role=user]").last()).toContainText("Hello again");
-  await expect(page.locator("#status-detail")).toHaveText("Go ahead with the next request, or say “New task”.");
+  await expect(page.locator("#status-detail")).toHaveText("Go ahead with the next request, or say “New log entry”.");
   await expect(page.locator(".message.current")).toHaveCount(2);
   await expect(page.locator(".message.earlier")).toHaveCount(2);
   await expect(page.locator(".message[data-role=user]")).toHaveCount(2);
@@ -123,15 +123,19 @@ test("listening stays on; “Computer” starts a task, follow-ups need no “Co
 
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   await expect(status(page)).toHaveText("Microphone off");
-  await page.reload();
-  await expect(status(page)).toHaveText("Microphone off");
-  await expect(page.locator("#status-detail")).toHaveText("Click here to switch it on.");
-  await expect(page.locator("#drawer-settings")).toBeHidden();
-  await page.locator("#voice-console").click();
+  await expect(page.locator("#status-detail")).toHaveText("Click the microphone button or press M to switch it on.");
+  await page.getByRole("button", { name: "Switch microphone on" }).click();
   await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
+  // The M key switches it off and on too.
+  await page.keyboard.press("m");
+  await expect(status(page)).toHaveText("Microphone off");
+  await page.keyboard.press("m");
+  await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
 
-  // Once agreed to, listening starts by itself when the page opens. The browser may want one click first.
+  // The app always opens with the microphone on, even after it was switched off. The browser may want one click first.
   await page.reload();
+  await expect(page.locator("#drawer-settings")).toBeHidden();
   await expect.poll(async () => `${await status(page).textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 15000 })
     .toMatch(/Standing by|Listening|Understanding|Click anywhere/);
   if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#messages").click();
@@ -273,18 +277,18 @@ test("replies show code safely, and the conversation reopens after reload", asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.reload();
   await expect(page.locator("#messages pre")).toContainText("const safe = true;");
-  await expect(status(page)).toHaveText("Microphone off");
+  await expect(status(page)).toHaveText(/Standing by|Listening|Understanding|Ready/, { timeout: 15000 });
   await page.screenshot({ path: info.outputPath("conversation-screen.png"), fullPage: true });
 });
 
-test("“New task” clears the screen and ends the task; the earlier conversation stays in the captain’s log", async ({ page }) => {
+test("“New log entry” clears the screen and ends the task; the earlier conversation stays in the captain’s log with its stardate and can be deleted", async ({ page }) => {
   const spoken = spokenText(page);
   await launch(page, "fresh");
   await startListening(page);
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
   await expect(status(page)).toHaveText("Speaking");
   await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
-  await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toBe("Ready for a new task.");
+  await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toBe("Ready for a new log entry.");
   await expect(page.locator(".message")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
   // After the task ends, speech needs "Computer" again.
@@ -293,9 +297,20 @@ test("“New task” clears the screen and ends the task; the earlier conversati
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   await page.getByRole("link", { name: "Captain’s log" }).click();
   await expect(page.locator("#conversations")).toContainText("hello there");
+  await expect(page.locator("#conversations .log-stardate")).toHaveText(/^Stardate -?\d+\.\d$/);
+  // Deleting asks first; "Keep" leaves the entry alone.
+  await page.getByRole("button", { name: /^Delete .*hello there/ }).click();
+  await expect(page.locator("#conversations")).toContainText("permanently? This cannot be undone.");
+  await page.getByRole("button", { name: "Keep" }).click();
+  await expect(page.locator("#conversations .conversation-button")).toHaveCount(1);
+  await page.getByRole("button", { name: /^Delete .*hello there/ }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.locator("#conversations")).toHaveText("Your conversations will appear here.");
+  // The panel stays open after deleting.
+  await expect(page.locator("#drawer-records")).toBeVisible();
 });
 
-test("“Stop listening”, even without “Computer”, is acknowledged and returns to standing by; the console switches the microphone", async ({ page }) => {
+test("“Stop listening”, even without “Computer”, is acknowledged and returns to standing by; only the microphone button switches the microphone", async ({ page }) => {
   const spoken = spokenText(page);
   await launch(page, "sleep");
   await startListening(page);
@@ -310,11 +325,15 @@ test("“Stop listening”, even without “Computer”, is acknowledged and ret
   const heard = await sounds(page);
   expect(heard[0]).toMatch(/^request-accepted/);
   expect(heard).toHaveLength(2);
-  // Clicking the console switches the microphone off, and on again.
-  await page.locator("#voice-console").click();
+  // Clicking the console does not switch the microphone off; the microphone button does.
+  await page.locator("#status").click();
+  await expect(status(page)).not.toHaveText("Microphone off");
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
   await expect(status(page)).toHaveText("Microphone off");
-  await expect(page.locator("#status-detail")).toHaveText("Click here to switch it on.");
-  await page.locator("#voice-console").click();
+  // Only the button switches it on again; a stray click on the console does not.
+  await page.locator("#status").click();
+  await expect(status(page)).toHaveText("Microphone off");
+  await page.getByRole("button", { name: "Switch microphone on" }).click();
   await expect(status(page)).toHaveText(/Standing by|Listening|Understanding|Speaking/, { timeout: 15000 });
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });

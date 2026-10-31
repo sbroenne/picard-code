@@ -164,6 +164,12 @@ export async function startFixture(project: string) {
         const action = match[2];
         if (!action) {
           if (request.method === "PATCH" && typeof data.title === "string") { session.title = data.title; send(204); }
+          else if (request.method === "DELETE") {
+            sessions.delete(sessionID);
+            messages.delete(sessionID);
+            publish(directory, "session.deleted", { sessionID });
+            send(204);
+          }
           else send(200, { data: session });
         } else if (action === "model") {
           session.model = data.model as SessionInfo["model"];

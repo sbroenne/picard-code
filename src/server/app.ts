@@ -178,7 +178,7 @@ export async function startApp(options: AppOptions) {
       project,
       version: info.version,
       ...models,
-      conversations: conversations.map((session) => ({ id: session.id, title: session.title, updated: session.time.updated })),
+      conversations: conversations.map((session) => ({ id: session.id, title: session.title, created: session.time.created, updated: session.time.updated })),
       statuses: Object.fromEntries(active.filter((id) => ids.has(id)).map((id) => [id, retrying.has(id)
         ? { type: "retry" as const, message: retrying.get(id) }
         : { type: "busy" as const }])),
@@ -341,10 +341,10 @@ export async function startApp(options: AppOptions) {
         if (path === "/api/conversations" && method === "POST") {
           const data = await body(request);
           const result = await client.createSession(project, typeof data.title === "string" ? data.title.trim().slice(0, 120) || "New conversation" : "New conversation");
-          json(response, 201, { id: result.id, title: result.title, updated: result.time.updated });
+          json(response, 201, { id: result.id, title: result.title, created: result.time.created, updated: result.time.updated });
           return;
         }
-        const match = /^\/api\/conversations\/([^/]+)\/(messages|send|stop)$/.exec(path);
+        const match = /^\/api\/conversations\/([^/]+)\/(messages|send|stop|delete)$/.exec(path);
         if (match) {
           const id = match[1]!;
           const session = await assertSession(id, project);
@@ -356,6 +356,13 @@ export async function startApp(options: AppOptions) {
             await body(request);
             await client.interrupt(id, project);
             json(response, 200, { stopped: true });
+            return;
+          }
+          if (match[2] === "delete" && method === "POST") {
+            await body(request);
+            if ((await client.active(project)).includes(id)) throw new HttpError(409, "This log entry is still working. Stop it before deleting it.");
+            await client.deleteSession(id, project);
+            json(response, 200, { deleted: true });
             return;
           }
           if (match[2] === "send" && method === "POST") {

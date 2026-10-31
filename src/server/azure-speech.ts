@@ -120,7 +120,7 @@ export function azureSpeech(settings: AzureSettings, key: string): SpeechService
           accept({
             write(audio) {
               if (closed || socket.readyState !== WebSocket.OPEN) throw new Error("Azure's listening connection is closed.");
-              if (socket.bufferedAmount > 128_000) throw new Error("The listening connection fell behind. Check your connection, then click the computer panel to listen again.");
+              if (socket.bufferedAmount > 128_000) throw new Error("The listening connection fell behind. Check your connection, then click the microphone button to listen again.");
               socket.send(JSON.stringify({ type: "input_audio_buffer.append", audio: Buffer.from(audio).toString("base64") }));
             },
             commit() {

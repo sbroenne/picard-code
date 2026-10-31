@@ -30,7 +30,7 @@
 
       <nav id="sidebar" class="sidebar" aria-label="Panels">
         <a id="nav-conversation" class="rail-button tan" href="#">Conversation</a>
-        <button id="new-conversation" class="rail-button orange" type="button">New task</button>
+        <button id="new-conversation" class="rail-button orange" type="button">New log entry</button>
         <a class="rail-button peach" href="#records" data-drawer-link="records">Captain’s log</a>
         <span class="rail-fill"><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Model"><small>Model</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a></span>
         <span id="rail-end" class="readout blue"><small>Stardate</small><b id="readout-stardate">—</b></span>
@@ -54,7 +54,12 @@
         </div>
 
         <section id="voice-console" class="console" tabindex="-1" aria-label="Computer" data-phase="off">
-          <button id="listen-toggle" class="voice-mark" type="button" aria-label="Stop listening" hidden><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></button>
+          <div class="voice-side">
+            <button id="listen-toggle" class="mic-button" type="button" aria-label="Switch microphone off" aria-keyshortcuts="M" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/><path class="mic-slash" d="M3.5 3.5l17 17"/></svg>
+            </button>
+            <span class="voice-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          </div>
           <div class="voice-readout">
             <p id="status" class="status" role="status">Starting up</p>
             <p id="status-detail" class="status-detail"></p>

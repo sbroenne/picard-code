@@ -52,9 +52,11 @@ let answering = false;
 // After "Computer" alone, the next words are taken as the request.
 const GO_AHEAD = 8000;
 let goAheadUntil = 0;
-// "Computer" starts a task; after that every request in the task counts, until "new task" or "stop listening".
+// "Computer" starts a task; after that every request in the task counts, until "new log entry" or "stop listening".
 let engagedWith: string | undefined;
 let notSent = "";
+/** The log entry waiting for the captain to confirm its deletion. */
+let confirmingDelete: string | undefined;
 const voice = new VoiceConversation({
   changed: voiceControls,
   error: notice,
@@ -81,7 +83,7 @@ async function heard(text: string, startedAt: number) {
   const command = voiceCommand(request);
   if (command === "stop") { await stopByVoice(); return; }
   if (command === "new") { freshByVoice(); return; }
-  if (command === "mute") { muteMicrophone(); voice.speak("Microphone off. Click the computer panel to switch it on."); return; }
+  if (command === "mute") { muteMicrophone(); voice.speak("Microphone off. Click the microphone button or press M to switch it on."); return; }
   if (question) { await answerAloud(request); return; }
   if (!request) {
     goAheadUntil = Date.now() + GO_AHEAD;
@@ -121,7 +123,7 @@ function freshByVoice() {
   if (state?.permissions.some((item) => item.sessionID === selected)) voice.speak("A decision is needed first. Choose Allow once or Deny on screen.");
   else if (pending()) voice.speak("Please answer the question on screen first.");
   else if (busy() || submitting) voice.speak("Work is in progress. Say stop to cancel it first.");
-  else { startFresh(); voice.speak("Ready for a new task."); }
+  else { startFresh(); voice.speak("Ready for a new log entry."); }
 }
 
 async function stopByVoice() {
@@ -158,12 +160,13 @@ async function answerAloud(text: string) {
   }
 }
 
+// The app always opens with the microphone on; switching it off lasts until it is switched on or the page reloads.
+let microphoneSwitchedOff = false;
 function muted() {
-  try { return localStorage.getItem("picard-muted") === "yes"; } catch { return false; }
+  return microphoneSwitchedOff;
 }
 function setMuted(value: boolean) {
-  try { if (value) localStorage.setItem("picard-muted", "yes"); else localStorage.removeItem("picard-muted"); }
-  catch { /* Muting still applies until the page reloads. */ }
+  microphoneSwitchedOff = value;
 }
 
 /** The microphone is simply on, unless muted or changing settings. */
@@ -191,10 +194,10 @@ function consoleStatus(): [string, string] {
   if (selected && state.statuses[selected]?.type === "retry") return ["Retrying", stopHint];
   if (busy() || submitting) return ["Working", stopHint];
   if (historyLoading) return ["Loading", ""];
-  if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New task”." : "Say “Computer”, then your request."];
+  if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New log entry”." : "Say “Computer”, then your request."];
   if (voice.opening) return ["Starting microphone", ""];
   if (!state.speech?.configured) return ["Ready", ""];
-  return ["Microphone off", "Click here to switch it on."];
+  return ["Microphone off", "Click the microphone button or press M to switch it on."];
 }
 
 function voiceControls() {
@@ -205,8 +208,9 @@ function voiceControls() {
   const toggle = element<HTMLButtonElement>("listen-toggle");
   toggle.hidden = !state?.speech?.configured;
   toggle.setAttribute("aria-label", voice.microphone ? "Switch microphone off" : "Switch microphone on");
+  toggle.title = `${voice.microphone ? "Switch microphone off" : "Switch microphone on"} (M)`;
+  toggle.toggleAttribute("data-on", voice.microphone);
   toggle.disabled = voice.opening || !voice.microphone && !ready;
-  element("voice-console").title = voice.microphone ? "Click to switch the microphone off" : "Click to switch the microphone on";
   element("voice-console").dataset.phase = voice.microphone || voice.phase === "speaking" ? voice.phase : "off";
   if (voice.phase === "listening") notSent = "";
   element("voice-partial").textContent = voice.phase === "listening" || voice.phase === "thinking" ? voice.partial : notSent;
@@ -324,16 +328,44 @@ function renderState() {
   else if (state.defaultModel) model.value = modelValue(state.defaultModel);
   const list = element("conversations");
   list.replaceChildren();
+  if (confirmingDelete && !state.conversations.some((item) => item.id === confirmingDelete)) confirmingDelete = undefined;
   for (const item of state.conversations) {
-    const node = button(item.title, "conversation-button", () => selectConversation(item.id));
+    const row = make("div", "conversation-row");
+    if (confirmingDelete === item.id) {
+      row.classList.add("confirming");
+      const question = make("p", "delete-question", `Delete “${item.title}” permanently? This cannot be undone.`);
+      const yes = button("Delete", "delete-confirm", () => deleteConversation(item.id));
+      const no = button("Keep", "delete-cancel", () => { confirmingDelete = undefined; renderState(); });
+      row.append(question, yes, no);
+      list.append(row);
+      continue;
+    }
+    const node = button("", "conversation-button", () => selectConversation(item.id));
+    // Like a captain's log, each entry carries the stardate it was started.
+    const started = new Date(item.created);
+    const known = Number.isFinite(started.getTime());
+    const when = known ? `, stardate ${formatStardate(started)}` : "";
+    if (known) {
+      const date = make("span", "log-stardate", `Stardate ${formatStardate(started)}`);
+      date.title = started.toLocaleString(undefined, { dateStyle: "full", timeStyle: "short" });
+      node.append(date);
+    }
+    node.append(make("span", "log-title", item.title));
+    node.setAttribute("aria-label", `${item.title}${when}`);
     if (item.id === selected) node.setAttribute("aria-current", "page");
     if (state.permissions.some((request) => request.sessionID === item.id) || state.questions.some((request) => request.sessionID === item.id)) {
       const dot = make("span", "pending-dot");
       dot.setAttribute("aria-hidden", "true");
       node.prepend(dot);
-      node.setAttribute("aria-label", `${item.title}, needs your reply`);
+      node.setAttribute("aria-label", `${item.title}${when}, needs your reply`);
     }
-    list.append(node);
+    const remove = button("✕", "delete-button", () => { confirmingDelete = item.id; renderState(); });
+    const working = !!state.statuses[item.id];
+    remove.disabled = working;
+    remove.setAttribute("aria-label", `Delete ${item.title}`);
+    remove.title = working ? "Still working. Stop it before deleting." : "Delete this log entry";
+    row.append(node, remove);
+    list.append(row);
   }
   if (!state.conversations.length) list.append(make("p", "muted", "Your conversations will appear here."));
   renderApprovals();
@@ -723,6 +755,16 @@ function startFresh() {
   renderMessages();
 }
 
+/** Permanently deletes a log entry after the captain confirmed it. */
+async function deleteConversation(id: string) {
+  confirmingDelete = undefined;
+  await api(`conversations/${encodeURIComponent(id)}/delete`, {});
+  if (engagedWith === id) engagedWith = undefined;
+  if (state) state.conversations = state.conversations.filter((item) => item.id !== id);
+  if (selected === id) startFresh();
+  else renderState();
+}
+
 async function newConversation(title = "New conversation") {
   const conversation = await api<Conversation>("conversations", { title });
   if (state) state.conversations.unshift(conversation);
@@ -856,7 +898,8 @@ window.addEventListener("hashchange", () => { void perform(route); });
 // Clicking the conversation behind an open panel closes the panel.
 document.addEventListener("click", (event) => {
   const target = event.target as Element | null;
-  if (openDrawer() && target && !target.closest(".drawer, #sidebar, .header")) closeDrawer();
+  // A button that redrew its own panel is no longer on the page; that click was still inside the panel.
+  if (openDrawer() && target?.isConnected && !target.closest(".drawer, #sidebar, .header")) closeDrawer();
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && openDrawer()) { event.preventDefault(); closeDrawer(); }
@@ -946,14 +989,20 @@ function showStardate() {
 }
 showStardate();
 setInterval(showStardate, 60_000);
-// The console is the computer: clicking it switches the microphone off, and on again.
-element("voice-console").addEventListener("click", (event) => {
-  const target = event.target as Element;
-  if (!target.closest("#listen-toggle") && target.closest("button, a")) return;
-  // The browser's first click only allows sound; it does not switch the microphone off.
-  if (voice.microphone && voice.waitingForClick) return;
-  if (voice.microphone) { muteMicrophone(); return; }
-  if (!voice.opening) void perform(startListening);
+// Only the microphone button (or the M key) switches the microphone, so a stray click never starts listening.
+function toggleMicrophone() {
+  const toggle = element<HTMLButtonElement>("listen-toggle");
+  if (toggle.hidden || toggle.disabled) return;
+  if (voice.microphone) muteMicrophone();
+  else if (!voice.opening) void perform(startListening);
+}
+element("listen-toggle").addEventListener("click", toggleMicrophone);
+document.addEventListener("keydown", (event) => {
+  if (event.key.toLowerCase() !== "m" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+  const target = event.target as HTMLElement | null;
+  if (openDrawer() || target?.closest("input, textarea, select, [contenteditable]")) return;
+  event.preventDefault();
+  toggleMicrophone();
 });
 element("stop-speaking").addEventListener("click", () => voice.stopSpeaking());
 for (const name of ["pointerdown", "keydown"] as const) document.addEventListener(name, () => voice.unlock(), true);

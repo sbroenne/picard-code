@@ -111,7 +111,10 @@ screen; there is no phone layout.
   formula 1000 × (year − 2323) plus the part of the year gone by, so today's
   dates are negative. Hover over it for the ordinary date and time.
 - **Captain’s log** (`#records`): earlier conversations in the project folder (latest
-  100). Choose one to reopen it.
+  100), each marked with the stardate it was started (hover for the ordinary
+  date). Choose one to reopen it. The ✕ beside an entry deletes it from OpenCode
+  permanently, after you confirm; an entry that is still working cannot be
+  deleted until it is stopped.
 - **Settings** (`#settings/…`): there is no Settings button. Each tile in the
   side panel opens its own setting: **Provider** the sign-in steps,
   **Model** the model, **Project** the folder, **Listen · Speak** the speech
@@ -128,13 +131,15 @@ error rather than switching to another model or provider.
 
 ## Use it
 
-- Listening starts by itself whenever the app opens; the browser asks for
-  microphone access the first time. It stays off if you switched the
-  microphone off (remembered) and while a setting is open. If the browser blocks
+- The app always opens with the microphone on; the browser asks for
+  microphone access the first time. Listening pauses while a setting is open. If the browser blocks
   sound until you interact, the screen says "Click anywhere to start listening."
-- **Click the computer panel** (the status and its lights) to switch the
-  microphone off; it shows **Microphone off**. Click it again to switch it on.
-  Saying "Computer, microphone off" (or "Computer, mute") does the same.
+- The **microphone button** beside the status lights, or the **M** key,
+  switches the microphone off (the button turns red and crossed out, and the
+  status says **Microphone off**) and on again. Nothing else switches it on, so
+  a stray click never starts listening. Saying "Computer, microphone off" (or
+  "Computer, mute") also switches it off. Reloading the page switches it back
+  on.
 - The microphone stays on. While the room is quiet, the console shows
   **Standing by** and nothing leaves your computer. When someone starts
   talking, that speech (including the half second before it, so the first word
@@ -146,7 +151,7 @@ error rather than switching to another model or provider.
   about eight seconds to say the request.
 - **Within a task, "Computer" is not needed.** Once the first request is
   sent, everything said is sent to the model, with your words unchanged, until
-  you say "new task" or "stop listening" (or choose New task, Captain’s log or another
+  you say "new log entry" or "stop listening" (or choose New log entry, Captain’s log or another
   project). Keep other conversations out of earshot during a task, or say
   "stop listening".
 - **"Stop listening"** (or "stand by", "that will be all") is always
@@ -155,8 +160,8 @@ error rather than switching to another model or provider.
   carries on, and the microphone stays on.
 - **"Stop"** (or "cancel that", "belay that", "never mind"; with "Computer"
   before a task) cancels the current work, the same as **Stop work**.
-- There is one ongoing conversation. **"Computer, new task"** (or "start
-  over", "new conversation") clears the screen, the same as the **New task**
+- There is one ongoing conversation. **"Computer, new log entry"** (or "new
+  task", "start over") clears the screen, the same as the **New log entry**
   button; your next request, again starting with "Computer", starts a new
   log. Earlier conversations stay in the **Captain’s log**. Requests made while work is
   running, a question is waiting, or a decision is needed are not sent: with
@@ -232,7 +237,7 @@ sends any speech it hears to Azure** to find out whether it starts with
 sent. Only requests that start with "Computer" go to the model. MAI speaking
 sends reply text to Azure. Whisper and Kokoro process their audio locally.
 With both local speech services and a model on your own computer, nothing
-leaves the computer; with any online provider, coding requests do. Say "stop listening" before conversations you do not want sent to the model, or click the computer panel to switch the microphone off so nothing is heard at all;
+leaves the computer; with any online provider, coding requests do. Say "stop listening" before conversations you do not want sent to the model, or switch the microphone off with its button so nothing is heard at all;
 background speech can be misunderstood.
 
 ## Azure speech setup
@@ -563,7 +568,7 @@ and repeat the browser checks.
 - **Unusual installation:** `PICARD_OPENCODE_PATH` can point to the real
   OpenCode program or its JavaScript starting file, but not a Windows `.cmd` shortcut.
 - **Microphone will not start:** use a current browser at the printed local
-  address, click the computer panel, allow microphone access,
+  address, click the microphone button, allow microphone access,
   and check the input
   device. The selected speech setup and an available model are required.
 - **Azure rejects speech:** check resource access, the deployed live listening

@@ -73,15 +73,25 @@ try {
       if (typeof payload !== "string") { sentAudio += payload.length; if (speaking) audioWhileSpeaking++; }
     });
   });
-  // Stay not listening until the model is chosen, so the first request uses it.
-  await page.addInitScript(() => { if (!sessionStorage.getItem("picard-check")) { sessionStorage.setItem("picard-check", "1"); localStorage.setItem("picard-muted", "yes"); } });
+  // The app opens with the microphone on. Hold this test browser's microphone back until the model is chosen,
+  // so the first request uses it.
+  await page.addInitScript(() => {
+    const devices = navigator.mediaDevices;
+    const original = devices.getUserMedia.bind(devices);
+    let release!: () => void;
+    const ready = new Promise<void>((done) => { release = done; });
+    (window as unknown as { startTestMicrophone: () => void }).startTestMicrophone = release;
+    devices.getUserMedia = async (constraints) => { await ready; return original(constraints); };
+  });
   await page.goto(app.url);
-  await expect(page.getByRole("status")).toHaveText("Microphone off", { timeout: 30_000 });
-  // Settings pauses listening, so choose the model there first; closing it starts listening.
-  await page.goto(`${new URL(app.url).origin}/#settings/model`);
+  await expect(page.getByRole("status")).not.toHaveText("Starting up", { timeout: 30_000 });
+  await page.evaluate(() => { location.hash = "settings/model"; });
   await page.selectOption("#model", JSON.stringify([choice.providerID, choice.modelID]));
   await page.keyboard.press("Escape");
-  await page.locator("#voice-console").click();
+  await page.evaluate(() => (window as unknown as { startTestMicrophone: () => void }).startTestMicrophone());
+  await expect.poll(async () => `${await page.getByRole("status").textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 30_000 })
+    .toMatch(/Standing by|Listening|Understanding|Click anywhere/);
+  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#messages").click();
   await expect(page.locator(".message[data-role=user]")).toContainText(/connection is ready/i, { timeout: 60_000 });
   await expect(page.locator(".message[data-role=assistant]")).toContainText(/connection is ready/i, { timeout: 90_000 });
   await expect(page.getByRole("status")).toHaveText("Speaking", { timeout: 30_000 });

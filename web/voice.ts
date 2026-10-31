@@ -183,7 +183,7 @@ export class VoiceConversation {
       if (revision !== this.revision) { media.getTracks().forEach((track) => track.stop()); return; }
       this.media = media;
       media.getTracks().forEach((track) => { track.onended = () => {
-        if (this.microphone) { this.failed = true; this.microphoneOff(); this.hooks.error("The microphone disconnected. Check your device, then click the computer panel to listen again."); }
+        if (this.microphone) { this.failed = true; this.microphoneOff(); this.hooks.error("The microphone disconnected. Check your device, then click the microphone button to listen again."); }
       }; });
       await this.context.audioWorklet.addModule("/microphone-worklet.js");
       if (revision !== this.revision) return;
@@ -243,12 +243,12 @@ export class VoiceConversation {
       return;
     }
     if (this.socket.bufferedAmount > 128_000) {
-      this.fail("The microphone connection fell behind. Check your connection, then click the computer panel to listen again.");
+      this.fail("The microphone connection fell behind. Check your connection, then click the microphone button to listen again.");
       return;
     }
     if (this.queue) {
       this.queue.push(packet);
-      if (this.queue.length > 1500) { this.fail("The listening service did not start within 30 seconds. Check the speech setup, then click the computer panel to listen again."); return; }
+      if (this.queue.length > 1500) { this.fail("The listening service did not start within 30 seconds. Check the speech setup, then click the microphone button to listen again."); return; }
     } else this.socket.send(packet);
     if (change === "end") {
       if (this.queue) this.endedEarly = true;
