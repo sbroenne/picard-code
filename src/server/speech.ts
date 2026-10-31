@@ -1,5 +1,7 @@
-import { access, readFile, rename, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { spawn } from "node:child_process";
+import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadAzureSpeech } from "./azure-speech.js";
 import { localSpeech } from "./local-speech.js";
@@ -12,24 +14,82 @@ export const DEFAULT_MAI_VOICE = "en-GB-Emily:MAI-Voice-2.1-Flash";
 /** Settings that the browser may read and change. Keys and passwords are never part of these. */
 export const SETTING_NAMES = ["subscription", "resourceGroup", "resourceName", "region", "deployment", "voice", "voiceStyle", "kokoroVoice"] as const;
 const NAME = /^[a-zA-Z0-9_.:-]{1,150}$/;
+/** Local speech files live in the Picard Code folder, never in the user's project. */
+const PICARD_FOLDER = fileURLToPath(new URL("../../", import.meta.url));
+const VOICE_FOLDER = resolve(PICARD_FOLDER, ".picard-voice");
+const LOCAL_PATHS = {
+  localPython: resolve(VOICE_FOLDER, process.platform === "win32" ? "Scripts" : "bin", process.platform === "win32" ? "python.exe" : "python"),
+  whisperModel: resolve(VOICE_FOLDER, "models", "whisper-tiny.en"),
+  kokoroModel: resolve(VOICE_FOLDER, "models", "kokoro-v1.0.onnx"),
+  kokoroVoices: resolve(VOICE_FOLDER, "models", "voices-v1.0.bin"),
+} as const;
+
+function localPath(record: Record<string, unknown> | undefined, key: keyof typeof LOCAL_PATHS) {
+  const value = record?.[key] ?? LOCAL_PATHS[key];
+  if (typeof value !== "string" || !value.trim()) throw new Error(`Provide a valid ${key} path in the speech settings file.`);
+  return resolve(value);
+}
+
+/** Whether the local Whisper and Kokoro files that a choice needs are all present. */
+export async function localSpeechReady(record: Record<string, unknown> | undefined, listening = true, speaking = true) {
+  const keys: (keyof typeof LOCAL_PATHS)[] = ["localPython", ...(listening ? ["whisperModel" as const] : []), ...(speaking ? ["kokoroModel" as const, "kokoroVoices" as const] : [])];
+  try { await Promise.all(keys.map((key) => access(localPath(record, key)))); return true; }
+  catch { return false; }
+}
+
+/** Only the standard location is set up automatically; custom paths are the owner's to fill. */
+export function canSetUpLocalSpeech(record: Record<string, unknown> | undefined) {
+  return (Object.keys(LOCAL_PATHS) as (keyof typeof LOCAL_PATHS)[]).every((key) => localPath(record, key) === LOCAL_PATHS[key]);
+}
+
+/** Runs the same steps as npm run setup:speech, reporting each step as it starts. */
+export function setUpLocalSpeech(onStep: (step: string) => void) {
+  return new Promise<void>((done, fail) => {
+    const child = spawn(process.execPath, [resolve(PICARD_FOLDER, "scripts", "setup-speech.mjs")], { cwd: PICARD_FOLDER, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    let last = "";
+    const read = (chunk: Buffer) => {
+      for (const line of chunk.toString("utf8").split(/[\r\n]+/)) {
+        const text = line.trim();
+        if (!text) continue;
+        last = text;
+        if (/^(Creating|Installing|Downloading|uv is not installed|That step failed)/.test(text)) onStep(text.replace(/\.+$/, ""));
+      }
+    };
+    child.stdout.on("data", read);
+    child.stderr.on("data", read);
+    child.on("error", (error) => fail(new Error(`Could not start the local speech setup. ${error.message}`)));
+    child.on("exit", (code) => code === 0 ? done() : fail(new Error(`The local speech setup stopped. ${last}`)));
+  });
+}
 
 /**
- * The launch folder's settings file is used when it exists, as before.
- * Otherwise settings live in the Picard Code folder, never in the user's project.
+ * Speech settings belong to the user, in .picard-code/speech.json in their home folder
+ * (for example C:\Users\name on Windows), never in the Picard Code or project folder.
+ * Settings that earlier versions kept in .picard-speech.json are copied over once; the old file is left alone.
  */
-export async function speechSettingsFile() {
-  const launch = resolve(".picard-speech.json");
-  try { await access(launch); return launch; }
-  catch { return fileURLToPath(new URL("../../.picard-speech.json", import.meta.url)); }
+export async function speechSettingsFile(home = homedir(), earlier = [fileURLToPath(new URL("../../.picard-speech.json", import.meta.url)), resolve(".picard-speech.json")]) {
+  const file = join(home, ".picard-code", "speech.json");
+  try { await access(file); return file; }
+  catch { /* not there yet */ }
+  for (const old of earlier) {
+    let text: string;
+    try { text = await readFile(old, "utf8"); }
+    catch { continue; }
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, text, { encoding: "utf8", mode: 0o600 });
+    console.log(`Speech settings now live in ${file} (copied from ${old}).`);
+    break;
+  }
+  return file;
 }
 
 export async function readSpeechSettings(file: string): Promise<Record<string, unknown> | undefined> {
   try {
     const value: unknown = JSON.parse(await readFile(file, "utf8"));
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(".picard-speech.json must contain a settings object.");
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("The speech settings file must contain a settings object.");
     return value as Record<string, unknown>;
   } catch (error) {
-    if (error instanceof SyntaxError) throw new Error("The speech settings file is not valid. Check .picard-speech.json against the README example.");
+    if (error instanceof SyntaxError) throw new Error("The speech settings file is not valid. Check it against the README example.");
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return undefined;
     throw error;
   }
@@ -62,6 +122,7 @@ export function mergeSpeechSettings(saved: Record<string, unknown> | undefined, 
 }
 
 export async function saveSpeechSettings(file: string, record: Record<string, unknown>) {
+  await mkdir(dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}.tmp`;
   await writeFile(temporary, `${JSON.stringify(record, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   await rename(temporary, file);
@@ -84,11 +145,6 @@ export async function speechFromSettings(record: Record<string, unknown>, overri
     if (typeof value !== "string" || !NAME.test(value)) throw new Error(`Provide a valid ${key} in the speech settings. Do not put keys there.`);
     return value;
   };
-  const path = (key: string, fallback: string) => {
-    const value = record[key] ?? fallback;
-    if (typeof value !== "string" || !value.trim()) throw new Error(`Provide a valid ${key} path in .picard-speech.json.`);
-    return resolve(value);
-  };
   const azure = listening === "mai" || speaking === "mai" ? await loadAzureSpeech({
     subscription: name("subscription"), resourceGroup: name("resourceGroup"),
     resourceName: name("resourceName"), region: name("region"),
@@ -97,10 +153,10 @@ export async function speechFromSettings(record: Record<string, unknown>, overri
     voiceStyle: speaking === "mai" ? name("voiceStyle", "neutral") : "neutral",
   }) : undefined;
   const local = listening === "whisper" || speaking === "kokoro" ? await localSpeech({
-    python: path("localPython", resolve(".picard-voice", process.platform === "win32" ? "Scripts" : "bin", process.platform === "win32" ? "python.exe" : "python")),
-    whisperModel: path("whisperModel", resolve(".picard-voice", "models", "whisper-tiny.en")),
-    kokoroModel: path("kokoroModel", resolve(".picard-voice", "models", "kokoro-v1.0.onnx")),
-    kokoroVoices: path("kokoroVoices", resolve(".picard-voice", "models", "voices-v1.0.bin")),
+    python: localPath(record, "localPython"),
+    whisperModel: localPath(record, "whisperModel"),
+    kokoroModel: localPath(record, "kokoroModel"),
+    kokoroVoices: localPath(record, "kokoroVoices"),
     kokoroVoice: name("kokoroVoice", "bf_emma"),
   }, listening === "whisper", speaking === "kokoro", signal) : undefined;
   const listener = listening === "mai" ? azure! : local!.listener;

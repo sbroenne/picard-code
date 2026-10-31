@@ -22,7 +22,8 @@
     "test:speech:local": "node dist/tests/speech-local-check.js",
     "test:conversation:live": "node dist/tests/conversation-live-check.js",
     "test:behavior:live": "node dist/tests/behavior-live-check.js",
-    "setup:sounds": "node scripts/setup-sounds.mjs"
+    "setup:sounds": "node scripts/setup-sounds.mjs",
+    "setup:speech": "node scripts/setup-speech.mjs"
   },
   "dependencies": {
     "dompurify": "^3.4.17",

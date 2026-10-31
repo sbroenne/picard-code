@@ -803,17 +803,22 @@ async function boot() {
 
 const speechFields = ["listening", "speaking", "subscription", "resourceGroup", "resourceName", "region", "deployment", "voice", "voiceStyle", "kokoroVoice"] as const;
 function speechInput(name: typeof speechFields[number]) { return element<HTMLInputElement | HTMLSelectElement>(`setting-${name}`); }
+/** Whether the local Whisper and Kokoro files are already on this computer. */
+let localSpeechReady = false;
 function speechFieldVisibility() {
   const azureListening = speechInput("listening").value === "mai";
   const azureSpeaking = speechInput("speaking").value === "mai";
   element("azure-fields").hidden = !azureListening && !azureSpeaking;
-  element("local-note").hidden = azureListening && azureSpeaking;
+  element("local-note").hidden = (azureListening && azureSpeaking) || localSpeechReady;
   const show = (selector: string, visible: boolean) => document.querySelectorAll<HTMLElement>(selector).forEach((node) => { node.hidden = !visible; });
   show(".kokoro-field", !azureSpeaking);
   show(".azure-listening", azureListening);
   show(".azure-speaking", azureSpeaking);
 }
-function showSpeechSettings(result: { settings: SpeechSettings; file: string }) {
+type SavedSpeech = { settings: SpeechSettings; file: string; localReady: boolean; speech: AppState["speech"] };
+type SpeechSetup = { state: "running" | "done" | "failed"; step: string; error?: string; result?: SavedSpeech };
+function showSpeechSettings(result: { settings: SpeechSettings; file: string; localReady: boolean }) {
+  localSpeechReady = result.localReady;
   for (const name of speechFields) speechInput(name).value = result.settings[name];
   element("settings-file").textContent = `Saved in ${result.file}`;
   speechFieldVisibility();
@@ -906,7 +911,15 @@ element("speech-form").addEventListener("submit", (event) => {
     // Open voice connections use the old services; close them before switching.
     voice.close();
     try {
-      const saved = await api<{ settings: SpeechSettings; file: string; speech: AppState["speech"] }>("settings", data);
+      let saved = await api<SavedSpeech | SpeechSetup>("settings", data);
+      // The first local choice downloads its files in the background; follow it until it is in use.
+      while ("state" in saved) {
+        if (saved.state === "failed") throw new Error(saved.error ?? "The local speech setup stopped.");
+        if (saved.state === "done" && saved.result) { saved = saved.result; break; }
+        result.textContent = `${saved.step}. This can take a few minutes`;
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        saved = await api<SpeechSetup>("speech-setup");
+      }
       showSpeechSettings(saved);
       if (state) state.speech = saved.speech;
       result.textContent = "Speech settings saved and in use";

@@ -10,7 +10,7 @@ import { projectDirectory } from "./process.js";
 import { computerInstructions } from "./instructions.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechService } from "./speech-types.js";
-import { describeSpeechSettings, mergeSpeechSettings, readSpeechSettings, saveSpeechSettings, speechFromSettings, speechSettingsFile } from "./speech.js";
+import { canSetUpLocalSpeech, describeSpeechSettings, localSpeechReady, mergeSpeechSettings, readSpeechSettings, saveSpeechSettings, setUpLocalSpeech, speechFromSettings, speechSettingsFile } from "./speech.js";
 
 class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -125,6 +125,8 @@ export interface AppOptions {
   speechFile?: string;
   /** Starts speech from saved settings; replaceable in tests so no real service is called. */
   startSpeech?: (settings: Record<string, unknown>) => Promise<SpeechService>;
+  localSpeechReady?: (settings: Record<string, unknown> | undefined, listening?: boolean, speaking?: boolean) => Promise<boolean>;
+  setUpLocalSpeech?: (onStep: (step: string) => void) => Promise<void>;
   /** Optional folder holding the short sounds downloaded by `npm run setup:sounds`. */
   soundFolder?: string;
 }
@@ -142,6 +144,29 @@ export async function startApp(options: AppOptions) {
   let speechError = options.speechError;
   const speechFile = options.speechFile ?? await speechSettingsFile();
   const startSpeech = options.startSpeech ?? ((settings) => speechFromSettings(settings));
+  const localReady = options.localSpeechReady ?? localSpeechReady;
+  const setUpLocal = options.setUpLocalSpeech ?? setUpLocalSpeech;
+  /** The one-time local speech download runs in the background, because it takes minutes. */
+  let localSetup: { state: "running" | "done" | "failed"; step: string; error?: string; result?: unknown } | undefined;
+
+  const applySpeech = async (record: Record<string, unknown>) => {
+    let next: SpeechService;
+    // Start the new services first, so a mistake leaves the working ones in place.
+    try { next = await startSpeech(record); }
+    catch (error) { throw new HttpError(400, `The new speech settings did not work, so nothing was changed. ${errorMessage(error)}`); }
+    try { await saveSpeechSettings(speechFile, record); }
+    catch (error) {
+      await next.close?.();
+      throw new HttpError(500, `Could not save the speech settings. ${errorMessage(error)}`);
+    }
+    const previous = speech;
+    speech = next;
+    speechError = undefined;
+    closeSpeech.disconnect();
+    try { await previous?.close?.(); }
+    catch (error) { console.error(`Could not fully stop the previous speech service: ${errorMessage(error)}`); }
+    return { settings: describeSpeechSettings(record), file: speechFile, localReady: true, speech: { configured: true, listening: next.selection?.listening ?? "mai", speaking: next.selection?.speaking ?? "mai" } };
+  };
 
   // OpenCode reports only whether work runs; a scheduled retry is remembered from its event.
   const retrying = new Map<string, string>();
@@ -291,7 +316,12 @@ export async function startApp(options: AppOptions) {
           return;
         }
         if (path === "/api/settings" && method === "GET") {
-          json(response, 200, { settings: describeSpeechSettings(await readSpeechSettings(speechFile)), file: speechFile });
+          const saved = await readSpeechSettings(speechFile);
+          json(response, 200, { settings: describeSpeechSettings(saved), file: speechFile, localReady: await localReady(saved) });
+          return;
+        }
+        if (path === "/api/speech-setup" && method === "GET") {
+          json(response, 200, localSetup ?? { state: "none", step: "" });
           return;
         }
         if (path === "/api/settings" && method === "POST") {
@@ -299,22 +329,26 @@ export async function startApp(options: AppOptions) {
           let record: Record<string, unknown>;
           try { record = mergeSpeechSettings(await readSpeechSettings(speechFile), data); }
           catch (error) { throw new HttpError(400, errorMessage(error)); }
-          let next: SpeechService;
-          // Start the new services first, so a mistake leaves the working ones in place.
-          try { next = await startSpeech(record); }
-          catch (error) { throw new HttpError(400, `The new speech settings did not work, so nothing was changed. ${errorMessage(error)}`); }
-          try { await saveSpeechSettings(speechFile, record); }
-          catch (error) {
-            await next.close?.();
-            throw new HttpError(500, `Could not save the speech settings. ${errorMessage(error)}`);
+          if (localSetup?.state === "running") throw new HttpError(409, "The speech download is still running. Wait for it to finish.");
+          const listening = record.listening === "whisper", speaking = record.speaking === "kokoro";
+          if ((listening || speaking) && !await localReady(record, listening, speaking)) {
+            if (!canSetUpLocalSpeech(record)) throw new HttpError(400, "The new speech settings did not work, so nothing was changed. A configured local speech file is missing. Check the paths in the speech settings file.");
+            const job: NonNullable<typeof localSetup> = { state: "running", step: "Starting the download" };
+            localSetup = job;
+            void (async () => {
+              try {
+                await setUpLocal((step) => { job.step = step; });
+                job.result = await applySpeech(record);
+                job.state = "done";
+              } catch (error) {
+                job.state = "failed";
+                job.error = errorMessage(error);
+              }
+            })();
+            json(response, 202, job);
+            return;
           }
-          const previous = speech;
-          speech = next;
-          speechError = undefined;
-          closeSpeech.disconnect();
-          try { await previous?.close?.(); }
-          catch (error) { console.error(`Could not fully stop the previous speech service: ${errorMessage(error)}`); }
-          json(response, 200, { settings: describeSpeechSettings(record), file: speechFile, speech: { configured: true, listening: next.selection?.listening ?? "mai", speaking: next.selection?.speaking ?? "mai" } });
+          json(response, 200, await applySpeech(record));
           return;
         }
         if (path === "/api/refresh" && method === "POST") {

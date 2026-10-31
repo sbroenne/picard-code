@@ -50,7 +50,7 @@ try {
   const listening = Date.now() - listeningStarted;
   console.log(`Whisper understood the original phrase in ${listening} ms. Checking cancellation.`);
   assert.match(transcript, /local listening connection is ready/i);
-  assert.match(transcript, /specify a task/i);
+  assert.match(transcript, /specify your request/i);
   const controller = new AbortController();
   const interrupted = speech.speak("This is an original cancellation check. ".repeat(12), controller.signal)[Symbol.asyncIterator]();
   const waiting = interrupted.next();
