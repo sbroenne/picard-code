@@ -143,7 +143,7 @@ test("listening stays on; “Computer” starts a task, follow-ups need no “Co
   await expect(page.locator(".message[data-role=user]")).toHaveCount(2);
 });
 
-test("facts vary within one log, are separate from copied answers, and the navigation switch stops future facts", async ({ page }) => {
+test("facts vary within one log, are separate from copied answers, and the navigation switch stops future facts", async ({ page }, testInfo) => {
   await page.addInitScript(() => { Math.random = () => 0; });
   const spoken = spokenText(page);
   await launch(page, "tribute");
@@ -154,6 +154,13 @@ test("facts vary within one log, are separate from copied answers, and the navig
   expect(new Set(facts).size).toBe(2);
   await expect(page.locator(".tribute-fact button, .tribute-fact input")).toHaveCount(0);
   await expect(page.locator(".tribute-fact a").first()).toHaveAttribute("href", /^https:/);
+  const latestFact = page.locator(".tribute-fact").last();
+  await expect(latestFact).toBeInViewport();
+  await expect(latestFact).toHaveCSS("border-left-width", "8px");
+  await expect(latestFact).toHaveCSS("background-color", "rgb(32, 24, 35)");
+  await expect(latestFact).toHaveCSS("color", "rgb(242, 230, 218)");
+  await expect(latestFact.locator("strong")).toHaveCSS("font-size", "18px");
+  await page.screenshot({ path: testInfo.outputPath("tribute-fact.png"), fullPage: true });
   expect(spoken.some((text) => text.startsWith("Picard fact."))).toBe(false);
   await page.evaluate(() => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: {

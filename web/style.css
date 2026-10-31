@@ -156,9 +156,9 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .message pre { background: #120f0c; color: var(--text); border-left: 4px solid var(--peach); padding: 14px; line-height: 1.6; white-space: pre; overflow-x: auto; max-width: 100%; }
 .message-error { color: #ffd6cc; background: #3a1414; padding: 12px; border-radius: 0 16px 16px 0; }
 .tribute-fact, .tribute-invitation, .tribute-source, .wikipedia-source { margin: 14px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
-.tribute-fact { border-top: 1px solid #3a2f26; padding-top: 12px; }
-.tribute-fact strong { display: block; color: var(--lilac); font: 500 14px/1.5 var(--lcars); letter-spacing: .08em; text-transform: uppercase; }
-.tribute-fact p { margin: 4px 0; }
+.tribute-fact { margin-top: 20px; padding: 14px 18px; border-left: 8px solid var(--lilac); border-radius: 0 18px 18px 0; background: #201823; color: var(--text); font-size: 16px; }
+.tribute-fact strong { display: block; color: var(--lilac); font: 600 18px/1.4 var(--lcars); letter-spacing: .08em; text-transform: uppercase; }
+.tribute-fact p { margin: 6px 0 8px; }
 .tribute-fact a, .tribute-source a, .wikipedia-source a { color: var(--muted); font-size: 12px; }
 .approval { padding: 18px 20px; margin: 16px 0 0; border-left: 14px solid var(--gold); border-radius: 0 26px 26px 0; background: #1f1708; }
 .approval h3 { margin: 0 0 8px; font: 600 24px/1.1 var(--lcars); letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }

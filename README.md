@@ -153,7 +153,8 @@ meaning, even when the repository's name includes Picard.
 
 With **Tribute** on, a short fact about Picard or Patrick Stewart appears after
 every two to five eligible answers, with a varied gap and no limit per log
-entry. It has a source link and stays separate from the answer and its Copy
+entry. It appears in a distinct lilac panel with a clear subject heading and
+a source link, and stays separate from the answer and its Copy
 button. Questions, approvals, errors, refusals and stopped work receive no
 facts. Reopening the Captain's log does not generate new ones. Facts avoid
 repetition until the reviewed collection has been used, and may contain
