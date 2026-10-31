@@ -99,7 +99,11 @@ Still open:
 - **macOS and Linux**: startup, shutdown and local speech are implemented but unchecked.
 - The owner's **subjective review** of voice, timing and wording. British
   voices were chosen; final tuning has not been judged.
-- Not planned yet: rewriting spoken requests into "captain style", interrupting
-  the computer by speaking over it, and publishing `npx picard-code`.
+- Spoken interruption is implemented: say "Computer" during an answer, or click
+  the computer panel. Echo cancellation and rejection of repeated answer words
+  still need a physical microphone and speaker check. Interrupting playback
+  does not cancel running work or answer approvals.
+- Not planned yet: rewriting spoken requests into "captain style" and
+  publishing `npx picard-code`.
 
 Research and its evidence limits are in [docs/research](research/).

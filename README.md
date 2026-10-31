@@ -202,8 +202,9 @@ Wikipedia requests.
 
 Optional speech follows the answer only after playback finishes. **Stop
 speaking**, microphone off, switching log entries or projects, Settings,
-errors and disconnection discard pending extras. Speaking over the computer
-still does not interrupt it; approvals still need an on-screen button.
+errors and disconnection discard pending extras. Saying "Computer" during an
+answer stops spoken playback and pending extras; approvals still need an
+on-screen button.
 
 ### Spoken requests
 
@@ -249,9 +250,18 @@ still does not interrupt it; approvals still need an on-screen button.
   and dates are spoken in a listenable form ("src slash app dot ts, line 3")
   while the screen keeps the exact text. Follow-ups, corrections and
   "show me" stay in the same log entry.
-- Listening pauses while the computer speaks or plays a sound, so it cannot
-  take its own voice as a new request. **Stop speaking** interrupts playback.
-  Speaking over the computer does not interrupt it.
+- **Say "Computer" to interrupt an answer**, then give your request, or say
+  "Computer" and the request together. Other room speech during an answer is
+  ignored, even within a log entry. This stops spoken playback and pending
+  tribute extras, not running work. Your words are kept unchanged.
+  **Stop speaking**, or clicking the computer panel, also interrupts playback
+  without switching the microphone on or off.
+  Listening uses the browser's echo cancellation and ignores recognized words
+  repeated from the current spoken answer. If that also blocks your interruption,
+  click the panel or **Stop speaking**. Physical microphone and speaker echo
+  still needs checking on your computer. Whisper recognizes the interruption
+  after you pause; services with live words can stop playback sooner.
+  Listening still pauses for computer sounds.
 - When OpenCode asks a single question, the computer reads it aloud with its
   choices and listens for your answer; no "Computer" is needed for the answer.
   Say the option's name or, for example,

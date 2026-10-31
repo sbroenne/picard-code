@@ -8,6 +8,13 @@ export function addressed(text: string) {
   return match ? text.slice(match[0].length).trim() : undefined;
 }
 
+/** Ignore room speech and words that may be echo from the answer still playing. */
+export function interruptsSpeech(text: string, spoken: string) {
+  const plain = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const heard = plain(text);
+  return addressed(text) !== undefined && !!heard && !(` ${plain(spoken)} `).includes(` ${heard} `);
+}
+
 // Only a whole short utterance counts, so "stop the server from crashing" stays a request.
 const STOP = new Set([
   "stop", "stop it", "stop that", "stop now", "stop work", "stop working", "stop the work",

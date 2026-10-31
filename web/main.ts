@@ -195,7 +195,7 @@ function consoleStatus(): [string, string] {
   if (!state) return ["Starting up", ""];
   if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open."];
   if (!state.models.length) return ["Setup needed", "Sign in to a model provider: open Provider."];
-  if (voice.phase === "speaking") return ["Speaking", "Choose Stop speaking to interrupt."];
+  if (voice.phase === "speaking") return ["Speaking", voice.microphone ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."];
   if (voice.speechPending) return ["Preparing reply", ""];
   if (voice.microphone && voice.waitingForClick) return ["Ready", "Click anywhere to start listening."];
   if (voice.phase === "listening") return ["Listening", ""];
@@ -1159,6 +1159,11 @@ document.addEventListener("keydown", (event) => {
   toggleMicrophone();
 });
 element("stop-speaking").addEventListener("click", () => { cancelTributeSpeech(); voice.stopSpeaking(); });
+element("voice-console").addEventListener("click", (event) => {
+  if ((event.target as HTMLElement).closest("button, a") || !voice.speechPending) return;
+  cancelTributeSpeech();
+  voice.stopSpeaking();
+});
 element("tribute-toggle").addEventListener("change", () => {
   tributeEnabled = element<HTMLInputElement>("tribute-toggle").checked;
   saveTributeValue("picard-tribute-enabled", String(tributeEnabled));
