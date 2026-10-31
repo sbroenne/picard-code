@@ -32,11 +32,14 @@
         <a id="nav-conversation" class="rail-button tan" href="#">Current log entry</a>
         <button id="new-conversation" class="rail-button orange" type="button">New log entry</button>
         <a class="rail-button peach" href="#records" data-drawer-link="records">Captain’s log</a>
+        <label class="rail-button lilac tribute-switch"><span>Tribute <b id="tribute-toggle-state">On</b></span><input id="tribute-toggle" type="checkbox" role="switch" aria-label="Tribute" checked /></label>
+        <span id="tribute-status" class="visually-hidden" aria-live="polite"></span>
         <span class="rail-fill"><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Model"><small>Model</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a></span>
         <span id="rail-end" class="readout blue"><small>Stardate</small><b id="readout-stardate">—</b></span>
       </nav>
 
       <main id="main" class="workspace">
+        <p id="tribute-storage-error" class="notice" role="alert" hidden></p>
         <div id="notice" class="notice" role="alert" hidden>
           <span id="notice-text"></span>
           <button id="retry" class="pill outline" type="button">Try again</button>
@@ -140,6 +143,10 @@
         <section id="settings-about" class="panel" hidden>
           <p>A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard. Unofficial, made with deep respect and gratitude.</p>
           <p class="muted">It runs on this computer and does its coding through OpenCode, with the model provider you choose.</p>
+          <p>The Tribute switch in the left navigation controls occasional sourced facts, gentle humour about the Captain, and offers of Patrick Stewart stories. Turning it off keeps Picard's identity and stories you explicitly request.</p>
+          <label class="question-option"><input id="tribute-spoken" type="checkbox" />Speak automatic facts</label>
+          <p id="tribute-speech-hint" class="muted">Automatic facts appear on screen. Requested answers and story invitations are still spoken.</p>
+          <p class="muted">Facts may include story spoilers. This is a growing, reviewed collection, not a complete biography. Facts and story sources are shown as links; no background web searches are made.</p>
         </section>
       </section>
     </div>

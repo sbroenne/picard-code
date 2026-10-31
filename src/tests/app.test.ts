@@ -185,6 +185,33 @@ test("approvals and questions stay pending until the user answers; no automatic 
   assert.equal(context.fixture.requests.at(-1)?.method, "DELETE");
 });
 
+test("tribute options are checked and reviewed story context never rewrites the Captain's words", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const session = await (await context.request("conversations", {})).json();
+  for (const tribute of [{ mode: "always" }, { mode: "screen", storyID: "invented" }, { mode: "screen", storyID: "picard-flute" }]) {
+    const rejected = await context.request(`conversations/${session.id}/send`, { text: "Yes", providerID: "github-copilot", modelID: "fixture-model", tribute });
+    assert.equal(rejected.status, 400);
+  }
+  const negated = await context.request(`conversations/${session.id}/send`, {
+    text: "Don't tell me a story.", providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "screen", storyID: "stewart-dickens" },
+  });
+  assert.equal(negated.status, 400);
+  assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/prompt")), false);
+  const response = await context.request(`conversations/${session.id}/send`, {
+    text: "Yes, please.", providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "off", storyID: "stewart-dickens" },
+  });
+  assert.equal(response.status, 202);
+  const prompt = context.fixture.requests.find((request) => request.path.endsWith("/prompt"))!;
+  assert.deepEqual(prompt.data, { text: "Yes, please." });
+  const manner = context.fixture.instructions.get(session.id)?.["picard-manner"] ?? "";
+  assert.match(manner, /explicitly requested/);
+  assert.match(manner, /londontheatre\.co\.uk/);
+  assert.match(manner, /entire cast/);
+  assert.match(manner, /Do not add vanity jokes/);
+});
+
 test("answers are checked against the question before they reach OpenCode", () => {
   const fields: FormField[] = [
     { key: "pick", type: "string", title: "Pick", options: [{ value: "a", label: "A" }], custom: false },
@@ -206,7 +233,11 @@ test("OpenCode events become the few browser updates the screen needs", () => {
     [{ type: "delta", sessionID: "s", messageID: "m", partID: "m:text:0", partType: "text", delta: "Hi" }]);
   assert.deepEqual(browserEvents(event("session.tool.failed", { sessionID: "s" })), [{ type: "changed", sessionID: "s" }]);
   assert.deepEqual(browserEvents(event("session.execution.failed", { sessionID: "s", error: { message: "No route." } })),
-    [{ type: "state" }, { type: "changed", sessionID: "s" }, { type: "error", sessionID: "s", message: "No route." }]);
+    [{ type: "state" }, { type: "changed", sessionID: "s" }, { type: "finished", sessionID: "s", outcome: "failed" }, { type: "error", sessionID: "s", message: "No route." }]);
+  for (const outcome of ["succeeded", "interrupted"] as const) {
+    assert.deepEqual(browserEvents(event(`session.execution.${outcome}`, { sessionID: "s" })),
+      [{ type: "state" }, { type: "changed", sessionID: "s" }, { type: "finished", sessionID: "s", outcome }]);
+  }
   assert.deepEqual(browserEvents(event("permission.asked", { sessionID: "s" })), [{ type: "state" }]);
   assert.deepEqual(browserEvents(event("session.text.started", { sessionID: "s" })), []);
 });
@@ -228,6 +259,20 @@ test("saved history keeps real errors and explains stopped work", () => {
   assert.equal(chat[3]!.error, STOPPED);
   assert.equal(chat[5]!.role, "assistant");
   assert.equal(chat[5]!.error, "The model cannot be reached.");
+  assert.equal(chat[1]!.outcome, "interrupted");
+  assert.equal(chat[3]!.outcome, "interrupted");
+  assert.equal(chat[5]!.outcome, "failed");
+});
+
+test("stored terminal outcomes recover missed live events without inventing completion for partial replies", () => {
+  const history: SessionMessage[] = [
+    { id: "u", type: "user", text: "Explain", time: { created: 1 } },
+    { id: "a", type: "assistant", content: [{ type: "text", text: "The answer." }], time: { created: 2 } },
+  ];
+  assert.equal(chatMessages(history).at(-1)?.outcome, undefined);
+  history.push({ id: "i", type: "idle", outcome: "succeeded", time: { created: 3 } });
+  assert.equal(chatMessages(history).at(-1)?.outcome, "succeeded");
+  assert.equal(chatMessages(history).length, 2);
 });
 
 test("with no provider signed in, setup is needed and nothing is invented", async (t) => {

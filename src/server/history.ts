@@ -48,15 +48,21 @@ export function chatMessages(history: SessionMessage[]): ChatMessage[] {
       const message: ChatMessage = { id: entry.id, role: "assistant", parts: parts(entry.id, entry.content) };
       const error = describe(entry.error, message);
       if (error) message.error = error;
+      if (entry.error) message.outcome = entry.error.type === "aborted" ? "interrupted" : "failed";
       result.push(message);
-    } else if (entry.type === "idle" && "outcome" in entry && entry.outcome !== "succeeded") {
+    } else if (entry.type === "idle" && "outcome" in entry) {
       // A run can fail before any reply exists, for example when the model cannot be reached.
       const last = result.at(-1);
+      if (entry.outcome === "succeeded") {
+        if (last?.role === "assistant") last.outcome = "succeeded";
+        continue;
+      }
       const error = entry.outcome === "failed" ? entry.error?.message || "OpenCode could not complete the request." : STOPPED;
       if (last?.role === "assistant") {
+        last.outcome = entry.outcome;
         if (!last.error && !failedTool(last)) last.error = error;
       } else {
-        result.push({ id: entry.id, role: "assistant", parts: [], error });
+        result.push({ id: entry.id, role: "assistant", parts: [], error, outcome: entry.outcome });
       }
     }
   }

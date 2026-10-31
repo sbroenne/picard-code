@@ -101,6 +101,8 @@ tribute badge. Like the ship's computer, there are no entry names or
 modes on the main screen.
 
 Everything else is hidden in slide-outs, opened from the side panel.
+The **Tribute** switch stays in the left navigation. It starts on and is the
+only on/off control for tribute extras; there are no switches inside answers.
 The **Current log entry** tile at the top is lit while the current log entry is in
 front; choosing it brings it back. Choosing the same tile again,
 clicking the log entry beside the slide-out, or the Escape key also closes it. Picard Code is made for a computer
@@ -130,6 +132,44 @@ policies may restrict the available models, and a `gh auth login` alone does
 error rather than switching to another model or provider.
 
 ## Use it
+
+### Tribute facts and stories
+
+With **Tribute** on, a short fact about Picard or Patrick Stewart appears after
+every two to five eligible answers, with a varied gap and no limit per log
+entry. It has a source link and stays separate from the answer and its Copy
+button. Questions, approvals, errors, refusals and stopped work receive no
+facts. Reopening the Captain's log does not generate new ones. Facts avoid
+repetition until the reviewed collection has been used, and may contain
+spoilers from Picard's appearances.
+
+Facts are on screen only by default. Open **About** with the tribute badge to
+choose **Speak automatic facts**. Both preferences are remembered in this
+browser. Turning Tribute off keeps the speech choice for later and stops
+pending tribute speech without cutting off the main answer.
+
+Questions such as "Computer, tell me about myself" always mean Captain
+Jean-Luc Picard's fictional life, not Patrick Stewart's biography or your
+private information. Your files, settings and earlier requests retain their
+ordinary meaning. With Tribute on, light-hearted questions about the Captain
+may receive one affectionate remark about his vanity and a spoken offer of
+a short Patrick Stewart story. Say "yes, please" or "tell me" to accept; the
+computer does not tell the story without your request. Serious questions and
+requests for facts only receive no teasing.
+
+Tribute off removes automatic facts, teasing and unsolicited story offers,
+not Picard's identity. You can still say "Computer, tell me a short story
+about Sir Patrick Stewart". Story replies use reviewed reference material
+and show its source in the log entry. The reference collection is small and
+growing, not an exhaustive biography, and makes no background web searches.
+Its original summaries contain no copied show dialogue or actor recordings.
+
+Optional speech follows the answer only after playback finishes. **Stop
+speaking**, microphone off, switching log entries or projects, Settings,
+errors and disconnection discard pending extras. Speaking over the computer
+still does not interrupt it; approvals still need an on-screen button.
+
+### Spoken requests
 
 - The app always opens with the microphone on; the browser asks for
   microphone access the first time. Listening pauses while a setting is open. If the browser blocks

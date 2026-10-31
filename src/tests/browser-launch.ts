@@ -11,7 +11,11 @@ const project = await projectDirectory(process.cwd());
 const fixture = await startFixture(project);
 // Each utterance hears the next phrase; the last one repeats. Within a task everything said is sent,
 // so most end in silence ("").
-const phrases = process.argv.includes("--approval") ? ["Computer, request an approval", ""]
+const phrases = process.argv.includes("--tribute") ? ["Computer, multi-message answer", "Hello again", "Another answer", "One more answer", "Keep going", "The last answer", ""]
+  : process.argv.includes("--picard") ? ["Computer, tell me about myself", "Yes, please.", ""]
+  : process.argv.includes("--picard-decline") ? ["Computer, tell me about myself", "Not now", ""]
+  : process.argv.includes("--stewart") ? ["Computer, tell me a short story about Sir Patrick Stewart", ""]
+  : process.argv.includes("--approval") ? ["Computer, request an approval", ""]
   : process.argv.includes("--question") ? ["Computer, ask a question and let me choose", "Not the small change", "the second one", ""]
   : process.argv.includes("--unclear") ? ["", "Is it raining outside", "Computer, hello there", ""]
   : process.argv.includes("--slow") ? ["Computer, take a very slow look", "Stop", ""]

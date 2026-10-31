@@ -25,6 +25,8 @@ export interface ChatMessage {
   role: "user" | "assistant";
   parts: ChatPart[];
   error?: string;
+  /** Present only when OpenCode recorded an actual terminal outcome. */
+  outcome?: "succeeded" | "failed" | "interrupted";
 }
 
 export interface AppState {
@@ -91,6 +93,8 @@ export type BrowserEvent =
   | { type: "delta"; sessionID: string; messageID: string; partID: string; partType: "text" | "reasoning"; delta: string }
   /** The stored conversation changed; reload it. */
   | { type: "changed"; sessionID: string }
+  /** The real execution outcome, used only for locally observed completed requests. */
+  | { type: "finished"; sessionID: string; outcome: "succeeded" | "failed" | "interrupted" }
   /** Work started or stopped, or an approval or question appeared or was settled. */
   | { type: "state" }
   /** Work finished with an error. */

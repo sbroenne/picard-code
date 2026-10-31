@@ -213,7 +213,16 @@ export async function startFixture(project: string) {
           active.add(sessionID);
           publish(directory, "session.execution.started", { sessionID });
           send(200, {});
-          if (text.includes("approval")) {
+          const manner = instructions.get(sessionID)?.["picard-manner"] ?? "";
+          if (text.includes("multi-message")) {
+            assistant(sessionID, [{ type: "text", text: "An intermediate test reply, not a finished answer." }]);
+            publish(directory, "session.text.ended", { sessionID });
+            reply(sessionID, undefined, generation);
+          } else if (manner.includes("The Captain has explicitly requested")) {
+            reply(sessionID, "Patrick Stewart performed every character in his solo A Christmas Carol.\n\nThis is a test stand-in for the reviewed story, not a model response.", generation);
+          } else if (/tell me about myself/i.test(text)) {
+            reply(sessionID, "You are Captain Jean-Luc Picard, whose interests include archaeology.\n\nThis is a test stand-in, not a model response.", generation);
+          } else if (text.includes("approval")) {
             const input = { command: "echo hello" };
             assistant(sessionID, [{ type: "tool", id: "call_test", name: "shell", state: { status: "running", input } }]);
             const permission: PermissionRequest = { id: id("per"), sessionID, action: "shell", resources: ["echo hello"], metadata: input };

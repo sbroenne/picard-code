@@ -7,7 +7,8 @@ import { chatMessages, availableModels, errorMessage } from "./engine.js";
 import { partID } from "./history.js";
 import type { OpenCode, OpenCodeEvent } from "./opencode.js";
 import { projectDirectory } from "./process.js";
-import { computerInstructions } from "./instructions.js";
+import { computerManner } from "./instructions.js";
+import { checkTributeRequest, explicitStoryRequest, storyAcceptance } from "../shared/tribute.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechService } from "./speech-types.js";
 import { canSetUpLocalSpeech, describeSpeechSettings, localSpeechReady, mergeSpeechSettings, readSpeechSettings, saveSpeechSettings, setUpLocalSpeech, speechFromSettings, speechSettingsFile } from "./speech.js";
@@ -94,9 +95,12 @@ export function browserEvents(event: OpenCodeEvent): BrowserEvent[] {
   }
   if (SESSION_CHANGES.test(event.type)) return [{ type: "changed", sessionID }];
   if (event.type === "session.execution.started") return [{ type: "state" }];
-  if (event.type === "session.execution.succeeded" || event.type === "session.execution.interrupted") return [{ type: "state" }, { type: "changed", sessionID }];
+  if (event.type === "session.execution.succeeded" || event.type === "session.execution.interrupted") return [
+    { type: "state" }, { type: "changed", sessionID },
+    { type: "finished", sessionID, outcome: event.type === "session.execution.succeeded" ? "succeeded" : "interrupted" },
+  ];
   if (event.type === "session.execution.failed") {
-    return [{ type: "state" }, { type: "changed", sessionID }, { type: "error", sessionID, message: errorMessage(data.error) }];
+    return [{ type: "state" }, { type: "changed", sessionID }, { type: "finished", sessionID, outcome: "failed" }, { type: "error", sessionID, message: errorMessage(data.error) }];
   }
   if (event.type === "session.retry.scheduled") return [{ type: "retry", sessionID, message: errorMessage(data.error) }];
   if (/^(permission\.(asked|replied)|form\.(created|replied|cancelled)|session\.(created|renamed|deleted|archived))$/.test(event.type)) return [{ type: "state" }];
@@ -404,6 +408,12 @@ export async function startApp(options: AppOptions) {
             const text = textField(data, "text");
             const modelID = textField(data, "modelID", 256);
             const providerID = textField(data, "providerID", 256);
+            let tribute;
+            try { tribute = checkTributeRequest(data.tribute); }
+            catch (error) { throw new HttpError(400, errorMessage(error)); }
+            if (tribute.storyID && !explicitStoryRequest(text) && !storyAcceptance(text)) {
+              throw new HttpError(400, "That response did not request a tribute story.");
+            }
             const { models } = await availableModels(client, project);
             if (!models.some((model) => model.providerID === providerID && model.modelID === modelID)) {
               throw new HttpError(400, "Sign in to a model provider in OpenCode and choose an available model.");
@@ -412,7 +422,7 @@ export async function startApp(options: AppOptions) {
             if (session.title === "New log entry" || session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
             if (session.model?.id !== modelID || session.model.providerID !== providerID) await client.setModel(id, project, { id: modelID, providerID });
             // Picard Code's conversation manner travels with the conversation, not as a file in the project.
-            await client.setInstructions(id, project, "picard-manner", computerInstructions(new Date()));
+            await client.setInstructions(id, project, "picard-manner", computerManner(text, tribute));
             await client.prompt(id, project, text);
             json(response, 202, { accepted: true });
             return;

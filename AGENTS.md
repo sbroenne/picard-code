@@ -82,6 +82,24 @@ computer says "Captain" now and then, never in every reply. The research in
 `docs/research/` explains why, including which evidence is weak; do not cite
 it as stronger than it is.
 
+Self-questions mean Picard's fictional life, not the actor's biography or
+private information about the real user. Project references keep their real
+meaning. The single Tribute switch in the left navigation controls occasional
+source-linked facts, bounded original wit about the Captain's vanity, and
+spoken Patrick Stewart story offers. Off removes those extras, not Picard's
+identity or explicitly requested stories. About only holds the secondary
+automatic-speech preference. Never put switches inside answers.
+
+Keep tribute extras separate from work answers, copied text and approvals.
+Facts appear only after real successful answers, with varied two-to-five
+answer gaps and no per-log cap; never on errors, refusals, questions or
+unfinished work. Gentle wit is an exception for light-hearted self-questions,
+not serious topics or sensitive personal traits. A spoken story invitation
+waits for clear acceptance and uses reviewed, attributed material. Do not
+invent anecdotes, quote scripts, promise exhaustive knowledge, or make
+background research requests. Follow-on speech must await actual playback
+completion and cancel without cutting off the useful answer.
+
 Computer sounds play once per real event, quietly, never while listening, and
 never instead of the written or spoken explanation:
 

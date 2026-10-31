@@ -88,6 +88,10 @@ a { color: var(--peach); text-underline-offset: 4px; }
 .sidebar { grid-area: sidebar; display: flex; flex-direction: column; gap: 6px; padding-top: 6px; min-height: 0; }
 .rail-button { display: flex; align-items: flex-end; justify-content: flex-end; text-align: right; min-height: 62px; padding: 8px 12px; color: var(--ink); text-decoration: none; font: 600 17px/1.1 var(--lcars); letter-spacing: .06em; text-transform: uppercase; flex: none; }
 .rail-button[aria-current] { background: var(--gold); }
+.tribute-switch { min-height: 48px; align-items: center; justify-content: space-between; gap: 8px; cursor: pointer; }
+.tribute-switch span { display: flex; gap: 10px; }
+.tribute-switch input { width: 20px; height: 20px; margin: 0; accent-color: var(--ink); cursor: pointer; }
+.tribute-switch:has(input:not(:checked)) { background: var(--tan); }
 .rail-fill { flex: 1; min-height: 24px; display: flex; flex-direction: column; gap: 6px; }
 .rail-fill .readout { min-height: 0; font-size: 14px; }
 a.readout { text-decoration: none; }
@@ -149,6 +153,11 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .markdown pre code { background: none; color: inherit; padding: 0; }
 .message pre { background: #120f0c; color: var(--text); border-left: 4px solid var(--peach); padding: 14px; line-height: 1.6; white-space: pre; overflow-x: auto; max-width: 100%; }
 .message-error { color: #ffd6cc; background: #3a1414; padding: 12px; border-radius: 0 16px 16px 0; }
+.tribute-fact, .tribute-invitation, .tribute-source { margin: 14px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.tribute-fact { border-top: 1px solid #3a2f26; padding-top: 12px; }
+.tribute-fact strong { display: block; color: var(--lilac); font: 500 14px/1.5 var(--lcars); letter-spacing: .08em; text-transform: uppercase; }
+.tribute-fact p { margin: 4px 0; }
+.tribute-fact a, .tribute-source a { color: var(--muted); font-size: 12px; }
 .approval { padding: 18px 20px; margin: 16px 0 0; border-left: 14px solid var(--gold); border-radius: 0 26px 26px 0; background: #1f1708; }
 .approval h3 { margin: 0 0 8px; font: 600 24px/1.1 var(--lcars); letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
 .approval p { line-height: 1.6; font-size: 15px; }

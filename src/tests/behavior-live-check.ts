@@ -10,6 +10,7 @@ import { spokenReply } from "../shared/speech.js";
 import { chatMessages } from "../server/history.js";
 import type { FormRequest, PermissionRequest } from "../shared/types.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
+import type { TributeRequest } from "../shared/tribute.js";
 
 // Real multi-turn check: Picard Code's own API, its always-supplied instructions, OpenCode and a signed-in model provider.
 // Model wording varies, so this records the full transcript and checks behavior that must hold every time.
@@ -89,10 +90,10 @@ try {
     const final = replies.findLast((message) => message.role === "assistant");
     return { reply, spoken: final ? spokenReply(final) : "", tools };
   };
-  const turn = async (label: string, text: string, onPending?: (pending: Pending) => Promise<void>) => {
+  const turn = async (label: string, text: string, onPending?: (pending: Pending) => Promise<void>, tribute?: TributeRequest) => {
     const started = Date.now();
     const before = await userCount();
-    await api(`/api/conversations/${sessionID}/send`, { text, providerID: model.providerID, modelID: model.modelID });
+    await api(`/api/conversations/${sessionID}/send`, { text, providerID: model.providerID, modelID: model.modelID, ...(tribute ? { tribute } : {}) });
     await settle(before, onPending);
     const result = await lastTurn();
     transcript.push(`## ${label}`, "", `User: ${text}`, "",
@@ -142,6 +143,18 @@ try {
   check(!refused.tools.some((tool) => tool.tool === "shell" && tool.status === "completed"), "Refused approval: the command did not run");
   check(!refused.reply.includes(process.version), "Refused approval: the reply does not invent the command result");
   check(/not|unable|denied|declined|reject|permission/i.test(`${refused.reply} ${refused.spoken}`), "Refused approval: what is said and shown states plainly that it did not run");
+
+  const self = await turn("Picard self-reference", "Computer, tell me about myself and my interests.", undefined, { mode: "screen" });
+  check(/picard/i.test(self.reply), "Self-reference: identifies the fictional Captain as Picard");
+  check(/archaeolog|artifact|flute|kataan/i.test(self.reply), "Self-reference: uses reviewed Picard facts");
+  check(!self.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Self-reference: no file changes or commands");
+  const factsOnly = await turn("Tribute off", "Tell me about myself, strictly factual and without jokes.", undefined, { mode: "off" });
+  check(/picard/i.test(factsOnly.reply), "Tribute off: preserves Picard identity");
+  check(!/vanity|vain|ego|i can tell you a short story/i.test(factsOnly.reply), "Tribute off: no vanity joke or unsolicited story offer");
+  const story = await turn("Reviewed Stewart story", "Yes, please.", undefined, { mode: "off", storyID: "stewart-dickens" });
+  check(/stewart/i.test(story.reply) && /christmas carol/i.test(story.reply), "Story: uses the selected Patrick Stewart account");
+  check(/londontheatre\.co\.uk/i.test(story.reply), "Story: includes the reviewed source link");
+  check(!story.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Story: no file changes or commands");
 } finally {
   try {
     if (engine) {
