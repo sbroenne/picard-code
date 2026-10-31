@@ -72,6 +72,7 @@ async function heard(text: string, startedAt: number) {
   const command = voiceCommand(request);
   if (command === "stop") { await stopByVoice(); return; }
   if (command === "new") { freshByVoice(); return; }
+  if (command === "sleep") { stopListening(); voice.speak("Listening stopped. Click the computer panel to listen again."); return; }
   if (question) { await answerAloud(request); return; }
   if (!request) {
     goAheadUntil = Date.now() + GO_AHEAD;
@@ -166,9 +167,9 @@ function consoleStatus(): [string, string] {
   if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : "Say “Computer”, then your request."];
   if (voice.opening) return ["Starting microphone", ""];
   if (!state.speech?.configured) return ["Ready", ""];
-  if (muted()) return ["Muted", "Unmute to talk."];
-  if (!disclosed()) return ["Ready", "Start listening to talk to the computer."];
-  return ["Ready", "Not listening. Choose Start listening."];
+  if (!disclosed()) return ["Not listening", "Click here to set up listening."];
+  if (muted()) return ["Not listening", "Click here to listen again."];
+  return ["Not listening", "Click here to listen."];
 }
 
 function voiceControls() {
@@ -176,11 +177,10 @@ function voiceControls() {
   const [status, detail] = consoleStatus();
   element("status").textContent = status;
   element("status-detail").textContent = detail;
-  const microphone = element<HTMLButtonElement>("microphone");
-  microphone.hidden = !state?.speech?.configured;
-  microphone.textContent = voice.microphone ? "Mute" : muted() ? "Unmute" : "Start listening";
-  microphone.dataset.kind = voice.microphone ? "mute" : "start";
-  microphone.disabled = voice.opening || !voice.microphone && !ready;
+  const toggle = element<HTMLButtonElement>("listen-toggle");
+  toggle.hidden = !state?.speech?.configured;
+  toggle.setAttribute("aria-label", voice.microphone ? "Stop listening" : "Listen");
+  toggle.disabled = voice.opening || !voice.microphone && !ready;
   element("voice-console").dataset.phase = voice.microphone || voice.phase === "speaking" ? voice.phase : "off";
   if (voice.phase === "listening") notSent = "";
   element("voice-partial").textContent = voice.phase === "listening" || voice.phase === "thinking" ? voice.partial : notSent;
@@ -189,17 +189,15 @@ function voiceControls() {
   element("voice-setup-text").textContent = state?.speech?.error ? "Speech did not start." : "Speech is not set up.";
   const cloudListening = state?.speech?.listening !== "whisper";
   const cloudSpeaking = state?.speech?.speaking !== "kokoro";
-  // Say where audio goes before listening first starts with these services.
-  // Afterwards the full explanation stays in Settings, keeping the main screen clear.
-  const disclosure = element("voice-disclosure");
-  disclosure.textContent = `${cloudListening
+  // Say where audio goes before listening first starts with these services, in Settings, not on the main screen.
+  element("consent-text").textContent = `${cloudListening
     ? "While listening, speech near the microphone goes to Azure to be understood, possibly outside Europe."
-    : "Your voice is understood on this computer."}${cloudSpeaking ? " Reply text goes to Azure for speaking." : ""} Only requests that start with “Computer” are sent to Copilot. Details are in Settings.`;
-  disclosure.hidden = !state?.speech?.configured || voice.microphone || disclosed();
+    : "Your voice is understood on this computer."}${cloudSpeaking ? " Reply text goes to Azure for speaking." : ""} Only requests that start with “Computer” are sent to Copilot. Details are under Privacy below.`;
+  element("listen-consent").hidden = !state?.speech?.configured || disclosed();
   element("speech-current").textContent = state?.speech?.configured
     ? `Active: ${cloudListening ? "Azure MAI" : "Whisper"} listening / ${cloudSpeaking ? "Azure MAI" : "Kokoro"} speaking`
     : state?.speech?.error ?? "Speech is not set up yet";
-  element("privacy-detail").textContent = `The microphone stays on while Picard Code is open, unless you mute it. It listens on this computer for speech; ${cloudListening
+  element("privacy-detail").textContent = `The microphone stays on while Picard Code is open, until you say “Computer, stop listening”. Click the computer panel to listen again. It listens on this computer for speech; ${cloudListening
     ? "when it hears some, that speech goes to Azure, which may process it outside Europe, to be understood."
     : "Whisper understands it on this computer."} ${cloudSpeaking
     ? "Reply text goes to Azure for speaking." : "Kokoro speaks locally."} Only requests that start with “Computer” are sent to Copilot; other speech is shown as not sent and dropped. While work runs, only “Computer, stop” is acted on. Listening pauses while the computer speaks. Every file change or command asks first, and approvals always need a button. Stop speaking interrupts playback, not work.`;
@@ -259,6 +257,22 @@ function pending() {
   return !!selected && (state?.permissions.some((item) => item.sessionID === selected) || state?.questions.some((item) => item.sessionID === selected));
 }
 
+function readout(name: string, value: string) {
+  const node = element(`readout-${name}`);
+  node.textContent = value;
+  node.title = value;
+}
+
+/** The side panel's readouts show what the computer is connected to right now. */
+function readouts() {
+  readout("copilot", !state ? "Checking" : !connected ? "Reconnecting" : state.models.length ? "Connected" : "Not connected");
+  readout("project", state ? state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project : "—");
+  readout("model", state?.models.length ? model.selectedOptions[0]?.textContent ?? "—" : "None");
+  const speech = state?.speech;
+  readout("speech", !speech?.configured ? "Not set up"
+    : `${speech.listening === "whisper" ? "Whisper" : "Azure MAI"} · ${speech.speaking === "kokoro" ? "Kokoro" : "Azure MAI"}`);
+}
+
 function controls() {
   const working = busy() || submitting;
   const ready = !!state?.models.length && connected && !historyLoading;
@@ -270,6 +284,7 @@ function controls() {
   element("welcome").hidden = !!messages.length || !!selected && historyLoading || !!state && !state.models.length;
   element("copilot-status").textContent = !state ? "Checking" : state.models.length
     ? `Connected: ${state.models.length} Copilot model${state.models.length === 1 ? "" : "s"} available` : "Not connected";
+  readouts();
   voice.sync();
   autoListen();
   voiceControls();
@@ -705,6 +720,8 @@ async function boot() {
   await refreshState();
   // First run: without Copilot there is nothing to do on the main screen yet.
   if (state && !state.models.length && !location.hash) location.hash = "settings";
+  // The first time, agree in Settings to where audio goes before the computer listens.
+  if (state?.speech?.configured && !disclosed() && !location.hash) location.hash = "settings";
   if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id);
   openEvents();
 }
@@ -757,6 +774,7 @@ async function route() {
   }
 }
 
+model.addEventListener("change", readouts);
 element("new-conversation").addEventListener("click", () => { void perform(async () => {
   closeDrawer();
   startFresh();
@@ -781,6 +799,8 @@ element("speech-form").addEventListener("submit", (event) => {
       const saved = await api<{ settings: SpeechSettings; file: string; speech: AppState["speech"] }>("settings", data);
       showSpeechSettings(saved);
       if (state) state.speech = saved.speech;
+      // The note about where audio goes is on this page, so saving counts as agreeing to it.
+      markDisclosed();
       result.textContent = "Speech settings saved and in use";
       notice();
       controls();
@@ -829,12 +849,30 @@ element("project-form").addEventListener("submit", (event) => {
     openEvents();
   });
 });
-element("microphone").addEventListener("click", () => { void perform(async () => {
-  if (voice.microphone) { setMuted(true); voice.microphoneOff(); controls(); return; }
+function stopListening() {
+  setMuted(true);
+  voice.microphoneOff();
+  controls();
+}
+async function startListening() {
+  if (!state?.speech?.configured || !state.models.length || !connected) return;
+  if (!disclosed()) { location.hash = "settings"; return; }
   setMuted(false);
   await voice.activate();
-  if (voice.microphone) markDisclosed();
   controls();
+}
+// The console is the computer: clicking it while it is not listening starts listening again.
+element("voice-console").addEventListener("click", (event) => {
+  const target = event.target as Element;
+  const toggle = target.closest("#listen-toggle");
+  if (!toggle && target.closest("button, a")) return;
+  if (voice.microphone) { if (toggle) stopListening(); return; }
+  if (!voice.opening) void perform(startListening);
+});
+element("consent-start").addEventListener("click", () => { void perform(async () => {
+  markDisclosed();
+  closeDrawer();
+  await startListening();
 }); });
 element("stop-speaking").addEventListener("click", () => voice.stopSpeaking());
 for (const name of ["pointerdown", "keydown"] as const) document.addEventListener(name, () => voice.unlock(), true);

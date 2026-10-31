@@ -47,7 +47,8 @@ test("only speech that starts with Computer is addressed; stop commands are whol
   for (const words of ["stop", "Stop.", "Cancel that, please.", "belay that", "Never mind", "abort", "stop work"]) assert.equal(voiceCommand(words), "stop", words);
   for (const words of ["stop the server from crashing", "don't stop", "cancel the subscription code", "", "explain the stop button"]) assert.equal(voiceCommand(words), undefined, words);
   for (const words of ["New task.", "start over", "Start a new conversation, please", "clear"]) assert.equal(voiceCommand(words), "new", words);
-  for (const words of ["add a new task to the list", "clear the cache", "start over the build"]) assert.equal(voiceCommand(words), undefined, words);
+  for (const words of ["Stop listening.", "mute", "go to sleep, please", "microphone off"]) assert.equal(voiceCommand(words), "sleep", words);
+  for (const words of ["add a new task to the list", "stop listening to the socket", "mute the test output", "clear the cache", "start over the build"]) assert.equal(voiceCommand(words), undefined, words);
 });
 
 test("microphone off preserves pending speech; stopped speech cannot send late audio into a new reply", async (t) => {

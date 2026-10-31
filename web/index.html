@@ -13,9 +13,9 @@
     conversation; everything else slides out from the side panel when asked for. -->
     <a class="skip-link" href="#voice-console">Skip to the computer status</a>
     <div id="shell" class="shell" data-drawer="">
-      <div class="top-rail" aria-hidden="true">
-        <span class="block peach"><i>01</i></span>
-        <span class="block lilac grow"><i>02-1701</i></span>
+      <div class="top-rail" aria-label="Connection">
+        <span class="readout peach"><small>Copilot</small><b id="readout-copilot">—</b></span>
+        <span class="block lilac grow" aria-hidden="true"><i>02-1701</i></span>
       </div>
       <header class="header">
         <div class="brand">
@@ -32,7 +32,7 @@
         <button id="new-conversation" class="rail-button orange" type="button">New task</button>
         <a class="rail-button peach" href="#records" data-drawer-link="records">Logs</a>
         <a class="rail-button lilac" href="#options" data-drawer-link="options">Options</a>
-        <span class="rail-fill" aria-hidden="true"><i class="tan">03-4471</i><i class="blue">04-2240</i><i class="peach">05-0927</i></span>
+        <span class="rail-fill"><span class="readout tan"><small>Project</small><b id="readout-project">—</b></span><span class="readout blue"><small>Model</small><b id="readout-model">—</b></span><span class="readout peach"><small>Listen · Speak</small><b id="readout-speech">—</b></span></span>
         <a id="nav-settings" class="rail-button blue" href="#settings" data-drawer-link="settings">Settings</a>
       </nav>
 
@@ -54,16 +54,14 @@
         </div>
 
         <section id="voice-console" class="console" tabindex="-1" aria-label="Computer" data-phase="off">
-          <span class="voice-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          <button id="listen-toggle" class="voice-mark" type="button" aria-label="Stop listening" hidden><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></button>
           <div class="voice-readout">
             <p id="status" class="status" role="status">Starting up</p>
             <p id="status-detail" class="status-detail"></p>
             <p id="voice-partial" class="voice-partial" aria-label="Words heard"></p>
-            <p id="voice-disclosure" class="voice-note" hidden></p>
             <p id="voice-setup-hint" class="voice-setup-hint" hidden><span id="voice-setup-text">Speech is not set up.</span> <a href="#settings">Open settings</a></p>
           </div>
           <div class="console-actions">
-            <button id="microphone" class="pill" type="button" data-kind="start" hidden disabled>Start listening</button>
             <button id="stop-speaking" class="pill lilac" type="button" hidden>Stop speaking</button>
             <button id="stop" class="pill red" type="button" hidden>Stop work</button>
           </div>
@@ -87,6 +85,11 @@
 
       <section id="drawer-settings" class="drawer wide" hidden tabindex="-1" aria-labelledby="settings-title">
         <div class="drawer-bar blue"><h2 id="settings-title">Settings</h2><a class="drawer-close" href="#">Close</a></div>
+        <section id="listen-consent" class="panel" hidden aria-labelledby="consent-title">
+          <h3 id="consent-title" class="panel-title orange"><span>00</span> Before the computer listens</h3>
+          <p id="consent-text"></p>
+          <button id="consent-start" class="pill orange" type="button">Start listening</button>
+        </section>
         <section class="panel" aria-labelledby="copilot-title">
           <h3 id="copilot-title" class="panel-title orange"><span>01</span> Copilot connection</h3>
           <p id="copilot-status" class="readout-line">Checking</p>

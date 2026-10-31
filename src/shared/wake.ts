@@ -21,11 +21,17 @@ const FRESH = new Set([
   "start over", "start again", "start fresh", "fresh start", "clear", "clear the screen",
 ]);
 
-export type VoiceCommand = "stop" | "new";
+// Listening can be switched off by voice; it is switched on again by clicking the console.
+const SLEEP = new Set([
+  "stop listening", "stop listening now", "stop listening for now", "mute", "mute yourself",
+  "go to sleep", "sleep", "microphone off", "turn the microphone off", "turn off the microphone",
+]);
+
+export type VoiceCommand = "stop" | "new" | "sleep";
 
 /** A spoken command handled by Picard Code itself rather than sent to Copilot. */
 export function voiceCommand(words: string): VoiceCommand | undefined {
   const plain = words.toLowerCase().replace(/[’]/g, "'").replace(/[^a-z'\s]/g, " ")
     .replace(/\bplease\b/g, " ").replace(/\s+/g, " ").trim();
-  return STOP.has(plain) ? "stop" : FRESH.has(plain) ? "new" : undefined;
+  return STOP.has(plain) ? "stop" : FRESH.has(plain) ? "new" : SLEEP.has(plain) ? "sleep" : undefined;
 }

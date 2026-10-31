@@ -52,7 +52,7 @@ export class VoiceConversation {
   }) {}
 
   private command(data: object) {
-    if (this.socket?.readyState !== WebSocket.OPEN) throw new Error("The voice connection stopped. Choose Start listening, or type instead.");
+    if (this.socket?.readyState !== WebSocket.OPEN) throw new Error("The voice connection stopped. Click the computer panel to listen again.");
     this.socket.send(JSON.stringify(data));
   }
   private state(phase: ConsolePhase) {
@@ -164,7 +164,7 @@ export class VoiceConversation {
     this.hooks.changed();
     const revision = ++this.revision;
     try {
-      if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error("This browser cannot capture live speech. Use a current Chrome, Edge, Firefox or Safari, or type instead.");
+      if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error("This browser cannot capture live speech. Use a current Chrome, Edge, Firefox or Safari.");
       if (!this.context) {
         const context = new AudioContext();
         this.context = context;
@@ -183,7 +183,7 @@ export class VoiceConversation {
       if (revision !== this.revision) { media.getTracks().forEach((track) => track.stop()); return; }
       this.media = media;
       media.getTracks().forEach((track) => { track.onended = () => {
-        if (this.microphone) { this.failed = true; this.microphoneOff(); this.hooks.error("The microphone disconnected. Check your device, then choose Start listening."); }
+        if (this.microphone) { this.failed = true; this.microphoneOff(); this.hooks.error("The microphone disconnected. Check your device, then click the computer panel to listen again."); }
       }; });
       await this.context.audioWorklet.addModule("/microphone-worklet.js");
       if (revision !== this.revision) return;
@@ -243,12 +243,12 @@ export class VoiceConversation {
       return;
     }
     if (this.socket.bufferedAmount > 128_000) {
-      this.fail("The microphone connection fell behind. Check your connection, then choose Start listening.");
+      this.fail("The microphone connection fell behind. Check your connection, then click the computer panel to listen again.");
       return;
     }
     if (this.queue) {
       this.queue.push(packet);
-      if (this.queue.length > 1500) { this.fail("The listening service did not start within 30 seconds. Check the speech setup, then choose Start listening."); return; }
+      if (this.queue.length > 1500) { this.fail("The listening service did not start within 30 seconds. Check the speech setup, then click the computer panel to listen again."); return; }
     } else this.socket.send(packet);
     if (change === "end") {
       if (this.queue) this.endedEarly = true;
@@ -281,7 +281,7 @@ export class VoiceConversation {
         this.microphoneOff();
         this.clearAudio();
         this.state("off");
-        this.hooks.error("The voice connection stopped. The written conversation is preserved. Choose Start listening, or type instead.");
+        this.hooks.error("The voice connection stopped. The written conversation is preserved. Click the computer panel to listen again.");
       };
       socket.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
         try {

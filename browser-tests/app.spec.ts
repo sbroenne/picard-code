@@ -31,6 +31,11 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
   await expect(page.getByRole("textbox")).toHaveCount(0);
   await expect(page.getByText("Type instead")).toHaveCount(0);
   await expect(page.getByText("Discuss", { exact: true })).toHaveCount(0);
+  // The side panel shows live readouts, not decorative numbers.
+  await expect(page.locator("#readout-copilot")).toHaveText("Connected");
+  await expect(page.locator("#readout-model")).not.toHaveText(/^(—|None)$/);
+  await expect(page.locator("#readout-project")).not.toHaveText("—");
+  await expect(page.locator("#readout-speech")).toHaveText("Not set up");
   await page.screenshot({ path: testInfo.outputPath("empty-screen.png"), fullPage: true });
 });
 
@@ -38,7 +43,7 @@ test("the main screen shows only the conversation; setup and options stay in sli
   // Without speech set up, the console says so and points to Settings.
   await expect(page.getByRole("status")).toHaveText("Ready");
   await expect(page.locator("#voice-setup-hint")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Start listening" })).toBeHidden();
+  await expect(page.locator("#listen-toggle")).toBeHidden();
   for (const name of ["Project folder", "Copilot connection"]) await expect(page.getByRole("heading", { name })).toBeHidden();
   await expect(page.getByLabel("Model")).toBeHidden();
   await expect(page.locator("#conversations")).toBeHidden();

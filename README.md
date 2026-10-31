@@ -82,8 +82,9 @@ The main screen is only for the spoken conversation: the messages, any
 question or approval waiting for you, and the computer console with one large
 status (for example Standing by, Listening, Understanding, Working, Speaking
 or Decision needed) and a line saying what to do next. The console also holds
-**Start listening** (only before the first start), **Mute** or **Unmute**,
-**Stop speaking** and **Stop work**. The latest request and reply are shown
+**Stop speaking** and **Stop work** when they apply. There is no microphone
+button: the row of lights beside the status shows listening, and clicking the
+console switches listening back on after you stopped it. The latest request and reply are shown
 large; earlier messages are smaller. The header shows only the name and the
 tribute badge. Like the ship's computer, there are no conversation names or
 modes on the main screen.
@@ -112,10 +113,14 @@ than substituting another provider.
 
 ## Use it
 
-- The first time, choose **Start listening**. It asks for browser microphone
-  access and shows where audio goes. After that, listening starts by itself
-  whenever the app opens, unless you chose **Mute** (remembered) or Settings is open. If the browser blocks sound until you
-  interact, the screen says "Click anywhere to start listening."
+- The first time, Settings opens with a short note on where audio goes.
+  Choose **Start listening** there; the browser asks for microphone access.
+  After that, listening starts by itself whenever the app opens, unless you
+  said "Computer, stop listening" (remembered) or Settings is open. Saving
+  speech settings also counts as agreeing to the note. If the browser blocks
+  sound until you interact, the screen says "Click anywhere to start listening."
+- Say **"Computer, stop listening"** to switch the microphone off. Click the
+  computer panel (the status and its lights) to listen again.
 - The microphone stays on. While the room is quiet, the console shows
   **Standing by** and nothing leaves your computer. When someone starts
   talking, that speech (including the half second before it, so the first word
@@ -149,7 +154,7 @@ than substituting another provider.
   choice, and when only the offered answers are allowed, anything else is
   asked again. To skip a question, use **Skip question** on screen. Several
   questions at once are answered on screen.
-- **Mute** stops microphone capture without cancelling OpenCode's work.
+- "Computer, stop listening" stops microphone capture without cancelling OpenCode's work.
   **Stop work** cancels the current OpenCode request. These are separate
   controls.
 - **Optional computer sounds:** run `npm run setup:sounds` once to download four
@@ -160,9 +165,9 @@ than substituting another provider.
   work is still running after about 2.5 seconds with no answer, question or
   approval request yet; an input-failed sound when speech was not understood
   or could not be sent; and a deny beep just before the spoken result when an
-  accepted request finally fails or is denied. Answers to questions, **Stop work**, "Computer, stop" and **Mute** play no sound.
+  accepted request finally fails or is denied. Answers to questions, **Stop work**, "Computer, stop" and "Computer, stop listening" play no sound.
   Listening is paused while a sound plays, and listening, speech,
-  **Stop speaking** or **Mute** stop it. Each sound only accompanies the visible and
+  **Stop speaking** or stopping listening stop it. Each sound only accompanies the visible and
   spoken explanation; it never replaces it. Without the files, there are no
   sounds and nothing else changes.
 - Replies update live. Tool activity and thinking can be expanded, and code
@@ -193,7 +198,7 @@ sends any speech it hears to Azure** to find out whether it starts with
 sent. Only requests that start with "Computer" go to Copilot. MAI speaking
 sends reply text to Azure. Whisper and Kokoro process their audio locally.
 Even with both local speech services, coding still uses Copilot: this is not
-an offline AI app. Use **Mute** for conversations you do not want sent;
+an offline AI app. Say "Computer, stop listening" before conversations you do not want sent;
 background speech can be misunderstood.
 
 ## Azure speech setup
@@ -260,7 +265,7 @@ environment using your own secure local setup. Never paste keys into chat,
 browser addresses, or committed files.
 
 The browser receives no Azure key or account credentials. Only microphone
-audio and spoken playback cross its private local connection. **Mute**,
+audio and spoken playback cross its private local connection. Stopping listening,
 changing conversation, closing the page, or shutting down
 Picard Code stops the relevant listening connection. A speech failure leaves
 the written conversation intact and reports what failed.
@@ -491,7 +496,7 @@ and repeat the browser checks.
 - **Unusual installation:** `PICARD_OPENCODE_PATH` can point to the real
   OpenCode program or its JavaScript starting file, but not a Windows `.cmd` shortcut.
 - **Microphone will not start:** use a current browser at the printed local
-  address, choose **Start listening** or **Unmute**, allow microphone access,
+  address, click the computer panel (or **Start listening** in Settings the first time), allow microphone access,
   and check the input
   device. The selected speech setup and a connected Copilot model are required.
 - **Azure rejects speech:** check resource access, the deployed live listening
