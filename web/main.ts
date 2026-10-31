@@ -25,9 +25,7 @@ function button(text: string, className: string, action: () => Promise<void> | v
   return node;
 }
 
-const prompt = element<HTMLTextAreaElement>("prompt");
 const model = element<HTMLSelectElement>("model");
-const agent = element<HTMLSelectElement>("agent");
 const readingArea = element("reading-area");
 let state: AppState | undefined;
 let selected: string | undefined;
@@ -41,7 +39,6 @@ let historyRevision = 0;
 let historyTimer: ReturnType<typeof setTimeout> | undefined;
 let approvalKey = "";
 let renderScheduled = false;
-const drafts = new Map<string, string>();
 const historyEvents: Event[] = [];
 let voiceTurn: { session: string; known: Set<string> } | undefined;
 let spokenDecision = "";
@@ -72,7 +69,9 @@ async function heard(text: string, startedAt: number) {
   }
   goAheadUntil = 0;
   const request = words ?? text;
-  if (voiceCommand(request) === "stop") { await stopByVoice(); return; }
+  const command = voiceCommand(request);
+  if (command === "stop") { await stopByVoice(); return; }
+  if (command === "new") { freshByVoice(); return; }
   if (question) { await answerAloud(request); return; }
   if (!request) {
     goAheadUntil = Date.now() + GO_AHEAD;
@@ -89,6 +88,13 @@ async function heard(text: string, startedAt: number) {
   } else if (busy() || submitting) {
     voice.speak("Work is in progress. Say Computer, stop, to cancel it.");
   } else await sendMessage(text);
+}
+
+function freshByVoice() {
+  if (state?.permissions.some((item) => item.sessionID === selected)) voice.speak("A decision is needed first. Choose Allow once or Deny on screen.");
+  else if (pending()) voice.speak("Please answer the question on screen first.");
+  else if (busy() || submitting) voice.speak("Work is in progress. Say Computer, stop, to cancel it first.");
+  else { startFresh(); voice.speak("Ready for a new task."); }
 }
 
 async function stopByVoice() {
@@ -124,7 +130,6 @@ async function answerAloud(text: string) {
   }
 }
 
-function typingOpen() { return element<HTMLDetailsElement>("typing").open; }
 function muted() {
   try { return localStorage.getItem("picard-muted") === "yes"; } catch { return false; }
 }
@@ -133,10 +138,10 @@ function setMuted(value: boolean) {
   catch { /* Muting still applies until the page reloads. */ }
 }
 
-/** The microphone is simply on, once the user has agreed to it, unless muted, typing or changing settings. */
+/** The microphone is simply on, once the user has agreed to it, unless muted or changing settings. */
 function autoListen() {
   if (voice.microphone || voice.opening || voice.failed || !state?.speech?.configured || !state.models.length || !connected
-    || !disclosed() || muted() || typingOpen() || openDrawer() === "settings") return;
+    || !disclosed() || muted() || openDrawer() === "settings") return;
   void perform(() => voice.activate());
 }
 
@@ -161,8 +166,7 @@ function consoleStatus(): [string, string] {
   if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : "Say “Computer”, then your request."];
   if (voice.opening) return ["Starting microphone", ""];
   if (!state.speech?.configured) return ["Ready", ""];
-  if (typingOpen()) return ["Ready", "Listening is paused while you type."];
-  if (muted()) return ["Muted", "Unmute to talk, or type instead."];
+  if (muted()) return ["Muted", "Unmute to talk."];
   if (!disclosed()) return ["Ready", "Start listening to talk to the computer."];
   return ["Ready", "Not listening. Choose Start listening."];
 }
@@ -198,7 +202,7 @@ function voiceControls() {
   element("privacy-detail").textContent = `The microphone stays on while Picard Code is open, unless you mute it. It listens on this computer for speech; ${cloudListening
     ? "when it hears some, that speech goes to Azure, which may process it outside Europe, to be understood."
     : "Whisper understands it on this computer."} ${cloudSpeaking
-    ? "Reply text goes to Azure for speaking." : "Kokoro speaks locally."} Only requests that start with “Computer” are sent to Copilot; other speech is shown as not sent and dropped. While work runs, only “Computer, stop” is acted on. Listening pauses while the computer speaks. Approvals always need a button. Stop speaking interrupts playback, not work.`;
+    ? "Reply text goes to Azure for speaking." : "Kokoro speaks locally."} Only requests that start with “Computer” are sent to Copilot; other speech is shown as not sent and dropped. While work runs, only “Computer, stop” is acted on. Listening pauses while the computer speaks. Every file change or command asks first, and approvals always need a button. Stop speaking interrupts playback, not work.`;
   element("stop-speaking").hidden = !voice.speechPending;
 }
 
@@ -258,22 +262,12 @@ function pending() {
 function controls() {
   const working = busy() || submitting;
   const ready = !!state?.models.length && connected && !historyLoading;
-  prompt.disabled = !ready;
   model.disabled = !ready || working;
-  agent.disabled = !ready || working;
-  element<HTMLButtonElement>("send").disabled = !ready || working || !prompt.value.trim();
-  element("send").hidden = !!working;
   element("stop").hidden = !busy();
   element<HTMLButtonElement>("stop").disabled = submitting;
   element<HTMLButtonElement>("new-conversation").disabled = !state || submitting;
   element("setup").hidden = !state || !!state.models.length;
   element("welcome").hidden = !!messages.length || !!selected && historyLoading || !!state && !state.models.length;
-  const modeReadout = element("mode-readout");
-  modeReadout.textContent = agent.value === "plan" ? "Discuss" : "Make changes";
-  modeReadout.dataset.mode = agent.value;
-  element("mode-hint").textContent = agent.value === "plan"
-    ? "Discuss: plans only, no changes."
-    : "Make changes: may edit files and run commands. OpenCode's approvals still ask first.";
   element("copilot-status").textContent = !state ? "Checking" : state.models.length
     ? `Connected: ${state.models.length} Copilot model${state.models.length === 1 ? "" : "s"} available` : "Not connected";
   voice.sync();
@@ -288,7 +282,6 @@ function renderState() {
   element("project-name").title = state.project;
   if (document.activeElement !== element("project-path")) element<HTMLInputElement>("project-path").value = state.project;
   element("workspace-caption").textContent = `OpenCode ${state.version} · ${state.project}`;
-  element("conversation-title").textContent = state.conversations.find((item) => item.id === selected)?.title ?? "New conversation";
   const currentModel = model.value;
   model.replaceChildren();
   for (const choice of state.models) {
@@ -413,6 +406,8 @@ function permissionPanel(request: PermissionRequest) {
   };
   const action = actions[request.permission] ?? `use the "${request.permission}" tool`;
   panel.append(make("p", undefined, `OpenCode wants to ${action}. Review the requested action before allowing it.`));
+  // OpenCode's helpers do not inherit the ask-first rules, only the deny rules.
+  if (request.permission === "task") panel.append(make("p", "approval-warning", "If you allow it, the helper can change files and run commands without asking again. Rules that block an action still apply."));
   panel.append(make("pre", undefined, `${request.patterns.join("\n")}\n\n${JSON.stringify(request.metadata, null, 2)}`));
   const buttons = make("div", "approval-actions");
   buttons.append(
@@ -638,19 +633,33 @@ function openEvents() {
 
 async function selectConversation(id: string) {
   if (selected && id !== selected) { voiceTurn = undefined; spokenQuestionID = undefined; voice.close(); }
-  drafts.set(selected ?? "new", prompt.value);
   selected = id;
   selectionRevision++;
   historyRevision++;
   historyLoading = false;
   clearTimeout(historyTimer);
   messages = [];
-  prompt.value = drafts.get(id) ?? "";
   notice();
   if (openDrawer() === "records") closeDrawer();
   renderState();
   renderMessages();
   await loadHistory();
+}
+
+/** Clears the screen for a new task. The next request starts a new log, named after that request. */
+function startFresh() {
+  voiceTurn = undefined;
+  spokenQuestionID = undefined;
+  voice.stopSpeaking();
+  selected = undefined;
+  selectionRevision++;
+  historyRevision++;
+  historyLoading = false;
+  clearTimeout(historyTimer);
+  messages = [];
+  notice();
+  renderState();
+  renderMessages();
 }
 
 async function newConversation(title = "New conversation") {
@@ -660,36 +669,25 @@ async function newConversation(title = "New conversation") {
   return conversation;
 }
 
-async function sendMessage(spokenText?: string) {
-  if (submitting || busy() || !state || !connected || historyLoading) {
-    if (spokenText) throw new Error("The spoken request was not sent. Wait for the current work or connection to finish.");
-    return;
-  }
-  const text = (spokenText ?? prompt.value).trim();
+async function sendMessage(spoken: string) {
+  if (submitting || busy() || !state || !connected || historyLoading) throw new Error("The spoken request was not sent. Wait for the current work or connection to finish.");
+  const text = spoken.trim();
   if (!text) return;
   const choice = state.models.find((choice) => modelValue(choice) === model.value);
   if (!choice) throw new Error("Connect GitHub Copilot and choose a model first.");
-  const mode = agent.value;
   submitting = true;
   controls();
   notice();
   try {
-    if (!selected) {
-      await newConversation((spokenText && addressed(text) || text).slice(0, 60));
-      prompt.value = text;
-    }
+    if (!selected) await newConversation((addressed(text) || text).slice(0, 60));
     const id = selected!;
-    if (spokenText) voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)) };
-    // Keep the draft until OpenCode confirms it accepted the message.
-    drafts.set(id, text);
-    await api(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, agent: mode });
-    if (spokenText) voice.acknowledge(() => !!voiceTurn && busy() && !pending());
-    drafts.delete(id);
-    prompt.value = "";
+    voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)) };
+    await api(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice });
+    voice.acknowledge(() => !!voiceTurn && busy() && !pending());
     await refreshState();
     await loadHistory();
   } catch (error) {
-    if (spokenText) { voiceTurn = undefined; prompt.value = text; }
+    voiceTurn = undefined;
     throw error;
   } finally {
     submitting = false;
@@ -759,15 +757,9 @@ async function route() {
   }
 }
 
-element("composer").addEventListener("submit", (event) => { event.preventDefault(); void perform(() => sendMessage()); });
-prompt.addEventListener("input", () => { drafts.set(selected ?? "new", prompt.value); controls(); });
-prompt.addEventListener("keydown", (event) => {
-  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void perform(() => sendMessage()); }
-});
-agent.addEventListener("change", controls);
 element("new-conversation").addEventListener("click", () => { void perform(async () => {
   closeDrawer();
-  await newConversation();
+  startFresh();
 }); });
 window.addEventListener("hashchange", () => { void perform(route); });
 document.addEventListener("keydown", (event) => {
@@ -817,15 +809,6 @@ element("refresh-provider").addEventListener("click", () => {
     openEvents();
   });
 });
-document.querySelectorAll<HTMLButtonElement>("[data-prompt]").forEach((button) => {
-  button.addEventListener("click", () => {
-    element<HTMLDetailsElement>("typing").open = true;
-    prompt.value = button.dataset.prompt ?? "";
-    drafts.set(selected ?? "new", prompt.value);
-    controls();
-    prompt.focus();
-  });
-});
 element("project-form").addEventListener("submit", (event) => {
   event.preventDefault();
   void perform(async () => {
@@ -838,7 +821,6 @@ element("project-form").addEventListener("submit", (event) => {
     selectionRevision++;
     historyRevision++;
     messages = [];
-    prompt.value = "";
     state = next;
     location.hash = "";
     renderState();
@@ -850,17 +832,11 @@ element("project-form").addEventListener("submit", (event) => {
 element("microphone").addEventListener("click", () => { void perform(async () => {
   if (voice.microphone) { setMuted(true); voice.microphoneOff(); controls(); return; }
   setMuted(false);
-  element<HTMLDetailsElement>("typing").open = false;
   await voice.activate();
   if (voice.microphone) markDisclosed();
   controls();
 }); });
 element("stop-speaking").addEventListener("click", () => voice.stopSpeaking());
-// Typing is the fallback when speaking is not possible; listening pauses until it closes.
-element("typing").addEventListener("toggle", () => {
-  if (typingOpen()) voice.microphoneOff();
-  controls();
-});
 for (const name of ["pointerdown", "keydown"] as const) document.addEventListener(name, () => voice.unlock(), true);
 window.addEventListener("beforeunload", () => { events?.close(); voice.close(); });
 void perform(async () => { await route(); await boot(); await route(); });

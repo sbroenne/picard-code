@@ -6,8 +6,8 @@ Rules for people and coding agents who change this repository. Read
 
 ## What this is
 
-A small local browser app. Spoken conversation is the main experience; typing
-is a fallback. OpenCode does the coding through the user's own GitHub Copilot
+A small local browser app. Spoken conversation is the only way to make
+requests; there is no typing. OpenCode does the coding through the user's own GitHub Copilot
 sign-in. Azure MAI is the preferred listening and speaking service; local
 Whisper listening and Kokoro speaking can be chosen instead, each side on its
 own. It is an unofficial tribute to Patrick Stewart's Jean-Luc Picard with an
@@ -24,9 +24,12 @@ original TNG-inspired look.
 
 - **Plain English** in everything users or the owner read: interface text,
   errors, docs, issues and pull requests. Avoid jargon.
-- **Never weaken approvals.** OpenCode's own permission rules decide what asks
-  first. Do not add automatic approval, "always allow", voice approval, or
-  remove deny rules. Approvals need a button.
+- **Never weaken approvals.** Every file change or command asks first:
+  `src/server/confirm.ts` copies the user's OpenCode rules into each
+  conversation with every "allow" (except reading and searching) turned into
+  "ask", and keeps every deny. Do not add automatic approval, "always allow",
+  voice approval, or remove deny rules. Approvals need a button. Never send
+  `tools` with a prompt; OpenCode would replace these rules.
 - **Truthful results.** Never claim work succeeded, ran, or was heard before the
   real result arrives. Never replace a real error with a vague or themed message.
   No silent fallback from one speech service to another.

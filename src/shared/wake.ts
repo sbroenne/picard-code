@@ -15,11 +15,17 @@ const STOP = new Set([
   "abort", "abort that", "halt", "belay that", "never mind", "nevermind", "forget it",
 ]);
 
-export type VoiceCommand = "stop";
+// Like the ship's computer, there is one ongoing conversation until the captain starts afresh.
+const FRESH = new Set([
+  "new task", "a new task", "start a new task", "next task", "new conversation", "start a new conversation",
+  "start over", "start again", "start fresh", "fresh start", "clear", "clear the screen",
+]);
+
+export type VoiceCommand = "stop" | "new";
 
 /** A spoken command handled by Picard Code itself rather than sent to Copilot. */
 export function voiceCommand(words: string): VoiceCommand | undefined {
   const plain = words.toLowerCase().replace(/[’]/g, "'").replace(/[^a-z'\s]/g, " ")
     .replace(/\bplease\b/g, " ").replace(/\s+/g, " ").trim();
-  return STOP.has(plain) ? "stop" : undefined;
+  return STOP.has(plain) ? "stop" : FRESH.has(plain) ? "new" : undefined;
 }

@@ -1,12 +1,14 @@
 import { createServer, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
-import type { PermissionRequest, QuestionRequest } from "@opencode-ai/sdk/v2";
+import type { PermissionRequest, PermissionRule, QuestionRequest } from "@opencode-ai/sdk/v2";
+import { rulesToAdd } from "../server/confirm.js";
 
 interface FixtureSession {
   id: string;
   title: string;
   directory: string;
   time: { created: number; updated: number };
+  permission?: PermissionRule[];
 }
 interface FixtureMessage {
   info: { id: string; sessionID: string; role: "user" | "assistant"; time: { created: number } };
@@ -28,6 +30,14 @@ export async function startFixture(project: string) {
   const generations = new Map<string, number>();
   const requests: { method: string; path: string; directory: string; data: Record<string, unknown> }[] = [];
   let copilot = true;
+  // Shaped like OpenCode's own build agent: allow everything, with a few asks and denies.
+  const buildRules: PermissionRule[] = [
+    { permission: "*", pattern: "*", action: "allow" },
+    { permission: "doom_loop", pattern: "*", action: "ask" },
+    { permission: "external_directory", pattern: "*", action: "ask" },
+    { permission: "read", pattern: "*.env", action: "ask" },
+    { permission: "bash", pattern: "rm *", action: "deny" },
+  ];
 
   const publish = (directory: string, type: string, properties: unknown) => {
     for (const listener of listeners) {
@@ -124,6 +134,7 @@ export async function startFixture(project: string) {
       if (url.pathname === "/permission") { send(200, permissions); return; }
       if (url.pathname === "/question") { send(200, questions); return; }
       if (url.pathname === "/instance/dispose") { send(200, true); return; }
+      if (url.pathname === "/agent") { send(200, [{ name: "build", mode: "primary", options: {}, permission: buildRules }]); return; }
       if (url.pathname === "/session") {
         if (request.method === "POST") send(200, createSession(directory, typeof data.title === "string" ? data.title : undefined));
         else send(200, Array.from(sessions.values()).reverse());
@@ -136,6 +147,7 @@ export async function startFixture(project: string) {
         if (!session) { send(404, { message: "Conversation not found" }); return; }
         if (!match[2]) {
           if (request.method === "PATCH" && typeof data.title === "string") session.title = data.title;
+          if (request.method === "PATCH" && Array.isArray(data.permission)) session.permission = [...session.permission ?? [], ...data.permission as PermissionRule[]];
           send(200, session);
         } else if (match[2] === "message") {
           const snapshot = structuredClone(messages.get(id));
@@ -150,6 +162,11 @@ export async function startFixture(project: string) {
           setStatus(id, "idle");
           send(200, true);
         } else {
+          // Picard Code must make changes ask first before sending anything.
+          if (data.agent !== "build" || rulesToAdd(buildRules, session.permission ?? [])) {
+            send(400, { message: "The test stand-in refused: changes were not set to ask first." });
+            return;
+          }
           const generation = (generations.get(id) ?? 0) + 1;
           generations.set(id, generation);
           const parts = data.parts as { text: string }[];

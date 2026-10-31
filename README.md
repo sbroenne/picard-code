@@ -14,7 +14,8 @@ listens all the time: start a request with "Computer", and receive a brief
 spoken reply with detailed results on screen. OpenCode
 stores conversations and performs the work. Azure MAI is the preferred
 listening and speaking service; local Whisper and Kokoro are also implemented.
-Either side can be selected independently. Typing remains a fallback.
+Either side can be selected independently. There is no typing: like the
+captain, you speak to the computer.
 
 ## Run from source
 
@@ -83,22 +84,21 @@ status (for example Standing by, Listening, Understanding, Working, Speaking
 or Decision needed) and a line saying what to do next. The console also holds
 **Start listening** (only before the first start), **Mute** or **Unmute**,
 **Stop speaking** and **Stop work**. The latest request and reply are shown
-large; earlier messages are smaller. The header shows the conversation name,
-the current mode and the tribute badge.
+large; earlier messages are smaller. The header shows only the name and the
+tribute badge. Like the ship's computer, there are no conversation names or
+modes on the main screen.
 
 Everything else is hidden in slide-outs, opened from the side panel.
 **Close** or the Escape key closes them. Picard Code is made for a computer
 screen; there is no phone layout.
 
-- **Conversations** (`#records`): earlier conversations in the project folder.
-- **Options** (`#options`): mode and model. Selecting the mode in the header
-  opens this too.
+- **Logs** (`#records`): earlier conversations in the project folder (latest
+  100). Choose one to reopen it.
+- **Options** (`#options`): the Copilot model.
 - **Settings** (`#settings`): the Copilot connection steps, the project folder,
   speech, and the full privacy and approvals text. If Copilot is not connected
   when the app opens, Settings is shown first. Listening pauses while
   Settings is open. Speech changes apply without restarting.
-
-Suggested starting requests and the message box are under **Type instead**.
 
 For the requested personal setup, use your **sbroenne** GitHub account in the
 official device sign-in. Picard Code does not independently verify the account
@@ -114,8 +114,7 @@ than substituting another provider.
 
 - The first time, choose **Start listening**. It asks for browser microphone
   access and shows where audio goes. After that, listening starts by itself
-  whenever the app opens, unless you chose **Mute** (remembered), opened
-  **Type instead**, or Settings is open. If the browser blocks sound until you
+  whenever the app opens, unless you chose **Mute** (remembered) or Settings is open. If the browser blocks sound until you
   interact, the screen says "Click anywhere to start listening."
 - The microphone stays on. While the room is quiet, the console shows
   **Standing by** and nothing leaves your computer. When someone starts
@@ -128,7 +127,11 @@ than substituting another provider.
   "Computer" on its own plays the accepted sound and gives you about eight
   seconds to say the request.
 - **"Computer, stop"** (or "cancel that", "belay that", "never mind") cancels
-  the current work, the same as **Stop work**. Other requests made while work
+  the current work, the same as **Stop work**.
+- There is one ongoing conversation. **"Computer, new task"** (or "start
+  over", "new conversation") clears the screen, the same as the **New task**
+  button; your next request starts a new log. Earlier conversations stay
+  under **Logs**. Other requests made while work
   is running, a question is waiting, or a decision is needed get a short
   spoken reminder instead of being sent.
 - The computer speaks a complete short answer, usually one to three
@@ -149,7 +152,6 @@ than substituting another provider.
 - **Mute** stops microphone capture without cancelling OpenCode's work.
   **Stop work** cancels the current OpenCode request. These are separate
   controls.
-- **Type instead** opens the fallback message box and pauses listening.
 - **Optional computer sounds:** run `npm run setup:sounds` once to download four
   short TrekCore sounds (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
   then restart Picard Code. During spoken conversation they play quietly, once
@@ -158,32 +160,31 @@ than substituting another provider.
   work is still running after about 2.5 seconds with no answer, question or
   approval request yet; an input-failed sound when speech was not understood
   or could not be sent; and a deny beep just before the spoken result when an
-  accepted request finally fails or is denied. Typed requests, answers to
-  questions, **Stop work**, "Computer, stop" and **Mute** play no sound.
+  accepted request finally fails or is denied. Answers to questions, **Stop work**, "Computer, stop" and **Mute** play no sound.
   Listening is paused while a sound plays, and listening, speech,
   **Stop speaking** or **Mute** stop it. Each sound only accompanies the visible and
   spoken explanation; it never replaces it. Without the files, there are no
   sounds and nothing else changes.
-- **New conversation** starts a saved OpenCode conversation. Existing
-  conversations in the selected folder appear under **Conversations** (latest
-  100).
-- **Discuss** uses OpenCode's `plan` mode. **Make changes** uses its `build` mode.
 - Replies update live. Tool activity and thinking can be expanded, and code
   blocks remain readable. **Copy** copies the reply text.
 - **Allow once** or **Deny** answers an actual OpenCode approval request. There
   is no automatic approval or “always allow” shortcut, and approvals cannot be
   given by voice. After **Deny**, the computer says the action was not carried out.
-- Questions from OpenCode can also be answered on screen with choices or a
-  written answer. **Stop work** asks OpenCode to stop the current conversation.
+- Questions from OpenCode can also be answered on screen. **Stop work** asks OpenCode to stop the current conversation.
 
-**OpenCode's own permission rules decide which actions need approval.** Its
-default settings allow many tools without asking. Picard Code does not change
-those rules, remove denied actions, enable automatic approval, or turn off
-tool checks. Review your OpenCode configuration before using **Make changes**.
-For stricter controls, configure OpenCode itself; for example, its documented
-`"permission": "ask"` setting asks before tools run. Preserve any existing
-deny rules when adjusting your settings. Planning mode is not a security
-boundary: installed extensions and agent configuration also matter.
+**Every file change or command asks first.** The computer can always act,
+but OpenCode's default settings allow many tools without asking, so Picard
+Code adds rules to each of its conversations that turn every such "allow" into
+"ask". Reading and searching the project still go ahead without asking.
+Picard Code copies your own OpenCode rules when it does this, so anything you
+have blocked stays blocked; it never removes a block or allows something your
+rules ask about. There is no automatic approval.
+
+One limit: when OpenCode wants to start a **helper** for part of the work, that
+also asks first. If you allow it, the helper can change files and run commands
+without asking again, because OpenCode's helpers keep only your blocking rules.
+The approval screen says so. Installed extensions and agent configuration also
+matter.
 
 The interface runs locally, but OpenCode sends messages and relevant project
 content to GitHub Copilot. Because the microphone stays on, **MAI listening
@@ -499,7 +500,8 @@ and repeat the browser checks.
 - **Local speech will not start:** complete the Python setup and model download,
   check the configured paths, and choose **Save and apply** on the Settings
   page again (no restart needed). The reported error is not replaced
-  with Azure or browser speech. Use the typing fallback when speech is unavailable.
+  with Azure or browser speech. Picard Code needs working speech; there is
+  no typing fallback.
 
 ## References
 

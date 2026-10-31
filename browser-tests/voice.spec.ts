@@ -33,7 +33,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow") {
+async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -99,7 +99,7 @@ test.setTimeout(60000);
 test("listening stays on; only requests addressed to the computer are sent; mute is remembered", async ({ page }, info) => {
   await launch(page);
   await expect(page.locator("#status-detail")).toHaveText("Start listening to talk to the computer.");
-  await expect(page.getByRole("textbox", { name: "Your message" })).not.toBeVisible();
+  await expect(page.getByRole("textbox")).toHaveCount(0);
   await startListening(page);
   await expect(page.locator("#voice-disclosure")).toBeHidden();
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
@@ -202,4 +202,64 @@ test("a denied action plays the failure sound once, then speaks the result", asy
   await page.getByRole("button", { name: "Mute", exact: true }).click();
   // No processing sound while the approval waited.
   expect(await sounds(page)).toEqual(["request-accepted: Understanding", "request-failed: Preparing reply"]);
+});
+
+test("Allow once lets the requested action go ahead", async ({ page }, info) => {
+  await launch(page, "approval");
+  await startListening(page);
+  await expect(page.getByRole("heading", { name: "Approval required." })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText("OpenCode wants to run a command. Review the requested action before allowing it.")).toBeVisible();
+  await page.screenshot({ path: info.outputPath("approval-screen.png"), fullPage: true });
+  await page.getByRole("button", { name: "Allow once" }).click();
+  await expect(page.locator(".message[data-role=assistant]")).toContainText("The test approval was answered.", { timeout: 15000 });
+  await page.getByRole("button", { name: "Mute", exact: true }).click();
+});
+
+test("the Stop work button cancels spoken work", async ({ page }) => {
+  await launch(page, "long");
+  await startListening(page);
+  await expect(page.getByRole("button", { name: "Stop work" })).toBeVisible({ timeout: 15000 });
+  await page.getByRole("button", { name: "Mute", exact: true }).click();
+  await page.getByRole("button", { name: "Stop work" }).click();
+  await expect(status(page)).toHaveText("Muted", { timeout: 10000 });
+  await expect(page.getByRole("button", { name: "Stop work" })).toBeHidden();
+});
+
+test("a question can also be answered by choosing on screen", async ({ page }) => {
+  await launch(page, "choose");
+  await startListening(page);
+  await expect(page.getByRole("heading", { name: "Additional information required." })).toBeVisible({ timeout: 15000 });
+  await page.getByRole("radio", { name: "Explain first" }).check();
+  await page.getByRole("button", { name: "Send answer" }).click();
+  await expect(page.locator("#messages")).toContainText('Your test answer was received: [["Explain first"]].', { timeout: 15000 });
+  await page.getByRole("button", { name: "Mute", exact: true }).click();
+});
+
+test("replies show code safely, and the conversation reopens after reload", async ({ page }, info) => {
+  await launch(page, "unsafe");
+  await startListening(page);
+  await expect(page.locator("#messages pre")).toContainText("const safe = true;", { timeout: 15000 });
+  await expect(page.locator("#messages")).toContainText("<img src=x onerror=alert('unsafe')>");
+  await expect(page.locator("#messages img")).toHaveCount(0);
+  await page.getByRole("button", { name: "Mute", exact: true }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.reload();
+  await expect(page.locator("#messages pre")).toContainText("const safe = true;");
+  await expect(status(page)).toHaveText("Muted");
+  await page.screenshot({ path: info.outputPath("conversation-screen.png"), fullPage: true });
+});
+
+test("“Computer, new task” clears the screen; the earlier conversation stays in Logs", async ({ page }) => {
+  const spoken = spokenText(page);
+  await launch(page, "fresh");
+  await startListening(page);
+  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
+  await expect(status(page)).toHaveText("Speaking");
+  await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
+  await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toBe("Ready for a new task.");
+  await expect(page.locator(".message")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
+  await page.getByRole("button", { name: "Mute", exact: true }).click();
+  await page.getByRole("link", { name: "Logs" }).click();
+  await expect(page.locator("#conversations")).toContainText("hello there");
 });

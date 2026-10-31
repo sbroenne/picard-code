@@ -17,18 +17,20 @@ test.beforeEach(async ({ page }) => {
   });
   await page.goto(url);
   await expect(page.getByRole("status")).toHaveText("Ready");
-  await page.getByText("Type instead", { exact: true }).click();
   page.on("close", () => child.kill());
 });
 
-test("empty screen, folder controls and long content fit without horizontal overflow", async ({ page }, testInfo) => {
+test("empty screen fits without horizontal overflow and has no typing box", async ({ page }, testInfo) => {
   await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
   await expect(page.locator("#tribute")).toBeVisible();
   await expect(page.locator("#tribute")).toHaveText("With deepest respect and gratitude: Patrick Stewart 1940 – 2026");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await expect(page.getByRole("button", { name: "New conversation" })).toBeVisible();
-  await page.getByRole("button", { name: "Understand this project" }).click();
-  await expect(page.getByRole("textbox", { name: "Your message" })).toHaveValue("Explain this project and where I should start.");
+  await expect(page.getByRole("button", { name: "New task" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Logs" })).toBeVisible();
+  // Like the ship's computer: no typing, no conversation name and no mode on the main screen.
+  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await expect(page.getByText("Type instead")).toHaveCount(0);
+  await expect(page.getByText("Discuss", { exact: true })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("empty-screen.png"), fullPage: true });
 });
 
@@ -39,13 +41,13 @@ test("the main screen shows only the conversation; setup and options stay in sli
   await expect(page.getByRole("button", { name: "Start listening" })).toBeHidden();
   for (const name of ["Project folder", "Copilot connection"]) await expect(page.getByRole("heading", { name })).toBeHidden();
   await expect(page.getByLabel("Model")).toBeHidden();
-  await expect(page.getByLabel("Mode", { exact: true })).toBeHidden();
   await expect(page.locator("#conversations")).toBeHidden();
 
-  await page.getByRole("link", { name: "Discuss" }).click();
+  await page.getByRole("link", { name: "Options" }).click();
   await expect(page).toHaveURL(/#options$/);
   await expect(page.getByLabel("Model")).toBeVisible();
-  await expect(page.getByLabel("Mode", { exact: true })).toBeVisible();
+  await expect(page.getByText("Every file change or command asks first. Choose Allow once or Deny on screen.")).toBeVisible();
+  await expect(page.getByLabel("Mode", { exact: true })).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("Model")).toBeHidden();
 
@@ -57,44 +59,4 @@ test("the main screen shows only the conversation; setup and options stay in sli
   await page.goBack();
   await expect(page.getByRole("heading", { name: "Project folder" })).toBeHidden();
   await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
-});
-
-test("send, stream, approval, stop and safe code rendering work", async ({ page }, testInfo) => {
-  const prompt = page.getByRole("textbox", { name: "Your message" });
-  await prompt.fill("Hello computer");
-  await page.getByRole("button", { name: "Send", exact: false }).click();
-  await expect(page.locator(".message[data-role=assistant]")).toContainText("A genuinely streamed reply");
-  await expect(page.getByRole("status")).toHaveText("Ready");
-  await prompt.fill("Request an approval");
-  await page.getByRole("button", { name: "Send", exact: false }).click();
-  await expect(page.getByRole("heading", { name: "Approval required." })).toBeVisible();
-  await expect(page.getByText("OpenCode wants to run a command. Review the requested action before allowing it.")).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath("approval-screen.png"), fullPage: true });
-  await page.getByRole("button", { name: "Allow once" }).click();
-  await expect(page.getByRole("status")).toHaveText("Ready");
-  await prompt.fill("Stop this reply");
-  await page.getByRole("button", { name: "Send", exact: false }).click();
-  await page.getByRole("button", { name: "Stop work" }).click();
-  await expect(page.getByRole("status")).toHaveText("Ready");
-  await prompt.fill("unsafe output");
-  await page.getByRole("button", { name: "Send", exact: false }).click();
-  await expect(page.locator("#messages")).toContainText("<img src=x onerror=alert('unsafe')>");
-  await expect(page.locator("#messages img")).toHaveCount(0);
-  await expect(page.locator("#messages pre")).toContainText("const safe = true;");
-  await expect(page.getByRole("status")).toHaveText("Ready");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-});
-
-test("questions receive real answers and conversations reopen after reload", async ({ page }, testInfo) => {
-  await page.getByRole("textbox", { name: "Your message" }).fill("Ask a question");
-  await page.getByRole("button", { name: "Send", exact: false }).click();
-  await expect(page.getByRole("heading", { name: "Additional information required." })).toBeVisible();
-  await page.getByRole("radio", { name: "Explain first" }).check();
-  await page.getByRole("button", { name: "Send answer" }).click();
-  await expect(page.locator("#messages")).toContainText('Your test answer was received: [["Explain first"]].');
-  await expect(page.getByRole("status")).toHaveText("Ready");
-  await page.reload();
-  await expect(page.locator("#messages")).toContainText('Your test answer was received: [["Explain first"]].');
-  await expect(page.getByRole("status")).toHaveText("Ready");
-  await page.screenshot({ path: testInfo.outputPath("conversation-screen.png"), fullPage: true });
 });

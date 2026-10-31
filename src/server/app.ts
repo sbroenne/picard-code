@@ -7,6 +7,7 @@ import type { AppState, BrowserEvent } from "../shared/types.js";
 import { chatMessage, copilotModels, errorMessage } from "./engine.js";
 import { projectDirectory } from "./process.js";
 import { COMPUTER_MANNER } from "./instructions.js";
+import { rulesToAdd } from "./confirm.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechService } from "./speech-types.js";
 import { describeSpeechSettings, mergeSpeechSettings, readSpeechSettings, saveSpeechSettings, speechFromSettings, speechSettingsFile } from "./speech.js";
@@ -318,14 +319,24 @@ export async function startApp(options: AppOptions) {
             }
             const status = await client.session.status({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
             if (status.data[id] && status.data[id]?.type !== "idle") throw new HttpError(409, "Wait for the current reply, or stop it before sending another message.");
-            if (data.agent !== "plan" && data.agent !== "build") throw new HttpError(400, "Choose Discuss or Make changes.");
             if (session.title === "New conversation") {
               await client.session.update({ directory: project, sessionID: id, title: text.slice(0, 60) }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
+            }
+            // Every request may make changes, so every change or command must ask first.
+            const agents = await client.app.agents({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
+            const build = agents.data.find((agent) => agent.name === "build");
+            if (!build) throw new HttpError(502, "OpenCode's build agent is missing, so nothing was sent. Check your OpenCode settings.");
+            const add = rulesToAdd(build.permission, session.permission ?? []);
+            if (add) {
+              const updated = await client.session.update({ directory: project, sessionID: id, permission: add }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
+              if (rulesToAdd(build.permission, updated.data.permission ?? [])) {
+                throw new HttpError(502, "OpenCode did not accept the rule to ask before changes, so nothing was sent.");
+              }
             }
             await client.session.promptAsync({
               directory: project,
               sessionID: id,
-              agent: data.agent,
+              agent: "build",
               system: COMPUTER_MANNER,
               model: { providerID, modelID },
               parts: [{ type: "text", text }],

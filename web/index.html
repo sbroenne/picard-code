@@ -18,12 +18,6 @@
         <span class="block lilac grow"><i>02-1701</i></span>
       </div>
       <header class="header">
-        <div class="header-readouts">
-          <h2 id="conversation-title" class="conversation-title">New conversation</h2>
-          <div class="header-pills">
-            <a id="mode-readout" class="mode-readout" href="#options" title="Change mode or model">Discuss</a>
-          </div>
-        </div>
         <div class="brand">
           <h1>Picard Code</h1>
           <p id="tribute" class="tribute">With deepest respect and gratitude: <span>Patrick Stewart</span> <span class="tribute-years">1940 – 2026</span></p>
@@ -35,8 +29,8 @@
       <div class="bar bar-main" aria-hidden="true"><span class="orange"></span><span class="peach grow"></span><span class="red short"></span><span class="lilac"></span></div>
 
       <nav id="sidebar" class="sidebar" aria-label="Panels">
-        <button id="new-conversation" class="rail-button orange" type="button">New conversation</button>
-        <a class="rail-button peach" href="#records" data-drawer-link="records">Conversations</a>
+        <button id="new-conversation" class="rail-button orange" type="button">New task</button>
+        <a class="rail-button peach" href="#records" data-drawer-link="records">Logs</a>
         <a class="rail-button lilac" href="#options" data-drawer-link="options">Options</a>
         <span class="rail-fill" aria-hidden="true"><i class="tan">03-4471</i><i class="blue">04-2240</i><i class="peach">05-0927</i></span>
         <a id="nav-settings" class="rail-button blue" href="#settings" data-drawer-link="settings">Settings</a>
@@ -74,23 +68,10 @@
             <button id="stop" class="pill red" type="button" hidden>Stop work</button>
           </div>
         </section>
-        <details id="typing" class="typing">
-          <summary>Type instead</summary>
-          <div class="suggestions" aria-label="Message ideas">
-            <button class="pill peach" type="button" data-prompt="Explain this project and where I should start.">Understand this project</button>
-            <button class="pill lilac" type="button" data-prompt="Suggest a small, useful improvement to this project. Explain the plan before making changes.">Plan an improvement</button>
-            <button class="pill blue" type="button" data-prompt="Look for a likely bug in this project. Explain what you find before changing anything.">Look for a bug</button>
-          </div>
-          <form id="composer" class="composer">
-            <label class="visually-hidden" for="prompt">Your message</label>
-            <textarea id="prompt" rows="3" maxlength="32000" placeholder="Enter your request" disabled></textarea>
-            <button id="send" class="pill orange" type="submit" disabled>Send</button>
-          </form>
-        </details>
       </main>
 
       <section id="drawer-records" class="drawer" hidden tabindex="-1" aria-labelledby="records-title">
-        <div class="drawer-bar peach"><h2 id="records-title">Conversations</h2><a class="drawer-close" href="#">Close</a></div>
+        <div class="drawer-bar peach"><h2 id="records-title">Logs</h2><a class="drawer-close" href="#">Close</a></div>
         <p class="drawer-caption">Project folder: <span id="project-name">Connecting</span></p>
         <div id="conversations" class="conversation-list"></div>
       </section>
@@ -98,11 +79,9 @@
       <section id="drawer-options" class="drawer" hidden tabindex="-1" aria-labelledby="options-title">
         <div class="drawer-bar lilac"><h2 id="options-title">Options</h2><a class="drawer-close" href="#">Close</a></div>
         <div class="field-grid">
-          <label for="agent">Mode</label>
-          <select id="agent"><option value="plan">Discuss</option><option value="build">Make changes</option></select>
-          <p id="mode-hint" class="muted span"></p>
           <label for="model">Model</label>
           <select id="model" disabled><option>Waiting for Copilot</option></select>
+          <p class="muted span">Every file change or command asks first. Choose Allow once or Deny on screen.</p>
         </div>
       </section>
 

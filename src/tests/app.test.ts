@@ -93,7 +93,7 @@ test("saved conversations and project context use the actual SDK; other folders 
   assert.equal((await context.request(`conversations/${session.id}/messages`)).status, 200);
   const foreign = context.fixture.createSession(context.other, "Other folder");
   assert.equal((await context.request(`conversations/${foreign.id}/stop`, {})).status, 403);
-  assert.equal((await context.request(`conversations/${session.id}/send`, { text: "Hello", providerID: "other-provider", modelID: "other", agent: "build" })).status, 400);
+  assert.equal((await context.request(`conversations/${session.id}/send`, { text: "Hello", providerID: "other-provider", modelID: "other" })).status, 400);
   assert.equal((await context.request("project", { path: join(context.other, "missing") })).status, 400);
   const switched = await context.request("project", { path: context.other });
   assert.equal(switched.status, 200);
@@ -113,7 +113,7 @@ test("prompt_async produces actual streamed deltas and a saved reply through the
   t.after(() => reader.cancel());
   const first = await reader.read();
   assert.match(new TextDecoder().decode(first.value), /connected/);
-  const accepted = await context.request(`conversations/${session.id}/send`, { text: "Hello computer", providerID: "github-copilot", modelID: "fixture-model", agent: "plan" });
+  const accepted = await context.request(`conversations/${session.id}/send`, { text: "Hello computer", providerID: "github-copilot", modelID: "fixture-model" });
   assert.equal(accepted.status, 202);
   let observed = "";
   const deadline = Date.now() + 5000;
@@ -127,9 +127,16 @@ test("prompt_async produces actual streamed deltas and a saved reply through the
   assert.equal(messages[1].parts[0].text, "A genuinely streamed reply from the test fixture.");
   const prompt = context.fixture.requests.find((request) => request.path.endsWith("/prompt_async"))!;
   assert.equal(prompt.directory, context.directory);
-  assert.equal(prompt.data.agent, "plan");
+  assert.equal(prompt.data.agent, "build");
   assert.equal(prompt.data.tools, undefined);
   assert.equal(prompt.data.permission, undefined);
+  // The ask-first rules are set on the conversation before the request, and only once.
+  const rules = context.fixture.requests.filter((request) => request.method === "PATCH" && Array.isArray(request.data.permission));
+  assert.equal(rules.length, 1);
+  assert.ok(context.fixture.requests.indexOf(rules[0]!) < context.fixture.requests.indexOf(prompt));
+  assert.deepEqual((rules[0]!.data.permission as { permission: string }[])[0], { permission: "picard-code", pattern: "confirm-changes", action: "ask" });
+  assert.ok((rules[0]!.data.permission as { permission: string; pattern: string; action: string }[])
+    .some((rule) => rule.permission === "bash" && rule.pattern === "rm *" && rule.action === "deny"), "the stand-in's deny rule is kept");
   assert.match(String(prompt.data.system), /brief, precise, neutral/i);
   assert.match(String(prompt.data.system), /Never invent completion/);
 });
@@ -139,7 +146,7 @@ test("approvals and questions stay pending until the user answers; no automatic 
   t.after(context.cleanup);
   await context.login();
   const session = await (await context.request("conversations", {})).json();
-  const send = (text: string) => context.request(`conversations/${session.id}/send`, { text, providerID: "github-copilot", modelID: "fixture-model", agent: "build" });
+  const send = (text: string) => context.request(`conversations/${session.id}/send`, { text, providerID: "github-copilot", modelID: "fixture-model" });
   assert.equal((await send("Request an approval")).status, 202);
   let state = await (await context.request("state")).json() as AppState;
   assert.equal(state.permissions.length, 1);
