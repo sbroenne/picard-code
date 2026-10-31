@@ -78,11 +78,11 @@ function status(page: import("@playwright/test").Page) {
   return page.getByRole("status");
 }
 
-/** Listening starts by itself; if the browser wants a click before playing sound, one click on the computer panel gives it. */
+/** Listening starts by itself; if the browser wants a click before playing sound, one click on the visible status text gives it. */
 async function startListening(page: import("@playwright/test").Page) {
   await expect.poll(async () => `${await status(page).textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 15000 })
     .toMatch(/Standing by|Listening|Understanding|Click anywhere/);
-  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#messages").click();
+  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#status-detail").click();
   await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
 }
 
@@ -136,10 +136,7 @@ test("listening stays on; “Computer” starts a task, follow-ups need no “Co
   // The app always opens with the microphone on, even after it was switched off. The browser may want one click first.
   await page.reload();
   await expect(page.locator("#drawer-settings")).toBeHidden();
-  await expect.poll(async () => `${await status(page).textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 15000 })
-    .toMatch(/Standing by|Listening|Understanding|Click anywhere/);
-  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#messages").click();
-  await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
+  await startListening(page);
   await expect(page.locator(".message[data-role=user]")).toHaveCount(2);
 });
 

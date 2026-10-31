@@ -46,7 +46,7 @@ Standing by, listening, understanding, working, speaking, reconnecting, unanswer
 questions, and approval requests have visible labels. Errors name the problem
 and the recovery step.
 
-The microphone starts on when speech is ready, subject to browser permission
+The microphone switches on when speech is ready, subject to browser permission
 and sound restrictions. "Computer" starts a task; follow-ups within it need no
 prefix. Standing by still listens; the microphone button or M key stops capture.
 Requests heard during work or a pending decision are not sent. Live understood

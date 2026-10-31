@@ -21,6 +21,10 @@ brings the tested copy. If npm asks to approve OpenCode's setup script, review
 it, then run `npm install-scripts approve @opencode/cli` and
 `npm rebuild @opencode/cli`.
 
+Dependabot does not upgrade OpenCode. To upgrade it, change its version in
+`package.json`, run `npm install`, review and approve the new setup script with
+the two commands above, then run the real checks in step 5.
+
 ## 2. Sign in to a model provider through OpenCode
 
 Picard Code works with any provider OpenCode supports. Each computer needs its
@@ -110,5 +114,19 @@ Still open:
 - Fresh real OpenCode 2, model, Azure, and local speech checks.
 - Not planned yet: rewriting spoken requests into "captain style", interrupting
   the computer by speaking over it, and publishing `npx picard-code`.
+
+## Making the repository public
+
+Some GitHub features only work on a public repository. After making it public:
+
+1. In **Settings → Pages**, choose **GitHub Actions** as the source, then run
+   **Publish project website** once from the **Actions** tab. Set the
+   repository's website address to `https://sbroenne.github.io/picard-code/`.
+2. In **Settings → Code security**, turn on private vulnerability reporting,
+   Dependabot alerts and security updates. The CodeQL and dependency review
+   checks start running by themselves.
+3. Protect `main` with a rule that requires the **Project checks** to pass.
+4. Turn on automatic Copilot code review, so the Ponytail skill reviews each
+   pull request.
 
 Research and its evidence limits are in [docs/research](research/).

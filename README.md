@@ -16,8 +16,9 @@ the ship's displays, no franchise material, and no endorsement.
 [Help shape the computer](CONTRIBUTING.md) ·
 [Setup and support](SUPPORT.md) · [MIT license](LICENSE)
 
-The project website is a separate [static showcase](site/index.html), prepared
-for GitHub Pages. It does not run the app or listen to visitors.
+The [project website](https://sbroenne.github.io/picard-code/) is a separate
+static tribute page, published from `site/` with GitHub Pages. It does not run
+the app or listen to visitors.
 
 ## Contributions welcome
 

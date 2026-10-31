@@ -28,7 +28,7 @@ websites. A future published package may support `npx picard-code`; publication
 is not part of the first version.
 
 Spoken requests are the only input; there is no typing fallback. The app is
-designed for a computer screen, not a phone. The microphone starts on when
+designed for a computer screen, not a phone. The microphone switches on when
 speech is ready, subject to browser permission and sound restrictions.
 "Computer" begins a task; follow-ups need no prefix until the user returns to
 standing by. End-of-speech detection sends ordinary requests

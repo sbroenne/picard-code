@@ -15,7 +15,7 @@ export async function wikipediaFixture(subject: WikipediaArticle["subject"]): Pr
 }
 
 /** A staged example answer for the project website screenshot; no model wrote it and no project was examined. */
-export const EXAMPLE_ANSWER = "The settings test fails because the default voice replaces the saved choice when the app starts.\n\n"
+const EXAMPLE_ANSWER = "The settings test fails because the default voice replaces the saved choice when the app starts.\n\n"
   + "In `src/settings.ts`, apply the defaults first and the saved settings second:\n\n"
   + "```ts\nconst settings = { ...defaults, ...saved };\n```\n\n"
   + "Shall I make that change and run the test again?";

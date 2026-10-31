@@ -1,6 +1,6 @@
 name: Propose a speech service
 description: Add or improve a listening or speaking model.
-labels: ["enhancement"]
+labels: ["enhancement", "speech"]
 body:
   - type: dropdown
     id: side

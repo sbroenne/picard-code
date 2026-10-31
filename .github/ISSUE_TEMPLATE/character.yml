@@ -1,6 +1,6 @@
 name: Help shape the computer
 description: Propose an improvement to the computer's character, wording, or timing.
-labels: ["enhancement"]
+labels: ["enhancement", "character"]
 body:
   - type: markdown
     attributes:
