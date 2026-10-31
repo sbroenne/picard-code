@@ -54,7 +54,7 @@ Either side can be chosen separately, for example
 npm run setup:sounds
 ```
 
-This downloads four short TrekCore sounds, checks them, and saves them in the
+This downloads three short TrekCore sounds, checks them, and saves them in the
 ignored `.picard-sounds` folder. They are never committed. See
 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). The app works without them.
 
@@ -88,13 +88,13 @@ shutdown, Copilot conversations, live replies, approvals and questions; real
 MAI listening and Emily speaking; real Whisper and Kokoro; full spoken
 conversations on both speech paths using generated audio; a six-turn real
 conversation check (follow-up, correction, "show me", a real question, a
-refused command); and the four sounds loading and playing at the right
+refused command); and the sounds loading and playing at the right
 moments in browser checks.
 
 Still open:
 
 - A real conversation with a **physical microphone and speakers**: room noise,
-  echo, pause length, sound volume, and the 2.5-second processing sound delay.
+  echo, pause length and sound volume.
 - **macOS and Linux**: startup, shutdown and local speech are implemented but unchecked.
 - The owner's **subjective review** of voice, timing and wording. British
   voices were chosen; final tuning has not been judged.

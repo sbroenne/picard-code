@@ -342,11 +342,7 @@ function renderState() {
     const started = new Date(item.created);
     const known = Number.isFinite(started.getTime());
     const when = known ? `, stardate ${formatStardate(started)}` : "";
-    if (known) {
-      const date = make("span", "log-stardate", `Stardate ${formatStardate(started)}`);
-      date.title = started.toLocaleString(undefined, { dateStyle: "full", timeStyle: "short" });
-      node.append(date);
-    }
+    if (known) node.append(make("span", "log-stardate", `Stardate ${formatStardate(started)}`));
     node.append(make("span", "log-title", item.title));
     node.setAttribute("aria-label", `${item.title}${when}`);
     if (item.id === selected) node.setAttribute("aria-current", "page");
@@ -395,13 +391,16 @@ function renderText(container: HTMLElement, text: string, role: ChatMessage["rol
 
 function renderMessages() {
   const nearBottom = readingArea.scrollHeight - readingArea.scrollTop - readingArea.clientHeight < 100;
-  const openDetails = new Set(Array.from(element("messages").querySelectorAll<HTMLDetailsElement>("details[open]")).map((node) => node.dataset.part));
   const container = element("messages");
   container.replaceChildren();
   // The latest request and its reply fill the screen; earlier ones stay small above.
   const list = shown();
   const latest = list.findLastIndex((message) => message.role === "user");
   list.forEach((message, index) => {
+    // Only the written answer is shown. A reply without one still shows why an action failed or was refused.
+    const texts = message.parts.filter((part) => part.type === "text" && part.text.trim());
+    const failures = texts.length ? [] : message.parts.filter((part) => part.type === "tool" && part.status === "error");
+    if (message.role === "assistant" && !texts.length && !failures.length && !message.error) return;
     const article = make("article", `message ${index >= latest ? "current" : "earlier"}`);
     article.dataset.role = message.role;
     const header = make("div", "message-header");
@@ -412,18 +411,8 @@ function renderMessages() {
     });
     header.append(copy);
     article.append(header);
-    for (const part of message.parts) {
-      if (part.type === "text") renderText(article, part.text, message.role);
-      else {
-        const detail = make("details", part.type === "tool" ? "tool" : "reasoning");
-        detail.dataset.part = part.id;
-        detail.open = openDetails.has(part.id);
-        detail.append(make("summary", undefined, part.type === "tool" ? `Tool activity · ${part.status ?? "working"}` : "Thinking"));
-        if (part.type === "tool") detail.append(make("pre", undefined, part.text));
-        else detail.append(make("p", undefined, part.text));
-        article.append(detail);
-      }
-    }
+    for (const part of texts) renderText(article, part.text, message.role);
+    for (const part of failures) article.append(make("p", "message-error", part.text));
     if (message.error) article.append(make("p", "message-error", message.error));
     container.append(article);
   });
@@ -785,7 +774,7 @@ async function sendMessage(spoken: string) {
     const id = selected!;
     voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)) };
     await api(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice });
-    voice.acknowledge(() => !!voiceTurn && busy() && !pending());
+    voice.acknowledge();
     await refreshState();
     await loadHistory();
   } catch (error) {
@@ -980,11 +969,11 @@ async function startListening() {
   await voice.activate();
   controls();
 }
-/** The last side panel tile shows the current stardate; the ordinary date and time are in its tooltip. */
+/** The last side panel tile shows the current stardate. Dates are only ever shown as stardates. */
 function showStardate() {
   const now = new Date();
   element("readout-stardate").textContent = formatStardate(now);
-  element("rail-end").title = `Stardate ${formatStardate(now)} · ${now.toLocaleString(undefined, { dateStyle: "full", timeStyle: "short" })}`;
+  element("rail-end").title = `Stardate ${formatStardate(now)}`;
 }
 showStardate();
 setInterval(showStardate, 60_000);

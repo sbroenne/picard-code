@@ -108,10 +108,10 @@ screen; there is no phone layout.
 
 - **Stardate**: the last tile shows today's stardate, using the common fan
   formula 1000 × (year − 2323) plus the part of the year gone by, so today's
-  dates are negative. Hover over it for the ordinary date and time.
+  dates are negative. Dates are always given as stardates: on screen, and
+  when the computer answers, since each request tells it the current stardate.
 - **Captain’s log** (`#records`): earlier log entries in the project folder (latest
-  100), each marked with the stardate it was started (hover for the ordinary
-  date). Choose one to reopen it. The ✕ beside an entry deletes it from OpenCode
+  100), each marked with the stardate it was started. Choose one to reopen it. The ✕ beside an entry deletes it from OpenCode
   permanently, after you confirm; an entry that is still working cannot be
   deleted until it is stopped.
 - **Settings** (`#settings/…`): there is no Settings button. Each tile in the
@@ -186,21 +186,20 @@ error rather than switching to another model or provider.
 - "Stop listening" and switching the microphone off do not cancel OpenCode's work.
   **Stop work** cancels the current OpenCode request. These are separate
   controls.
-- **Optional computer sounds:** run `npm run setup:sounds` once to download four
+- **Optional computer sounds:** run `npm run setup:sounds` once to download three
   short TrekCore sounds (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
   then restart Picard Code. During spoken conversation they play quietly, once
   each: a beep when a spoken request is accepted, when you say "Computer"
-  on its own, or when you say "stop listening"; a processing sound if the
-  work is still running after about 2.5 seconds with no answer, question or
-  approval request yet; an input-failed sound when speech was not understood
+  on its own, or when you say "stop listening"; an input-failed sound when speech was not understood
   or could not be sent; and a deny beep just before the spoken result when an
   accepted request finally fails or is denied. Answers to questions, **Stop work**, "Computer, stop" and switching the microphone off play no sound.
   Listening is paused while a sound plays, and listening, speech,
   **Stop speaking** or stopping listening stop it. Each sound only accompanies the visible and
   spoken explanation; it never replaces it. Without the files, there are no
   sounds and nothing else changes.
-- Replies update live. Tool activity and thinking can be expanded, and code
-  blocks remain readable. **Copy** copies the reply text.
+- Replies update live. Only the written answer is shown, without the model's
+  thinking or tool steps; when an action fails or is refused with no written
+  answer, its error is shown instead. Code blocks remain readable. **Copy** copies the reply text.
 - **Allow once** or **Deny** answers an actual OpenCode approval request. There
   is no automatic approval or “always allow” shortcut, and approvals cannot be
   given by voice. **Deny** stops the work, and the computer says the action was

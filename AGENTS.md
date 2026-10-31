@@ -34,7 +34,7 @@ original TNG-inspired look.
   | log entry | conversation, chat, session, task |
   | New log entry | New task, New chat |
   | Current log entry (the main screen) | Conversation, Home |
-  | Stardate | date (the ordinary date may go in a tooltip) |
+  | Stardate | date; dates are always shown and spoken as stardates |
   | Standing by | Idle, Ready |
   | “Computer” | wake word, assistant |
 
@@ -61,7 +61,7 @@ original TNG-inspired look.
   "captain style" before sending. Negations, exact names, limits and approval
   boundaries must survive unchanged.
 - **No copied franchise material in the repository.** No show artwork,
-  dialogue, voice cloning or recordings are committed. The four optional
+  dialogue, voice cloning or recordings are committed. The three optional
   TrekCore sounds are downloaded by `npm run setup:sounds` into the ignored
   `.picard-sounds` folder, with the owner's confirmed permission; keep them out
   of git and keep their attribution in `THIRD_PARTY_NOTICES.md`.
@@ -87,7 +87,6 @@ never instead of the written or spoken explanation:
 | Sound | When |
 | --- | --- |
 | `request-accepted` | A spoken request was accepted by OpenCode, "Computer" was said on its own and the computer is waiting for the request, or "stop listening" was acknowledged. |
-| `processing` | Work is still running about 2.5 s later, with no answer, question or approval yet. |
 | `input-failed` | Speech was not understood or could not be sent. |
 | `request-failed` | An accepted request finally failed or was denied, just before the spoken result. |
 
