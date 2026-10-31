@@ -133,6 +133,32 @@ test("story offers and reference subjects follow the question without mixing the
   }
 });
 
+test("repository questions stay grounded in the selected project, even when it is named Picard", () => {
+  for (const text of [
+    "Tell me about our Picard repo",
+    "Tell me about Picard's repository",
+    "Explain the Picard repositories",
+    "Tell me about myself and our repo",
+    "Who am I signed in as on GitHub?",
+    "Tell me about the Picard dependencies",
+    "What does the Picard README say?",
+    "Tell me about Patrick Stewart in our files",
+  ]) {
+    assert.equal(picardSelfQuestion(text), false, text);
+    assert.equal(tributeQuestion(text), false, text);
+    assert.equal(tributeSubject(text), undefined, text);
+    assert.equal(storyOfferAllowed(text), false, text);
+    assert.equal(gentleWitAllowed(text), false, text);
+    const manner = computerManner(text, { mode: "screen" });
+    assert.doesNotMatch(manner, /Reviewed reference material follows/);
+    assert.match(manner, /selected Project folder supplied by OpenCode/);
+    assert.match(manner, /Read its actual files/);
+    assert.match(manner, /file paths and line numbers/);
+    assert.match(manner, /not permission to edit files/);
+    assert.match(manner, /including read-only commands/);
+  }
+});
+
 test("request options are allowlisted and instructions preserve identity in every mode", () => {
   assert.equal(tributeMode(true, false), "screen");
   assert.equal(tributeMode(true, true), "spoken");

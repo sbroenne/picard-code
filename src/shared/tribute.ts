@@ -17,9 +17,13 @@ function words(text: string) {
   return text.toLowerCase().trim().replace(/^computer[\s,:.!]+/, "").replace(/[.!?,]+$/g, "").replace(/[,;:]/g, " ").replace(/\s+/g, " ");
 }
 
+function projectReference(text: string) {
+  return /\b(files?|folders?|projects?|repos?|repositor(?:y|ies)|code|settings|accounts?|requests?|tests?|passwords?|keys?|git|github|branches|branch|commits?|dependencies|readme|package\.json)\b/.test(words(text));
+}
+
 export function picardSelfQuestion(text: string) {
   const request = words(text).replace(/^please /, "");
-  if (/\b(files?|folders?|projects?|code|settings|accounts?|requests?|tests?|passwords?|keys?)\b/.test(request)) return false;
+  if (projectReference(text)) return false;
   return /^(?:(?:tell|remind) me about (?:myself|my (?:life|history|interests|reputation))|(?:who|what) am i(?: known for)?|what (?:are my interests|do you know about me)|describe me|what is my (?:history|reputation|background)|how old am i|where (?:was i born|am i from))(?:\b|$)/.test(request);
 }
 
@@ -49,7 +53,7 @@ export function explicitStoryRequest(text: string) {
 export function tributeQuestion(text: string) {
   return picardSelfQuestion(text) || explicitStoryRequest(text)
     || /^(?:please )?(?:tell|give|explain|describe|what|who|how|why)\b.*\b(?:picard|patrick stewart)\b/.test(words(text))
-      && !/\b(file|project|code|rename|edit|implement)\b/.test(words(text));
+      && !projectReference(text) && !/\b(rename|edit|implement)\b/.test(words(text));
 }
 
 export function tributeSubject(text: string): TributeEntry["subject"] | undefined {

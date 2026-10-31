@@ -133,6 +133,20 @@ error rather than switching to another model or provider.
 
 ## Use it
 
+### Ask about your repository
+
+Say "Computer, what does our repo do?", "Where is speech handled?" or
+"Why does this function retry four times?" The computer reads and searches
+the folder selected under **Project**, uses the code and documentation as
+evidence, and puts supporting file references on screen. It does not assume
+that every project is Picard Code.
+
+Repository questions do not ask it to change files or run checks. Ask
+explicitly when you want those actions; OpenCode's approvals still apply.
+Missing files or unavailable information are reported plainly. Tribute can
+be on or off: references to your repo, code, files and GitHub keep their real
+meaning, even when the repository's name includes Picard.
+
 ### Tribute facts and stories
 
 With **Tribute** on, a short fact about Picard or Patrick Stewart appears after

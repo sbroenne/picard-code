@@ -227,6 +227,8 @@ export async function startFixture(project: string) {
             reply(sessionID, "You are Captain Jean-Luc Picard, whose interests include archaeology.\n\nThis is a test stand-in, not a model response.", generation);
           } else if (/tell me about patrick stewart/i.test(text)) {
             reply(sessionID, "Patrick Stewart's career includes the Royal Shakespeare Company and Captain Picard.\n\nThis is a test stand-in, not a model response.", generation);
+          } else if (/tell me about our picard repo/i.test(text)) {
+            reply(sessionID, "This test repository has a retry helper in src/retry.ts.\n\nThis is a test stand-in, not a model response or a real repository inspection.", generation);
           } else if (text.includes("approval")) {
             const input = { command: "echo hello" };
             assistant(sessionID, [{ type: "tool", id: "call_test", name: "shell", state: { status: "running", input } }]);

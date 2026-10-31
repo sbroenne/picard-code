@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
@@ -22,6 +22,7 @@ await mkdir(resolve(project, "src"));
 await writeFile(resolve(project, "src", "config.ts"), 'export const SERVICE_URL = "https://status.example.invalid/api";\nexport const MAX_RETRIES = 3;\n');
 await writeFile(resolve(project, "src", "retry.ts"), 'import { MAX_RETRIES } from "./config";\n\nexport async function withRetry<T>(work: () => Promise<T>): Promise<T> {\n  const limit = MAX_RETRIES + 1;\n  let last: unknown;\n  for (let attempt = 1; attempt <= limit; attempt++) {\n    try { return await work(); } catch (error) { last = error; }\n  }\n  throw last;\n}\n');
 await writeFile(resolve(project, "opencode.json"), JSON.stringify({ $schema: "https://opencode.ai/config.json", permissions: [{ action: "shell", resource: "*", effect: "ask" }, { action: "edit", resource: "*", effect: "ask" }] }, null, 2));
+await writeFile(resolve(project, "README.md"), "# Relay Beacon\n\nThis project sends service status updates with bounded retries. The settings are in src/config.ts and the retry helper is in src/retry.ts. The documented check command is npm test; no check result is recorded here.\n");
 
 let engine: Awaited<ReturnType<typeof startEngine>> | undefined;
 let app: Awaited<ReturnType<typeof startApp>> | undefined;
@@ -106,6 +107,12 @@ try {
     return result;
   };
 
+  const projectFiles = ["README.md", "src/config.ts", "src/retry.ts", "opencode.json"];
+  const beforeQuestions = await Promise.all(projectFiles.map((file) => readFile(resolve(project, file), "utf8")));
+  const overview = await turn("Repository overview", "Computer, what does our Picard repo do, and which file implements retries? Read the repository; do not change files or run checks.", undefined, { mode: "screen" });
+  check(/service status|status updates/i.test(overview.reply) && /retry\.ts|withRetry/i.test(overview.reply), "Repository: describes the selected project's real purpose and implementation");
+  check(!/starfleet|enterprise|patrick stewart|kataan/i.test(overview.reply), "Repository: does not substitute fictional Picard facts");
+  check(!overview.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Repository: uses read-only tools without edits or commands");
   const first = await turn("Investigation", "Which file sets the retry limit, and what is it?");
   check(/config/i.test(first.reply) && /\b3\b|three/i.test(first.reply), "Investigation: names the config file and the value 3");
   const follow = await turn("Contextual follow-up", "And the service address?");
@@ -115,6 +122,7 @@ try {
   const shown = await turn("Show me", "Show me.");
   check(/withRetry|MAX_RETRIES \+ 1|attempt/i.test(shown.reply), "Show me: puts the relevant code or detail on screen");
   check(shown.spoken.length < shown.reply.length || shown.reply.length < 200, "Show me: speaks less than the screen detail");
+  check(JSON.stringify(await Promise.all(projectFiles.map((file) => readFile(resolve(project, file), "utf8")))) === JSON.stringify(beforeQuestions), "Repository questions: project files remain unchanged");
 
   let asked: { question: string; spoken: string; answer: string } | undefined;
   const question = await turn("Clarification question", "Ask me with your question tool whether the retry limit should be 3 or 5. Do not change any files.", async (pending) => {

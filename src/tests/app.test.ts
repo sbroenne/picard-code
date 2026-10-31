@@ -239,6 +239,27 @@ test("an explicit Picard story uses reviewed fictional evidence without changing
   assert.match(manner, /twenty minutes/);
 });
 
+test("repository questions use the selected folder and read-only instructions without tribute evidence", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  await context.request("project", { path: context.other });
+  const session = await (await context.request("conversations", {})).json();
+  const text = "Computer, tell me about our Picard repository.";
+  const response = await context.request(`conversations/${session.id}/send`, {
+    text, providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "screen" },
+  });
+  assert.equal(response.status, 202);
+  const prompt = context.fixture.requests.find((request) => request.path.endsWith("/prompt"))!;
+  assert.equal(prompt.directory, await realpath(context.other));
+  assert.deepEqual(prompt.data, { text });
+  const manner = context.fixture.instructions.get(session.id)?.["picard-manner"] ?? "";
+  assert.match(manner, /selected Project folder supplied by OpenCode/);
+  assert.match(manner, /not permission to edit files/);
+  assert.doesNotMatch(manner, /Reviewed reference material follows/);
+  assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/reply")), false);
+});
+
 test("answers are checked against the question before they reach OpenCode", () => {
   const fields: FormField[] = [
     { key: "pick", type: "string", title: "Pick", options: [{ value: "a", label: "A" }], custom: false },

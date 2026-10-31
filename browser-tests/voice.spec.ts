@@ -34,7 +34,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story") {
+async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -274,6 +274,18 @@ test("Tribute off keeps Picard identity without offers", async ({ page }) => {
   await expect(page.locator(".message[data-role=assistant]").first()).toContainText("Jean-Luc Picard", { timeout: 15000 });
   await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   await expect(page.locator(".tribute-invitation")).toHaveCount(0);
+  expect(spoken.some((text) => text.includes("I can tell you"))).toBe(false);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("a spoken repository question keeps its real meaning with Tribute on", async ({ page }) => {
+  const spoken = spokenText(page);
+  await launch(page, "repo");
+  await startListening(page);
+  await expect(page.locator(".message[data-role=assistant]").last()).toContainText("src/retry.ts", { timeout: 15000 });
+  await expect.poll(() => spoken.some((text) => text.includes("retry helper")), { timeout: 10000 }).toBe(true);
+  await expect(status(page)).toHaveText("Standing by", { timeout: 10000 });
+  await expect(page.locator(".tribute-source, .tribute-invitation")).toHaveCount(0);
   expect(spoken.some((text) => text.includes("I can tell you"))).toBe(false);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
