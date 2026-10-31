@@ -98,9 +98,9 @@
             project&rsquo;s labeled test stand-in; no real model, project, or speech service was used.</figcaption>
         </figure>
         <dl class="readouts">
-          <div class="peach"><dt>Listening</dt><dd>Azure MAI or Whisper
-            <small>Your own Azure resource, or Whisper on this computer.</small></dd></div>
-          <div class="orange"><dt>Speaking</dt><dd>Azure MAI or Kokoro
+          <div class="peach"><dt>Listening</dt><dd>Whisper or Azure MAI
+            <small>Whisper on this computer by default, or your own Azure resource.</small></dd></div>
+          <div class="orange"><dt>Speaking</dt><dd>Kokoro or Azure MAI
             <small>Prebuilt voices, never a cloned performer. Chosen apart from listening.</small></dd></div>
           <div class="lilac"><dt>Coding</dt><dd>OpenCode 2
             <small>GitHub Copilot, Anthropic, OpenAI, a local model, or another provider it supports.</small></dd></div>
@@ -113,7 +113,7 @@
             even before &ldquo;Computer&rdquo; is recognized; standing by still listens, and microphone off
             stops it. Hosted models receive your requests and relevant project content. Questions about
             Picard or Patrick Stewart fetch their Wikipedia articles; only the two article titles are sent.
-            Azure speech can incur charges. Whisper and Kokoro keep speech on your computer.
+            Azure speech can incur charges. Whisper and Kokoro, the default, keep speech on your computer.
             <a href="https://github.com/sbroenne/picard-code#use-it">How your data moves</a></p>
         </aside>
       </section>
@@ -147,9 +147,10 @@
         <h2 id="start-title">Your computer.<br>Your project. Your voice.</h2>
         <div class="start-grid">
           <div>
-            <p class="intro">You need Node.js 22.12 or newer, Git, a model provider OpenCode can use,
-              and a listening and speaking setup. This website is only an introduction; it does not run
-              the app or listen to you.</p>
+            <p class="intro">You need Node.js 22.12 or newer, Git, uv (it installs the Python that local
+              speech uses), a microphone, and a model provider OpenCode can use. Listening and speaking run
+              on your computer by default, so no cloud account is needed for speech. This website is only
+              an introduction; it does not run the app or listen to you.</p>
             <p class="limits">Automated checks use labeled stand-ins. They do not prove that physical
               microphones, speakers, or real model and speech services work, and earlier real-service
               results predate OpenCode 2.
@@ -160,6 +161,7 @@
             <pre><code>git clone https://github.com/sbroenne/picard-code.git
 cd picard-code
 npm install
+npm run setup:speech
 npm run build
 npm start</code></pre>
             <a class="pill lilac" href="https://github.com/sbroenne/picard-code#run-from-source">Read the setup guide <span aria-hidden="true">&nearr;</span></a>

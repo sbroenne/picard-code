@@ -29,8 +29,8 @@ async function main() {
   --port          Browser port (defaults to a free local port)
   --connect       Reuse a password-protected local OpenCode server
   --no-open       Print the address without opening a browser
-  --listening     mai (Azure, preferred) or whisper (local)
-  --speaking      mai (Azure, preferred) or kokoro (local)
+  --listening     whisper (on this computer, the default) or mai (Azure)
+  --speaking      kokoro (on this computer, the default) or mai (Azure)
   --help, -h      Show these instructions
 
 Picard Code works with any model provider OpenCode supports, such as GitHub

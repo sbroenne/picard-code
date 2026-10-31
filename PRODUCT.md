@@ -38,7 +38,10 @@ and Belay that (stop work) have separate meanings. Decisions remain deliberate.
 Listening pauses during playback and settings changes; requests heard while
 work or a decision is pending are not sent.
 
-Use the supported MAI live listening and prebuilt MAI speaking services.
+Listening and speaking share small, separate interfaces. Real CPU Whisper
+listening and Kokoro speaking are the default, so anyone can run Picard Code
+without a cloud account. The supported MAI live listening and prebuilt MAI
+speaking services can be chosen instead, each side on its own.
 Azure listening receives detected speech before deciding whether "Computer"
 was said, including speech not meant for the model. Processing can occur
 outside Europe. Standing by still listens; microphone off stops capture.
@@ -46,9 +49,7 @@ Keys remain in local server memory;
 connection settings contain no secrets. Reuse suitable resources on the
 explicitly approved subscription without changing spending limits or access.
 
-Listening and speaking share small, separate interfaces. Real CPU Whisper
-listening and Kokoro speaking are independently selectable alternatives.
-Both use the same automatic conversation loop and deliberate decisions, with
+Both setups use the same automatic conversation loop and deliberate decisions, with
 no silent fallback. Local audio processing needs no Azure credentials;
 recognized coding requests still go to the chosen model.
 
@@ -70,9 +71,9 @@ used with the owner's confirmed permission; they accompany, never replace,
 the visible and spoken explanation. No fictional ship status, repetitive
 catchphrases, or claims that work succeeded before the real result arrives.
 
-The owner prefers the British prebuilt voices: MAI Emily (neutral style) by
-default, with Kokoro `bf_emma` as the local default. This is a preference for
-British delivery, not a claim of authenticity.
+The owner prefers the British prebuilt voices: Kokoro `bf_emma` by default,
+and MAI Emily (neutral style) when Azure speaking is chosen. This is a
+preference for British delivery, not a claim of authenticity.
 
 The user is always Captain Jean-Luc Picard, labeled "Picard" on screen.
 The computer says "Captain" occasionally. Use the plain TNG terms in AGENTS.md:

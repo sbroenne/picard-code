@@ -46,22 +46,45 @@ need fresh checks before those results can be claimed for this version.
 A small local browser app. OpenCode does the coding, with any model provider it
 supports, and keeps every log entry. Like the ship's computer, it
 listens all the time and acts only on requests that start with "Computer".
-Listening and speaking use your own Azure MAI resource, or Whisper and Kokoro
-on this computer; each side can be chosen on its own.
+By default, listening (Whisper) and speaking (Kokoro) run on this computer,
+with no cloud account. Your own Azure MAI resource can be chosen instead, for
+either side or both.
 
 ## Run from source
 
-You need Node.js **22.12 or newer**, a model provider OpenCode can use, and either the Azure
-or local speech setup below for spoken conversation. The development
-setup includes an official OpenCode 2 copy (the `@opencode/cli` package), so a
-separate global OpenCode installation is optional when running from source.
-OpenCode 1 is not supported.
+You need:
+
+- **Node.js 22.12 or newer** (it includes npm) and **Git**.
+- **[uv](https://docs.astral.sh/uv/getting-started/installation/)**, which
+  sets up the Python 3.11 that local speech uses. You do not need to install
+  Python yourself.
+- About **650 MB** of free disk space for the speech models and their Python
+  packages.
+- A microphone, and speakers or headphones.
+- A model provider OpenCode can use (see
+  [Connect a model provider](#connect-a-model-provider)).
+
+The development setup includes an official OpenCode 2 copy (the
+`@opencode/cli` package), so a separate global OpenCode installation is
+optional when running from source. OpenCode 1 is not supported.
 
 ```sh
+git clone https://github.com/sbroenne/picard-code.git
+cd picard-code
 npm install
+npm run setup:speech
 npm run build
 npm start
 ```
+
+`npm run setup:speech` downloads the Whisper and Kokoro models once (about
+432 MB) into the ignored `.picard-voice` folder and checks them. It is safe to
+run again. Once it has finished, `npm start` listens and speaks on this
+computer without further setup. If you skip it, Picard Code starts without
+speech, and the **Listen · Speak** tile offers the same download. See
+[Local Whisper and Kokoro setup](#local-whisper-and-kokoro-setup) for details,
+or [Azure speech setup](#azure-speech-setup) to use your own Azure resource
+instead.
 
 Your browser opens automatically. Keep the terminal open; press **Ctrl+C** to
 stop Picard Code and the OpenCode server it started. Use `--no-open` to print
@@ -349,7 +372,76 @@ Say "stop listening" before conversations you do not want sent to the model,
 or switch the microphone off with its button so nothing is heard at all;
 background speech can be misunderstood.
 
+## Local Whisper and Kokoro setup
+
+This is the default speech setup. It needs no cloud account and keeps your
+speech on this computer.
+
+Local listening uses **faster-whisper** with the English `tiny.en` model.
+Local speaking uses **kokoro-onnx**, the standard Kokoro model, and its original
+prebuilt British `bf_emma` voice by default (`af_heart` and the other Kokoro
+voices can be chosen with `kokoroVoice`). Both run on the CPU. No Azure resource, key, or login
+is needed when both sides are local. A model provider is still needed for coding.
+
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then
+download the models from a terminal in the Picard Code folder (safe to run
+again; uv fetches Python 3.11 if needed):
+
+```sh
+npm run setup:speech
+```
+
+Picard Code then uses Whisper and Kokoro whenever you start it, unless your
+saved speech settings choose Azure.
+
+You can also download from the app: choose the **Listen · Speak** tile, keep
+**On this computer** for listening and speaking, and choose **Save and apply**.
+Picard Code downloads everything in the background, shows each step, and
+switches over when it is ready. No restart is needed. If the download fails,
+the real reason is shown and the working speech stays in place.
+
+The same steps by hand, on Windows:
+
+```powershell
+uv venv --python 3.11 .picard-voice
+uv pip install --python .picard-voice\Scripts\python.exe -r scripts\requirements-speech.txt
+.\.picard-voice\Scripts\python.exe scripts\setup-local-speech.py
+npm.cmd start
+```
+
+On macOS or Linux:
+
+```sh
+uv venv --python 3.11 .picard-voice
+uv pip install --python .picard-voice/bin/python -r scripts/requirements-speech.txt
+.picard-voice/bin/python scripts/setup-local-speech.py
+npm start
+```
+
+Setup downloads roughly **432 MB** of model files, plus Python dependencies;
+together they use about 650 MB of disk space.
+The Kokoro files are checked against published checksums; the public Whisper
+download is fixed to a specific revision and uses no account token. Model
+files, the Python environment, and generated samples remain in the ignored
+`.picard-voice` folder. Inference uses local files only, with up to four CPU
+threads per service. Do not use Python 3.14 for this setup.
+
+Both paths use the same automatic listen/respond loop. Whisper starts
+recognizing after the pause; unlike MAI, it does not display live words while
+you are speaking. Stopping speech discards late audio and does not block the
+separate listening worker. No service is silently replaced if setup fails.
+
+On the checked Windows machine, real Kokoro speaking with `bf_emma` produced
+**4.2 seconds of audio in 2.4 seconds**, and Whisper understood that audio in
+**0.5 seconds**. Worker startup took **4.4 seconds**. These are short-phrase measurements, not
+speed or accuracy promises for other machines. Longer turns and older CPUs
+can take longer. This small English model can misunderstand accents and
+technical terms; the understood request remains visible.
+
 ## Azure speech setup
+
+Azure speech is optional. Choose it for either side if you have your own Azure
+resource; unlike Whisper, MAI listening shows your words live while you speak.
 
 This version uses **MAI-Transcribe-2-Streaming** for live listening and the
 prebuilt British **Emily / MAI-Voice-2.1-Flash** voice with its **neutral**
@@ -417,6 +509,8 @@ the Picard Code folder or your project. Settings from an older
 
 ```json
 {
+  "listening": "mai",
+  "speaking": "mai",
   "subscription": "your-subscription-id",
   "resourceGroup": "your-resource-group",
   "resourceName": "your-ai-resource",
@@ -427,7 +521,9 @@ the Picard Code folder or your project. Settings from an older
 }
 ```
 
-`voice` and `voiceStyle` are optional; the values above are the defaults.
+`listening` and `speaking` must say `mai` to use Azure; without them, that side
+runs on this computer. `voice` and `voiceStyle` are optional; the values above
+are the defaults.
 Other prebuilt voices work too, for example
 `en-US-Harper:MAI-Voice-2.1-Flash` or `en-GB-Harry:MAI-Voice-2.1-Flash`. A
 saved `voice` is always used as written. Styles that worked in testing are
@@ -450,84 +546,18 @@ changing log entry, closing the page, or shutting down
 Picard Code stops the relevant listening connection. A speech failure leaves
 the written log entry intact and reports what failed.
 
-## Local Whisper and Kokoro setup
-
-Local listening uses **faster-whisper** with the English `tiny.en` model.
-Local speaking uses **kokoro-onnx**, the standard Kokoro model, and its original
-prebuilt British `bf_emma` voice by default (`af_heart` and the other Kokoro
-voices can be chosen with `kokoroVoice`). Both run on the CPU. No Azure resource, key, or login
-is needed when both sides are local. A model provider is still needed for coding.
-
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/). Then
-choose Whisper or Kokoro in **Speech** settings and **Save and apply**. The
-first time, Picard Code downloads everything in the background, shows each
-step, and switches over when it is ready. No restart is needed. If the download
-fails, the real reason is shown and the working speech stays in place.
-
-The same download from a terminal (safe to run again; uv fetches Python 3.11 if
-needed):
-
-```sh
-npm run setup:speech
-```
-
-The same steps by hand, on Windows:
-
-```powershell
-uv venv --python 3.11 .picard-voice
-uv pip install --python .picard-voice\Scripts\python.exe -r scripts\requirements-speech.txt
-.\.picard-voice\Scripts\python.exe scripts\setup-local-speech.py
-npm.cmd start -- --listening whisper --speaking kokoro
-```
-
-On macOS or Linux:
-
-```sh
-uv venv --python 3.11 .picard-voice
-uv pip install --python .picard-voice/bin/python -r scripts/requirements-speech.txt
-.picard-voice/bin/python scripts/setup-local-speech.py
-npm start -- --listening whisper --speaking kokoro
-```
-
-Setup downloads roughly **432 MB** of model files, plus Python dependencies.
-The Kokoro files are checked against published checksums; the public Whisper
-download is fixed to a specific revision and uses no account token. Model
-files, the Python environment, and generated samples remain in the ignored
-`.picard-voice` folder. Inference uses local files only, with up to four CPU
-threads per service. Do not use Python 3.14 for this setup.
-
-Both paths use the same automatic listen/respond loop. Whisper starts
-recognizing after the pause; unlike MAI, it does not display live words while
-you are speaking. Stopping speech discards late audio and does not block the
-separate listening worker. No service is silently replaced if setup fails.
-
-On the checked Windows machine, real Kokoro speaking with `bf_emma` produced
-**4.2 seconds of audio in 2.4 seconds**, and Whisper understood that audio in
-**0.5 seconds**. Worker startup took **4.4 seconds**. These are short-phrase measurements, not
-speed or accuracy promises for other machines. Longer turns and older CPUs
-can take longer. This small English model can misunderstand accents and
-technical terms; the understood request remains visible.
-
 ### Select either side independently
 
-MAI remains the default when Azure settings are provided. Launch options
-override the settings file:
+Whisper and Kokoro are the default. A side uses Azure MAI only when you choose
+it in the **Listen · Speak** tile, in `speech.json`, or with a launch option.
+Launch options override the settings file:
 
 ```powershell
 npm.cmd start -- --listening mai --speaking kokoro
 npm.cmd start -- --listening whisper --speaking mai
 ```
 
-For a local default, `speech.json` can contain just:
-
-```json
-{
-  "listening": "whisper",
-  "speaking": "kokoro"
-}
-```
-
-For a mixed setup, keep the Azure resource settings and add `listening` and
+For a mixed setup, keep the Azure resource settings and set `listening` and
 `speaking`. Only MAI listening requires `deployment`. Optional local settings
 are `localPython`, `whisperModel`, `kokoroModel`, `kokoroVoices`, and
 `kokoroVoice`. The path settings are kept when you save from the **Listen · Speak** setting,
@@ -544,7 +574,7 @@ signal; `close()` releases owned workers. Selection happens in
 See [third-party notices](THIRD_PARTY_NOTICES.md) before redistributing local
 dependencies or downloaded models.
 
-### The computer's manner
+## The computer's manner
 
 Picard Code sends its own conversation instructions with every request, as
 OpenCode's per-request system instructions (`src/server/instructions.ts`).
@@ -699,9 +729,10 @@ and repeat the browser checks.
 - **Azure rejects speech:** check resource access, the deployed live listening
   model, supported region and voice, and service quota. A speech error does
   not mean OpenCode stopped; use **Belay that** separately when needed.
-- **Local speech will not start:** complete the Python setup and model download,
-  check the configured paths, and choose **Save and apply** in the **Listen · Speak**
-  setting again (no restart needed). The reported error is not replaced
+- **Local speech will not start:** install uv, run `npm run setup:speech`
+  and read any error it prints, check the configured paths, then choose
+  **Save and apply** in the **Listen · Speak** tile again (no restart
+  needed). The reported error is not replaced
   with Azure or browser speech. Picard Code needs working speech; there is
   no typing fallback.
 

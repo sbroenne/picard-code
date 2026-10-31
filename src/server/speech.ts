@@ -99,8 +99,8 @@ export async function readSpeechSettings(file: string): Promise<Record<string, u
 export function describeSpeechSettings(record: Record<string, unknown> | undefined): SpeechSettings {
   const text = (key: string, fallback = "") => typeof record?.[key] === "string" ? record[key] as string : fallback;
   return {
-    listening: record?.listening === "whisper" ? "whisper" : "mai",
-    speaking: record?.speaking === "kokoro" ? "kokoro" : "mai",
+    listening: record?.listening === "mai" ? "mai" : "whisper",
+    speaking: record?.speaking === "mai" ? "mai" : "kokoro",
     subscription: text("subscription"), resourceGroup: text("resourceGroup"), resourceName: text("resourceName"),
     region: text("region"), deployment: text("deployment"), voice: text("voice", DEFAULT_MAI_VOICE),
     voiceStyle: text("voiceStyle", "neutral"), kokoroVoice: text("kokoroVoice", "bf_emma"),
@@ -130,13 +130,14 @@ export async function saveSpeechSettings(file: string, record: Record<string, un
 
 export async function loadSpeech(overrides: { listening?: string; speaking?: string } = {}, signal?: AbortSignal, file?: string): Promise<SpeechService | undefined> {
   const record = await readSpeechSettings(file ?? await speechSettingsFile());
-  if (!record && !overrides.listening && !overrides.speaking) return undefined;
+  // With nothing chosen, speech on this computer starts only once its download is already there.
+  if (!record && !overrides.listening && !overrides.speaking && !await localSpeechReady(undefined)) return undefined;
   return speechFromSettings(record ?? {}, overrides, signal);
 }
 
 export async function speechFromSettings(record: Record<string, unknown>, overrides: { listening?: string; speaking?: string } = {}, signal?: AbortSignal): Promise<SpeechService> {
-  const listening = overrides.listening ?? record.listening ?? "mai";
-  const speaking = overrides.speaking ?? record.speaking ?? "mai";
+  const listening = overrides.listening ?? record.listening ?? "whisper";
+  const speaking = overrides.speaking ?? record.speaking ?? "kokoro";
   if (listening !== "mai" && listening !== "whisper") throw new Error("Choose mai or whisper for listening. Speech services are never substituted silently.");
   if (speaking !== "mai" && speaking !== "kokoro") throw new Error("Choose mai or kokoro for speaking. Speech services are never substituted silently.");
   const selection: SpeechSelection = { listening, speaking };

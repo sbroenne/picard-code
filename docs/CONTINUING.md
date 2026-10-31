@@ -6,15 +6,22 @@ details for each step; [AGENTS.md](../AGENTS.md) has the rules for changes.
 
 ## 1. Get the code and build it
 
-You need Node.js **22.12 or newer**, Git, and the source repository.
+You need Node.js **22.12 or newer**, Git,
+[uv](https://docs.astral.sh/uv/getting-started/installation/) for local
+speech, and about 650 MB of free disk space for the speech models.
 
 ```sh
 git clone https://github.com/sbroenne/picard-code.git
 cd picard-code
 npm install
+npm run setup:speech
 npm run build
 npm test
 ```
+
+`npm run setup:speech` downloads the Whisper and Kokoro models (about 432 MB)
+into the ignored `.picard-voice` folder. Each computer needs its own download;
+do not copy the folder between computers.
 
 Picard Code uses OpenCode 2 (the `@opencode/cli` package); `npm install`
 brings the tested copy. If npm asks to approve OpenCode's setup script, review
@@ -36,18 +43,20 @@ with OpenCode 1 does not carry over; sign in again.
 
 ## 3. Choose speech
 
-**Azure MAI (preferred).** Install Azure CLI and run `az login`. Start
-Picard Code, choose the **Listen · Speak** tile, and fill in the speech fields with your
+**Whisper and Kokoro on this computer (the default).** Nothing more to do
+after `npm run setup:speech` in step 1: `npm start` listens and speaks
+locally. Kokoro uses the British `bf_emma` voice by default. If you skipped
+the download, choose the **Listen · Speak** tile and **Save and apply**; it
+downloads in the background.
+
+**Azure MAI (optional).** Install Azure CLI and run `az login`. Start
+Picard Code, choose the **Listen · Speak** tile, choose **Azure, your own
+resource**, and fill in the speech fields with your
 subscription, resource group, resource name, region and live-listening
 deployment, then choose **Save and apply**; no restart is needed. This saves
 `speech.json` in the `.picard-code` folder in your home folder (on Windows,
 `C:\Users\<you>\.picard-code`), as described in the README. The default voice is British Emily (`neutral` style). The file
 holds no key; the key is read into memory at startup.
-
-**Local Whisper and Kokoro.** Install `uv`, then choose them in Speech
-settings and **Save and apply** (or run `npm run setup:speech`). The first time
-it downloads about 432 MB of models into the ignored
-`.picard-voice` folder. Kokoro uses the British `bf_emma` voice by default.
 
 Either side can be chosen separately, for example
 `npm start -- --listening whisper --speaking mai`.

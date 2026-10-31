@@ -23,4 +23,4 @@ function run(command, args, step) {
 run("uv", ["venv", "--allow-existing", "--python", "3.11", ".picard-voice"], "Creating the Python 3.11 environment in .picard-voice...");
 run("uv", ["pip", "install", "--python", python, "-r", "scripts/requirements-speech.txt"], "Installing the speech packages...");
 run(python, ["scripts/setup-local-speech.py"], "Downloading and checking the Whisper and Kokoro models (about 432 MB)...");
-console.log("\nLocal speech is ready. Choose Whisper and Kokoro in Voice settings, or start with: npm start -- --listening whisper --speaking kokoro");
+console.log("\nLocal speech is ready. npm start uses Whisper and Kokoro unless your saved speech settings choose Azure.");
