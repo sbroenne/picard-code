@@ -300,9 +300,11 @@ apply**. The new speech setup starts right away, with no restart. If it cannot
 start (for example a wrong region), the error is shown, the file is not
 changed, and the speech setup that was working stays in use.
 
-The page saves to `.picard-speech.json`. If that file exists in the folder you
-launch from, that one is used; otherwise it lives in the Picard Code folder.
-You can also write the file yourself, using your own resource's settings:
+The page saves to `speech.json` in a `.picard-code` folder in your home folder:
+`~/.picard-code/speech.json` on macOS and Linux,
+`C:\Users\<you>\.picard-code\speech.json` on Windows. It is never saved in
+the Picard Code folder or your project. Settings from an older
+`.picard-speech.json` are copied there once. You can also write the file yourself, using your own resource's settings:
 
 ```json
 {
@@ -407,7 +409,7 @@ npm.cmd start -- --listening mai --speaking kokoro
 npm.cmd start -- --listening whisper --speaking mai
 ```
 
-For a local default, `.picard-speech.json` can contain just:
+For a local default, `speech.json` can contain just:
 
 ```json
 {

@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
-import { access, readFile, rename, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadAzureSpeech } from "./azure-speech.js";
 import { localSpeech } from "./local-speech.js";
@@ -25,7 +26,7 @@ const LOCAL_PATHS = {
 
 function localPath(record: Record<string, unknown> | undefined, key: keyof typeof LOCAL_PATHS) {
   const value = record?.[key] ?? LOCAL_PATHS[key];
-  if (typeof value !== "string" || !value.trim()) throw new Error(`Provide a valid ${key} path in .picard-speech.json.`);
+  if (typeof value !== "string" || !value.trim()) throw new Error(`Provide a valid ${key} path in the speech settings file.`);
   return resolve(value);
 }
 
@@ -62,22 +63,33 @@ export function setUpLocalSpeech(onStep: (step: string) => void) {
 }
 
 /**
- * The launch folder's settings file is used when it exists, as before.
- * Otherwise settings live in the Picard Code folder, never in the user's project.
+ * Speech settings belong to the user, in .picard-code/speech.json in their home folder
+ * (for example C:\Users\name on Windows), never in the Picard Code or project folder.
+ * Settings that earlier versions kept in .picard-speech.json are copied over once; the old file is left alone.
  */
-export async function speechSettingsFile() {
-  const launch = resolve(".picard-speech.json");
-  try { await access(launch); return launch; }
-  catch { return fileURLToPath(new URL("../../.picard-speech.json", import.meta.url)); }
+export async function speechSettingsFile(home = homedir(), earlier = [fileURLToPath(new URL("../../.picard-speech.json", import.meta.url)), resolve(".picard-speech.json")]) {
+  const file = join(home, ".picard-code", "speech.json");
+  try { await access(file); return file; }
+  catch { /* not there yet */ }
+  for (const old of earlier) {
+    let text: string;
+    try { text = await readFile(old, "utf8"); }
+    catch { continue; }
+    await mkdir(dirname(file), { recursive: true });
+    await writeFile(file, text, { encoding: "utf8", mode: 0o600 });
+    console.log(`Speech settings now live in ${file} (copied from ${old}).`);
+    break;
+  }
+  return file;
 }
 
 export async function readSpeechSettings(file: string): Promise<Record<string, unknown> | undefined> {
   try {
     const value: unknown = JSON.parse(await readFile(file, "utf8"));
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(".picard-speech.json must contain a settings object.");
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("The speech settings file must contain a settings object.");
     return value as Record<string, unknown>;
   } catch (error) {
-    if (error instanceof SyntaxError) throw new Error("The speech settings file is not valid. Check .picard-speech.json against the README example.");
+    if (error instanceof SyntaxError) throw new Error("The speech settings file is not valid. Check it against the README example.");
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return undefined;
     throw error;
   }
@@ -110,6 +122,7 @@ export function mergeSpeechSettings(saved: Record<string, unknown> | undefined, 
 }
 
 export async function saveSpeechSettings(file: string, record: Record<string, unknown>) {
+  await mkdir(dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}.tmp`;
   await writeFile(temporary, `${JSON.stringify(record, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   await rename(temporary, file);

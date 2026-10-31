@@ -37,8 +37,8 @@ with OpenCode 1 does not carry over; sign in again.
 Picard Code, open **Settings**, and fill in the Speech section with your
 subscription, resource group, resource name, region and live-listening
 deployment, then choose **Save and apply**; no restart is needed. This saves
-`.picard-speech.json` (in the Picard Code folder, or the launch folder if a file
-is already there), as described in the README. The default voice is British Emily (`neutral` style). The file
+`speech.json` in the `.picard-code` folder in your home folder (on Windows,
+`C:\Users\<you>\.picard-code`), as described in the README. The default voice is British Emily (`neutral` style). The file
 holds no key; the key is read into memory at startup.
 
 **Local Whisper and Kokoro.** Install `uv`, then choose them in Speech

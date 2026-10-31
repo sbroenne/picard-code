@@ -11,6 +11,7 @@ import { localServerUrl, makeClient } from "../server/engine.js";
 import type { AppState, FormField, SpeechSettings } from "../shared/types.js";
 import type { AppOptions } from "../server/app.js";
 import { speechFixture } from "./speech-fixture.js";
+import { saveSpeechSettings, speechSettingsFile } from "../server/speech.js";
 
 async function setup(extra: Partial<AppOptions> = {}) {
   const temporary = await mkdtemp(resolve(".picard-test-"));
@@ -344,4 +345,19 @@ test("a failed local speech download is reported and changes nothing", async (t)
   assert.deepEqual(job, { state: "failed", step: "Starting the download", error: "uv is not installed." });
   const state = await (await context.request("state")).json() as AppState;
   assert.equal(state.speech?.configured, false);
+});
+
+test("speech settings live in the user's home folder, and earlier settings are copied there once", async (t) => {
+  const home = await mkdtemp(resolve(".picard-test-home-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const old = join(home, "old.json");
+  await writeFile(old, '{"listening":"whisper"}\n');
+  const file = await speechSettingsFile(home, [join(home, "missing.json"), old]);
+  assert.equal(file, join(home, ".picard-code", "speech.json"));
+  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), { listening: "whisper" });
+  await writeFile(old, '{"listening":"mai"}\n');
+  assert.equal(await speechSettingsFile(home, [old]), file);
+  assert.equal(JSON.parse(await readFile(file, "utf8")).listening, "whisper", "a later change to the old file is not copied again");
+  await saveSpeechSettings(join(home, "fresh", "speech.json"), { speaking: "kokoro" });
+  assert.deepEqual(JSON.parse(await readFile(join(home, "fresh", "speech.json"), "utf8")), { speaking: "kokoro" });
 });

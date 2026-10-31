@@ -51,7 +51,7 @@ original TNG-inspired look.
   No silent fallback from one speech service to another.
 - **No secrets in the repository, logs, messages or the browser.** Azure keys
   are read into server memory at startup (`az login` or
-  `PICARD_AZURE_SPEECH_KEY`). `.picard-speech.json` holds settings only.
+  `PICARD_AZURE_SPEECH_KEY`). `~/.picard-code/speech.json` holds settings only.
 - **Local only.** Services bind to `127.0.0.1`. Keep the host, origin, launch
   key and `x-picard-request` protections in `src/server/app.ts`.
 - **Do not write into the user's project.** Picard Code supplies its own

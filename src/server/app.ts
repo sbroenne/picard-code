@@ -332,7 +332,7 @@ export async function startApp(options: AppOptions) {
           if (localSetup?.state === "running") throw new HttpError(409, "The speech download is still running. Wait for it to finish.");
           const listening = record.listening === "whisper", speaking = record.speaking === "kokoro";
           if ((listening || speaking) && !await localReady(record, listening, speaking)) {
-            if (!canSetUpLocalSpeech(record)) throw new HttpError(400, "The new speech settings did not work, so nothing was changed. A configured local speech file is missing. Check the paths in .picard-speech.json.");
+            if (!canSetUpLocalSpeech(record)) throw new HttpError(400, "The new speech settings did not work, so nothing was changed. A configured local speech file is missing. Check the paths in the speech settings file.");
             const job: NonNullable<typeof localSetup> = { state: "running", step: "Starting the download" };
             localSetup = job;
             void (async () => {
