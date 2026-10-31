@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
@@ -10,6 +10,7 @@ import { spokenReply } from "../shared/speech.js";
 import { chatMessages } from "../server/history.js";
 import type { FormRequest, PermissionRequest } from "../shared/types.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
+import type { TributeRequest } from "../shared/tribute.js";
 
 // Real multi-turn check: Picard Code's own API, its always-supplied instructions, OpenCode and a signed-in model provider.
 // Model wording varies, so this records the full transcript and checks behavior that must hold every time.
@@ -21,6 +22,7 @@ await mkdir(resolve(project, "src"));
 await writeFile(resolve(project, "src", "config.ts"), 'export const SERVICE_URL = "https://status.example.invalid/api";\nexport const MAX_RETRIES = 3;\n');
 await writeFile(resolve(project, "src", "retry.ts"), 'import { MAX_RETRIES } from "./config";\n\nexport async function withRetry<T>(work: () => Promise<T>): Promise<T> {\n  const limit = MAX_RETRIES + 1;\n  let last: unknown;\n  for (let attempt = 1; attempt <= limit; attempt++) {\n    try { return await work(); } catch (error) { last = error; }\n  }\n  throw last;\n}\n');
 await writeFile(resolve(project, "opencode.json"), JSON.stringify({ $schema: "https://opencode.ai/config.json", permissions: [{ action: "shell", resource: "*", effect: "ask" }, { action: "edit", resource: "*", effect: "ask" }] }, null, 2));
+await writeFile(resolve(project, "README.md"), "# Relay Beacon\n\nThis project sends service status updates with bounded retries. The settings are in src/config.ts and the retry helper is in src/retry.ts. The documented check command is npm test; no check result is recorded here.\n");
 
 let engine: Awaited<ReturnType<typeof startEngine>> | undefined;
 let app: Awaited<ReturnType<typeof startApp>> | undefined;
@@ -89,22 +91,29 @@ try {
     const final = replies.findLast((message) => message.role === "assistant");
     return { reply, spoken: final ? spokenReply(final) : "", tools };
   };
-  const turn = async (label: string, text: string, onPending?: (pending: Pending) => Promise<void>) => {
+  const turn = async (label: string, text: string, onPending?: (pending: Pending) => Promise<void>, tribute?: TributeRequest) => {
     const started = Date.now();
     const before = await userCount();
-    await api(`/api/conversations/${sessionID}/send`, { text, providerID: model.providerID, modelID: model.modelID });
+    const sent = await api(`/api/conversations/${sessionID}/send`, { text, providerID: model.providerID, modelID: model.modelID, ...(tribute ? { tribute } : {}) });
     await settle(before, onPending);
     const result = await lastTurn();
     transcript.push(`## ${label}`, "", `User: ${text}`, "",
       `Seconds until reply finished: ${((Date.now() - started) / 1000).toFixed(1)}`, "",
       `Spoken: ${result.spoken}`, "", "Screen:", "", "```text", result.reply, "```", "",
-      `Tools: ${result.tools.map((tool) => `${tool.tool} (${tool.status}${tool.status === "error" ? `: ${tool.output.slice(0, 160)}` : ""})`).join(", ") || "none"}`, "");
+      `Tools: ${result.tools.map((tool) => `${tool.tool} (${tool.status}${tool.status === "error" ? `: ${tool.output.slice(0, 160)}` : ""})`).join(", ") || "none"}`, "",
+      `Reference: ${JSON.stringify(sent.reference ?? null)}`, "");
     const spoken = result.spoken;
     check(spoken.length > 0 && spoken.length <= 420, `${label}: spoken reply is present and short (${spoken.length} characters)`);
     check(!/[:`*_#]\s*$/.test(spoken) && !/`|\*\*|https?:/.test(spoken), `${label}: spoken reply has no dangling colon, code marks or raw links`);
-    return result;
+    return { ...result, reference: sent.reference };
   };
 
+  const projectFiles = ["README.md", "src/config.ts", "src/retry.ts", "opencode.json"];
+  const beforeQuestions = await Promise.all(projectFiles.map((file) => readFile(resolve(project, file), "utf8")));
+  const overview = await turn("Repository overview", "Computer, what does our Picard repo do, and which file implements retries? Read the repository; do not change files or run checks.", undefined, { mode: "screen" });
+  check(/service status|status updates/i.test(overview.reply) && /retry\.ts|withRetry/i.test(overview.reply), "Repository: describes the selected project's real purpose and implementation");
+  check(!/starfleet|enterprise|patrick stewart|kataan/i.test(overview.reply), "Repository: does not substitute fictional Picard facts");
+  check(!overview.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Repository: uses read-only tools without edits or commands");
   const first = await turn("Investigation", "Which file sets the retry limit, and what is it?");
   check(/config/i.test(first.reply) && /\b3\b|three/i.test(first.reply), "Investigation: names the config file and the value 3");
   const follow = await turn("Contextual follow-up", "And the service address?");
@@ -114,6 +123,7 @@ try {
   const shown = await turn("Show me", "Show me.");
   check(/withRetry|MAX_RETRIES \+ 1|attempt/i.test(shown.reply), "Show me: puts the relevant code or detail on screen");
   check(shown.spoken.length < shown.reply.length || shown.reply.length < 200, "Show me: speaks less than the screen detail");
+  check(JSON.stringify(await Promise.all(projectFiles.map((file) => readFile(resolve(project, file), "utf8")))) === JSON.stringify(beforeQuestions), "Repository questions: project files remain unchanged");
 
   let asked: { question: string; spoken: string; answer: string } | undefined;
   const question = await turn("Clarification question", "Ask me with your question tool whether the retry limit should be 3 or 5. Do not change any files.", async (pending) => {
@@ -142,6 +152,33 @@ try {
   check(!refused.tools.some((tool) => tool.tool === "shell" && tool.status === "completed"), "Refused approval: the command did not run");
   check(!refused.reply.includes(process.version), "Refused approval: the reply does not invent the command result");
   check(/not|unable|denied|declined|reject|permission/i.test(`${refused.reply} ${refused.spoken}`), "Refused approval: what is said and shown states plainly that it did not run");
+
+  const self = await turn("Picard self-reference", "Computer, tell me about myself and my interests.", undefined, { mode: "screen" });
+  check(/picard/i.test(self.reply), "Self-reference: identifies the fictional Captain as Picard");
+  check(/archaeolog|artifact|flute|kataan/i.test(self.reply), "Self-reference: uses reviewed Picard facts");
+  check(!self.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Self-reference: no file changes or commands");
+  const factsOnly = await turn("Tribute off", "Tell me about myself, strictly factual and without jokes.", undefined, { mode: "off" });
+  check(/picard/i.test(factsOnly.reply), "Tribute off: preserves Picard identity");
+  check(!/vanity|vain|ego|i can tell you a short story/i.test(factsOnly.reply), "Tribute off: no vanity joke or unsolicited story offer");
+  const birthplace = await turn("Wikipedia Picard answer", "Computer, where was Jean-Luc Picard born?", undefined, { mode: "off" });
+  check(/la barre/i.test(birthplace.reply) && /france/i.test(birthplace.reply), "Wikipedia Picard: answers the birthplace question from the article");
+  check(/en\.wikipedia\.org\/wiki\/Jean-Luc_Picard/i.test(birthplace.reply), "Wikipedia Picard: cites the fetched article on screen");
+  check(JSON.stringify(birthplace.reference) === JSON.stringify({ title: "Wikipedia: Jean-Luc Picard", url: "https://en.wikipedia.org/wiki/Jean-Luc_Picard" }), "Wikipedia Picard: the API returns the real requested article reference");
+  check(!birthplace.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Wikipedia Picard: no file changes or commands");
+  const training = await turn("Wikipedia Stewart answer", "Computer, which drama school did Patrick Stewart attend, and who introduced him to performing Shakespeare?", undefined, { mode: "off" });
+  check(/bristol old vic/i.test(training.reply) && /cecil dormand/i.test(training.reply), "Wikipedia Stewart: answers from the broader career material");
+  check(/en\.wikipedia\.org\/wiki\/Patrick_Stewart/i.test(training.reply), "Wikipedia Stewart: cites the fetched article on screen");
+  check(JSON.stringify(training.reference) === JSON.stringify({ title: "Wikipedia: Patrick Stewart", url: "https://en.wikipedia.org/wiki/Patrick_Stewart" }), "Wikipedia Stewart: the API returns the real requested article reference");
+  check(!training.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Wikipedia Stewart: no file changes or commands");
+  check(JSON.stringify(await Promise.all(projectFiles.map((file) => readFile(resolve(project, file), "utf8")))) === JSON.stringify(beforeQuestions), "Wikipedia answers: project files remain unchanged");
+  const story = await turn("Reviewed Stewart story", "Yes, please.", undefined, { mode: "off", storyID: "stewart-dickens" });
+  check(/stewart/i.test(story.reply) && /christmas carol/i.test(story.reply), "Story: uses the selected Patrick Stewart account");
+  check(/londontheatre\.co\.uk/i.test(story.reply), "Story: includes the reviewed source link");
+  check(!story.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Story: no file changes or commands");
+  const picardStory = await turn("Reviewed Picard story", "Tell me a short story about Captain Jean-Luc Picard.", undefined, { mode: "off", storyID: "picard-kamin" });
+  check(/picard/i.test(picardStory.reply) && /inner light/i.test(picardStory.reply) && /kamin|kataan/i.test(picardStory.reply), "Picard story: uses the selected fictional account");
+  check(/startrek\.com/i.test(picardStory.reply), "Picard story: includes the reviewed source link");
+  check(!picardStory.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Picard story: no file changes or commands");
 } finally {
   try {
     if (engine) {

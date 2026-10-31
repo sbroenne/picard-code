@@ -101,6 +101,10 @@ tribute badge. Like the ship's computer, there are no entry names or
 modes on the main screen.
 
 Everything else is hidden in slide-outs, opened from the side panel.
+The **Tribute** tile stays in the left navigation, with a clear **On / Off**
+state and no visible checkbox. Click the tile or use Space while it is focused.
+It starts on and is the
+only on/off control for tribute extras; there are no switches inside answers.
 The **Current log entry** tile at the top is lit while the current log entry is in
 front; choosing it brings it back. Choosing the same tile again,
 clicking the log entry beside the slide-out, or the Escape key also closes it. Picard Code is made for a computer
@@ -130,6 +134,78 @@ policies may restrict the available models, and a `gh auth login` alone does
 error rather than switching to another model or provider.
 
 ## Use it
+
+### Ask about your repository
+
+Say "Computer, what does our repo do?", "Where is speech handled?" or
+"Why does this function retry four times?" The computer reads and searches
+the folder selected under **Project**, uses the code and documentation as
+evidence, and puts supporting file references on screen. It does not assume
+that every project is Picard Code.
+
+Repository questions do not ask it to change files or run checks. Ask
+explicitly when you want those actions; OpenCode's approvals still apply.
+Missing files or unavailable information are reported plainly. Tribute can
+be on or off: references to your repo, code, files and GitHub keep their real
+meaning, even when the repository's name includes Picard.
+
+### Tribute facts and stories
+
+With **Tribute** on, a short fact about Picard or Patrick Stewart appears after
+every two to five eligible answers, with a varied gap and no limit per log
+entry. It appears in a distinct lilac panel with a clear subject heading and
+a source link, and stays separate from the answer and its Copy
+button. Questions, approvals, errors, refusals and stopped work receive no
+facts. Reopening the Captain's log does not generate new ones. Facts avoid
+repetition until the reviewed collection has been used, and may contain
+spoilers from Picard's appearances.
+
+Facts are on screen only by default. Open **About** with the tribute badge to
+choose **Speak automatic facts**. Both preferences are remembered in this
+browser. Turning Tribute off keeps the speech choice for later and stops
+pending tribute speech without cutting off the main answer.
+
+Questions such as "Computer, tell me about myself" always mean Captain
+Jean-Luc Picard's fictional life, not Patrick Stewart's biography or your
+private information. Your files, settings and earlier requests retain their
+ordinary meaning. With Tribute on, light-hearted questions about the Captain
+may receive one affectionate remark about his vanity. Questions about Picard
+or Patrick Stewart may receive a spoken offer of a short story about the same
+person. Say "yes, please" or "tell me" to accept; the
+computer does not tell the story without your request. Serious questions and
+requests for facts only receive no teasing.
+
+Tribute off removes automatic facts, teasing and unsolicited story offers,
+not Picard's identity. You can still say "Computer, tell me a short story
+about Captain Jean-Luc Picard" or "Computer, tell me a short story about Sir
+Patrick Stewart". Both use the same spoken request and acceptance flow.
+Picard stories describe his fictional adventures; Stewart stories describe
+the actor's real career. Story replies use reviewed reference material
+and show its source in the log entry. The reviewed collection contains
+33 facts and twelve short stories, six for each subject, covering more than
+one part of their lives. Wikipedia supplies broader biography and episode
+references alongside official and theatre sources.
+It is a growing collection, not an exhaustive biography.
+Its original summaries contain no copied show dialogue or actor recordings.
+
+Requested questions about Picard or Patrick Stewart also read their current
+Wikipedia article, even with Tribute off. The computer receives the article
+as reference material, not instructions, and a source link appears on screen.
+It must say when the article does not contain the answer. Wikipedia is a
+secondary source, not a guarantee that every claim has been independently checked.
+Only those two article titles are sent to Wikipedia: your words, project
+files, settings and credentials are not. Articles are kept in server memory
+for up to ten minutes, never written into your project or committed.
+A failed lookup is explained; it does not silently use old or invented information.
+Automatic facts, reviewed story replies and repository questions make no
+Wikipedia requests.
+
+Optional speech follows the answer only after playback finishes. **Stop
+speaking**, microphone off, switching log entries or projects, Settings,
+errors and disconnection discard pending extras. Speaking over the computer
+still does not interrupt it; approvals still need an on-screen button.
+
+### Spoken requests
 
 - The app always opens with the microphone on; the browser asks for
   microphone access the first time. Listening pauses while a setting is open. If the browser blocks

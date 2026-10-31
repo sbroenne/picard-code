@@ -7,7 +7,10 @@ import { chatMessages, availableModels, errorMessage } from "./engine.js";
 import { partID } from "./history.js";
 import type { OpenCode, OpenCodeEvent } from "./opencode.js";
 import { projectDirectory } from "./process.js";
-import { computerInstructions } from "./instructions.js";
+import { computerManner } from "./instructions.js";
+import { checkTributeRequest, explicitStorySubject, storyAcceptance, tributeSubject } from "../shared/tribute.js";
+import { TRIBUTE_ENTRIES } from "../shared/tribute-data.js";
+import { wikipediaReader, type WikipediaArticle } from "./wikipedia.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechService } from "./speech-types.js";
 import { canSetUpLocalSpeech, describeSpeechSettings, localSpeechReady, mergeSpeechSettings, readSpeechSettings, saveSpeechSettings, setUpLocalSpeech, speechFromSettings, speechSettingsFile } from "./speech.js";
@@ -94,9 +97,12 @@ export function browserEvents(event: OpenCodeEvent): BrowserEvent[] {
   }
   if (SESSION_CHANGES.test(event.type)) return [{ type: "changed", sessionID }];
   if (event.type === "session.execution.started") return [{ type: "state" }];
-  if (event.type === "session.execution.succeeded" || event.type === "session.execution.interrupted") return [{ type: "state" }, { type: "changed", sessionID }];
+  if (event.type === "session.execution.succeeded" || event.type === "session.execution.interrupted") return [
+    { type: "state" }, { type: "changed", sessionID },
+    { type: "finished", sessionID, outcome: event.type === "session.execution.succeeded" ? "succeeded" : "interrupted" },
+  ];
   if (event.type === "session.execution.failed") {
-    return [{ type: "state" }, { type: "changed", sessionID }, { type: "error", sessionID, message: errorMessage(data.error) }];
+    return [{ type: "state" }, { type: "changed", sessionID }, { type: "finished", sessionID, outcome: "failed" }, { type: "error", sessionID, message: errorMessage(data.error) }];
   }
   if (event.type === "session.retry.scheduled") return [{ type: "retry", sessionID, message: errorMessage(data.error) }];
   if (/^(permission\.(asked|replied)|form\.(created|replied|cancelled)|session\.(created|renamed|deleted|archived))$/.test(event.type)) return [{ type: "state" }];
@@ -129,6 +135,8 @@ export interface AppOptions {
   setUpLocalSpeech?: (onStep: (step: string) => void) => Promise<void>;
   /** Optional folder holding the short sounds downloaded by `npm run setup:sounds`. */
   soundFolder?: string;
+  /** Reads Wikipedia for requested tribute questions; tests supply a labelled stand-in. */
+  readWikipedia?: (subject: WikipediaArticle["subject"]) => Promise<WikipediaArticle>;
 }
 
 export async function startApp(options: AppOptions) {
@@ -146,6 +154,7 @@ export async function startApp(options: AppOptions) {
   const startSpeech = options.startSpeech ?? ((settings) => speechFromSettings(settings));
   const localReady = options.localSpeechReady ?? localSpeechReady;
   const setUpLocal = options.setUpLocalSpeech ?? setUpLocalSpeech;
+  const readWikipedia = options.readWikipedia ?? wikipediaReader();
   /** The one-time local speech download runs in the background, because it takes minutes. */
   let localSetup: { state: "running" | "done" | "failed"; step: string; error?: string; result?: unknown } | undefined;
 
@@ -404,17 +413,33 @@ export async function startApp(options: AppOptions) {
             const text = textField(data, "text");
             const modelID = textField(data, "modelID", 256);
             const providerID = textField(data, "providerID", 256);
+            let tribute;
+            try { tribute = checkTributeRequest(data.tribute); }
+            catch (error) { throw new HttpError(400, errorMessage(error)); }
+            if (tribute.storyID) {
+              const subject = explicitStorySubject(text);
+              if (!subject && !storyAcceptance(text)) throw new HttpError(400, "That response did not request a tribute story.");
+              if (subject && TRIBUTE_ENTRIES.find((entry) => entry.id === tribute.storyID)?.subject !== subject) {
+                throw new HttpError(400, "That story does not match the person you requested.");
+              }
+            }
             const { models } = await availableModels(client, project);
             if (!models.some((model) => model.providerID === providerID && model.modelID === modelID)) {
               throw new HttpError(400, "Sign in to a model provider in OpenCode and choose an available model.");
             }
             if ((await client.active(project)).includes(id)) throw new HttpError(409, "Wait for the current reply, or stop it before sending another message.");
+            const subject = tributeSubject(text);
+            let wikipedia: WikipediaArticle | undefined;
+            if (subject && !tribute.storyID) {
+              try { wikipedia = await readWikipedia(subject); }
+              catch (error) { throw new HttpError(502, `${errorMessage(error)} The request was not sent. Try again when Wikipedia is available.`); }
+            }
             if (session.title === "New log entry" || session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
             if (session.model?.id !== modelID || session.model.providerID !== providerID) await client.setModel(id, project, { id: modelID, providerID });
             // Picard Code's conversation manner travels with the conversation, not as a file in the project.
-            await client.setInstructions(id, project, "picard-manner", computerInstructions(new Date()));
+            await client.setInstructions(id, project, "picard-manner", computerManner(text, tribute, wikipedia));
             await client.prompt(id, project, text);
-            json(response, 202, { accepted: true });
+            json(response, 202, { accepted: true, ...(wikipedia ? { reference: { title: wikipedia.title, url: wikipedia.url } } : {}) });
             return;
           }
         }

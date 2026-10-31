@@ -98,3 +98,55 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("heading", { name: "Speech" })).toBeHidden();
   await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
 });
+
+test("the only Tribute toggle is a navigation tile; About retains the secondary speech preference", async ({ page }, testInfo) => {
+  const toggle = page.getByRole("switch", { name: "Tribute", exact: true });
+  await expect(toggle).toBeChecked();
+  await expect(page.locator("#sidebar").getByRole("switch")).toHaveCount(1);
+  await expect(page.locator("#main").getByRole("switch")).toHaveCount(0);
+  await expect(toggle).toHaveCSS("opacity", "0");
+  const tile = page.locator(".tribute-switch");
+  const height = (await page.locator("#new-conversation").boundingBox())!.height;
+  expect((await tile.boundingBox())!.height).toBe(height);
+  await toggle.focus();
+  await page.keyboard.press("Space");
+  await expect(toggle).not.toBeChecked();
+  await expect(page.locator("#tribute-toggle-state")).toHaveText("Off");
+  await expect(page.locator("#drawer-settings")).toBeHidden();
+  await page.screenshot({ path: testInfo.outputPath("tribute-off.png"), fullPage: true });
+  await tile.click();
+  await expect(toggle).toBeChecked();
+  await tile.click();
+  await expect(toggle).not.toBeChecked();
+  await page.getByRole("link", { name: /Sir Patrick Stewart/ }).click();
+  const spoken = page.getByLabel("Speak automatic facts", { exact: true });
+  await expect(spoken).toBeDisabled();
+  await expect(page.locator("#settings-about").getByRole("switch")).toHaveCount(0);
+  await toggle.check();
+  await spoken.check();
+  await toggle.uncheck();
+  await expect(spoken).toBeChecked();
+  await expect(spoken).toBeDisabled();
+  await page.reload();
+  await expect(toggle).not.toBeChecked();
+  await page.getByRole("link", { name: /Sir Patrick Stewart/ }).click();
+  await expect(spoken).toBeChecked();
+  await expect(spoken).toBeDisabled();
+  await toggle.check();
+  await expect(spoken).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("invalid and unavailable browser storage are explained instead of claiming preferences were saved", async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem("picard-tribute-enabled", "not-a-boolean"));
+  await page.reload();
+  await expect(page.locator("#tribute-storage-error")).toContainText("invalid");
+  await expect(page.getByRole("switch", { name: "Tribute", exact: true })).toBeChecked();
+  await page.addInitScript(() => {
+    Storage.prototype.setItem = () => { throw new DOMException("Storage disabled", "SecurityError"); };
+  });
+  await page.reload();
+  await page.getByRole("switch", { name: "Tribute", exact: true }).uncheck();
+  await expect(page.locator("#tribute-storage-error")).toContainText("could not be saved");
+  await expect(page.locator("#tribute-toggle-state")).toHaveText("Off");
+});

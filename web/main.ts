@@ -7,6 +7,8 @@ import { addressed, voiceCommand } from "../src/shared/wake";
 import { VoiceConversation } from "./voice";
 import { renderMarkdown } from "./markdown";
 import { formatStardate } from "../src/shared/stardate";
+import { TRIBUTE_ENTRIES, type TributeEntry } from "../src/shared/tribute-data";
+import { TributeCycle, tributeMode, declinedReply, storyOfferAllowed, storyAcceptance, explicitStorySubject, tributeQuestion, tributeSubject, randomIndex, storyInvitation, type ExecutionOutcome } from "../src/shared/tribute";
 
 function element<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -45,7 +47,13 @@ let approvalKey = "";
 let renderScheduled = false;
 /** Reply text that is still being written, shown until the stored conversation catches up. */
 const live = new Map<string, { sessionID: string; messageID: string; partType: "text" | "reasoning"; text: string }>();
-let voiceTurn: { session: string; known: Set<string> } | undefined;
+let voiceTurn: { session: string; known: Set<string>; request: string; storyID?: string; outcome?: ExecutionOutcome; reference?: TributeEntry["source"] } | undefined;
+let tributeEnabled = true;
+let tributeSpoken = false;
+let tributeCycle: TributeCycle;
+let pendingStory: { session: string; storyID: string } | undefined;
+let lastStoryID: string | undefined;
+const tributeDisplay = new Map<string, { fact?: TributeEntry; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] }>();
 let spokenDecision = "";
 let spokenQuestionID: string | undefined;
 let answering = false;
@@ -59,7 +67,7 @@ let notSent = "";
 let confirmingDelete: string | undefined;
 const voice = new VoiceConversation({
   changed: voiceControls,
-  error: notice,
+  error: (message) => { cancelTributeSpeech(); notice(message); },
   transcript: heard,
   canListen: () => !!state?.models.length && connected,
 });
@@ -101,13 +109,17 @@ async function heard(text: string, startedAt: number) {
   if (blocked && words === undefined) { notSent = `Not sent: “${text}” ${blocked}`; await voice.notSent(); }
   else if (blocked) voice.speak(blocked);
   else {
-    await sendMessage(text);
+    const invitation = pendingStory;
+    const storyID = invitation && invitation.session === selected && storyAcceptance(request) ? invitation.storyID : undefined;
+    cancelTributeSpeech();
+    await sendMessage(text, storyID);
     engagedWith = selected;
   }
 }
 
 /** "Stop listening": ends the task and waits for "Computer" again. Any work under way carries on. */
 async function standBy() {
+  cancelTributeSpeech();
   engagedWith = undefined;
   goAheadUntil = 0;
   controls();
@@ -128,6 +140,7 @@ function freshByVoice() {
 }
 
 async function stopByVoice() {
+  cancelTributeSpeech();
   if (!selected || !busy()) { voice.speak("No work is running."); return; }
   voiceTurn = undefined;
   await api(`conversations/${encodeURIComponent(selected)}/stop`, {});
@@ -230,8 +243,96 @@ function completeVoiceReply() {
   if (!voiceTurn || voiceTurn.session !== selected || busy() || pending() || submitting || historyLoading || historyDue) return;
   const reply = messages.findLast((message) => message.role === "assistant" && !voiceTurn!.known.has(message.id));
   if (!reply) return;
+  const outcome = reply.outcome ?? voiceTurn.outcome;
+  if (!outcome) return;
+  const turn = voiceTurn;
   voiceTurn = undefined;
-  voice.speak(spokenReply(reply), replyFailed(reply));
+  const successful = outcome === "succeeded" && !replyFailed(reply) && !declinedReply(reply);
+  const key = `${turn.session}:${reply.id}`;
+  const display: { fact?: TributeEntry; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] } = {};
+  if (successful && turn.reference) display.reference = turn.reference;
+  if (successful && turn.storyID) display.story = TRIBUTE_ENTRIES.find((entry) => entry.id === turn.storyID);
+  let tail: { text: string; valid(): boolean; started?(): void } | undefined;
+  const stillCurrent = () => tributeEnabled && selected === turn.session && !busy() && !pending()
+    && !submitting && connected && !muted() && !openDrawer() && !voice.failed;
+  if (successful && tributeEnabled && !turn.storyID && storyOfferAllowed(turn.request)) {
+    const subject = tributeSubject(turn.request);
+    const stories = TRIBUTE_ENTRIES.filter((entry) => entry.story && entry.subject === subject && entry.id !== lastStoryID);
+    if (!stories.length) { notice(`No reviewed ${subject} stories are available.`); }
+    else {
+      const story = stories[randomIndex(stories.length, Math.random)]!;
+      display.invitation = storyInvitation(story.subject);
+      tail = { text: display.invitation, valid: stillCurrent, started: () => {
+        pendingStory = { session: turn.session, storyID: story.id };
+        lastStoryID = story.id;
+      } };
+    }
+  }
+  const fact = tributeCycle.completed({ id: key, outcome, reply, blocked: !!pending(), explicit: !!turn.storyID || tributeQuestion(turn.request) });
+  if (fact) {
+    display.fact = fact;
+    saveTributeValue("picard-tribute-seen", JSON.stringify(tributeCycle.seenIDs));
+    if (tributeSpoken) tail = { text: `${fact.subject} fact. ${fact.text}`, valid: () => stillCurrent() && tributeSpoken };
+  }
+  if (display.fact || display.invitation || display.story || display.reference) {
+    tributeDisplay.set(key, display);
+    renderMessages();
+  }
+  voice.speak(spokenReply(reply), replyFailed(reply), tail);
+}
+
+function cancelTributeSpeech() {
+  pendingStory = undefined;
+  voice.cancelFollowOn();
+}
+
+function tributeStorageError(message: string) {
+  element("tribute-storage-error").hidden = false;
+  element("tribute-storage-error").textContent = message;
+}
+function saveTributeValue(key: string, value: string) {
+  try { localStorage.setItem(key, value); }
+  catch { tributeStorageError("Tribute preferences could not be saved in this browser. They apply only until this page closes."); }
+}
+function readTributeValue(key: string) {
+  try { return localStorage.getItem(key); }
+  catch { tributeStorageError("Tribute preferences could not be read in this browser. This page uses the default choices."); return null; }
+}
+function readTributeBoolean(key: string, fallback: boolean) {
+  const value = readTributeValue(key);
+  if (value === null) return fallback;
+  if (value === "true" || value === "false") return value === "true";
+  tributeStorageError("A saved tribute preference was invalid and has been reset to its default.");
+  saveTributeValue(key, String(fallback));
+  return fallback;
+}
+function tributeControls() {
+  element<HTMLInputElement>("tribute-toggle").checked = tributeEnabled;
+  element("tribute-toggle-state").textContent = tributeEnabled ? "On" : "Off";
+  const spoken = element<HTMLInputElement>("tribute-spoken");
+  spoken.checked = tributeSpoken;
+  spoken.disabled = !tributeEnabled;
+  element("tribute-speech-hint").textContent = !tributeEnabled ? "Turn Tribute on in the left navigation to change automatic speech."
+    : "Automatic facts appear on screen. Requested answers and story invitations are still spoken.";
+}
+function loadTribute() {
+  tributeEnabled = readTributeBoolean("picard-tribute-enabled", true);
+  tributeSpoken = readTributeBoolean("picard-tribute-spoken", false);
+  let seen: string[] = [];
+  const saved = readTributeValue("picard-tribute-seen");
+  if (saved !== null) {
+    try {
+      const parsed: unknown = JSON.parse(saved);
+      if (!Array.isArray(parsed) || !parsed.every((id) => typeof id === "string")) throw new Error("Invalid seen facts.");
+      seen = parsed;
+    } catch {
+      tributeStorageError("The saved list of tribute facts was invalid and has been reset.");
+      saveTributeValue("picard-tribute-seen", "[]");
+    }
+  }
+  tributeCycle = new TributeCycle(TRIBUTE_ENTRIES, seen);
+  tributeCycle.setEnabled(tributeEnabled);
+  tributeControls();
 }
 
 async function api<T>(path: string, data?: unknown): Promise<T> {
@@ -365,7 +466,9 @@ function renderState() {
   renderApprovals();
   const decision = state.permissions.find((item) => item.sessionID === selected)?.id
     ?? state.questions.find((item) => item.sessionID === selected)?.id;
+  if (decision) cancelTributeSpeech();
   if (voiceTurn && decision && decision !== spokenDecision) {
+    cancelTributeSpeech();
     spokenDecision = decision;
     const question = state.questions.find((item) => item.id === decision);
     const waiting = state.questions.filter((item) => item.sessionID === selected).length;
@@ -415,10 +518,39 @@ function renderMessages() {
     for (const part of texts) renderText(article, part.text, message.role);
     for (const part of failures) article.append(make("p", "message-error", part.text));
     if (message.error) article.append(make("p", "message-error", message.error));
+    const extra = tributeDisplay.get(`${selected}:${message.id}`);
+    if (extra?.fact) {
+      const fact = make("aside", "tribute-fact");
+      fact.append(make("strong", undefined, `${extra.fact.subject} fact`), make("p", undefined, extra.fact.text), tributeSource(extra.fact));
+      article.append(fact);
+    }
+    if (extra?.invitation && tributeEnabled) article.append(make("p", "tribute-invitation", extra.invitation));
+    if (extra?.story) {
+      const source = make("p", "tribute-source");
+      source.append(tributeSource(extra.story));
+      article.append(source);
+    }
+    if (extra?.reference) {
+      const source = make("p", "wikipedia-source");
+      source.append(sourceLink(extra.reference));
+      article.append(source);
+    }
     container.append(article);
   });
   controls();
   if (nearBottom && window.matchMedia("(min-width: 701px)").matches) readingArea.scrollTop = readingArea.scrollHeight;
+}
+
+function tributeSource(entry: TributeEntry) {
+  return sourceLink(entry.source);
+}
+
+function sourceLink(source: TributeEntry["source"]) {
+  const link = make("a", undefined, source.title);
+  link.href = source.url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  return link;
 }
 
 function scheduleRender() {
@@ -622,6 +754,12 @@ function handleEvent(event: BrowserEvent) {
     piece.text += event.delta;
     live.set(event.partID, piece);
     scheduleRender();
+  } else if (event.type === "finished") {
+    if (voiceTurn?.session === event.sessionID) {
+      voiceTurn.outcome = event.outcome;
+      if (event.outcome !== "succeeded") cancelTributeSpeech();
+      scheduleHistory();
+    }
   } else if (event.type === "changed") {
     if (event.sessionID === selected) scheduleHistory();
   } else if (event.type === "state") {
@@ -633,6 +771,7 @@ function handleEvent(event: BrowserEvent) {
     if (event.sessionID === selected) notice(`OpenCode is retrying. ${event.message}`);
     controls();
   } else if (event.type === "error" && event.sessionID === selected) {
+    cancelTributeSpeech();
     notice(event.message);
     if (voiceTurn) { voiceTurn = undefined; voice.speak(spokenSummary(event.message), true); }
   }
@@ -688,6 +827,7 @@ function openEvents() {
       const data = JSON.parse(message.data) as BrowserEvent;
       if (data.type === "connection") {
         connected = data.connected;
+        if (!connected) cancelTributeSpeech();
         if (data.message) notice(data.message);
         if (connected) {
           notice();
@@ -699,6 +839,7 @@ function openEvents() {
     });
   });
   events.addEventListener("error", () => {
+    cancelTributeSpeech();
     connected = false;
     controls();
     notice("The live connection stopped. Keep Picard Code's terminal open; the browser will reconnect.");
@@ -706,6 +847,7 @@ function openEvents() {
 }
 
 async function selectConversation(id: string) {
+  cancelTributeSpeech();
   if (selected && id !== selected) { voiceTurn = undefined; spokenQuestionID = undefined; voice.close(); }
   selected = id;
   selectionRevision++;
@@ -725,6 +867,7 @@ async function selectConversation(id: string) {
 
 /** Clears the screen for a new task. The next request starts a new log, named after that request. */
 function startFresh() {
+  cancelTributeSpeech();
   voiceTurn = undefined;
   spokenQuestionID = undefined;
   voice.stopSpeaking();
@@ -759,7 +902,7 @@ async function newConversation(title = "New log entry") {
   return conversation;
 }
 
-async function sendMessage(spoken: string) {
+async function sendMessage(spoken: string, requestedStoryID?: string) {
   if (submitting || busy() || !state || !connected || historyLoading) throw new Error("The spoken request was not sent. Wait for the current work or connection to finish.");
   const text = spoken.trim();
   if (!text) return;
@@ -773,8 +916,13 @@ async function sendMessage(spoken: string) {
     if (selected && engagedWith !== selected) startFresh();
     if (!selected) await newConversation((addressed(text) || text).slice(0, 60));
     const id = selected!;
-    voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)) };
-    await api(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice });
+    const subject = explicitStorySubject(text);
+    const stories = TRIBUTE_ENTRIES.filter((entry) => entry.story && entry.subject === subject);
+    if (!requestedStoryID && subject && !stories.length) throw new Error(`No reviewed ${subject} stories are available.`);
+    const storyID = requestedStoryID ?? (subject ? stories[randomIndex(stories.length, Math.random)]!.id : undefined);
+    voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)), request: text, storyID };
+    const accepted = await api<{ accepted: boolean; reference?: TributeEntry["source"] }>(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, tribute: { mode: tributeMode(tributeEnabled, tributeSpoken), ...(storyID ? { storyID } : {}) } });
+    if (voiceTurn) voiceTurn.reference = accepted.reference;
     voice.acknowledge();
     await refreshState();
     await loadHistory();
@@ -848,6 +996,7 @@ function showSettingsPart(requested?: string) {
 
 let settingsLoaded = false;
 async function route() {
+  cancelTributeSpeech();
   const open = openDrawer();
   for (const name of drawers) element(`drawer-${name}`).hidden = name !== open;
   element("shell").dataset.drawer = open ?? "";
@@ -934,6 +1083,7 @@ element("speech-form").addEventListener("submit", (event) => {
 element("stop").addEventListener("click", () => {
   void perform(async () => {
     if (!selected) return;
+    cancelTributeSpeech();
     voiceTurn = undefined;
     voice.stopSpeaking();
     await api(`conversations/${encodeURIComponent(selected)}/stop`, {});
@@ -953,6 +1103,7 @@ element("refresh-provider").addEventListener("click", () => {
 element("project-form").addEventListener("submit", (event) => {
   event.preventDefault();
   void perform(async () => {
+    cancelTributeSpeech();
     const next = await api<AppState>("project", { path: element<HTMLInputElement>("project-path").value });
     voiceTurn = undefined;
     spokenQuestionID = undefined;
@@ -972,6 +1123,7 @@ element("project-form").addEventListener("submit", (event) => {
   });
 });
 function muteMicrophone() {
+  cancelTributeSpeech();
   engagedWith = undefined;
   setMuted(true);
   voice.microphoneOff();
@@ -1006,7 +1158,23 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
   toggleMicrophone();
 });
-element("stop-speaking").addEventListener("click", () => voice.stopSpeaking());
+element("stop-speaking").addEventListener("click", () => { cancelTributeSpeech(); voice.stopSpeaking(); });
+element("tribute-toggle").addEventListener("change", () => {
+  tributeEnabled = element<HTMLInputElement>("tribute-toggle").checked;
+  saveTributeValue("picard-tribute-enabled", String(tributeEnabled));
+  tributeCycle.setEnabled(tributeEnabled);
+  if (!tributeEnabled) cancelTributeSpeech();
+  tributeControls();
+  element("tribute-status").textContent = tributeEnabled ? "Tribute is on." : "Tribute is off.";
+  scheduleRender();
+});
+element("tribute-spoken").addEventListener("change", () => {
+  tributeSpoken = element<HTMLInputElement>("tribute-spoken").checked;
+  saveTributeValue("picard-tribute-spoken", String(tributeSpoken));
+  if (!tributeSpoken) voice.cancelFollowOn();
+  tributeControls();
+});
 for (const name of ["pointerdown", "keydown"] as const) document.addEventListener(name, () => voice.unlock(), true);
 window.addEventListener("beforeunload", () => { events?.close(); voice.close(); });
+loadTribute();
 void perform(async () => { await route(); await boot(); await route(); });

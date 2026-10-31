@@ -88,6 +88,12 @@ a { color: var(--peach); text-underline-offset: 4px; }
 .sidebar { grid-area: sidebar; display: flex; flex-direction: column; gap: 6px; padding-top: 6px; min-height: 0; }
 .rail-button { display: flex; align-items: flex-end; justify-content: flex-end; text-align: right; min-height: 62px; padding: 8px 12px; color: var(--ink); text-decoration: none; font: 600 17px/1.1 var(--lcars); letter-spacing: .06em; text-transform: uppercase; flex: none; }
 .rail-button[aria-current] { background: var(--gold); }
+.tribute-switch { position: relative; gap: 8px; cursor: pointer; }
+.tribute-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.tribute-switch b { min-width: 34px; padding: 3px 6px; border: 1px solid var(--ink); border-radius: 12px; background: var(--ink); color: var(--lilac); text-align: center; font: 600 12px/1 var(--lcars); letter-spacing: .06em; }
+.tribute-switch:has(input:not(:checked)) b { background: transparent; color: var(--ink); }
+.tribute-switch:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 3px; }
+.tribute-switch:has(input:active) { filter: brightness(.85); }
 .rail-fill { flex: 1; min-height: 24px; display: flex; flex-direction: column; gap: 6px; }
 .rail-fill .readout { min-height: 0; font-size: 14px; }
 a.readout { text-decoration: none; }
@@ -149,6 +155,11 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .markdown pre code { background: none; color: inherit; padding: 0; }
 .message pre { background: #120f0c; color: var(--text); border-left: 4px solid var(--peach); padding: 14px; line-height: 1.6; white-space: pre; overflow-x: auto; max-width: 100%; }
 .message-error { color: #ffd6cc; background: #3a1414; padding: 12px; border-radius: 0 16px 16px 0; }
+.tribute-fact, .tribute-invitation, .tribute-source, .wikipedia-source { margin: 14px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.tribute-fact { margin-top: 20px; padding: 14px 18px; border-left: 8px solid var(--lilac); border-radius: 0 18px 18px 0; background: #201823; color: var(--text); font-size: 16px; }
+.tribute-fact strong { display: block; color: var(--lilac); font: 600 18px/1.4 var(--lcars); letter-spacing: .08em; text-transform: uppercase; }
+.tribute-fact p { margin: 6px 0 8px; }
+.tribute-fact a, .tribute-source a, .wikipedia-source a { color: var(--muted); font-size: 12px; }
 .approval { padding: 18px 20px; margin: 16px 0 0; border-left: 14px solid var(--gold); border-radius: 0 26px 26px 0; background: #1f1708; }
 .approval h3 { margin: 0 0 8px; font: 600 24px/1.1 var(--lcars); letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
 .approval p { line-height: 1.6; font-size: 15px; }

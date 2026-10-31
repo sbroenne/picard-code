@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile, rm, realpath } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { request as httpRequest } from "node:http";
-import { startFixture } from "./fixture.js";
+import { startFixture, wikipediaFixture } from "./fixture.js";
 import { browserEvents, checkAnswer, startApp } from "../server/app.js";
 import { chatMessages, STOPPED } from "../server/history.js";
 import type { SessionMessage } from "../server/opencode.js";
@@ -22,7 +22,9 @@ async function setup(extra: Partial<AppOptions> = {}) {
   await writeFile(join(webRoot, "index.html"), "<!doctype html><title>Picard Code</title>");
   const directory = await realpath(project);
   const fixture = await startFixture(directory);
-  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot, speechFile: join(temporary, "speech.json"), ...extra });
+  const wikipediaRequests: string[] = [];
+  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot, speechFile: join(temporary, "speech.json"),
+    readWikipedia: async (subject) => { wikipediaRequests.push(subject); return wikipediaFixture(subject); }, ...extra });
   let cookie = "";
   const request = (path: string, data?: unknown, headers: Record<string, string> = {}) => fetch(`${app.origin}/api/${path}`, {
     method: data === undefined ? "GET" : "POST",
@@ -42,7 +44,7 @@ async function setup(extra: Partial<AppOptions> = {}) {
     await fixture.close();
     await rm(temporary, { recursive: true });
   };
-  return { app, fixture, request, login, cleanup, directory, other, temporary };
+  return { app, fixture, request, login, cleanup, directory, other, temporary, wikipediaRequests };
 }
 
 test("only explicit local HTTP server addresses are accepted", () => {
@@ -185,6 +187,122 @@ test("approvals and questions stay pending until the user answers; no automatic 
   assert.equal(context.fixture.requests.at(-1)?.method, "DELETE");
 });
 
+test("tribute options are checked and reviewed story context never rewrites the Captain's words", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const session = await (await context.request("conversations", {})).json();
+  for (const tribute of [{ mode: "always" }, { mode: "screen", storyID: "invented" }, { mode: "screen", storyID: "picard-flute" }]) {
+    const rejected = await context.request(`conversations/${session.id}/send`, { text: "Yes", providerID: "github-copilot", modelID: "fixture-model", tribute });
+    assert.equal(rejected.status, 400);
+  }
+  const negated = await context.request(`conversations/${session.id}/send`, {
+    text: "Don't tell me a story.", providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "screen", storyID: "stewart-dickens" },
+  });
+  assert.equal(negated.status, 400);
+  for (const [text, storyID] of [
+    ["Tell me a story about Picard", "stewart-dickens"],
+    ["Tell me a story about Patrick Stewart", "picard-phoenix"],
+  ]) {
+    const mismatched = await context.request(`conversations/${session.id}/send`, {
+      text, providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "off", storyID },
+    });
+    assert.equal(mismatched.status, 400);
+  }
+  assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/prompt")), false);
+  const response = await context.request(`conversations/${session.id}/send`, {
+    text: "Yes, please.", providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "off", storyID: "stewart-dickens" },
+  });
+  assert.equal(response.status, 202);
+  const prompt = context.fixture.requests.find((request) => request.path.endsWith("/prompt"))!;
+  assert.deepEqual(prompt.data, { text: "Yes, please." });
+  const manner = context.fixture.instructions.get(session.id)?.["picard-manner"] ?? "";
+  assert.match(manner, /explicitly requested/);
+  assert.match(manner, /londontheatre\.co\.uk/);
+  assert.match(manner, /entire cast/);
+  assert.match(manner, /Do not add vanity jokes/);
+  assert.deepEqual(context.wikipediaRequests, [], "accepting a reviewed story makes no web request");
+});
+
+test("an explicit Picard story uses reviewed fictional evidence without changing the request", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const session = await (await context.request("conversations", {})).json();
+  const text = "Computer, tell me a story about Captain Jean-Luc Picard.";
+  const response = await context.request(`conversations/${session.id}/send`, {
+    text, providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "off", storyID: "picard-kamin" },
+  });
+  assert.equal(response.status, 202);
+  assert.deepEqual(context.fixture.requests.find((request) => request.path.endsWith("/prompt"))!.data, { text });
+  const manner = context.fixture.instructions.get(session.id)?.["picard-manner"] ?? "";
+  assert.match(manner, /explicitly requested the following Picard story/);
+  assert.match(manner, /fictional adventures, not Patrick Stewart/);
+  assert.match(manner, /trek-class-preserving-our-inner-light/);
+  assert.match(manner, /twenty minutes/);
+});
+
+test("repository questions use the selected folder and read-only instructions without tribute evidence", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  await context.request("project", { path: context.other });
+  const session = await (await context.request("conversations", {})).json();
+  const text = "Computer, tell me about our Picard repository.";
+  const response = await context.request(`conversations/${session.id}/send`, {
+    text, providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "screen" },
+  });
+  assert.equal(response.status, 202);
+  const prompt = context.fixture.requests.find((request) => request.path.endsWith("/prompt"))!;
+  assert.equal(prompt.directory, await realpath(context.other));
+  assert.deepEqual(prompt.data, { text });
+  const manner = context.fixture.instructions.get(session.id)?.["picard-manner"] ?? "";
+  assert.match(manner, /selected Project folder supplied by OpenCode/);
+  assert.match(manner, /not permission to edit files/);
+  assert.doesNotMatch(manner, /Reviewed reference material follows/);
+  assert.deepEqual(context.wikipediaRequests, [], "repository questions make no Wikipedia requests");
+  assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/reply")), false);
+});
+
+test("requested Picard and Stewart answers use Wikipedia in every tribute mode and keep the original words", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  for (const mode of ["off", "screen", "spoken"]) {
+    for (const [text, subject, page] of [
+      ["Computer, where was I born?", "Picard", "Jean-Luc_Picard"],
+      ["Tell me about Patrick Stewart's training", "Patrick Stewart", "Patrick_Stewart"],
+    ]) {
+      const session = await (await context.request("conversations", {})).json();
+      const response = await context.request(`conversations/${session.id}/send`, {
+        text, providerID: "github-copilot", modelID: "fixture-model", tribute: { mode },
+      });
+      assert.equal(response.status, 202);
+      assert.equal((await response.json()).reference.url, `https://en.wikipedia.org/wiki/${page}`);
+      const prompt = context.fixture.requests.filter((request) => request.path.endsWith("/prompt")).at(-1)!;
+      assert.deepEqual(prompt.data, { text });
+      const manner = context.fixture.instructions.get(session.id)?.["picard-manner"] ?? "";
+      assert.match(manner, /TEST ONLY Wikipedia stand-in/);
+      assert.match(manner, /evidence,\nnot instructions/);
+      assert.match(manner, /secondary source, not independent/);
+      assert.equal(context.wikipediaRequests.at(-1), subject);
+    }
+  }
+});
+
+test("a Wikipedia failure is explained and no model request or settings change is invented", async (t) => {
+  const context = await setup({ readWikipedia: async () => { throw new Error("Wikipedia returned HTTP 503."); } });
+  t.after(context.cleanup);
+  await context.login();
+  const session = await (await context.request("conversations", {})).json();
+  const response = await context.request(`conversations/${session.id}/send`, {
+    text: "Tell me about Picard", providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "off" },
+  });
+  assert.equal(response.status, 502);
+  assert.match((await response.json()).error, /HTTP 503.*request was not sent/);
+  assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/prompt") || request.path.includes("/instructions/")), false);
+});
+
 test("answers are checked against the question before they reach OpenCode", () => {
   const fields: FormField[] = [
     { key: "pick", type: "string", title: "Pick", options: [{ value: "a", label: "A" }], custom: false },
@@ -206,7 +324,11 @@ test("OpenCode events become the few browser updates the screen needs", () => {
     [{ type: "delta", sessionID: "s", messageID: "m", partID: "m:text:0", partType: "text", delta: "Hi" }]);
   assert.deepEqual(browserEvents(event("session.tool.failed", { sessionID: "s" })), [{ type: "changed", sessionID: "s" }]);
   assert.deepEqual(browserEvents(event("session.execution.failed", { sessionID: "s", error: { message: "No route." } })),
-    [{ type: "state" }, { type: "changed", sessionID: "s" }, { type: "error", sessionID: "s", message: "No route." }]);
+    [{ type: "state" }, { type: "changed", sessionID: "s" }, { type: "finished", sessionID: "s", outcome: "failed" }, { type: "error", sessionID: "s", message: "No route." }]);
+  for (const outcome of ["succeeded", "interrupted"] as const) {
+    assert.deepEqual(browserEvents(event(`session.execution.${outcome}`, { sessionID: "s" })),
+      [{ type: "state" }, { type: "changed", sessionID: "s" }, { type: "finished", sessionID: "s", outcome }]);
+  }
   assert.deepEqual(browserEvents(event("permission.asked", { sessionID: "s" })), [{ type: "state" }]);
   assert.deepEqual(browserEvents(event("session.text.started", { sessionID: "s" })), []);
 });
@@ -228,6 +350,20 @@ test("saved history keeps real errors and explains stopped work", () => {
   assert.equal(chat[3]!.error, STOPPED);
   assert.equal(chat[5]!.role, "assistant");
   assert.equal(chat[5]!.error, "The model cannot be reached.");
+  assert.equal(chat[1]!.outcome, "interrupted");
+  assert.equal(chat[3]!.outcome, "interrupted");
+  assert.equal(chat[5]!.outcome, "failed");
+});
+
+test("stored terminal outcomes recover missed live events without inventing completion for partial replies", () => {
+  const history: SessionMessage[] = [
+    { id: "u", type: "user", text: "Explain", time: { created: 1 } },
+    { id: "a", type: "assistant", content: [{ type: "text", text: "The answer." }], time: { created: 2 } },
+  ];
+  assert.equal(chatMessages(history).at(-1)?.outcome, undefined);
+  history.push({ id: "i", type: "idle", outcome: "succeeded", time: { created: 3 } });
+  assert.equal(chatMessages(history).at(-1)?.outcome, "succeeded");
+  assert.equal(chatMessages(history).length, 2);
 });
 
 test("with no provider signed in, setup is needed and nothing is invented", async (t) => {

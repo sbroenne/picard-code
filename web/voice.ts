@@ -6,6 +6,7 @@ const CUE_VOLUME: Record<Cue, number> = { "request-accepted": 1, "input-failed":
 
 /** "standby" listens on this computer only; "listening" sends one utterance to the listening service. */
 export type ConsolePhase = "off" | "standby" | "listening" | "thinking" | "speaking";
+export interface FollowOnSpeech { text: string; valid(): boolean; started?(): void }
 
 export class VoiceConversation {
   microphone = false;
@@ -18,6 +19,8 @@ export class VoiceConversation {
   /** True after listening stopped because of an error; it then starts again only when asked. */
   failed = false;
   private speechRevision = 0;
+  private followOn?: FollowOnSpeech;
+  private optionalSpeech = false;
   private socket?: WebSocket;
   private media?: MediaStream;
   private context?: AudioContext;
@@ -310,8 +313,18 @@ export class VoiceConversation {
           } else if (data.type === "audio-end") {
             if (!this.speechPending || data.id !== this.speechRevision) return;
             this.playbackTimer = setTimeout(() => {
+              if (!this.speechPending || data.id !== this.speechRevision) return;
+              const next = this.followOn;
+              this.followOn = undefined;
+              if (next?.valid()) {
+                this.speak(next.text);
+                this.optionalSpeech = true;
+                next.started?.();
+                return;
+              }
               this.receivingAudio = false;
               this.speechPending = false;
+              this.optionalSpeech = false;
               this.resume();
             }, Math.max(0, this.nextAudio - (this.context?.currentTime ?? 0)) * 1000 + 250);
           } else if (data.type === "error") this.fail(data.message);
@@ -357,6 +370,7 @@ export class VoiceConversation {
     if (can ? this.phase === "thinking" || this.phase === "off" : this.phase === "standby" || this.phase === "listening") this.resume();
   }
   microphoneOff() {
+    this.cancelFollowOn();
     ++this.revision;
     this.microphone = false;
     this.capture?.port.postMessage(false);
@@ -372,9 +386,12 @@ export class VoiceConversation {
     this.hooks.changed();
   }
   /** Speaks a reply. A final failure or denial is preceded by the failure sound, never overlapping the speech. */
-  speak(text: string, failed = false) {
+  speak(text: string, failed = false, followOn?: FollowOnSpeech) {
+    this.followOn = undefined;
+    this.optionalSpeech = false;
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.clearAudio();
+    this.followOn = followOn;
     this.speechPending = true;
     // Speaking replaces any utterance still being understood; the service drops it.
     this.handling = false;
@@ -387,13 +404,22 @@ export class VoiceConversation {
     else say();
   }
   stopSpeaking() {
+    this.followOn = undefined;
+    this.optionalSpeech = false;
     this.speechPending = false;
     ++this.speechRevision;
     this.clearAudio();
     if (this.socket?.readyState === WebSocket.OPEN) this.command({ type: "stop-speaking" });
     this.resume();
   }
+  /** Discards tribute speech without cutting off the useful answer. */
+  cancelFollowOn() {
+    this.followOn = undefined;
+    if (this.optionalSpeech) this.stopSpeaking();
+  }
   close() {
+    this.followOn = undefined;
+    this.optionalSpeech = false;
     this.speechPending = false;
     this.handling = false;
     ++this.speechRevision;

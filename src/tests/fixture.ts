@@ -2,6 +2,17 @@ import { createServer, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import type { FormRequest, PermissionRequest } from "../shared/types.js";
 import type { ContentItem, SessionInfo, SessionMessage } from "../server/opencode.js";
+import type { WikipediaArticle } from "../server/wikipedia.js";
+
+export async function wikipediaFixture(subject: WikipediaArticle["subject"]): Promise<WikipediaArticle> {
+  const title = subject === "Picard" ? "Jean-Luc Picard" : "Patrick Stewart";
+  return {
+    subject, title: `Wikipedia: ${title}`, url: `https://en.wikipedia.org/wiki/${title.replaceAll(" ", "_")}`,
+    text: `TEST ONLY Wikipedia stand-in, not a downloaded article. ${subject === "Picard"
+      ? "Picard was born in La Barre and enjoys archaeology."
+      : "Patrick Stewart trained at the Bristol Old Vic Theatre School."}`,
+  };
+}
 
 /**
  * A local stand-in for OpenCode 2's server, shaped after real OpenCode 2.2.5 behaviour.
@@ -213,7 +224,23 @@ export async function startFixture(project: string) {
           active.add(sessionID);
           publish(directory, "session.execution.started", { sessionID });
           send(200, {});
-          if (text.includes("approval")) {
+          const manner = instructions.get(sessionID)?.["picard-manner"] ?? "";
+          if (text.includes("multi-message")) {
+            assistant(sessionID, [{ type: "text", text: "An intermediate test reply, not a finished answer." }]);
+            publish(directory, "session.text.ended", { sessionID });
+            reply(sessionID, undefined, generation);
+          } else if (manner.includes("The Captain has explicitly requested")) {
+            const story = manner.includes("explicitly requested the following Picard story")
+              ? "In First Contact, Picard touches the historic Phoenix he knew from the Smithsonian."
+              : "Patrick Stewart performed every character in his solo A Christmas Carol.";
+            reply(sessionID, `${story}\n\nThis is a test stand-in for the reviewed story, not a model response.`, generation);
+          } else if (/tell me about myself/i.test(text)) {
+            reply(sessionID, "You are Captain Jean-Luc Picard, whose interests include archaeology.\n\nThis is a test stand-in, not a model response.", generation);
+          } else if (/tell me about patrick stewart/i.test(text)) {
+            reply(sessionID, "Patrick Stewart's career includes the Royal Shakespeare Company and Captain Picard.\n\nThis is a test stand-in, not a model response.", generation);
+          } else if (/tell me about our picard repo/i.test(text)) {
+            reply(sessionID, "This test repository has a retry helper in src/retry.ts.\n\nThis is a test stand-in, not a model response or a real repository inspection.", generation);
+          } else if (text.includes("approval")) {
             const input = { command: "echo hello" };
             assistant(sessionID, [{ type: "tool", id: "call_test", name: "shell", state: { status: "running", input } }]);
             const permission: PermissionRequest = { id: id("per"), sessionID, action: "shell", resources: ["echo hello"], metadata: input };
