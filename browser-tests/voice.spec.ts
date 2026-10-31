@@ -100,7 +100,7 @@ function sounds(page: import("@playwright/test").Page) {
 
 test.setTimeout(60000);
 
-test("crew reports stay in one log entry; child approvals require a button and only Riker's final report is spoken", async ({ page }) => {
+test("briefing reports stay in one log entry; officer approvals require a button and only the computer's summary is spoken", async ({ page }) => {
   const spoken = spokenText(page);
   await launch(page, "crew");
   await startListening(page);
@@ -111,7 +111,7 @@ test("crew reports stay in one log entry; child approvals require a button and o
   await page.getByRole("button", { name: "Deny", exact: true }).click();
   await expect(page.locator(".message.current[data-role=assistant]")).toContainText("Geordi's action was denied", { timeout: 15000 });
   await expect.poll(() => spoken.filter((text) => text.includes("Geordi's action was denied")).length).toBe(1);
-  await expect(page.locator(".message.current[data-role=assistant] .message-header strong")).toHaveText("Riker");
+  await expect(page.locator(".message.current[data-role=assistant] .message-header strong")).toHaveText("Computer");
   expect(spoken.some((text) => text.includes("Data supplied"))).toBe(false);
   await expect(page.locator("#approvals")).toBeEmpty();
 });
@@ -122,7 +122,7 @@ test("with the Bridge crew off, an officer request goes to the computer", async 
   await expect(page.getByRole("switch", { name: "Bridge crew", exact: true })).not.toBeChecked();
   const sent = page.waitForRequest((request) => request.url().endsWith("/send"));
   await startListening(page);
-  expect((await sent).postDataJSON()).toMatchObject({ text: "Computer, have Riker coordinate the repair", bridge: false });
+  expect((await sent).postDataJSON()).toMatchObject({ text: "Computer, have Data and Geordi look at the repair", bridge: false });
   await expect(page.locator(".message.current[data-role=assistant]").first()).toBeVisible({ timeout: 20000 });
   await expect(page.locator(".message.current[data-role=assistant] .message-header strong").first()).toHaveText("Computer");
   await expect(page.getByText("Geordi needs your decision.", { exact: true })).toHaveCount(0);

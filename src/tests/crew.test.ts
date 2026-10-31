@@ -44,7 +44,7 @@ test("crew inherits the coding agent's exact rules and rejects modified roles or
     ...Object.entries(config.agents).map(([id, agent]): AgentInfo => ({ ...agent, id, mode: "all", permissions: agent.permissions! })),
   ];
   assert.equal(verifiedCrew(agents), true);
-  assert.equal(config.experimental.subagent_depth, 2, "a routed officer such as Riker must be able to hand work on");
+  assert.deepEqual(Object.keys(config), ["agents"], "OpenCode's own helper limit is kept, because officers do not hand work on");
   assert.deepEqual(Object.values(config.agents).map((agent) => agent.permissions), BRIDGE_CREW.map(() => permissions));
   const changed = structuredClone(agents);
   changed[1]!.permissions = [...changed[1]!.permissions, { action: "shell", resource: "*", effect: "allow" }];
@@ -109,6 +109,21 @@ test("the Captain's orders are understood, but never answer an approval or widen
   assert.match(CAPTAINS_ORDERS, /never answer an approval or a\s+question waiting on screen/);
   assert.match(CREW_ROUTING, /"Number One" or "Will" is Riker/);
   assert.match(CREW_ROUTING, /"Make it so" after that officer's proposal, give it to the same\s+officer and pass the sessionID/);
+});
+
+test("the computer holds briefings itself; Riker weighs options instead of coordinating", () => {
+  assert.match(CREW_ROUTING, /hold a briefing[\s\S]*give each\s+officer needed a separate assignment/);
+  assert.match(CREW_ROUTING, /give picard-riker the other\s+officers' actual findings after they report/);
+  assert.match(CREW_ROUTING, /Allow at most one officer to change files/);
+  assert.match(CREW_ROUTING, /Officers do not hand work to each other; you\s+call each one/);
+  assert.doesNotMatch(CREW_ROUTING, /to coordinate/);
+  const riker = BRIDGE_CREW.find((officer) => officer.id === "picard-riker")!;
+  assert.equal(riker.duty, "Weigh options and recommend");
+  assert.doesNotMatch(`${riker.personality} ${riker.role}`, /coordinat|delegate|assignments/i);
+  for (const officer of BRIDGE_CREW) {
+    assert.match(crewInstructions(officer), /Do not hand work to other officers/);
+    assert.doesNotMatch(crewInstructions(officer), /When delegating|Only Riker/);
+  }
 });
 
 test("the computer routes only when the crew is loaded, and officers never route", () => {

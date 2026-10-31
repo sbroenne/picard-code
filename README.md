@@ -72,9 +72,9 @@ path for this version.
 ## Bridge crew
 
 You remain Captain Picard. Six OpenCode officers bring different expertise:
-Riker coordinates, Data investigates, Geordi builds and repairs, Worf reviews
-risks, Troi reviews clarity and usability, and Crusher checks software health
-and recovery. The computer remains a separate interface.
+Riker weighs options and recommends, Data investigates, Geordi builds and
+repairs, Worf reviews risks, Troi reviews clarity and usability, and Crusher
+checks software health and recovery. The computer remains a separate interface.
 
 Each officer speaks in their own TNG voice, as a Starfleet officer reporting to
 the Captain: Riker is confident and gives firm recommendations, Data is exact
@@ -93,7 +93,8 @@ Start with **Computer**, as before. Officers answer to their bridge names:
 
 - "Computer, Data, explain this project."
 - "Computer, ask Geordi to investigate this failure. Do not change any files."
-- "Computer, Number One, coordinate a review of this change."
+- "Computer, Number One, should we split this change in two?"
+- "Computer, Worf and Data, review this change."
 - "Computer, Counselor, review this invitation for clarity."
 - "Computer, help me plan a visit to a museum."
 
@@ -113,17 +114,25 @@ Approvals are never answered by voice, including by these orders.
 
 You do not have to name an officer. When you don't, the computer decides: it
 answers ordinary requests itself, hands a clear specialist request to the right
-officer (for example a security question to Worf), and gives work that needs
-several officers to Riker. It then tells you briefly what the officer found,
+officer (for example a security question to Worf), and holds a briefing when
+work needs several officers. It then tells you briefly what the officer found,
 such as "Data reports the cache is stale."; the officer's full report stays on
 screen. The computer also recognises common mishearings, such as "Rika" for
 Riker or "Walt" for Worf. Each hand-over makes an extra model request.
 
 An explicit officer address at the start always selects that officer directly;
 mentioning Data or saying "do not ask Data" does not. Follow-ups stay with that
-officer in the same log entry. Riker can delegate real assignments to other
-officers; he does not launch the whole crew for every request. Separate
-assignments can make additional model requests and increase cost.
+officer in the same log entry.
+
+A briefing works as it does on the bridge. The computer calls each officer the
+work needs, usually two or three, never the whole crew by default. Each officer
+reports to you directly, and at most one of them may change files. If you want
+a recommendation, Riker weighs their findings and recommends one course. The
+computer then gives each officer's main finding in a sentence, followed by
+Riker's recommendation, and you decide; "Make it so" carries out that
+recommendation. Officers do not hand work to each other. When one needs a
+colleague, they name the officer and you can call them. Each officer called
+makes an extra model request and can increase cost.
 
 Reports are labelled by officer inside the same Current log entry; there is no
 separate crew display. Related approvals and questions appear there too, naming
@@ -140,8 +149,8 @@ you say **Belay that**. If the crew cannot be loaded (see below), the computer
 also answers everything itself, and naming an officer reports why.
 
 Everyone uses the selected model and the existing speech service and voice.
-Only the directly addressed officer's final answer, Riker's combined report or
-the computer's brief relay is spoken; background reports stay on screen. There are no actor imitations,
+Only the directly addressed officer's final answer or the computer's brief
+summary is spoken; background reports stay on screen. There are no actor imitations,
 lasting shared crew memory or automatic issue watching.
 
 When Picard Code starts its own OpenCode server, it loads the crew from a
@@ -164,8 +173,8 @@ permission rules. Naming an officer then reports that the crew is unavailable.
 `npm run test:crew:live` checks real officer replies and a few measurable voice
 habits (no exclamation marks, Data without contractions, Worf brief), "Make it
 so" carrying out an officer's own proposal, an unclear "Make it so" answered
-with a question, automatic routing (including misheard names) and Riker's
-actual delegation. It cannot judge whether an officer sounds right; that needs
+with a question, automatic routing (including misheard names) and real
+briefings in which the computer calls each officer itself. It cannot judge whether an officer sounds right; that needs
 you. It makes model requests, may incur provider charges, and never
 answers an approval itself. It does not check a physical microphone or speakers.
 

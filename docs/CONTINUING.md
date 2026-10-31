@@ -76,7 +76,7 @@ npm test
 npx playwright install chromium   # first time only
 npx playwright test
 npm run test:live
-npm run test:crew:live            # real officer replies and delegation; model requests
+npm run test:crew:live            # real officer replies and briefings; model requests
 npm run test:speech:live          # MAI only
 npm run test:speech:local         # Whisper/Kokoro only
 npm run test:conversation:live    # add -- --local for Whisper/Kokoro
@@ -86,18 +86,19 @@ npm run test:behavior:live
 ## Bridge crew
 
 The app starts six OpenCode officers: Riker, Data, Geordi, Worf, Troi and
-Crusher. Address them through "Computer", or ask Riker to coordinate. Their
+Crusher. Address them through "Computer"; for work that needs several, the
+computer holds a briefing and Riker recommends a course. Their
 reports, questions and approvals stay inside one Current log entry. The selected
 model and existing voice are shared; crew activity does not create a Copilot
 dependency. See the README for responsibilities and examples.
-The officers use their TNG-inspired personalities, not just specialist job
+The officers speak in their own TNG voices, not just as specialist job
 titles. Both the crew and computer can handle non-code work; the computer stays
 neutral. Distinct actor voices and copied television dialogue are not used.
 
 Crew settings are temporary and stay outside the user's project. They inherit
 the current coding agent's permission rules. Keep either `OPENCODE_CONFIG` or
 `OPENCODE_CONFIG_DIR` unset so Picard Code has a separate settings location.
-The real crew check verifies officer replies and separate delegated entries;
+The real crew check verifies officer replies, voice habits and real briefings;
 it makes model requests and does not answer approvals automatically.
 Temporary crew definitions are separate from the saved speech settings in
 `~/.picard-code/speech.json`.

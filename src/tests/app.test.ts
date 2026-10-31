@@ -66,7 +66,7 @@ test("direct crew requests keep words and models unchanged; missing crew fails e
   const ordinary = await (await context.request("conversations", {})).json();
   assert.equal((await context.request(`conversations/${ordinary.id}/send`, { text: "Computer, Walt, check this for risks.", providerID: "other-provider", modelID: "other" })).status, 202);
   assert.equal(context.fixture.sessions.get(ordinary.id)?.agent, "build", "an unclear name stays with the computer, which may route it");
-  assert.match(context.fixture.instructions.get(ordinary.id)!["picard-manner"]!, /give\s+it\s+to\s+picard-riker\s+to\s+coordinate/);
+  assert.match(context.fixture.instructions.get(ordinary.id)!["picard-manner"]!, /hold a briefing/);
   const offDuty = await (await context.request("conversations", {})).json();
   assert.equal((await context.request(`conversations/${offDuty.id}/send`, { text: "Computer, Data, explain this.", providerID: "other-provider", modelID: "other" })).status, 202);
   assert.equal(context.fixture.sessions.get(offDuty.id)?.agent, "picard-data");
@@ -96,7 +96,7 @@ test("related crew activity, approvals and history belong to one log entry, incl
   const context = await setup();
   t.after(context.cleanup);
   await context.login();
-  const parent = context.fixture.createSession(context.directory, "Crew work", undefined, "picard-riker");
+  const parent = context.fixture.createSession(context.directory, "Briefing");
   const child = context.fixture.createSession(context.directory, "Repair", parent.id, "picard-geordi");
   const nested = context.fixture.createSession(context.directory, "Check", child.id, "picard-crusher");
   const foreign = context.fixture.createSession(context.other, "Foreign", parent.id, "picard-worf");
@@ -146,7 +146,7 @@ test("new child events stream under the parent with verified officer attribution
   const context = await setup();
   t.after(context.cleanup);
   await context.login();
-  const parent = context.fixture.createSession(context.directory, "Riker coordination", undefined, "picard-riker");
+  const parent = context.fixture.createSession(context.directory, "Briefing");
   const stream = await context.request("events");
   const reader = stream.body!.getReader();
   t.after(() => reader.cancel());
@@ -173,7 +173,7 @@ test("a retrying officer keeps the main entry retrying even when another officer
   const context = await setup();
   t.after(context.cleanup);
   await context.login();
-  const parent = context.fixture.createSession(context.directory, "Coordinated review", undefined, "picard-riker");
+  const parent = context.fixture.createSession(context.directory, "Briefing");
   const data = context.fixture.createSession(context.directory, "Investigation", parent.id, "picard-data");
   const crusher = context.fixture.createSession(context.directory, "Recovery", parent.id, "picard-crusher");
   context.fixture.active.add(data.id);

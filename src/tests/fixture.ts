@@ -241,7 +241,8 @@ export async function startFixture(project: string) {
           publish(directory, "session.execution.started", { sessionID });
           send(200, {});
           const manner = instructions.get(sessionID)?.["picard-manner"] ?? "";
-          if (session.agent === "picard-riker" && /\bcoordinate\b/i.test(text)) {
+          // The computer holds a briefing only when it really has the crew's routing rules.
+          if (manner.includes("hold a briefing") && /\bData and Geordi\b/.test(text)) {
             const data = createSession(directory, "Data investigation", sessionID, "picard-data");
             data.model = session.model;
             assistant(data.id, [{ type: "text", text: "Test stand-in: Data supplied an investigation report." }]);
@@ -259,7 +260,7 @@ export async function startFixture(project: string) {
               else { completeTool(geordi.id, "shell", "Test stand-in: no command was run."); finish(geordi.id, "succeeded"); }
               reply(sessionID, answer.decision === "reject"
                 ? "Test stand-in: Geordi's action was denied. No command was run."
-                : "Test stand-in: the crew reports are collected. No command was run.", generation);
+                : "Test stand-in: the briefing reports are collected. No command was run.", generation);
             });
             later(() => publish(directory, "permission.asked", permission), 50);
           } else if (text.includes("multi-message")) {

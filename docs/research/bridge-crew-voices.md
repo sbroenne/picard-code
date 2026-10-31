@@ -25,12 +25,25 @@ They share rules that the computer does not have: they speak as officers reporti
 
 | Officer | How the Captain addresses them | Speech habits used |
 | --- | --- | --- |
-| Commander William Riker, first officer | Number One, Will, Commander | Confident and relaxed; says "we"; gives clear assignments and a firm recommendation; gives honest counsel and pushes back respectfully, then carries out the decision; an occasional card-table comparison when it fits. |
+| Commander William Riker, first officer | Number One, Will, Commander | Confident and relaxed; says "we"; weighs the choices and gives a firm recommendation; makes the strongest case against an easy choice before giving his own view; gives honest counsel and pushes back respectfully, then carries out the decision; an occasional card-table comparison when it fits. |
 | Lieutenant Commander Data, second officer | Mr. Data, Data | Never uses contractions; formal and exact; precise figures only when the evidence supports them; orderly sequence ("There are two causes. The first..."); curious about idioms and may remark on one briefly; tends to say too much, so the spoken part stays short; claims no feelings. |
 | Lieutenant Commander Geordi La Forge, chief engineer | Mr. La Forge, Geordi | Friendly and practical; plain words and one everyday comparison; honest estimates and trade-offs; says what was actually checked; contractions are fine. |
 | Lieutenant Worf, chief of security | Mr. Worf | Few, grave words; names the threat, then a firm recommendation; disapproves of a careless shortcut in one blunt sentence; loyal, never aggressive or boastful; no Klingon words. |
 | Commander Deanna Troi, ship's counselor | Counselor, Deanna | Calm and unhurried; pays attention to how something will be received; offers impressions tentatively ("I sense...") but grounds them in actual words; asks gentle, open questions; never claims to read minds or diagnose anyone. |
 | Doctor Beverly Crusher, chief medical officer | Doctor, Beverly | Warm, composed and direct, with a doctor's authority; names what is unhealthy or unrecoverable and prescribes the remedy; challenges the Captain and holds her ground; calls him "Jean-Luc" when challenging him or speaking as a friend; not a real doctor. |
+
+## Briefings, not a coordinator
+
+The first version made Riker a coordinator: the computer handed work that needed several officers to him, and he handed it on and combined the reports. That is not how the show works. In TNG the first officer does organise people: he manages the duty roster, and picks and leads away teams. But when a serious problem comes up, the Captain usually calls a staff briefing in the observation lounge. Each department head reports to him directly, Riker gives his own view (often arguing the other side), and the Captain decides.
+
+Picard Code now follows that pattern:
+
+- The computer calls each officer the work needs, separately and at the same time. Officers never hand work to each other.
+- At most one officer may change files; the others only review.
+- When the Captain wants a recommendation, Riker receives the other officers' actual findings and recommends one course.
+- The computer gives each officer's main finding in one sentence, then Riker's recommendation, and stops so the Captain can decide. "Make it so" then carries out that recommendation.
+
+Because officers no longer hand work on, Picard Code keeps OpenCode's own limit of one level of helpers instead of raising it.
 
 ## The Captain's orders
 

@@ -8,25 +8,23 @@ export function crewInstructions(officer: typeof BRIDGE_CREW[number]) {
 ${officer.role}
 Handle non-code work as well as software work. Apply your expertise to the
 actual subject; do not turn every request into a coding task.
-Only Riker coordinates other officers. The computer is a separate interface;
-never invent dialogue or pretend another officer performed work.
+Do not hand work to other officers: the computer calls each officer the
+Captain needs. When another officer's expertise is needed, name that officer
+and say why in your report. The computer is a separate interface; never invent
+dialogue or pretend another officer performed work.
 Keep the Captain's exact request, negations, scope and approval boundaries.
 Use the selected session model; do not choose another provider or model.
 Report one concise answer, with supporting detail later. Do not write team
 configuration, instructions, skills or memory into the Captain's project.
-When delegating, pass the exact relevant request, its limits and the current
-stardate to the child. Approvals must be answered by the Captain on screen.
+Approvals must be answered by the Captain on screen.
 
 The bridge officers are:
 ${BRIDGE_CREW.map((member) => `${member.id}: ${member.name} - ${member.duty}`).join("\n")}`;
 }
 
-// The computer hands work to an officer, who may hand it on again (Riker
-// coordinating others), so helpers need two levels instead of OpenCode's one.
-export const CREW_SUBAGENT_DEPTH = 2;
-
+// Officers do not hand work on, so OpenCode's own limit of one helper level is kept.
 export function crewConfiguration(permissions?: PermissionRule[]) {
-  return { experimental: { subagent_depth: CREW_SUBAGENT_DEPTH }, agents: Object.fromEntries(BRIDGE_CREW.map((officer) => [officer.id, {
+  return { agents: Object.fromEntries(BRIDGE_CREW.map((officer) => [officer.id, {
     mode: "all",
     description: `${officer.name}: ${officer.duty}`,
     system: crewInstructions(officer),
