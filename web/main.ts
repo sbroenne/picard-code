@@ -736,7 +736,7 @@ async function boot() {
   }
   await refreshState();
   // First run: without Copilot there is nothing to do on the main screen yet.
-  if (state && !state.models.length && !location.hash) location.hash = "settings";
+  if (state && !state.models.length && !location.hash) location.hash = "settings/copilot";
   if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id);
   openEvents();
 }
@@ -769,32 +769,17 @@ function closeDrawer() {
   if (openDrawer()) location.hash = "";
 }
 
-const settingsTabs = ["copilot", "project", "voice", "about"] as const;
-type SettingsTab = typeof settingsTabs[number];
-let settingsTab: SettingsTab | undefined;
-/** Settings opens on what still needs doing: Copilot first, then voice. A link such as #settings/voice picks a tab. */
-function showSettingsTab(requested?: string) {
-  const wanted = (settingsTabs as readonly string[]).includes(requested ?? "") ? requested as SettingsTab : undefined;
-  settingsTab = wanted ?? settingsTab ?? (state && !state.models.length ? "copilot" : "voice");
-  for (const name of settingsTabs) {
-    const tab = element(`tab-${name}`);
-    const current = name === settingsTab;
-    tab.setAttribute("aria-selected", String(current));
-    tab.tabIndex = current ? 0 : -1;
-    element(`settings-${name}`).hidden = !current;
-  }
+const settingsParts = { copilot: ["Copilot connection", "orange"], model: ["Model", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
+type SettingsPart = keyof typeof settingsParts;
+/** Each side panel tile opens its own part, for example #settings/voice. Without one, open what still needs doing. */
+function showSettingsPart(requested?: string) {
+  const part = requested && requested in settingsParts ? requested as SettingsPart
+    : state && !state.models.length ? "copilot" : "voice";
+  for (const name of Object.keys(settingsParts) as SettingsPart[]) element(`settings-${name}`).hidden = name !== part;
+  const [title, colour] = settingsParts[part];
+  element("settings-title").textContent = title;
+  element("settings-bar").className = `drawer-bar ${colour}`;
 }
-document.querySelectorAll<HTMLButtonElement>("[role=tab]").forEach((tab) => {
-  tab.addEventListener("click", () => showSettingsTab(tab.dataset.tab));
-  tab.addEventListener("keydown", (event) => {
-    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-    if (!step) return;
-    event.preventDefault();
-    const next = settingsTabs[(settingsTabs.indexOf(settingsTab ?? "voice") + step + settingsTabs.length) % settingsTabs.length];
-    showSettingsTab(next);
-    element(`tab-${next}`).focus();
-  });
-});
 
 let settingsLoaded = false;
 async function route() {
@@ -809,12 +794,20 @@ async function route() {
     if (current) link.setAttribute("aria-current", "true");
     else link.removeAttribute("aria-current");
   });
+  // A tile shows its part; choosing it again closes the panel.
+  document.querySelectorAll<HTMLAnchorElement>("a.readout, #tribute").forEach((tile) => {
+    tile.dataset.part ??= tile.getAttribute("href") ?? "";
+    const current = open === "settings" && tile.dataset.part === location.hash;
+    tile.setAttribute("href", current ? "#" : tile.dataset.part);
+    if (current) tile.setAttribute("aria-current", "true");
+    else tile.removeAttribute("aria-current");
+  });
   if (open) element(`drawer-${open}`).focus();
   // Listening pauses while settings change, and starts again when Settings closes.
   if (open === "settings" && voice.microphone) voice.microphoneOff();
   controls();
   if (open !== "settings") return;
-  showSettingsTab(location.hash.split("/")[1]);
+  showSettingsPart(location.hash.split("/")[1]);
   if (!settingsLoaded) {
     settingsLoaded = true;
     try { showSpeechSettings(await api("settings")); }

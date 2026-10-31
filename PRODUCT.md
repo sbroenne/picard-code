@@ -8,9 +8,10 @@ web
 
 ## Product Purpose
 
-A simple local browser interface for OpenCode, with an original computer-display
-design inspired by Star Trek: The Next Generation. An unofficial tribute to
-Patrick Stewart's portrayal of Jean-Luc Picard.
+A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard, made with deep
+respect and gratitude. You code by voice, as the captain spoke to the ship's
+computer. Technically, a simple local browser interface for OpenCode with an
+original computer-display design inspired by Star Trek: The Next Generation.
 
 ## Operating Context
 

@@ -91,11 +91,13 @@ a { color: var(--peach); text-underline-offset: 4px; }
 .rail-fill { flex: 1; min-height: 24px; display: flex; flex-direction: column; gap: 6px; }
 .rail-fill .readout { min-height: 0; font-size: 14px; }
 a.readout { text-decoration: none; }
-a.readout:hover { filter: brightness(1.12); }
+a.readout:hover, a.tribute:hover { filter: brightness(1.12); }
+a.readout[aria-current] { background: var(--gold); }
+a.tribute { text-decoration: none; }
 .rail-fill .readout:nth-child(1) { flex: 3; }
 .rail-fill .readout:nth-child(2) { flex: 1; }
 .rail-fill .readout:nth-child(3) { flex: 1.6; }
-#nav-settings { border-radius: 0 0 0 var(--elbow); min-height: 70px; }
+#rail-end { border-radius: 0 0 0 var(--elbow); min-height: 70px; }
 
 /* Main viewscreen: the conversation above, the voice console below. */
 .workspace { grid-area: main; min-width: 0; min-height: 0; padding: 14px 0 0 var(--gap); display: flex; flex-direction: column; transition: opacity 160ms; }
@@ -199,13 +201,7 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .conversation-button[aria-current="page"] { background: var(--orange); font-weight: 700; }
 .pending-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--red); margin-right: 6px; box-shadow: 0 0 0 2px var(--ink); }
 
-/* Settings inside the slide-out: one tab at a time. */
-.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 22px; }
-.tab { flex: 1; min-width: 96px; min-height: 44px; padding: 8px 16px; color: var(--ink); font: 600 16px/1 var(--lcars); letter-spacing: .1em; text-transform: uppercase; text-align: right; opacity: .55; }
-.tab:first-child { border-radius: 22px 0 0 22px; }
-.tab:last-child { border-radius: 0 22px 22px 0; }
-.tab[aria-selected="true"] { opacity: 1; background: var(--gold); }
-.model-field { margin-top: 26px; }
+/* Settings inside the slide-out: one part at a time, opened from its tile. */
 .panel { margin: 0 0 26px; }
 .panel-title { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; padding: 8px 18px; border-radius: 0 24px 24px 0; color: var(--ink); font: 600 20px/1 var(--lcars); letter-spacing: .1em; text-transform: uppercase; }
 .panel-title span { font-size: 15px; opacity: .7; }

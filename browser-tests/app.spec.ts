@@ -23,7 +23,7 @@ test.beforeEach(async ({ page }) => {
 test("empty screen fits without horizontal overflow and has no typing box", async ({ page }, testInfo) => {
   await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
   await expect(page.locator("#tribute")).toBeVisible();
-  await expect(page.locator("#tribute")).toHaveText("With deepest respect and gratitude: Patrick Stewart 1940 – 2026");
+  await expect(page.locator("#tribute")).toHaveText("With deepest respect and gratitude: Sir Patrick Stewart 1940 – 2026");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect(page.getByRole("button", { name: "New task" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Logs" })).toBeVisible();
@@ -39,36 +39,39 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
   await page.screenshot({ path: testInfo.outputPath("empty-screen.png"), fullPage: true });
 });
 
-test("the main screen shows only the conversation; setup stays in one tabbed Settings page", async ({ page }, testInfo) => {
+test("the main screen shows only the conversation; the side panel tiles open their own settings", async ({ page }, testInfo) => {
   // Without speech set up, the console says so and points to Settings.
   await expect(page.getByRole("status")).toHaveText("Ready");
   await expect(page.locator("#voice-setup-hint")).toBeVisible();
   await expect(page.locator("#listen-toggle")).toBeHidden();
   for (const name of ["Project folder", "Copilot connection"]) await expect(page.getByRole("heading", { name })).toBeHidden();
-  await expect(page.getByLabel("Model")).toBeHidden();
+  await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
   await expect(page.locator("#conversations")).toBeHidden();
 
-  // There is one Settings page; the side panel tiles open the matching tab.
+  // There is no Settings or Options button: each side panel tile opens its own part.
   await expect(page.getByRole("link", { name: "Options" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Settings", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("tab")).toHaveCount(0);
   await page.getByRole("link", { name: /^Model/ }).click();
-  await expect(page).toHaveURL(/#settings\/copilot$/);
-  await expect(page.getByRole("tab", { name: "Copilot" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByLabel("Model")).toBeVisible();
+  await expect(page).toHaveURL(/#settings\/model$/);
+  await expect(page.getByRole("heading", { name: "Model" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Model" })).toBeVisible();
   await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Copilot connection" })).toBeHidden();
   await expect(page.getByLabel("Mode", { exact: true })).toHaveCount(0);
-  await page.keyboard.press("Escape");
-  await expect(page.getByLabel("Model")).toBeHidden();
+  // Choosing the same tile again closes it.
+  await page.getByRole("link", { name: /^Model/ }).click();
+  await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
 
-  await page.getByRole("link", { name: "Settings", exact: true }).click();
-  await expect(page).toHaveURL(/#settings$/);
-  await expect(page.getByRole("tab")).toHaveText(["Copilot", "Project", "Voice", "About"]);
-  // Settings reopens on the tab used last.
+  await page.getByRole("link", { name: /^Copilot/ }).click();
   await expect(page.getByRole("heading", { name: "Copilot connection" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Speech" })).toBeHidden();
-  await page.getByRole("tab", { name: "Project" }).click();
+  await page.getByRole("link", { name: /^Project/ }).click();
   await expect(page.getByRole("heading", { name: "Project folder" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Speech" })).toBeHidden();
-  await page.getByRole("tab", { name: "Voice" }).click();
+  await expect(page.getByRole("heading", { name: "Copilot connection" })).toBeHidden();
+  await page.getByRole("link", { name: /Sir Patrick Stewart/ }).click();
+  await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
+  await page.getByRole("link", { name: /^Listen/ }).click();
+  await expect(page.getByRole("heading", { name: "Speech" })).toBeVisible();
   // Only the fields for the chosen services show.
   await page.getByLabel("Listening", { exact: true }).selectOption("whisper");
   await page.getByLabel("Speaking", { exact: true }).selectOption("kokoro");
@@ -80,7 +83,7 @@ test("the main screen shows only the conversation; setup stays in one tabbed Set
   await expect(page.getByLabel("Voice", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("settings.png"), fullPage: true });
-  await page.goBack();
-  await expect(page.getByRole("heading", { name: "Project folder" })).toBeHidden();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("heading", { name: "Speech" })).toBeHidden();
   await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
 });

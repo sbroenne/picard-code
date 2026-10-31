@@ -10,7 +10,7 @@ A small local browser app. Spoken conversation is the only way to make
 requests; there is no typing. OpenCode does the coding through the user's own GitHub Copilot
 sign-in. Azure MAI is the preferred listening and speaking service; local
 Whisper listening and Kokoro speaking can be chosen instead, each side on its
-own. It is an unofficial tribute to Patrick Stewart's Jean-Luc Picard with an
+own. It is an unofficial tribute to Sir Patrick Stewart's Jean-Luc Picard with an
 original TNG-inspired look.
 
 - `src/server/`: local server, OpenCode connection, speech services, launcher.

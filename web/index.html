@@ -20,7 +20,7 @@
       <header class="header">
         <div class="brand">
           <h1>Picard Code</h1>
-          <p id="tribute" class="tribute">With deepest respect and gratitude: <span>Patrick Stewart</span> <span class="tribute-years">1940 – 2026</span></p>
+          <a id="tribute" class="tribute" href="#settings/about" title="About">With deepest respect and gratitude: <span>Sir Patrick Stewart</span> <span class="tribute-years">1940 – 2026</span></a>
         </div>
       </header>
       <div class="elbow elbow-top" aria-hidden="true"></div>
@@ -31,8 +31,8 @@
       <nav id="sidebar" class="sidebar" aria-label="Panels">
         <button id="new-conversation" class="rail-button orange" type="button">New task</button>
         <a class="rail-button peach" href="#records" data-drawer-link="records">Logs</a>
-        <span class="rail-fill"><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/copilot" title="Model"><small>Model</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a></span>
-        <a id="nav-settings" class="rail-button blue" href="#settings" data-drawer-link="settings">Settings</a>
+        <span class="rail-fill"><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Model"><small>Model</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a></span>
+        <span id="rail-end" class="rail-button blue" aria-hidden="true"></span>
       </nav>
 
       <main id="main" class="workspace">
@@ -74,16 +74,8 @@
       </section>
 
       <section id="drawer-settings" class="drawer wide" hidden tabindex="-1" aria-labelledby="settings-title">
-        <div class="drawer-bar blue"><h2 id="settings-title">Settings</h2><a class="drawer-close" href="#">Close</a></div>
-        <div class="tabs" role="tablist" aria-label="Settings sections">
-          <button id="tab-copilot" class="tab orange" type="button" role="tab" aria-controls="settings-copilot" data-tab="copilot">Copilot</button>
-          <button id="tab-project" class="tab peach" type="button" role="tab" aria-controls="settings-project" data-tab="project">Project</button>
-          <button id="tab-voice" class="tab lilac" type="button" role="tab" aria-controls="settings-voice" data-tab="voice">Voice</button>
-          <button id="tab-about" class="tab red" type="button" role="tab" aria-controls="settings-about" data-tab="about">About</button>
-        </div>
-
-        <section id="settings-copilot" class="panel" role="tabpanel" aria-labelledby="copilot-title" hidden>
-          <h3 id="copilot-title" class="panel-title orange">Copilot connection</h3>
+        <div id="settings-bar" class="drawer-bar blue"><h2 id="settings-title">Settings</h2><a class="drawer-close" href="#">Close</a></div>
+        <section id="settings-copilot" class="panel" hidden>
           <p id="copilot-status" class="readout-line">Checking</p>
           <p id="workspace-caption" class="muted"></p>
           <ol>
@@ -93,15 +85,17 @@
           </ol>
           <p class="muted">Your account needs Copilot access. A GitHub command-line sign-in does not connect Copilot. No password or token is entered here.</p>
           <button id="refresh-provider" class="pill orange" type="button">Refresh connection</button>
-          <div class="field-grid model-field">
+        </section>
+
+        <section id="settings-model" class="panel" hidden>
+          <div class="field-grid">
             <label for="model">Model</label>
             <select id="model" disabled><option>Waiting for Copilot</option></select>
             <p class="muted span">OpenCode's own rules decide which actions ask first. Out of the box it changes files and runs commands without asking. When it asks, choose Allow once or Deny on screen.</p>
           </div>
         </section>
 
-        <section id="settings-project" class="panel" role="tabpanel" aria-labelledby="folder-title" hidden>
-          <h3 id="folder-title" class="panel-title peach">Project folder</h3>
+        <section id="settings-project" class="panel" hidden>
           <p class="muted">The folder the computer works in. Picard Code does not add any files to it.</p>
           <form id="project-form" class="field-grid">
             <label for="project-path">Full folder path</label>
@@ -110,8 +104,7 @@
           </form>
         </section>
 
-        <section id="settings-voice" class="panel" role="tabpanel" aria-labelledby="speech-title" hidden>
-          <h3 id="speech-title" class="panel-title lilac">Speech</h3>
+        <section id="settings-voice" class="panel" hidden>
           <p id="speech-current" class="readout-line">Checking</p>
           <form id="speech-form" class="field-grid">
             <label for="setting-listening">Listening</label>
@@ -138,9 +131,9 @@
           <p id="settings-file" class="muted"></p>
         </section>
 
-        <section id="settings-about" class="panel" role="tabpanel" aria-labelledby="about-title" hidden>
-          <h3 id="about-title" class="panel-title red">About</h3>
-          <p>Picard Code is an unofficial tribute, made with admiration. It runs on this computer and uses GitHub Copilot through OpenCode.</p>
+        <section id="settings-about" class="panel" hidden>
+          <p>A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard. Unofficial, made with deep respect and gratitude.</p>
+          <p class="muted">It runs on this computer and uses GitHub Copilot through OpenCode.</p>
         </section>
       </section>
     </div>

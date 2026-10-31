@@ -1,21 +1,25 @@
 # Picard Code
 
-A small local browser app for coding with **OpenCode and GitHub Copilot**.
-Black, peach, orange, and lilac computer-display panels surround a readable
-conversation. An unofficial tribute to Patrick Stewart's portrayal of
-Jean-Luc Picard, with original artwork and no franchise assets or endorsement.
-A small badge under the title reads "With deepest respect and gratitude:
-Patrick Stewart 1940 – 2026". You are always addressed as Captain Picard:
-your lines are labeled "Picard", and the computer may sometimes call you
-"Captain".
+**A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard.**
 
-Spoken conversation is the main experience. Like the ship's computer, it
-listens all the time: start a request with "Computer", and receive a brief
-spoken reply with detailed results on screen. OpenCode
-stores conversations and performs the work. Azure MAI is the preferred
-listening and speaking service; local Whisper and Kokoro are also implemented.
-Either side can be selected independently. There is no typing: like the
-captain, you speak to the computer.
+*With deepest respect and gratitude: Sir Patrick Stewart, 1940 – 2026.*
+
+Picard Code lets you work the way the captain did: you speak, and the ship's
+computer answers. Say "Computer", give the order, and it replies briefly and
+calmly while the details appear on screen. You are always addressed as Captain
+Picard; your lines are labeled "Picard", and the computer may sometimes call
+you "Captain". There is no typing: like the captain, you speak to the computer.
+
+It is unofficial and made with admiration: original artwork in the spirit of
+the ship's displays, no franchise material, and no endorsement.
+
+### How it works
+
+A small local browser app. OpenCode does the coding through your own GitHub
+Copilot sign-in and stores the conversations. Like the ship's computer, it
+listens all the time and acts only on requests that start with "Computer".
+Listening and speaking use your own Azure MAI resource, or Whisper and Kokoro
+on this computer; each side can be chosen on its own.
 
 ## Run from source
 

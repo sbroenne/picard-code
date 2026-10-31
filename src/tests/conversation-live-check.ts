@@ -78,7 +78,7 @@ try {
   await page.goto(app.url);
   await expect(page.getByRole("status")).toHaveText("Not listening", { timeout: 30_000 });
   // Settings pauses listening, so choose the model there first; closing it starts listening.
-  await page.goto(`${new URL(app.url).origin}/#settings/copilot`);
+  await page.goto(`${new URL(app.url).origin}/#settings/model`);
   await page.selectOption("#model", JSON.stringify([choice.providerID, choice.modelID]));
   await page.getByRole("link", { name: "Close" }).first().click();
   await page.locator("#voice-console").click();
