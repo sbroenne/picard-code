@@ -78,9 +78,11 @@ function status(page: import("@playwright/test").Page) {
   return page.getByRole("status");
 }
 
-/** Listening starts by itself; one click on the computer panel lets the browser play sound. */
+/** Listening starts by itself; if the browser wants a click before playing sound, one click on the computer panel gives it. */
 async function startListening(page: import("@playwright/test").Page) {
-  await page.locator("#voice-console").click();
+  await expect.poll(async () => `${await status(page).textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 15000 })
+    .toMatch(/Standing by|Listening|Understanding|Click anywhere/);
+  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#voice-console").click();
   await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
 }
 
@@ -119,11 +121,11 @@ test("listening stays on; “Computer” starts a task, follow-ups need no “Co
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("spoken-conversation.png"), fullPage: true });
 
-  await page.getByRole("button", { name: "Stop listening" }).click();
-  await expect(status(page)).toHaveText("Not listening");
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await expect(status(page)).toHaveText("Microphone off");
   await page.reload();
-  await expect(status(page)).toHaveText("Not listening");
-  await expect(page.locator("#status-detail")).toHaveText("Click here to listen again.");
+  await expect(status(page)).toHaveText("Microphone off");
+  await expect(page.locator("#status-detail")).toHaveText("Click here to switch it on.");
   await expect(page.locator("#drawer-settings")).toBeHidden();
   await page.locator("#voice-console").click();
   await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
@@ -144,9 +146,9 @@ test("spoken work asks for deliberate approval; voice cannot approve", async ({ 
   await expect(status(page)).toHaveText("Decision needed", { timeout: 5000 });
   await expect(page.getByRole("button", { name: "Allow once" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Deny", exact: true })).toBeEnabled();
-  await page.getByRole("button", { name: "Stop listening" }).click();
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
   await page.getByRole("button", { name: "Deny", exact: true }).click();
-  await expect(status(page)).toHaveText("Not listening");
+  await expect(status(page)).toHaveText("Microphone off");
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
   expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
 });
@@ -162,8 +164,8 @@ test("a question is asked aloud; a negated reply is not taken as a choice; a cle
   await expect(page.getByRole("heading", { name: "Additional information required." })).toHaveCount(0);
   await expect.poll(() => spoken.length, { timeout: 10000 }).toBe(3);
   expect(spoken[2]).toContain("Explain first");
-  await page.getByRole("button", { name: "Stop listening" }).click();
-  await expect(status(page)).toHaveText("Not listening");
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await expect(status(page)).toHaveText("Microphone off");
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
   // Spoken answers to the question do not play the request-accepted sound.
   expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
@@ -176,7 +178,7 @@ test("silence and speech not addressed to the computer are not sent and make no 
   await expect(page.locator(".message")).toHaveCount(0);
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
   await expect(page.locator(".message[data-role=user]")).toHaveText(/Computer, hello there/);
-  await page.getByRole("button", { name: "Stop listening" }).click();
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
   expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
 });
 
@@ -189,7 +191,7 @@ test("long work plays the processing sound once, and “Stop” cancels it withi
   await expect.poll(() => spoken.at(-1), { timeout: 15000 }).toBe("Work stopped, Captain.");
   await expect(status(page)).toHaveText(/Speaking|Preparing reply|Standing by/);
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
-  await page.getByRole("button", { name: "Stop listening" }).click();
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
   // Stopping by voice is not a failure, so no failure sound plays.
   expect(await sounds(page)).toEqual(["request-accepted: Understanding", "processing: Working"]);
 });
@@ -202,7 +204,7 @@ test("a denied action plays the failure sound once, then speaks the result", asy
   await page.waitForTimeout(3000);
   await page.getByRole("button", { name: "Deny", exact: true }).click();
   await expect.poll(() => spoken.at(-1), { timeout: 10000 }).toBe("Request denied. The action was not carried out.");
-  await page.getByRole("button", { name: "Stop listening" }).click();
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
   // No processing sound while the approval waited.
   expect(await sounds(page)).toEqual(["request-accepted: Understanding", "request-failed: Preparing reply"]);
 });
@@ -215,16 +217,16 @@ test("Allow once lets the requested action go ahead", async ({ page }, info) => 
   await page.screenshot({ path: info.outputPath("approval-screen.png"), fullPage: true });
   await page.getByRole("button", { name: "Allow once" }).click();
   await expect(page.locator(".message[data-role=assistant]").last()).toContainText("The test approval was answered.", { timeout: 15000 });
-  await page.getByRole("button", { name: "Stop listening" }).click();
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
 test("the Stop work button cancels spoken work", async ({ page }) => {
   await launch(page, "long");
   await startListening(page);
   await expect(page.getByRole("button", { name: "Stop work" })).toBeVisible({ timeout: 15000 });
-  await page.getByRole("button", { name: "Stop listening" }).click();
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
   await page.getByRole("button", { name: "Stop work" }).click();
-  await expect(status(page)).toHaveText("Not listening", { timeout: 10000 });
+  await expect(status(page)).toHaveText("Microphone off", { timeout: 10000 });
   await expect(page.getByRole("button", { name: "Stop work" })).toBeHidden();
 });
 
@@ -235,7 +237,7 @@ test("a question can also be answered by choosing on screen", async ({ page }) =
   await page.getByRole("radio", { name: "Explain first" }).check();
   await page.getByRole("button", { name: "Send answer" }).click();
   await expect(page.locator("#messages")).toContainText('Your test answer was received: [["Explain first"]].', { timeout: 15000 });
-  await page.getByRole("button", { name: "Stop listening" }).click();
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
 test("skipping a question stops the work and says so", async ({ page }) => {
@@ -246,7 +248,7 @@ test("skipping a question stops the work and says so", async ({ page }) => {
   await page.getByRole("button", { name: "Skip question" }).click();
   await expect.poll(() => spoken.at(-1), { timeout: 10000 }).toBe("Question skipped. The work has stopped.");
   await expect(page.getByRole("heading", { name: "Additional information required." })).toBeHidden();
-  await page.getByRole("button", { name: "Stop listening" }).click();
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
 test("replies show code safely, and the conversation reopens after reload", async ({ page }, info) => {
@@ -255,15 +257,27 @@ test("replies show code safely, and the conversation reopens after reload", asyn
   await expect(page.locator("#messages pre")).toContainText("const safe = true;", { timeout: 15000 });
   await expect(page.locator("#messages")).toContainText("<img src=x onerror=alert('unsafe')>");
   await expect(page.locator("#messages img")).toHaveCount(0);
-  await page.getByRole("button", { name: "Stop listening" }).click();
+  // OpenCode's Markdown is shown as formatting, not as symbols.
+  const reply = page.locator(".message[data-role=assistant] .markdown").last();
+  await expect(reply.locator("strong")).toHaveText("bold");
+  await expect(reply.locator("em")).toHaveText("emphasis");
+  await expect(reply.locator("h2")).toHaveText("Result");
+  await expect(reply.locator("li")).toHaveText(["first", "second"]);
+  await expect(reply.locator("td")).toHaveText(["a", "1"]);
+  await expect(reply).not.toContainText("**");
+  await expect(reply.getByRole("link", { name: "Docs" })).toHaveAttribute("href", "https://example.com");
+  await expect(reply.getByRole("link", { name: "Docs" })).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(reply.locator("a", { hasText: "Bad" })).not.toHaveAttribute("href", /.+/);
+  await expect(reply.getByRole("link", { name: "Picture" })).toHaveAttribute("href", "https://example.com/p.png");
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.reload();
   await expect(page.locator("#messages pre")).toContainText("const safe = true;");
-  await expect(status(page)).toHaveText("Not listening");
+  await expect(status(page)).toHaveText("Microphone off");
   await page.screenshot({ path: info.outputPath("conversation-screen.png"), fullPage: true });
 });
 
-test("“New task” clears the screen and ends the task; the earlier conversation stays in Logs", async ({ page }) => {
+test("“New task” clears the screen and ends the task; the earlier conversation stays in the captain’s log", async ({ page }) => {
   const spoken = spokenText(page);
   await launch(page, "fresh");
   await startListening(page);
@@ -276,23 +290,31 @@ test("“New task” clears the screen and ends the task; the earlier conversati
   // After the task ends, speech needs "Computer" again.
   await expect(page.locator("#voice-partial")).toHaveText("Not sent: “Is anyone there” Start with “Computer”.", { timeout: 20000 });
   await expect(page.locator(".message")).toHaveCount(0);
-  await page.getByRole("button", { name: "Stop listening" }).click();
-  await page.getByRole("link", { name: "Logs" }).click();
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await page.getByRole("link", { name: "Captain’s log" }).click();
   await expect(page.locator("#conversations")).toContainText("hello there");
 });
 
-test("“Computer, stop listening” switches listening off; clicking the panel switches it on again", async ({ page }) => {
+test("“Stop listening”, even without “Computer”, is acknowledged and returns to standing by; the console switches the microphone", async ({ page }) => {
   const spoken = spokenText(page);
   await launch(page, "sleep");
   await startListening(page);
-  await expect.poll(() => spoken.at(-1), { timeout: 15000 }).toBe("Listening stopped. Click the computer panel to listen again.");
-  await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
-  await expect(status(page)).toHaveText("Not listening");
-  await expect(page.locator(".message")).toHaveCount(0);
-  await page.waitForTimeout(7000);
-  await expect(page.locator(".message")).toHaveCount(0);
-  await page.locator("#voice-console").click();
+  await expect.poll(() => spoken.at(-1), { timeout: 15000 }).toBe("Standing by.");
+  await expect(status(page)).toHaveText(/Speaking|Standing by/);
+  await expect(status(page)).toHaveText("Standing by", { timeout: 10000 });
+  await expect(page.locator("#status-detail")).toHaveText("Say “Computer”, then your request.");
+  // No task is under way, so speech without "Computer" is not sent.
+  await expect(page.locator("#voice-partial")).toHaveText("Not sent: “Hello again” Start with “Computer”.", { timeout: 15000 });
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1, { timeout: 20000 });
-  await page.getByRole("button", { name: "Stop listening" }).click();
-  expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
+  await expect(page.locator(".message[data-role=user]")).toContainText("Computer, hello there");
+  const heard = await sounds(page);
+  expect(heard[0]).toMatch(/^request-accepted/);
+  expect(heard).toHaveLength(2);
+  // Clicking the console switches the microphone off, and on again.
+  await page.locator("#voice-console").click();
+  await expect(status(page)).toHaveText("Microphone off");
+  await expect(page.locator("#status-detail")).toHaveText("Click here to switch it on.");
+  await page.locator("#voice-console").click();
+  await expect(status(page)).toHaveText(/Standing by|Listening|Understanding|Speaking/, { timeout: 15000 });
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
 });

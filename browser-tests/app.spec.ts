@@ -26,7 +26,8 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
   await expect(page.locator("#tribute")).toHaveText("With deepest respect and gratitude: Sir Patrick Stewart 1940 – 2026");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect(page.getByRole("button", { name: "New task" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Logs" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Captain’s log" })).toBeVisible();
+  await expect(page.locator("#readout-stardate")).toHaveText(/^-\d{6}\.\d$/);
   // Like the ship's computer: no typing, no conversation name and no mode on the main screen.
   await expect(page.getByRole("textbox")).toHaveCount(0);
   await expect(page.getByText("Type instead")).toHaveCount(0);

@@ -235,7 +235,7 @@ export async function startFixture(project: string) {
               finish(sessionID, "failed", { type: "provider.no-route", message: "The test model cannot be reached." });
             }, 100);
           } else {
-            later(() => reply(sessionID, text.includes("unsafe") ? "<img src=x onerror=alert('unsafe')>\n```js\nconst safe = true;\n```" : undefined, generation), text.includes("very") ? 20_000 : text.includes("slow") ? 5000 : 100);
+            later(() => reply(sessionID, text.includes("unsafe") ? "<img src=x onerror=alert('unsafe')>\n```js\nconst safe = true;\n```\n\n## Result\n\nThis is **bold**, *emphasis* and `code`.\n\n- first\n- second\n\n| Name | Value |\n| --- | --- |\n| a | 1 |\n\n[Docs](https://example.com) [Bad](javascript:alert(1)) ![Picture](https://example.com/p.png)" : undefined, generation), text.includes("very") ? 20_000 : text.includes("slow") ? 5000 : 100);
           }
         } else send(404, { message: `Unimplemented fixture path ${path}` });
         return;

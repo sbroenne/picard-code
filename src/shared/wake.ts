@@ -21,17 +21,23 @@ const FRESH = new Set([
   "start over", "start again", "start fresh", "fresh start", "clear", "clear the screen",
 ]);
 
-// Listening can be switched off by voice; it is switched on again by clicking the console.
-const SLEEP = new Set([
-  "stop listening", "stop listening now", "stop listening for now", "mute", "mute yourself",
-  "go to sleep", "sleep", "microphone off", "turn the microphone off", "turn off the microphone",
+// Ends the current task and goes back to standing by, waiting for "Computer". Understood even
+// without "Computer", so the captain can always dismiss the computer.
+const STANDBY = new Set([
+  "stop listening", "stop listening now", "stop listening for now", "stand by", "standby",
+  "go to sleep", "sleep", "that's all", "that will be all", "that'll be all",
 ]);
 
-export type VoiceCommand = "stop" | "new" | "sleep";
+// Switches the microphone off; clicking the console switches it on again.
+const MUTE = new Set([
+  "mute", "mute yourself", "microphone off", "turn the microphone off", "turn off the microphone",
+]);
+
+export type VoiceCommand = "stop" | "new" | "standby" | "mute";
 
 /** A spoken command handled by Picard Code itself rather than sent to Copilot. */
 export function voiceCommand(words: string): VoiceCommand | undefined {
   const plain = words.toLowerCase().replace(/[’]/g, "'").replace(/[^a-z'\s]/g, " ")
     .replace(/\bplease\b/g, " ").replace(/\s+/g, " ").trim();
-  return STOP.has(plain) ? "stop" : FRESH.has(plain) ? "new" : SLEEP.has(plain) ? "sleep" : undefined;
+  return STOP.has(plain) ? "stop" : FRESH.has(plain) ? "new" : STANDBY.has(plain) ? "standby" : MUTE.has(plain) ? "mute" : undefined;
 }

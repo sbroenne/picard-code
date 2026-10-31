@@ -25,6 +25,8 @@
     "setup:sounds": "node scripts/setup-sounds.mjs"
   },
   "dependencies": {
+    "dompurify": "^3.4.17",
+    "marked": "^18.1.2",
     "ws": "^8.22.0"
   },
   "devDependencies": {

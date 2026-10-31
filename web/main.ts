@@ -5,6 +5,8 @@ import { replyFailed, spokenReply, spokenSummary } from "../src/shared/speech";
 import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../src/shared/questions";
 import { addressed, voiceCommand } from "../src/shared/wake";
 import { VoiceConversation } from "./voice";
+import { renderMarkdown } from "./markdown";
+import { formatStardate } from "../src/shared/stardate";
 
 function element<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -68,6 +70,7 @@ const voice = new VoiceConversation({
 async function heard(text: string, startedAt: number) {
   if (!text) return;
   const words = addressed(text);
+  if (voiceCommand(words ?? text) === "standby") { await standBy(); return; }
   const question = askedQuestion();
   if (words === undefined && !question && !inTask() && startedAt > goAheadUntil) {
     notSent = `Not sent: “${text}” Start with “Computer”.`;
@@ -78,7 +81,7 @@ async function heard(text: string, startedAt: number) {
   const command = voiceCommand(request);
   if (command === "stop") { await stopByVoice(); return; }
   if (command === "new") { freshByVoice(); return; }
-  if (command === "sleep") { stopListening(); voice.speak("Listening stopped. Click the computer panel to listen again."); return; }
+  if (command === "mute") { muteMicrophone(); voice.speak("Microphone off. Click the computer panel to switch it on."); return; }
   if (question) { await answerAloud(request); return; }
   if (!request) {
     goAheadUntil = Date.now() + GO_AHEAD;
@@ -98,6 +101,15 @@ async function heard(text: string, startedAt: number) {
     await sendMessage(text);
     engagedWith = selected;
   }
+}
+
+/** "Stop listening": ends the task and waits for "Computer" again. Any work under way carries on. */
+async function standBy() {
+  engagedWith = undefined;
+  goAheadUntil = 0;
+  controls();
+  await voice.chime();
+  voice.speak("Standing by.");
 }
 
 /** Whether a task started with "Computer" is under way, so follow-ups need no "Computer". */
@@ -182,8 +194,7 @@ function consoleStatus(): [string, string] {
   if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New task”." : "Say “Computer”, then your request."];
   if (voice.opening) return ["Starting microphone", ""];
   if (!state.speech?.configured) return ["Ready", ""];
-  if (muted()) return ["Not listening", "Click here to listen again."];
-  return ["Not listening", "Click here to listen."];
+  return ["Microphone off", "Click here to switch it on."];
 }
 
 function voiceControls() {
@@ -193,8 +204,9 @@ function voiceControls() {
   element("status-detail").textContent = detail;
   const toggle = element<HTMLButtonElement>("listen-toggle");
   toggle.hidden = !state?.speech?.configured;
-  toggle.setAttribute("aria-label", voice.microphone ? "Stop listening" : "Listen");
+  toggle.setAttribute("aria-label", voice.microphone ? "Switch microphone off" : "Switch microphone on");
   toggle.disabled = voice.opening || !voice.microphone && !ready;
+  element("voice-console").title = voice.microphone ? "Click to switch the microphone off" : "Click to switch the microphone on";
   element("voice-console").dataset.phase = voice.microphone || voice.phase === "speaking" ? voice.phase : "off";
   if (voice.phase === "listening") notSent = "";
   element("voice-partial").textContent = voice.phase === "listening" || voice.phase === "thinking" ? voice.partial : notSent;
@@ -344,14 +356,12 @@ function renderState() {
   controls();
 }
 
-function renderText(container: HTMLElement, text: string) {
-  // Treat model output as text, never as trusted HTML. Keep fenced code readable.
-  const pieces = text.split(/```(?:[^\n`]*)\n([\s\S]*?)(?:```|$)/g);
-  pieces.forEach((piece, index) => {
-    if (!piece) return;
-    const node = make(index % 2 ? "pre" : "p", index % 2 ? undefined : "message-text", piece);
-    container.append(node);
-  });
+function renderText(container: HTMLElement, text: string, role: ChatMessage["role"]) {
+  // The captain's own words stay exactly as heard; replies are Markdown, rendered safely.
+  if (role === "user") { container.append(make("p", "message-text", text)); return; }
+  const node = make("div", "message-text markdown");
+  node.append(renderMarkdown(text));
+  container.append(node);
 }
 
 function renderMessages() {
@@ -374,7 +384,7 @@ function renderMessages() {
     header.append(copy);
     article.append(header);
     for (const part of message.parts) {
-      if (part.type === "text") renderText(article, part.text);
+      if (part.type === "text") renderText(article, part.text, message.role);
       else {
         const detail = make("details", part.type === "tool" ? "tool" : "reasoning");
         detail.dataset.part = part.id;
@@ -916,7 +926,7 @@ element("project-form").addEventListener("submit", (event) => {
     openEvents();
   });
 });
-function stopListening() {
+function muteMicrophone() {
   engagedWith = undefined;
   setMuted(true);
   voice.microphoneOff();
@@ -928,12 +938,21 @@ async function startListening() {
   await voice.activate();
   controls();
 }
-// The console is the computer: clicking it while it is not listening starts listening again.
+/** The last side panel tile shows the current stardate; the ordinary date and time are in its tooltip. */
+function showStardate() {
+  const now = new Date();
+  element("readout-stardate").textContent = formatStardate(now);
+  element("rail-end").title = `Stardate ${formatStardate(now)} · ${now.toLocaleString(undefined, { dateStyle: "full", timeStyle: "short" })}`;
+}
+showStardate();
+setInterval(showStardate, 60_000);
+// The console is the computer: clicking it switches the microphone off, and on again.
 element("voice-console").addEventListener("click", (event) => {
   const target = event.target as Element;
-  const toggle = target.closest("#listen-toggle");
-  if (!toggle && target.closest("button, a")) return;
-  if (voice.microphone) { if (toggle) stopListening(); return; }
+  if (!target.closest("#listen-toggle") && target.closest("button, a")) return;
+  // The browser's first click only allows sound; it does not switch the microphone off.
+  if (voice.microphone && voice.waitingForClick) return;
+  if (voice.microphone) { muteMicrophone(); return; }
   if (!voice.opening) void perform(startListening);
 });
 element("stop-speaking").addEventListener("click", () => voice.stopSpeaking());

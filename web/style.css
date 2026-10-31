@@ -130,6 +130,23 @@ a.tribute { text-decoration: none; }
 .message.earlier:hover, .message.earlier:focus-within { opacity: .85; }
 code, pre { font-family: "SF Mono", Consolas, monospace; font-size: .9em; }
 code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius: 3px; }
+.markdown { white-space: normal; }
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown p, .markdown ul, .markdown ol, .markdown blockquote, .markdown table, .markdown pre { margin: 0 0 .7em; }
+.markdown ul, .markdown ol { padding-left: 1.4em; }
+.markdown li > ul, .markdown li > ol { margin: .2em 0; }
+.markdown h1, .markdown h2, .markdown h3, .markdown h4, .markdown h5, .markdown h6 { margin: .9em 0 .4em; font: 600 1.05em/1.3 var(--lcars); letter-spacing: .08em; text-transform: uppercase; color: var(--peach); }
+.markdown h1 { font-size: 1.25em; }
+.markdown h2 { font-size: 1.15em; }
+.markdown strong { color: var(--gold); }
+.markdown a { color: var(--blue); }
+.markdown blockquote { padding-left: 14px; border-left: 4px solid var(--lilac); color: var(--muted); }
+.markdown hr { border: 0; border-top: 2px solid var(--peach); opacity: .4; }
+.markdown table { border-collapse: collapse; display: block; overflow-x: auto; max-width: 100%; }
+.markdown th, .markdown td { border: 1px solid #3a2f26; padding: 4px 10px; text-align: left; }
+.markdown th { color: var(--peach); font-weight: 600; }
+.markdown pre code { background: none; color: inherit; padding: 0; }
 .message pre { background: #120f0c; color: var(--text); border-left: 4px solid var(--peach); padding: 14px; line-height: 1.6; white-space: pre; overflow-x: auto; max-width: 100%; }
 .tool, .reasoning { margin: 8px 0; padding: 6px 14px; background: #0f0c0a; border-radius: 0 16px 16px 0; font-size: 13px; }
 .tool summary, .reasoning summary { color: var(--muted); font: 500 13px/1.3 var(--lcars); letter-spacing: .08em; text-transform: uppercase; }

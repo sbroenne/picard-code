@@ -140,7 +140,7 @@ export class VoiceConversation {
   }
   /** The short acknowledgement when the computer is addressed by name alone. */
   chime() {
-    void this.sound("request-accepted");
+    return this.sound("request-accepted");
   }
   /** Plays the input-failed sound, then listens again once it has finished. */
   private inputFailed() {

@@ -69,7 +69,7 @@ never instead of the written or spoken explanation:
 
 | Sound | When |
 | --- | --- |
-| `request-accepted` | A spoken request was accepted by OpenCode, or "Computer" was said on its own and the computer is waiting for the request. |
+| `request-accepted` | A spoken request was accepted by OpenCode, "Computer" was said on its own and the computer is waiting for the request, or "stop listening" was acknowledged. |
 | `processing` | Work is still running about 2.5 s later, with no answer, question or approval yet. |
 | `input-failed` | Speech was not understood or could not be sent. |
 | `request-failed` | An accepted request finally failed or was denied, just before the spoken result. |

@@ -107,7 +107,10 @@ front; choosing it brings the conversation back. Choosing the same tile again,
 clicking the conversation beside the slide-out, or the Escape key also closes it. Picard Code is made for a computer
 screen; there is no phone layout.
 
-- **Logs** (`#records`): earlier conversations in the project folder (latest
+- **Stardate**: the last tile shows today's stardate, using the common fan
+  formula 1000 × (year − 2323) plus the part of the year gone by, so today's
+  dates are negative. Hover over it for the ordinary date and time.
+- **Captain’s log** (`#records`): earlier conversations in the project folder (latest
   100). Choose one to reopen it.
 - **Settings** (`#settings/…`): there is no Settings button. Each tile in the
   side panel opens its own setting: **Provider** the sign-in steps,
@@ -126,11 +129,12 @@ error rather than switching to another model or provider.
 ## Use it
 
 - Listening starts by itself whenever the app opens; the browser asks for
-  microphone access the first time. It stays off if you said "Computer, stop
-  listening" (remembered) and while a setting is open. If the browser blocks
+  microphone access the first time. It stays off if you switched the
+  microphone off (remembered) and while a setting is open. If the browser blocks
   sound until you interact, the screen says "Click anywhere to start listening."
-- Say **"Computer, stop listening"** to switch the microphone off. Click the
-  computer panel (the status and its lights) to listen again.
+- **Click the computer panel** (the status and its lights) to switch the
+  microphone off; it shows **Microphone off**. Click it again to switch it on.
+  Saying "Computer, microphone off" (or "Computer, mute") does the same.
 - The microphone stays on. While the room is quiet, the console shows
   **Standing by** and nothing leaves your computer. When someone starts
   talking, that speech (including the half second before it, so the first word
@@ -142,15 +146,19 @@ error rather than switching to another model or provider.
   about eight seconds to say the request.
 - **Within a task, "Computer" is not needed.** Once the first request is
   sent, everything said is sent to the model, with your words unchanged, until
-  you say "new task" or "stop listening" (or choose New task, Logs or another
+  you say "new task" or "stop listening" (or choose New task, Captain’s log or another
   project). Keep other conversations out of earshot during a task, or say
-  "Computer, stop listening".
+  "stop listening".
+- **"Stop listening"** (or "stand by", "that will be all") is always
+  understood, with or without "Computer". The computer beeps, says "Standing
+  by.", ends the task and waits for "Computer" again. Work already running
+  carries on, and the microphone stays on.
 - **"Stop"** (or "cancel that", "belay that", "never mind"; with "Computer"
   before a task) cancels the current work, the same as **Stop work**.
 - There is one ongoing conversation. **"Computer, new task"** (or "start
   over", "new conversation") clears the screen, the same as the **New task**
   button; your next request, again starting with "Computer", starts a new
-  log. Earlier conversations stay under **Logs**. Requests made while work is
+  log. Earlier conversations stay in the **Captain’s log**. Requests made while work is
   running, a question is waiting, or a decision is needed are not sent: with
   "Computer" you get a short spoken reminder; without it, only a "Not sent"
   line on screen.
@@ -170,18 +178,18 @@ error rather than switching to another model or provider.
   asked again. **Skip question** on screen declines the question; OpenCode then
   stops the work, and the computer says so. Several questions at once are
   answered on screen.
-- "Computer, stop listening" stops microphone capture without cancelling OpenCode's work.
+- "Stop listening" and switching the microphone off do not cancel OpenCode's work.
   **Stop work** cancels the current OpenCode request. These are separate
   controls.
 - **Optional computer sounds:** run `npm run setup:sounds` once to download four
   short TrekCore sounds (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
   then restart Picard Code. During spoken conversation they play quietly, once
-  each: a beep when a spoken request is accepted, or when you say "Computer"
-  on its own; a processing sound if the
+  each: a beep when a spoken request is accepted, when you say "Computer"
+  on its own, or when you say "stop listening"; a processing sound if the
   work is still running after about 2.5 seconds with no answer, question or
   approval request yet; an input-failed sound when speech was not understood
   or could not be sent; and a deny beep just before the spoken result when an
-  accepted request finally fails or is denied. Answers to questions, **Stop work**, "Computer, stop" and "Computer, stop listening" play no sound.
+  accepted request finally fails or is denied. Answers to questions, **Stop work**, "Computer, stop" and switching the microphone off play no sound.
   Listening is paused while a sound plays, and listening, speech,
   **Stop speaking** or stopping listening stop it. Each sound only accompanies the visible and
   spoken explanation; it never replaces it. Without the files, there are no
@@ -224,7 +232,7 @@ sends any speech it hears to Azure** to find out whether it starts with
 sent. Only requests that start with "Computer" go to the model. MAI speaking
 sends reply text to Azure. Whisper and Kokoro process their audio locally.
 With both local speech services and a model on your own computer, nothing
-leaves the computer; with any online provider, coding requests do. Say "Computer, stop listening" before conversations you do not want sent;
+leaves the computer; with any online provider, coding requests do. Say "stop listening" before conversations you do not want sent to the model, or click the computer panel to switch the microphone off so nothing is heard at all;
 background speech can be misunderstood.
 
 ## Azure speech setup
