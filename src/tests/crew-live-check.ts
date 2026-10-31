@@ -74,13 +74,16 @@ try {
     assert.equal(relay?.speaker, undefined, "the computer relays the officer's answer");
     assert.match(relay?.parts.filter((part) => part.type === "text").map((part) => part.text).join("") ?? "", new RegExp(crewMember(expected)!.name, "i"));
     assert.ok(result.messages.some((message) => message.background && message.speaker === expected));
+    return children[0]!;
   };
   const offDuty = await send("Computer, Worf, review example.ts for security risks. Do not change any files or run commands.", false);
   assert.equal((await engine.client.sessions(project, offDuty.id)).length, 0, "with the Bridge crew off, no officer is involved");
   assert.ok(offDuty.messages.filter((message) => message.role === "assistant").every((message) => message.speaker === undefined), "with the Bridge crew off, the computer answers");
   await routed("Computer, review example.ts for security risks. Do not change any files or run commands.", "picard-worf");
   await routed("Computer, Walt, is it risky to log the greeting name in example.ts? Do not change any files or run commands.", "picard-worf");
-  await routed("Computer, Rika, coordinate a short review of example.ts covering security risks and clarity. Do not change any files or run commands.", "picard-riker");
+  const routedRiker = await routed("Computer, Rika, coordinate a short review of example.ts: have Worf check security risks and Data check clarity, then combine their findings. Do not change any files or run commands.", "picard-riker");
+  const handedOn = await engine.client.sessions(project, routedRiker.id);
+  assert.ok(handedOn.some((child) => child.agent === "picard-worf") && handedOn.some((child) => child.agent === "picard-data"), `Riker, reached through the computer, must actually hand work to Worf and Data. He handed work to: ${handedOn.map((child) => child.agent).join(", ") || "nobody"}`);
   const requests: Record<CrewID, { text: string; expected: RegExp }> = {
     "picard-riker": { text: "Rain is forecast. Recommend an indoor museum visit or an outdoor picnic, and give one reason.", expected: /museum|indoor/i },
     "picard-data": { text: "There are two red tickets and three blue tickets. How many tickets are there altogether?", expected: /\b5\b|five/i },
@@ -109,7 +112,7 @@ try {
   }
   assert.equal(coordinated.messages.findLast((message) => !message.background && message.role === "assistant")?.speaker, "picard-riker");
   assert.deepEqual((await readdir(project)).sort(), ["example.ts", "opencode.json"]);
-  console.log("Real crew check passed: neutral computer writing without routing, the computer answering an officer request with the Bridge crew off, automatic routing to Worf (also when misheard as Walt) and to Riker (misheard as Rika) with a computer relay, all six non-code officer replies, five separate delegated coding contexts, selected-model inheritance and one combined Riker report. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
+  console.log("Real crew check passed: neutral computer writing without routing, the computer answering an officer request with the Bridge crew off, automatic routing to Worf (also when misheard as Walt) and to Riker (misheard as Rika) with a computer relay, Riker handing work on to Worf and Data after being routed, all six non-code officer replies, five separate delegated coding contexts, selected-model inheritance and one combined Riker report. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
 } finally {
   await app?.close();
   try {

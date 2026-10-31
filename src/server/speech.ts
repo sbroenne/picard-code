@@ -65,9 +65,13 @@ export function setUpLocalSpeech(onStep: (step: string) => void) {
 /**
  * Speech settings belong to the user, in .picard-code/speech.json in their home folder
  * (for example C:\Users\name on Windows), never in the Picard Code or project folder.
- * Settings that earlier versions kept in .picard-speech.json are copied over once; the old file is left alone.
+ * Settings that earlier versions kept in .picard-speech.json in the Picard Code folder are copied over once;
+ * the old file is left alone. A copy in the folder Picard Code was started from is never read: that folder may
+ * be an untrusted project, and the settings can name a program to run.
  */
-export async function speechSettingsFile(home = homedir(), earlier = [fileURLToPath(new URL("../../.picard-speech.json", import.meta.url)), resolve(".picard-speech.json")]) {
+export const EARLIER_SPEECH_SETTINGS = [fileURLToPath(new URL("../../.picard-speech.json", import.meta.url))];
+
+export async function speechSettingsFile(home = homedir(), earlier = EARLIER_SPEECH_SETTINGS) {
   const file = join(home, ".picard-code", "speech.json");
   try { await access(file); return file; }
   catch { /* not there yet */ }

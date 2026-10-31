@@ -26,8 +26,12 @@ The bridge officers are:
 ${BRIDGE_CREW.map((member) => `${member.id}: ${member.name} - ${member.duty}`).join("\n")}`;
 }
 
+// The computer hands work to an officer, who may hand it on again (Riker
+// coordinating others), so helpers need two levels instead of OpenCode's one.
+export const CREW_SUBAGENT_DEPTH = 2;
+
 export function crewConfiguration(permissions?: PermissionRule[]) {
-  return { agents: Object.fromEntries(BRIDGE_CREW.map((officer) => [officer.id, {
+  return { experimental: { subagent_depth: CREW_SUBAGENT_DEPTH }, agents: Object.fromEntries(BRIDGE_CREW.map((officer) => [officer.id, {
     mode: "all",
     description: `${officer.name}: ${officer.duty}`,
     system: crewInstructions(officer),

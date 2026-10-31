@@ -32,6 +32,7 @@ test("crew inherits the coding agent's exact rules and rejects modified roles or
     ...Object.entries(config.agents).map(([id, agent]): AgentInfo => ({ ...agent, id, mode: "all", permissions: agent.permissions! })),
   ];
   assert.equal(verifiedCrew(agents), true);
+  assert.equal(config.experimental.subagent_depth, 2, "a routed officer such as Riker must be able to hand work on");
   assert.deepEqual(Object.values(config.agents).map((agent) => agent.permissions), BRIDGE_CREW.map(() => permissions));
   const changed = structuredClone(agents);
   changed[1]!.permissions = [...changed[1]!.permissions, { action: "shell", resource: "*", effect: "allow" }];

@@ -459,7 +459,9 @@ The page saves to `speech.json` in a `.picard-code` folder in your home folder:
 `~/.picard-code/speech.json` on macOS and Linux,
 `C:\Users\<you>\.picard-code\speech.json` on Windows. It is never saved in
 the Picard Code folder or your project. Settings from an older
-`.picard-speech.json` are copied there once. You can also write the file yourself, using your own resource's settings:
+`.picard-speech.json` in the Picard Code folder are copied there once. A
+`.picard-speech.json` in your project is never read, because a project you do
+not trust could use it to name a program to run. You can also write the file yourself, using your own resource's settings:
 
 ```json
 {

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile, rm, realpath } from "node:fs/promises";
 import { resolve, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { request as httpRequest } from "node:http";
 import { startFixture, wikipediaFixture } from "./fixture.js";
 import { browserEvents, checkAnswer, startApp } from "../server/app.js";
@@ -11,7 +12,7 @@ import { localServerUrl, makeClient } from "../server/engine.js";
 import type { AppState, FormField, SpeechSettings } from "../shared/types.js";
 import type { AppOptions } from "../server/app.js";
 import { speechFixture } from "./speech-fixture.js";
-import { saveSpeechSettings, speechSettingsFile } from "../server/speech.js";
+import { EARLIER_SPEECH_SETTINGS, saveSpeechSettings, speechSettingsFile } from "../server/speech.js";
 import { BRIDGE_CREW } from "../shared/crew.js";
 
 async function setup(extra: Partial<AppOptions> = {}) {
@@ -638,4 +639,5 @@ test("speech settings live in the user's home folder, and earlier settings are c
   assert.equal(JSON.parse(await readFile(file, "utf8")).listening, "whisper", "a later change to the old file is not copied again");
   await saveSpeechSettings(join(home, "fresh", "speech.json"), { speaking: "kokoro" });
   assert.deepEqual(JSON.parse(await readFile(join(home, "fresh", "speech.json"), "utf8")), { speaking: "kokoro" });
+  assert.deepEqual(EARLIER_SPEECH_SETTINGS, [resolve(fileURLToPath(new URL("../../.picard-speech.json", import.meta.url)))], "settings are never copied from the folder Picard Code was started in");
 });
