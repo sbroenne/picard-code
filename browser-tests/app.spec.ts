@@ -24,24 +24,33 @@ test.beforeEach(async ({ page }) => {
 test("empty screen, folder controls and long content fit without horizontal overflow", async ({ page }, testInfo) => {
   await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  if (testInfo.project.name === "phone") await page.getByRole("button", { name: "Menu", exact: true }).click();
   await expect(page.getByRole("button", { name: "New conversation" })).toBeVisible();
-  if (testInfo.project.name === "phone") await page.getByRole("button", { name: "Menu", exact: true }).click();
   await page.getByRole("button", { name: "Understand this project" }).click();
   await expect(page.getByRole("textbox", { name: "Your message" })).toHaveValue("Explain this project and where I should start.");
   await page.screenshot({ path: testInfo.outputPath("empty-screen.png"), fullPage: true });
 });
 
-test("setup lives on its own Settings page, away from the main screen", async ({ page }, testInfo) => {
-  await expect(page.getByRole("heading", { name: "Project folder" })).toBeHidden();
-  if (testInfo.project.name === "phone") await page.getByRole("button", { name: "Menu", exact: true }).click();
+test("the main screen shows only the conversation; setup and options stay in slide-outs", async ({ page }, testInfo) => {
+  await expect(page.getByRole("button", { name: "Turn microphone on" })).toBeVisible();
+  for (const name of ["Project folder", "Copilot connection"]) await expect(page.getByRole("heading", { name })).toBeHidden();
+  await expect(page.getByLabel("Model")).toBeHidden();
+  await expect(page.getByLabel("Mode", { exact: true })).toBeHidden();
+  await expect(page.locator("#conversations")).toBeHidden();
+
+  await page.getByRole("link", { name: "Discuss" }).click();
+  await expect(page).toHaveURL(/#options$/);
+  await expect(page.getByLabel("Model")).toBeVisible();
+  await expect(page.getByLabel("Mode", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel("Model")).toBeHidden();
+
   await page.getByRole("link", { name: "Settings", exact: true }).click();
   await expect(page).toHaveURL(/#settings$/);
   for (const name of ["Copilot connection", "Project folder", "Speech", "Privacy and approvals"]) await expect(page.getByRole("heading", { name })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Turn microphone on" })).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("settings.png"), fullPage: true });
   await page.goBack();
+  await expect(page.getByRole("heading", { name: "Project folder" })).toBeHidden();
   await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
 });
 

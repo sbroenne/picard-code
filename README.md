@@ -46,8 +46,8 @@ macOS or Linux example:
 npm start -- --project "$HOME/projects/my-project"
 ```
 
-You can also change the folder under **Settings** (in the sidebar). Stop
-running work first.
+You can also change the folder in the **Settings** slide-out (side panel).
+Stop running work first.
 The folder is passed to OpenCode for every conversation and request.
 
 **`npx picard-code` is not available yet.** This repository is private and the
@@ -72,13 +72,24 @@ If OpenCode is not connected:
 
 ## The main screen and Settings
 
-The main screen is kept for the conversation itself: the microphone, the
-messages, approvals and the mode and model. Everything about setting up lives
-on a separate **Settings** page (sidebar link, or add `#settings` to the
-address): the Copilot connection steps, the project folder, speech, and the
-full privacy and approvals text. If Copilot is not connected when the app
-opens, Settings is shown first. The microphone turns off while Settings is
-open.
+The main screen is only for the spoken conversation: the messages, any
+question or approval waiting for you, the large microphone button with its
+listening status, **Stop speaking** and **Stop work**. The header shows the
+conversation name, whether work is running, and the current mode.
+
+Everything else is hidden in slide-outs, opened from the side panel.
+**Close** or the Escape key closes them. Picard Code is made for a computer
+screen; there is no phone layout.
+
+- **Conversations** (`#records`): earlier conversations in the project folder.
+- **Options** (`#options`): mode and model. Selecting the mode in the header
+  opens this too.
+- **Settings** (`#settings`): the Copilot connection steps, the project folder,
+  speech, and the full privacy and approvals text. If Copilot is not connected
+  when the app opens, Settings is shown first. The microphone turns off while
+  Settings is open. Speech changes apply without restarting.
+
+Suggested starting requests and the message box are under **Type instead**.
 
 For the requested personal setup, use your **sbroenne** GitHub account in the
 official device sign-in. Picard Code does not independently verify the account
@@ -129,7 +140,8 @@ than substituting another provider.
   spoken explanation; it never replaces it. Without the files, there are no
   sounds and nothing else changes.
 - **New conversation** starts a saved OpenCode conversation. Existing
-  conversations in the selected folder appear in the sidebar (latest 100).
+  conversations in the selected folder appear under **Conversations** (latest
+  100).
 - **Discuss** uses OpenCode's `plan` mode. **Make changes** uses its `build` mode.
 - Replies update live. Tool activity and thinking can be expanded, and code
   blocks remain readable. **Copy** copies the reply text.
@@ -173,7 +185,8 @@ separate model deployment.
 
 **MAI live listening can process audio outside Europe**, even when the
 resource is in Sweden. A short note beside the microphone says where audio
-goes before you turn it on; the full text is on the Settings page.
+goes until you first turn it on with those services; the full text is in
+Settings.
 Azure charges and any Visual Studio credit coverage depend on your
 subscription; this app does not change spending limits or promise credits
 cover the service.
@@ -382,7 +395,7 @@ npm run test:behavior:live
 The server and browser tests use a clearly labeled local test server that follows
 OpenCode's connection format, with the **official OpenCode client**. They cover live replies, saved
 conversations, approvals, questions, folder boundaries, browser request
-protection, safe text rendering, and desktop/phone layouts. They do not claim
+protection, safe text rendering, and the desktop layout. They do not claim
 to have called Copilot or executed a shell command. Speech tests use an
 artificial browser microphone and an explicitly separate speech test service
 to check automatic turns, follow-up context, paused listening during playback,

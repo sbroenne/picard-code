@@ -95,9 +95,13 @@ function voiceControls() {
   element("voice-setup-text").textContent = state?.speech?.error ? "Speech did not start." : "Speech is not set up.";
   const cloudListening = state?.speech?.listening !== "whisper";
   const cloudSpeaking = state?.speech?.speaking !== "kokoro";
-  element("speech-services").textContent = `${cloudListening ? "MAI" : "Whisper"} listening / ${cloudSpeaking ? "MAI" : "Kokoro"} voice`;
-  // Short version beside the microphone; the full explanation is on the settings page.
-  element("voice-disclosure").textContent = cloudListening ? "· Audio goes to Azure, possibly outside Europe" : cloudSpeaking ? "· Reply text goes to Azure" : "· Stays on this computer";
+  // Say where audio goes before the microphone is first turned on with these services.
+  // Afterwards the full explanation stays in Settings, keeping the main screen clear.
+  const disclosure = element("voice-disclosure");
+  disclosure.textContent = cloudListening
+    ? "When the microphone is on, your voice goes to Azure, which may process it outside Europe. Details are in Settings."
+    : "Your voice stays on this computer. Reply text goes to Azure for speaking. Details are in Settings.";
+  disclosure.hidden = !state?.speech?.configured || voice.microphone || (!cloudListening && !cloudSpeaking) || disclosed();
   element("speech-current").textContent = state?.speech?.configured
     ? `Active: ${cloudListening ? "Azure MAI" : "Whisper"} listening / ${cloudSpeaking ? "Azure MAI" : "Kokoro"} speaking`
     : state?.speech?.error ?? "Speech is not set up yet";
@@ -106,6 +110,16 @@ function voiceControls() {
     : "Whisper understands microphone audio on this computer."} ${cloudSpeaking
     ? "Reply text goes to Azure for speaking." : "Kokoro speaks locally."} Understood requests are sent to Copilot automatically. Listening pauses during work and playback, except to hear your answer to a question the computer asks aloud. Approvals always need a button. Stop speaking interrupts playback, not work.`;
   element("stop-speaking").hidden = !voice.speechPending;
+}
+
+function disclosureKey() {
+  return `picard-disclosure:${state?.speech?.listening ?? "mai"}/${state?.speech?.speaking ?? "mai"}`;
+}
+function disclosed() {
+  try { return localStorage.getItem(disclosureKey()) === "seen"; } catch { return false; }
+}
+function markDisclosed() {
+  try { localStorage.setItem(disclosureKey(), "seen"); } catch { /* The note simply keeps showing. */ }
 }
 
 function completeVoiceReply() {
@@ -167,11 +181,12 @@ function controls() {
   const retrying = !!selected && state?.statuses[selected]?.type === "retry";
   const status = !state ? "Starting up" : !connected ? "Reconnecting" : !state.models.length ? "Setup needed" : pending() ? "Needs your reply" : retrying ? "Retrying" : working ? "Working" : historyLoading ? "Loading" : "Ready";
   element("work-status").textContent = status;
-  element("connection-label").textContent = connected ? "Local connection" : "Connecting";
-  element("connection-light").classList.toggle("ready", connected);
+  const modeReadout = element("mode-readout");
+  modeReadout.textContent = agent.value === "plan" ? "Discuss" : "Make changes";
+  modeReadout.dataset.mode = agent.value;
   element("mode-hint").textContent = agent.value === "plan"
-    ? "Discuss: plans only, no changes"
-    : "Make changes: may edit files and run commands. Approvals still ask first";
+    ? "Discuss: plans only, no changes."
+    : "Make changes: may edit files and run commands. OpenCode's approvals still ask first.";
   element("copilot-status").textContent = !state ? "Checking" : state.models.length
     ? `Connected: ${state.models.length} Copilot model${state.models.length === 1 ? "" : "s"} available` : "Not connected";
   if (voice.microphone && voice.phase === "listening" && (!ready || (working || pending()) && !askedQuestion())) voice.resume();
@@ -186,7 +201,7 @@ function renderState() {
   element("project-name").textContent = projectName;
   element("project-name").title = state.project;
   if (document.activeElement !== element("project-path")) element<HTMLInputElement>("project-path").value = state.project;
-  element("workspace-caption").textContent = `OpenCode ${state.version}`;
+  element("workspace-caption").textContent = `OpenCode ${state.version} · ${state.project}`;
   element("conversation-title").textContent = state.conversations.find((item) => item.id === selected)?.title ?? "New conversation";
   const currentModel = model.value;
   model.replaceChildren();
@@ -211,7 +226,7 @@ function renderState() {
     }
     list.append(node);
   }
-  if (!state.conversations.length) list.append(make("p", "empty-list", "Your conversations will appear here."));
+  if (!state.conversations.length) list.append(make("p", "muted", "Your conversations will appear here."));
   renderApprovals();
   const decision = state.permissions.find((item) => item.sessionID === selected)?.id
     ?? state.questions.find((item) => item.sessionID === selected)?.id;
@@ -430,6 +445,7 @@ function handleEvent(event: Event) {
     else applyMessageEvent(event);
   }
   if (event.type === "session.status") {
+    statusEvents++;
     state.statuses[event.properties.sessionID] = event.properties.status;
     if (event.properties.sessionID === selected && event.properties.status.type === "retry") {
       notice(`OpenCode is retrying. ${event.properties.status.message}`);
@@ -437,6 +453,7 @@ function handleEvent(event: Event) {
     controls();
     if (event.properties.sessionID === selected && event.properties.status.type === "idle") void perform(loadHistory);
   } else if (event.type === "session.idle") {
+    statusEvents++;
     state.statuses[event.properties.sessionID] = { type: "idle" };
     controls();
     if (event.properties.sessionID === selected) void perform(loadHistory);
@@ -451,9 +468,16 @@ function handleEvent(event: Event) {
   }
 }
 
+let statusEvents = 0;
 async function refreshState() {
   const revision = selectionRevision;
-  const next = await api<AppState>("state");
+  let next: AppState;
+  // A status change that arrives while the copy is on its way is newer than the copy, so fetch again.
+  for (let attempt = 0; ; attempt++) {
+    const seen = statusEvents;
+    next = await api<AppState>("state");
+    if (seen === statusEvents || attempt === 2) break;
+  }
   if (revision !== selectionRevision && state?.project !== next.project) return;
   state = next;
   renderState();
@@ -524,11 +548,6 @@ function openEvents() {
   });
 }
 
-function closeMenu() {
-  element("sidebar").classList.remove("open");
-  element("menu").setAttribute("aria-expanded", "false");
-}
-
 async function selectConversation(id: string) {
   if (selected && id !== selected) { voiceTurn = undefined; spokenQuestionID = undefined; voice.close(); }
   drafts.set(selected ?? "new", prompt.value);
@@ -540,7 +559,7 @@ async function selectConversation(id: string) {
   messages = [];
   prompt.value = drafts.get(id) ?? "";
   notice();
-  closeMenu();
+  if (openDrawer() === "records") closeDrawer();
   renderState();
   renderMessages();
   await loadHistory();
@@ -617,16 +636,31 @@ function showSpeechSettings(result: { settings: SpeechSettings; file: string }) 
   speechFieldVisibility();
 }
 
+const drawers = ["records", "options", "settings"] as const;
+type Drawer = typeof drawers[number];
+function openDrawer(): Drawer | undefined {
+  const name = location.hash.slice(1);
+  return (drawers as readonly string[]).includes(name) ? name as Drawer : undefined;
+}
+function closeDrawer() {
+  if (openDrawer()) location.hash = "";
+}
+
 let settingsLoaded = false;
 async function route() {
-  const settings = location.hash === "#settings";
-  element("main").hidden = settings;
-  element("settings-view").hidden = !settings;
-  const link = element<HTMLAnchorElement>("nav-settings");
-  link.textContent = settings ? "Main screen" : "Settings";
-  link.href = settings ? "#" : "#settings";
-  closeMenu();
-  if (!settings) return;
+  const open = openDrawer();
+  for (const name of drawers) element(`drawer-${name}`).hidden = name !== open;
+  element("shell").dataset.drawer = open ?? "";
+  // The conversation stays visible behind a slide-out but cannot be used until it closes.
+  element("main").inert = !!open;
+  document.querySelectorAll<HTMLAnchorElement>("[data-drawer-link]").forEach((link) => {
+    const current = link.dataset.drawerLink === open;
+    link.href = current ? "#" : `#${link.dataset.drawerLink}`;
+    if (current) link.setAttribute("aria-current", "true");
+    else link.removeAttribute("aria-current");
+  });
+  if (open) element(`drawer-${open}`).focus();
+  if (open !== "settings") return;
   if (voice.microphone) voice.microphoneOff();
   if (!settingsLoaded) {
     settingsLoaded = true;
@@ -642,11 +676,13 @@ prompt.addEventListener("keydown", (event) => {
 });
 agent.addEventListener("change", controls);
 element("new-conversation").addEventListener("click", () => { void perform(async () => {
-  if (location.hash === "#settings") location.hash = "";
+  closeDrawer();
   await newConversation();
-  prompt.focus();
 }); });
 window.addEventListener("hashchange", () => { void perform(route); });
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && openDrawer()) { event.preventDefault(); closeDrawer(); }
+});
 speechInput("listening").addEventListener("change", speechFieldVisibility);
 speechInput("speaking").addEventListener("change", speechFieldVisibility);
 element("speech-form").addEventListener("submit", (event) => {
@@ -691,10 +727,6 @@ element("refresh-provider").addEventListener("click", () => {
     openEvents();
   });
 });
-element("menu").addEventListener("click", () => {
-  const open = element("sidebar").classList.toggle("open");
-  element("menu").setAttribute("aria-expanded", String(open));
-});
 document.querySelectorAll<HTMLButtonElement>("[data-prompt]").forEach((button) => {
   button.addEventListener("click", () => {
     element<HTMLDetailsElement>("typing").open = true;
@@ -727,7 +759,7 @@ element("project-form").addEventListener("submit", (event) => {
 });
 element("microphone").addEventListener("click", () => { void perform(async () => {
   if (voice.microphone) voice.microphoneOff();
-  else await voice.activate();
+  else { await voice.activate(); if (voice.microphone) markDisclosed(); controls(); }
 }); });
 element("stop-speaking").addEventListener("click", () => voice.stopSpeaking());
 element("typing").addEventListener("toggle", () => {

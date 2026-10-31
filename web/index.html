@@ -9,36 +9,36 @@
   </head>
   <body>
     <!-- An original computer display inspired by the TNG era: black ground, rounded elbows,
-    flat color blocks and short uppercase readouts. Explanations live on the settings page. -->
-    <a class="skip-link" href="#microphone">Skip to conversation controls</a>
-    <div class="shell">
+    flat color blocks and short uppercase readouts. The main screen is for the spoken
+    conversation; everything else slides out from the side panel when asked for. -->
+    <a class="skip-link" href="#microphone">Skip to the microphone</a>
+    <div id="shell" class="shell" data-drawer="">
       <div class="top-rail" aria-hidden="true">
         <span class="block peach"><i>01</i></span>
         <span class="block lilac grow"><i>02-1701</i></span>
       </div>
       <header class="header">
-        <button id="menu" class="menu-button" aria-controls="sidebar" aria-expanded="false">Menu</button>
+        <div class="header-readouts">
+          <h2 id="conversation-title" class="conversation-title">New conversation</h2>
+          <div class="header-pills">
+            <span id="work-status" class="work-status" role="status">Starting up</span>
+            <a id="mode-readout" class="mode-readout" href="#options" title="Change mode or model">Discuss</a>
+          </div>
+        </div>
         <h1>Picard Code</h1>
-        <dl class="readouts">
-          <div><dt>Project</dt><dd id="project-name">Connecting</dd></div>
-          <div><dt>Conversation</dt><dd><h2 id="conversation-title">New conversation</h2></dd></div>
-          <div><dt>System</dt><dd id="workspace-caption">Awaiting a task</dd></div>
-          <div><dt>Link</dt><dd><span id="connection-light" class="connection-light" aria-hidden="true"></span><span id="connection-label">Connecting</span></dd></div>
-        </dl>
-        <span id="work-status" class="work-status" role="status">Starting up</span>
       </header>
       <div class="elbow elbow-top" aria-hidden="true"></div>
       <div class="bar bar-top" aria-hidden="true"><span class="orange grow"></span><span class="lilac"></span><span class="peach short"></span><span class="blue"></span></div>
       <div class="elbow elbow-main" aria-hidden="true"></div>
       <div class="bar bar-main" aria-hidden="true"><span class="orange"></span><span class="peach grow"></span><span class="red short"></span><span class="lilac"></span></div>
 
-      <aside id="sidebar" class="sidebar">
-        <button id="new-conversation" class="rail-button lilac">New conversation</button>
-        <div class="rail-label">Conversations</div>
-        <nav id="conversations" aria-label="Saved conversations"></nav>
-        <span class="rail-fill" aria-hidden="true"><i class="peach">03-4471</i><i class="orange">04-2240</i><i class="lilac">05-0927</i></span>
-        <a id="nav-settings" class="rail-button blue" href="#settings">Settings</a>
-      </aside>
+      <nav id="sidebar" class="sidebar" aria-label="Panels">
+        <button id="new-conversation" class="rail-button orange" type="button">New conversation</button>
+        <a class="rail-button peach" href="#records" data-drawer-link="records">Conversations</a>
+        <a class="rail-button lilac" href="#options" data-drawer-link="options">Options</a>
+        <span class="rail-fill" aria-hidden="true"><i class="tan">03-4471</i><i class="blue">04-2240</i><i class="peach">05-0927</i></span>
+        <a id="nav-settings" class="rail-button blue" href="#settings" data-drawer-link="settings">Settings</a>
+      </nav>
 
       <main id="main" class="workspace">
         <div id="notice" class="notice" role="alert" hidden>
@@ -52,11 +52,6 @@
           </section>
           <section id="welcome" class="welcome">
             <h3>Please specify a task.</h3>
-            <div class="suggestions" aria-label="Message ideas">
-              <button class="pill peach" data-prompt="Explain this project and where I should start.">Understand this project</button>
-              <button class="pill lilac" data-prompt="Suggest a small, useful improvement to this project. Explain the plan before making changes.">Plan an improvement</button>
-              <button class="pill blue" data-prompt="Look for a likely bug in this project. Explain what you find before changing anything.">Look for a bug</button>
-            </div>
           </section>
           <div id="messages" class="messages" aria-label="Conversation messages"></div>
           <div id="approvals" class="approvals" aria-live="polite"></div>
@@ -65,25 +60,26 @@
         <section id="voice-console" class="console" aria-label="Spoken conversation" data-phase="off">
           <button id="microphone" class="microphone" type="button" aria-pressed="false" disabled>Turn microphone on</button>
           <div class="voice-readout">
-            <div class="voice-heading"><span class="voice-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span id="voice-status" aria-live="polite">Microphone off</span></div>
+            <div class="voice-heading">
+              <span class="voice-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+              <span id="voice-status" aria-live="polite">Microphone off</span>
+            </div>
             <p id="voice-partial" class="voice-partial" aria-label="Words being understood"></p>
-            <p class="voice-services"><span id="speech-services">MAI listening / MAI voice</span> <span id="voice-disclosure"></span></p>
+            <p id="voice-disclosure" class="voice-note" hidden></p>
             <p id="voice-setup-hint" class="voice-setup-hint" hidden><span id="voice-setup-text">Speech is not set up.</span> <a href="#settings">Open settings</a></p>
           </div>
-          <button id="stop-speaking" class="pill red" type="button" hidden>Stop speaking</button>
+          <div class="console-actions">
+            <button id="stop-speaking" class="pill lilac" type="button" hidden>Stop speaking</button>
+            <button id="stop" class="pill red" type="button" hidden>Stop work</button>
+          </div>
         </section>
-        <div class="command-row">
-          <label class="select-pill">Mode
-            <select id="agent"><option value="plan">Discuss</option><option value="build">Make changes</option></select>
-          </label>
-          <label class="select-pill wide">Model
-            <select id="model" disabled><option>Waiting for Copilot</option></select>
-          </label>
-          <button id="stop" class="pill red" type="button" hidden>Stop work</button>
-          <p id="mode-hint" class="mode-hint"></p>
-        </div>
         <details id="typing" class="typing">
           <summary>Type instead</summary>
+          <div class="suggestions" aria-label="Message ideas">
+            <button class="pill peach" type="button" data-prompt="Explain this project and where I should start.">Understand this project</button>
+            <button class="pill lilac" type="button" data-prompt="Suggest a small, useful improvement to this project. Explain the plan before making changes.">Plan an improvement</button>
+            <button class="pill blue" type="button" data-prompt="Look for a likely bug in this project. Explain what you find before changing anything.">Look for a bug</button>
+          </div>
           <form id="composer" class="composer">
             <label class="visually-hidden" for="prompt">Your message</label>
             <textarea id="prompt" rows="3" maxlength="32000" placeholder="Enter your request" disabled></textarea>
@@ -92,11 +88,29 @@
         </details>
       </main>
 
-      <section id="settings-view" class="settings" hidden aria-labelledby="settings-title">
-        <h2 id="settings-title" class="visually-hidden">Settings</h2>
+      <section id="drawer-records" class="drawer" hidden tabindex="-1" aria-labelledby="records-title">
+        <div class="drawer-bar peach"><h2 id="records-title">Conversations</h2><a class="drawer-close" href="#">Close</a></div>
+        <p class="drawer-caption">Project folder: <span id="project-name">Connecting</span></p>
+        <div id="conversations" class="conversation-list"></div>
+      </section>
+
+      <section id="drawer-options" class="drawer" hidden tabindex="-1" aria-labelledby="options-title">
+        <div class="drawer-bar lilac"><h2 id="options-title">Options</h2><a class="drawer-close" href="#">Close</a></div>
+        <div class="field-grid">
+          <label for="agent">Mode</label>
+          <select id="agent"><option value="plan">Discuss</option><option value="build">Make changes</option></select>
+          <p id="mode-hint" class="muted span"></p>
+          <label for="model">Model</label>
+          <select id="model" disabled><option>Waiting for Copilot</option></select>
+        </div>
+      </section>
+
+      <section id="drawer-settings" class="drawer wide" hidden tabindex="-1" aria-labelledby="settings-title">
+        <div class="drawer-bar blue"><h2 id="settings-title">Settings</h2><a class="drawer-close" href="#">Close</a></div>
         <section class="panel" aria-labelledby="copilot-title">
           <h3 id="copilot-title" class="panel-title orange"><span>01</span> Copilot connection</h3>
           <p id="copilot-status" class="readout-line">Checking</p>
+          <p id="workspace-caption" class="muted"></p>
           <ol>
             <li>In a terminal in the Picard Code folder, run <code>npm run opencode</code>.</li>
             <li>Type <code>/connect</code> and choose <strong>GitHub Copilot</strong>.</li>
