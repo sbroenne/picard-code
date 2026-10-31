@@ -94,17 +94,18 @@ try {
   const turn = async (label: string, text: string, onPending?: (pending: Pending) => Promise<void>, tribute?: TributeRequest) => {
     const started = Date.now();
     const before = await userCount();
-    await api(`/api/conversations/${sessionID}/send`, { text, providerID: model.providerID, modelID: model.modelID, ...(tribute ? { tribute } : {}) });
+    const sent = await api(`/api/conversations/${sessionID}/send`, { text, providerID: model.providerID, modelID: model.modelID, ...(tribute ? { tribute } : {}) });
     await settle(before, onPending);
     const result = await lastTurn();
     transcript.push(`## ${label}`, "", `User: ${text}`, "",
       `Seconds until reply finished: ${((Date.now() - started) / 1000).toFixed(1)}`, "",
       `Spoken: ${result.spoken}`, "", "Screen:", "", "```text", result.reply, "```", "",
-      `Tools: ${result.tools.map((tool) => `${tool.tool} (${tool.status}${tool.status === "error" ? `: ${tool.output.slice(0, 160)}` : ""})`).join(", ") || "none"}`, "");
+      `Tools: ${result.tools.map((tool) => `${tool.tool} (${tool.status}${tool.status === "error" ? `: ${tool.output.slice(0, 160)}` : ""})`).join(", ") || "none"}`, "",
+      `Reference: ${JSON.stringify(sent.reference ?? null)}`, "");
     const spoken = result.spoken;
     check(spoken.length > 0 && spoken.length <= 420, `${label}: spoken reply is present and short (${spoken.length} characters)`);
     check(!/[:`*_#]\s*$/.test(spoken) && !/`|\*\*|https?:/.test(spoken), `${label}: spoken reply has no dangling colon, code marks or raw links`);
-    return result;
+    return { ...result, reference: sent.reference };
   };
 
   const projectFiles = ["README.md", "src/config.ts", "src/retry.ts", "opencode.json"];
@@ -159,6 +160,17 @@ try {
   const factsOnly = await turn("Tribute off", "Tell me about myself, strictly factual and without jokes.", undefined, { mode: "off" });
   check(/picard/i.test(factsOnly.reply), "Tribute off: preserves Picard identity");
   check(!/vanity|vain|ego|i can tell you a short story/i.test(factsOnly.reply), "Tribute off: no vanity joke or unsolicited story offer");
+  const birthplace = await turn("Wikipedia Picard answer", "Computer, where was Jean-Luc Picard born?", undefined, { mode: "off" });
+  check(/la barre/i.test(birthplace.reply) && /france/i.test(birthplace.reply), "Wikipedia Picard: answers the birthplace question from the article");
+  check(/en\.wikipedia\.org\/wiki\/Jean-Luc_Picard/i.test(birthplace.reply), "Wikipedia Picard: cites the fetched article on screen");
+  check(JSON.stringify(birthplace.reference) === JSON.stringify({ title: "Wikipedia: Jean-Luc Picard", url: "https://en.wikipedia.org/wiki/Jean-Luc_Picard" }), "Wikipedia Picard: the API returns the real requested article reference");
+  check(!birthplace.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Wikipedia Picard: no file changes or commands");
+  const training = await turn("Wikipedia Stewart answer", "Computer, which drama school did Patrick Stewart attend, and who introduced him to performing Shakespeare?", undefined, { mode: "off" });
+  check(/bristol old vic/i.test(training.reply) && /cecil dormand/i.test(training.reply), "Wikipedia Stewart: answers from the broader career material");
+  check(/en\.wikipedia\.org\/wiki\/Patrick_Stewart/i.test(training.reply), "Wikipedia Stewart: cites the fetched article on screen");
+  check(JSON.stringify(training.reference) === JSON.stringify({ title: "Wikipedia: Patrick Stewart", url: "https://en.wikipedia.org/wiki/Patrick_Stewart" }), "Wikipedia Stewart: the API returns the real requested article reference");
+  check(!training.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Wikipedia Stewart: no file changes or commands");
+  check(JSON.stringify(await Promise.all(projectFiles.map((file) => readFile(resolve(project, file), "utf8")))) === JSON.stringify(beforeQuestions), "Wikipedia answers: project files remain unchanged");
   const story = await turn("Reviewed Stewart story", "Yes, please.", undefined, { mode: "off", storyID: "stewart-dickens" });
   check(/stewart/i.test(story.reply) && /christmas carol/i.test(story.reply), "Story: uses the selected Patrick Stewart account");
   check(/londontheatre\.co\.uk/i.test(story.reply), "Story: includes the reviewed source link");

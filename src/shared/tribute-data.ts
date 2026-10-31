@@ -28,6 +28,20 @@ const christmas = {
   title: "London Theatre: A Christmas Carol with Patrick Stewart",
   url: "https://www.londontheatre.co.uk/theatre-news/news/a-christmas-carol-with-patrick-stewart",
 };
+const picardWiki = { title: "Wikipedia: Jean-Luc Picard", url: "https://en.wikipedia.org/wiki/Jean-Luc_Picard" };
+const stewartWiki = { title: "Wikipedia: Patrick Stewart", url: "https://en.wikipedia.org/wiki/Patrick_Stewart" };
+const measure = {
+  title: "Wikipedia: The Measure of a Man",
+  url: "https://en.wikipedia.org/wiki/The_Measure_of_a_Man_(Star_Trek:_The_Next_Generation)",
+};
+const tapestry = {
+  title: "Wikipedia: Tapestry",
+  url: "https://en.wikipedia.org/wiki/Tapestry_(Star_Trek:_The_Next_Generation)",
+};
+const family = {
+  title: "Wikipedia: Family",
+  url: "https://en.wikipedia.org/wiki/Family_(Star_Trek:_The_Next_Generation)",
+};
 
 // Original summaries of individually checked public career and story facts, not script or book excerpts.
 export const TRIBUTE_ENTRIES: readonly TributeEntry[] = [
@@ -86,7 +100,93 @@ export const TRIBUTE_ENTRIES: readonly TributeEntry[] = [
     text: "Patrick Stewart's comedy work includes American Dad!, Extras, and Blunt Talk.",
   },
   {
-    id: "stewart-rsc", subject: "Patrick Stewart", provenance: "career", verified: "2026-10-31", source: memoir,
-    text: "Patrick Stewart's career includes more than forty years with the Royal Shakespeare Company.",
+    id: "stewart-rsc", subject: "Patrick Stewart", provenance: "career", verified: "2026-10-31", source: stewartWiki,
+    text: "Patrick Stewart performed in more than sixty Royal Shakespeare Company productions.",
+  },
+  {
+    id: "picard-la-barre", subject: "Picard", provenance: "screen", verified: "2026-10-31", source: picardWiki,
+    text: "Jean-Luc Picard's birthplace is La Barre, France.",
+  },
+  {
+    id: "picard-academy", subject: "Picard", provenance: "screen", verified: "2026-10-31", source: picardWiki,
+    text: "Picard failed his first Starfleet Academy entrance examination before later gaining admission.",
+  },
+  {
+    id: "picard-marathon", subject: "Picard", provenance: "screen", verified: "2026-10-31", source: picardWiki,
+    text: "Picard was the first first-year cadet to win the Starfleet Academy marathon.",
+  },
+  {
+    id: "picard-stargazer", subject: "Picard", provenance: "screen", verified: "2026-10-31", source: picardWiki,
+    text: "Before commanding the Enterprise, Picard served as first officer and then captain of the Stargazer.",
+  },
+  {
+    id: "picard-tea", subject: "Picard", provenance: "screen", verified: "2026-10-31", source: picardWiki,
+    text: "Earl Grey tea is one of Picard's recurring preferences.",
+  },
+  {
+    id: "picard-shakespeare", subject: "Picard", provenance: "screen", verified: "2026-10-31", source: picardWiki,
+    text: "Picard enjoys Shakespeare and performs his work in holodeck simulations.",
+  },
+  {
+    id: "picard-riding", subject: "Picard", provenance: "screen", verified: "2026-10-31", source: picardWiki,
+    text: "Horse riding is among Picard's interests away from the captain's chair.",
+  },
+  {
+    id: "picard-data-hearing", subject: "Picard", provenance: "screen", verified: "2026-10-31", source: measure,
+    text: "In The Measure of a Man, Picard represents Data in a hearing over his right to choose.",
+    story: "In The Measure of a Man, a scientist wants to dismantle Data for research. Picard defends Data's right to refuse, while Riker is required to argue the opposing case. The hearing asks whether Starfleet can treat Data as property. The ruling gives Data the right to choose, and he declines the procedure.",
+  },
+  {
+    id: "picard-tapestry", subject: "Picard", provenance: "screen", verified: "2026-10-31", source: tapestry,
+    text: "In Tapestry, Picard explores how changing a regretted event could change his whole career.",
+    story: "In Tapestry, Q offers Picard a chance to change a decision from his youth. Avoiding the dangerous event produces a safer but very different career: Picard is no longer captain. He chooses to restore the original course of his life. When he wakes in sickbay, he is unsure whether the experience was real or a dream.",
+  },
+  {
+    id: "picard-family-return", subject: "Picard", provenance: "screen", verified: "2026-10-31", source: family,
+    text: "In Family, Picard visits the vineyard run by his brother Robert after the Borg encounter.",
+    story: "In Family, Picard returns to his family's vineyard while recovering from Borg assimilation. An argument with his brother Robert gives way to a painful admission of what the experience cost him. Picard considers staying on Earth, but ultimately returns to the Enterprise. The episode gives the captain space to recover rather than presenting an immediate return to normal.",
+  },
+  {
+    id: "stewart-mirfield", subject: "Patrick Stewart", provenance: "career", verified: "2026-10-31", source: stewartWiki,
+    text: "Patrick Stewart came from Mirfield in Yorkshire.",
+  },
+  {
+    id: "stewart-bristol", subject: "Patrick Stewart", provenance: "career", verified: "2026-10-31", source: stewartWiki,
+    text: "Patrick Stewart trained at the Bristol Old Vic Theatre School.",
+  },
+  {
+    id: "stewart-teacher", subject: "Patrick Stewart", provenance: "career", verified: "2026-10-31", source: stewartWiki,
+    text: "Stewart credited his teacher Cecil Dormand with introducing him to performing Shakespeare.",
+    story: "Patrick Stewart traced an important part of his acting beginnings to an English teacher, Cecil Dormand. Rather than leaving Shakespeare on the page, the teacher encouraged him to perform it. Stewart continued studying drama and later trained at the Bristol Old Vic Theatre School. His Shakespeare work began long before the Enterprise.",
+  },
+  {
+    id: "stewart-reporter", subject: "Patrick Stewart", provenance: "career", verified: "2026-10-31", source: stewartWiki,
+    text: "Before his acting career, Stewart worked briefly as a local newspaper reporter and obituary writer.",
+    story: "Before becoming an established actor, Patrick Stewart worked for a local newspaper while pursuing theatre. His employer eventually required him to choose between journalism and acting. Stewart chose the stage. It was an early career decision made before Star Trek or his later screen fame.",
+  },
+  {
+    id: "stewart-dune", subject: "Patrick Stewart", provenance: "career", verified: "2026-10-31", source: stewartWiki,
+    text: "Patrick Stewart played Gurney Halleck in David Lynch's Dune.",
+  },
+  {
+    id: "stewart-claudius", subject: "Patrick Stewart", provenance: "career", verified: "2026-10-31", source: stewartWiki,
+    text: "Patrick Stewart played Sejanus in the television series I, Claudius.",
+  },
+  {
+    id: "stewart-excalibur", subject: "Patrick Stewart", provenance: "career", verified: "2026-10-31", source: stewartWiki,
+    text: "Patrick Stewart played King Leondegrance in Excalibur.",
+  },
+  {
+    id: "stewart-godot", subject: "Patrick Stewart", provenance: "career", verified: "2026-10-31", source: stewartWiki,
+    text: "Stewart and Ian McKellen performed together in Waiting for Godot and No Man's Land.",
+    story: "Patrick Stewart and Ian McKellen took their stage partnership beyond their screen roles. They performed Waiting for Godot and No Man's Land in repertory, bringing the productions to both the West End and Broadway. Audiences could see the same two actors working together across two very different plays.",
+  },
+  {
+    id: "stewart-macbeth", subject: "Patrick Stewart", provenance: "career", verified: "2026-10-31", source: stewartWiki,
+    text: "Stewart's Broadway performance as Macbeth earned a Tony Award nomination.",
+  },
+  {
+    id: "stewart-animation", subject: "Patrick Stewart", provenance: "career", verified: "2026-10-31", source: stewartWiki,
+    text: "Stewart's animated-film voice work includes The Pagemaster, The Prince of Egypt and Jimmy Neutron: Boy Genius.",
   },
 ];

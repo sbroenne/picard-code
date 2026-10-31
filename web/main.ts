@@ -47,13 +47,13 @@ let approvalKey = "";
 let renderScheduled = false;
 /** Reply text that is still being written, shown until the stored conversation catches up. */
 const live = new Map<string, { sessionID: string; messageID: string; partType: "text" | "reasoning"; text: string }>();
-let voiceTurn: { session: string; known: Set<string>; request: string; storyID?: string; outcome?: ExecutionOutcome } | undefined;
+let voiceTurn: { session: string; known: Set<string>; request: string; storyID?: string; outcome?: ExecutionOutcome; reference?: TributeEntry["source"] } | undefined;
 let tributeEnabled = true;
 let tributeSpoken = false;
 let tributeCycle: TributeCycle;
 let pendingStory: { session: string; storyID: string } | undefined;
 let lastStoryID: string | undefined;
-const tributeDisplay = new Map<string, { fact?: TributeEntry; invitation?: string; story?: TributeEntry }>();
+const tributeDisplay = new Map<string, { fact?: TributeEntry; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] }>();
 let spokenDecision = "";
 let spokenQuestionID: string | undefined;
 let answering = false;
@@ -249,7 +249,8 @@ function completeVoiceReply() {
   voiceTurn = undefined;
   const successful = outcome === "succeeded" && !replyFailed(reply) && !declinedReply(reply);
   const key = `${turn.session}:${reply.id}`;
-  const display: { fact?: TributeEntry; invitation?: string; story?: TributeEntry } = {};
+  const display: { fact?: TributeEntry; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] } = {};
+  if (successful && turn.reference) display.reference = turn.reference;
   if (successful && turn.storyID) display.story = TRIBUTE_ENTRIES.find((entry) => entry.id === turn.storyID);
   let tail: { text: string; valid(): boolean; started?(): void } | undefined;
   const stillCurrent = () => tributeEnabled && selected === turn.session && !busy() && !pending()
@@ -273,7 +274,7 @@ function completeVoiceReply() {
     saveTributeValue("picard-tribute-seen", JSON.stringify(tributeCycle.seenIDs));
     if (tributeSpoken) tail = { text: `${fact.subject} fact. ${fact.text}`, valid: () => stillCurrent() && tributeSpoken };
   }
-  if (display.fact || display.invitation || display.story) {
+  if (display.fact || display.invitation || display.story || display.reference) {
     tributeDisplay.set(key, display);
     renderMessages();
   }
@@ -529,6 +530,11 @@ function renderMessages() {
       source.append(tributeSource(extra.story));
       article.append(source);
     }
+    if (extra?.reference) {
+      const source = make("p", "wikipedia-source");
+      source.append(sourceLink(extra.reference));
+      article.append(source);
+    }
     container.append(article);
   });
   controls();
@@ -536,8 +542,12 @@ function renderMessages() {
 }
 
 function tributeSource(entry: TributeEntry) {
-  const link = make("a", undefined, entry.source.title);
-  link.href = entry.source.url;
+  return sourceLink(entry.source);
+}
+
+function sourceLink(source: TributeEntry["source"]) {
+  const link = make("a", undefined, source.title);
+  link.href = source.url;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   return link;
@@ -911,7 +921,8 @@ async function sendMessage(spoken: string, requestedStoryID?: string) {
     if (!requestedStoryID && subject && !stories.length) throw new Error(`No reviewed ${subject} stories are available.`);
     const storyID = requestedStoryID ?? (subject ? stories[randomIndex(stories.length, Math.random)]!.id : undefined);
     voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)), request: text, storyID };
-    await api(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, tribute: { mode: tributeMode(tributeEnabled, tributeSpoken), ...(storyID ? { storyID } : {}) } });
+    const accepted = await api<{ accepted: boolean; reference?: TributeEntry["source"] }>(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, tribute: { mode: tributeMode(tributeEnabled, tributeSpoken), ...(storyID ? { storyID } : {}) } });
+    if (voiceTurn) voiceTurn.reference = accepted.reference;
     voice.acknowledge();
     await refreshState();
     await loadHistory();

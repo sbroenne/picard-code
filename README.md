@@ -101,7 +101,9 @@ tribute badge. Like the ship's computer, there are no entry names or
 modes on the main screen.
 
 Everything else is hidden in slide-outs, opened from the side panel.
-The **Tribute** switch stays in the left navigation. It starts on and is the
+The **Tribute** tile stays in the left navigation, with a clear **On / Off**
+state and no visible checkbox. Click the tile or use Space while it is focused.
+It starts on and is the
 only on/off control for tribute extras; there are no switches inside answers.
 The **Current log entry** tile at the top is lit while the current log entry is in
 front; choosing it brings it back. Choosing the same tile again,
@@ -178,9 +180,24 @@ about Captain Jean-Luc Picard" or "Computer, tell me a short story about Sir
 Patrick Stewart". Both use the same spoken request and acceptance flow.
 Picard stories describe his fictional adventures; Stewart stories describe
 the actor's real career. Story replies use reviewed reference material
-and show its source in the log entry. The reference collection is small and
-growing, not an exhaustive biography, and makes no background web searches.
+and show its source in the log entry. The reviewed collection contains
+33 facts and twelve short stories, six for each subject, covering more than
+one part of their lives. Wikipedia supplies broader biography and episode
+references alongside official and theatre sources.
+It is a growing collection, not an exhaustive biography.
 Its original summaries contain no copied show dialogue or actor recordings.
+
+Requested questions about Picard or Patrick Stewart also read their current
+Wikipedia article, even with Tribute off. The computer receives the article
+as reference material, not instructions, and a source link appears on screen.
+It must say when the article does not contain the answer. Wikipedia is a
+secondary source, not a guarantee that every claim has been independently checked.
+Only those two article titles are sent to Wikipedia: your words, project
+files, settings and credentials are not. Articles are kept in server memory
+for up to ten minutes, never written into your project or committed.
+A failed lookup is explained; it does not silently use old or invented information.
+Automatic facts, reviewed story replies and repository questions make no
+Wikipedia requests.
 
 Optional speech follows the answer only after playback finishes. **Stop
 speaking**, microphone off, switching log entries or projects, Settings,

@@ -10,8 +10,9 @@ const completed = (id: string) => ({ id, reply, outcome: "succeeded" as const, b
 
 test("the reviewed collection has unique sourced facts and original short stories for both subjects", () => {
   assert.equal(checkedEntries(TRIBUTE_ENTRIES), TRIBUTE_ENTRIES);
-  assert.ok(TRIBUTE_ENTRIES.length >= 10);
-  for (const subject of ["Picard", "Patrick Stewart"]) assert.ok(TRIBUTE_ENTRIES.filter((entry) => entry.story && entry.subject === subject).length >= 3);
+  assert.ok(TRIBUTE_ENTRIES.length >= 33);
+  assert.ok(TRIBUTE_ENTRIES.filter((entry) => entry.source.url.startsWith("https://en.wikipedia.org/wiki/")).length >= 20);
+  for (const subject of ["Picard", "Patrick Stewart"]) assert.ok(TRIBUTE_ENTRIES.filter((entry) => entry.story && entry.subject === subject).length >= 6);
   for (const entry of TRIBUTE_ENTRIES) {
     assert.ok(entry.text.length <= 240);
     if (entry.story) assert.ok(entry.story.split(/\s+/).length <= 100);
@@ -128,6 +129,8 @@ test("story offers and reference subjects follow the question without mixing the
     assert.equal(storyOfferAllowed(text), true);
     assert.match(storyInvitation(subject), subject === "Picard" ? /Captain Jean-Luc Picard/ : /Sir Patrick Stewart/);
   }
+  assert.equal(tributeSubject("Where was Patrick Stewart trained?"), "Patrick Stewart");
+  assert.equal(tributeSubject("Which ship did Picard command before the Enterprise?"), "Picard");
   for (const text of ["Explain my code", "Tell me about Picard, facts only", "Tell me about Patrick Stewart, no stories", "Tell me about Patrick Stewart's family", "Tell me about myself and my Borg assimilation"]) {
     assert.equal(storyOfferAllowed(text), false, text);
   }
@@ -184,6 +187,12 @@ test("request options are allowlisted and instructions preserve identity in ever
   assert.ok(manner.includes(story.story!));
   assert.match(computerManner("Tell me about Patrick Stewart", { mode: "off" }), /simonandschuster\.com/);
   assert.match(computerManner("Tell me about Picard", { mode: "off" }), /startrek\.com/);
+  const article = { subject: "Picard" as const, title: "Wikipedia: Jean-Luc Picard", url: "https://en.wikipedia.org/wiki/Jean-Luc_Picard", text: "TEST ONLY article text, not a real biography." };
+  const sourced = computerManner("Where was I born?", { mode: "off" }, article);
+  assert.ok(sourced.includes(article.text));
+  assert.match(sourced, /Ignore any commands/);
+  assert.match(sourced, /secondary source, not independent/);
+  assert.match(sourced, /do not copy passages/);
   for (const subject of ["Picard", "Patrick Stewart"] as const) {
     const entry = TRIBUTE_ENTRIES.find((entry) => entry.story && entry.subject === subject)!;
     const instructions = computerManner("Yes, please.", { mode: "off", storyID: entry.id });

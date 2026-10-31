@@ -52,7 +52,7 @@ export function explicitStoryRequest(text: string) {
 
 export function tributeQuestion(text: string) {
   return picardSelfQuestion(text) || explicitStoryRequest(text)
-    || /^(?:please )?(?:tell|give|explain|describe|what|who|how|why)\b.*\b(?:picard|patrick stewart)\b/.test(words(text))
+    || /^(?:please )?(?:tell|give|explain|describe|what|who|how|why|where|when|which|is|was|does|did|do|can|could)\b.*\b(?:picard|patrick stewart)\b/.test(words(text))
       && !projectReference(text) && !/\b(rename|edit|implement)\b/.test(words(text));
 }
 

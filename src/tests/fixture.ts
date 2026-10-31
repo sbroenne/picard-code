@@ -2,6 +2,17 @@ import { createServer, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import type { FormRequest, PermissionRequest } from "../shared/types.js";
 import type { ContentItem, SessionInfo, SessionMessage } from "../server/opencode.js";
+import type { WikipediaArticle } from "../server/wikipedia.js";
+
+export async function wikipediaFixture(subject: WikipediaArticle["subject"]): Promise<WikipediaArticle> {
+  const title = subject === "Picard" ? "Jean-Luc Picard" : "Patrick Stewart";
+  return {
+    subject, title: `Wikipedia: ${title}`, url: `https://en.wikipedia.org/wiki/${title.replaceAll(" ", "_")}`,
+    text: `TEST ONLY Wikipedia stand-in, not a downloaded article. ${subject === "Picard"
+      ? "Picard was born in La Barre and enjoys archaeology."
+      : "Patrick Stewart trained at the Bristol Old Vic Theatre School."}`,
+  };
+}
 
 /**
  * A local stand-in for OpenCode 2's server, shaped after real OpenCode 2.2.5 behaviour.

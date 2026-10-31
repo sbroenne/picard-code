@@ -221,6 +221,7 @@ test(`a ${subject} answer offers a matching story aloud; acceptance keeps the wo
   const name = subject === "Picard" ? "Captain Jean-Luc Picard" : "Sir Patrick Stewart";
   await expect.poll(() => spoken.includes(`I can tell you a short story about ${name}.`), { timeout: 20000 }).toBe(true);
   await expect(page.locator(".tribute-invitation")).toContainText(name);
+  await expect(page.locator(".wikipedia-source a")).toHaveAttribute("href", subject === "Picard" ? /Jean-Luc_Picard$/ : /Patrick_Stewart$/);
   await expect(page.getByRole("button", { name: /story/i })).toHaveCount(0);
   await expect(page.locator(".tribute-source a")).toHaveAttribute("href", subject === "Picard" ? /startrek/ : /londontheatre/, { timeout: 25000 });
   await expect(page.locator(".message[data-role=user]").last()).toContainText("Yes, please.");
@@ -274,6 +275,7 @@ test("Tribute off keeps Picard identity without offers", async ({ page }) => {
   await expect(page.locator(".message[data-role=assistant]").first()).toContainText("Jean-Luc Picard", { timeout: 15000 });
   await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   await expect(page.locator(".tribute-invitation")).toHaveCount(0);
+  await expect(page.locator(".wikipedia-source a")).toHaveAttribute("href", /Jean-Luc_Picard$/);
   expect(spoken.some((text) => text.includes("I can tell you"))).toBe(false);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
@@ -285,7 +287,7 @@ test("a spoken repository question keeps its real meaning with Tribute on", asyn
   await expect(page.locator(".message[data-role=assistant]").last()).toContainText("src/retry.ts", { timeout: 15000 });
   await expect.poll(() => spoken.some((text) => text.includes("retry helper")), { timeout: 10000 }).toBe(true);
   await expect(status(page)).toHaveText("Standing by", { timeout: 10000 });
-  await expect(page.locator(".tribute-source, .tribute-invitation")).toHaveCount(0);
+  await expect(page.locator(".tribute-source, .tribute-invitation, .wikipedia-source")).toHaveCount(0);
   expect(spoken.some((text) => text.includes("I can tell you"))).toBe(false);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });

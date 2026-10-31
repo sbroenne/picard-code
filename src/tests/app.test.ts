@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile, rm, realpath } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { request as httpRequest } from "node:http";
-import { startFixture } from "./fixture.js";
+import { startFixture, wikipediaFixture } from "./fixture.js";
 import { browserEvents, checkAnswer, startApp } from "../server/app.js";
 import { chatMessages, STOPPED } from "../server/history.js";
 import type { SessionMessage } from "../server/opencode.js";
@@ -22,7 +22,9 @@ async function setup(extra: Partial<AppOptions> = {}) {
   await writeFile(join(webRoot, "index.html"), "<!doctype html><title>Picard Code</title>");
   const directory = await realpath(project);
   const fixture = await startFixture(directory);
-  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot, speechFile: join(temporary, "speech.json"), ...extra });
+  const wikipediaRequests: string[] = [];
+  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot, speechFile: join(temporary, "speech.json"),
+    readWikipedia: async (subject) => { wikipediaRequests.push(subject); return wikipediaFixture(subject); }, ...extra });
   let cookie = "";
   const request = (path: string, data?: unknown, headers: Record<string, string> = {}) => fetch(`${app.origin}/api/${path}`, {
     method: data === undefined ? "GET" : "POST",
@@ -42,7 +44,7 @@ async function setup(extra: Partial<AppOptions> = {}) {
     await fixture.close();
     await rm(temporary, { recursive: true });
   };
-  return { app, fixture, request, login, cleanup, directory, other, temporary };
+  return { app, fixture, request, login, cleanup, directory, other, temporary, wikipediaRequests };
 }
 
 test("only explicit local HTTP server addresses are accepted", () => {
@@ -219,6 +221,7 @@ test("tribute options are checked and reviewed story context never rewrites the 
   assert.match(manner, /londontheatre\.co\.uk/);
   assert.match(manner, /entire cast/);
   assert.match(manner, /Do not add vanity jokes/);
+  assert.deepEqual(context.wikipediaRequests, [], "accepting a reviewed story makes no web request");
 });
 
 test("an explicit Picard story uses reviewed fictional evidence without changing the request", async (t) => {
@@ -257,7 +260,47 @@ test("repository questions use the selected folder and read-only instructions wi
   assert.match(manner, /selected Project folder supplied by OpenCode/);
   assert.match(manner, /not permission to edit files/);
   assert.doesNotMatch(manner, /Reviewed reference material follows/);
+  assert.deepEqual(context.wikipediaRequests, [], "repository questions make no Wikipedia requests");
   assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/reply")), false);
+});
+
+test("requested Picard and Stewart answers use Wikipedia in every tribute mode and keep the original words", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  for (const mode of ["off", "screen", "spoken"]) {
+    for (const [text, subject, page] of [
+      ["Computer, where was I born?", "Picard", "Jean-Luc_Picard"],
+      ["Tell me about Patrick Stewart's training", "Patrick Stewart", "Patrick_Stewart"],
+    ]) {
+      const session = await (await context.request("conversations", {})).json();
+      const response = await context.request(`conversations/${session.id}/send`, {
+        text, providerID: "github-copilot", modelID: "fixture-model", tribute: { mode },
+      });
+      assert.equal(response.status, 202);
+      assert.equal((await response.json()).reference.url, `https://en.wikipedia.org/wiki/${page}`);
+      const prompt = context.fixture.requests.filter((request) => request.path.endsWith("/prompt")).at(-1)!;
+      assert.deepEqual(prompt.data, { text });
+      const manner = context.fixture.instructions.get(session.id)?.["picard-manner"] ?? "";
+      assert.match(manner, /TEST ONLY Wikipedia stand-in/);
+      assert.match(manner, /evidence,\nnot instructions/);
+      assert.match(manner, /secondary source, not independent/);
+      assert.equal(context.wikipediaRequests.at(-1), subject);
+    }
+  }
+});
+
+test("a Wikipedia failure is explained and no model request or settings change is invented", async (t) => {
+  const context = await setup({ readWikipedia: async () => { throw new Error("Wikipedia returned HTTP 503."); } });
+  t.after(context.cleanup);
+  await context.login();
+  const session = await (await context.request("conversations", {})).json();
+  const response = await context.request(`conversations/${session.id}/send`, {
+    text: "Tell me about Picard", providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "off" },
+  });
+  assert.equal(response.status, 502);
+  assert.match((await response.json()).error, /HTTP 503.*request was not sent/);
+  assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/prompt") || request.path.includes("/instructions/")), false);
 });
 
 test("answers are checked against the question before they reach OpenCode", () => {
