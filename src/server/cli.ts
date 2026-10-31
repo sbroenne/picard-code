@@ -63,6 +63,7 @@ An existing gh sign-in is not a Copilot sign-in.`);
   };
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
+  process.once("SIGHUP", shutdown);
   try {
     let client;
     if (values.connect) {
