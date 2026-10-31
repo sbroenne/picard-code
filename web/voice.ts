@@ -1,9 +1,8 @@
 import { Utterance, type SpeechEvent } from "../src/shared/speech";
 
-type Cue = "request-accepted" | "processing" | "input-failed" | "request-failed";
+type Cue = "request-accepted" | "input-failed" | "request-failed";
 // The downloaded recordings differ in loudness; these keep each one quiet.
-const CUE_VOLUME: Record<Cue, number> = { "request-accepted": 1, "processing": 0.35, "input-failed": 0.5, "request-failed": 0.08 };
-const PROCESSING_DELAY = 2500;
+const CUE_VOLUME: Record<Cue, number> = { "request-accepted": 1, "input-failed": 0.5, "request-failed": 0.08 };
 
 /** "standby" listens on this computer only; "listening" sends one utterance to the listening service. */
 export type ConsolePhase = "off" | "standby" | "listening" | "thinking" | "speaking";
@@ -41,7 +40,6 @@ export class VoiceConversation {
   private cues = new Map<Cue, Promise<AudioBuffer | undefined>>();
   private cueSource?: AudioBufferSourceNode;
   private cueEnded = 0;
-  private processingTimer?: ReturnType<typeof setTimeout>;
 
   constructor(private hooks: {
     changed(): void;
@@ -65,7 +63,6 @@ export class VoiceConversation {
   private clearAudio() {
     clearTimeout(this.playbackTimer);
     this.receivingAudio = false;
-    clearTimeout(this.processingTimer);
     this.stopCue();
     for (const source of this.sources) source.stop();
     this.sources.clear();
@@ -126,17 +123,9 @@ export class VoiceConversation {
   }
 
 
-  /**
-   * Called once when a spoken request has been accepted. Plays the accepted sound, then the processing
-   * sound once if the work is still running after a short wait with nothing else to report.
-   */
-  acknowledge(stillWorking: () => boolean) {
+  /** Called once when a spoken request has been accepted. */
+  acknowledge() {
     void this.sound("request-accepted");
-    const revision = this.revision;
-    clearTimeout(this.processingTimer);
-    this.processingTimer = setTimeout(() => {
-      if (revision === this.revision && stillWorking()) void this.sound("processing");
-    }, PROCESSING_DELAY);
   }
   /** The short acknowledgement when the computer is addressed by name alone. */
   chime() {
@@ -145,6 +134,10 @@ export class VoiceConversation {
   /** Plays the input-failed sound, then listens again once it has finished. */
   private inputFailed() {
     void this.sound("input-failed").then(() => { this.handling = false; this.resume(); });
+  }
+  /** Heard speech that was not sent. Resolves when the input-failed sound has ended. */
+  notSent() {
+    return this.sound("input-failed");
   }
   private fail(message: string) {
     this.failed = true;
@@ -373,7 +366,6 @@ export class VoiceConversation {
     this.media = undefined;
     this.handling = false;
     this.waitingForClick = false;
-    clearTimeout(this.processingTimer);
     this.stopCue();
     if (this.socket?.readyState === WebSocket.OPEN) this.command({ type: "pause" });
     if (this.phase !== "speaking") this.state("off");

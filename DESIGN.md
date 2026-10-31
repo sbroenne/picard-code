@@ -46,10 +46,10 @@ and the recovery step.
 The microphone starts off. Listening, understanding/working, speaking, and
 waiting for a decision have explicit labels. Live understood words are visible,
 without becoming a routine review step. The selected services and their audio disclosure sit beside
-activation. Microphone off, Stop speaking, and Stop work are separate controls.
+activation. Microphone off, Stop speaking, and Belay that (stop work) are separate controls.
 Playback pauses listening; interruption uses the Stop speaking control.
 Optional computer sounds are quiet, play once at a real event (accepted,
-still processing, not understood, failed or denied), never while listening,
+not understood, failed or denied), never while listening,
 and never stand in for the written or spoken explanation.
 
 Native buttons, form labels, disclosure controls, visible keyboard focus, a

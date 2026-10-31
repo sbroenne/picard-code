@@ -32,7 +32,7 @@ export async function startFixture(project: string) {
     timers.add(timer);
   };
   const current = (sessionID: string, generation?: number) => active.has(sessionID) && generations.get(sessionID) === generation;
-  // Like real OpenCode 2.2.5: Stop work saves an "interrupted" entry; a declined action or skipped question saves none.
+  // Like real OpenCode 2.2.5: stopping work saves an "interrupted" entry; a declined action or skipped question saves none.
   const finish = (sessionID: string, outcome: "succeeded" | "failed" | "interrupted", error?: { type: string; message: string }, reason: "user" | "shutdown" = "user") => {
     const directory = sessions.get(sessionID)!.location.directory;
     active.delete(sessionID);

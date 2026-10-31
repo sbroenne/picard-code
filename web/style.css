@@ -148,9 +148,6 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .markdown th { color: var(--peach); font-weight: 600; }
 .markdown pre code { background: none; color: inherit; padding: 0; }
 .message pre { background: #120f0c; color: var(--text); border-left: 4px solid var(--peach); padding: 14px; line-height: 1.6; white-space: pre; overflow-x: auto; max-width: 100%; }
-.tool, .reasoning { margin: 8px 0; padding: 6px 14px; background: #0f0c0a; border-radius: 0 16px 16px 0; font-size: 13px; }
-.tool summary, .reasoning summary { color: var(--muted); font: 500 13px/1.3 var(--lcars); letter-spacing: .08em; text-transform: uppercase; }
-.tool pre, .reasoning p { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0 0; }
 .message-error { color: #ffd6cc; background: #3a1414; padding: 12px; border-radius: 0 16px 16px 0; }
 .approval { padding: 18px 20px; margin: 16px 0 0; border-left: 14px solid var(--gold); border-radius: 0 26px 26px 0; background: #1f1708; }
 .approval h3 { margin: 0 0 8px; font: 600 24px/1.1 var(--lcars); letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
@@ -202,7 +199,9 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .voice-partial.not-sent { color: var(--muted); font-size: 15px; }
 .voice-note, .voice-setup-hint { margin: 10px 0 0; max-width: 62ch; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .voice-setup-hint { color: #ffb3a8; }
-.console-actions { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.console-actions { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 190px; }
+/* LCARS segments: square on the console side, rounded on the outer end. */
+.console-actions .pill { justify-content: flex-end; min-height: 48px; padding: 8px 20px; border-radius: 0 24px 24px 0; }
 .console-actions:not(:has(:not([hidden]))) { display: none; }
 
 /* Slide-outs: they open beside the side panel, over the conversation. */
@@ -257,7 +256,8 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
   .brand { align-items: flex-start; }
   .tribute { white-space: normal; }
   .console { grid-template-columns: auto minmax(0, 1fr); }
-  .console-actions { grid-column: 1 / -1; flex-direction: row; }
+  .console-actions { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; }
+  .console-actions .pill { min-width: 190px; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .drawer:not([hidden]) { animation: slide 180ms ease-out; }

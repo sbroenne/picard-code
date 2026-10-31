@@ -7,7 +7,7 @@ const folder = resolve(`.picard-test-voice-audio-${process.pid}`);
 const microphoneFile = join(folder, "utterance.wav");
 const soundFolder = join(folder, "sounds");
 // Silent stand-ins for the downloaded sounds; each has its own length so the test can tell them apart.
-const SOUND_LENGTHS = { "request-accepted": 0.3, "processing": 0.5, "input-failed": 0.4, "request-failed": 0.6 };
+const SOUND_LENGTHS = { "request-accepted": 0.3, "input-failed": 0.4, "request-failed": 0.6 };
 // Simulated speaker output keeps the browser's audio clock running even when this computer's real speakers are unavailable.
 test.use({ permissions: ["microphone"], launchOptions: { args: [
   "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--disable-audio-output",
@@ -175,7 +175,7 @@ test("a question is asked aloud; a negated reply is not taken as a choice; a cle
   expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
 });
 
-test("silence and speech not addressed to the computer are not sent and make no sound", async ({ page }) => {
+test("silence makes no sound; speech not addressed to the computer is not sent and plays the input-failed sound", async ({ page }) => {
   await launch(page, "unclear");
   await startListening(page);
   await expect(page.locator("#voice-partial")).toHaveText("Not sent: “Is it raining outside” Start with “Computer”.", { timeout: 20000 });
@@ -183,21 +183,23 @@ test("silence and speech not addressed to the computer are not sent and make no 
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
   await expect(page.locator(".message[data-role=user]")).toHaveText(/Computer, hello there/);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
-  expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
+  expect((await sounds(page)).map((sound) => sound.split(":")[0])).toEqual(["input-failed", "request-accepted"]);
 });
 
-test("long work plays the processing sound once, and “Stop” cancels it within the task", async ({ page }) => {
+test("long work plays only the accepted sound, and “Stop” cancels it within the task", async ({ page }) => {
   const spoken = spokenText(page);
   await launch(page, "slow");
   await startListening(page);
-  await expect.poll(() => sounds(page), { timeout: 15000 }).toEqual(["request-accepted: Understanding", "processing: Working"]);
-  await expect(page.locator("#status-detail")).toHaveText("Say “Stop” to cancel.");
+  await expect(page.locator("#status-detail")).toHaveText("Say “Stop” to cancel.", { timeout: 15000 });
+  // No sound plays while the work continues.
+  await page.waitForTimeout(3000);
+  expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
   await expect.poll(() => spoken.at(-1), { timeout: 15000 }).toBe("Work stopped, Captain.");
   await expect(status(page)).toHaveText(/Speaking|Preparing reply|Standing by/);
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   // Stopping by voice is not a failure, so no failure sound plays.
-  expect(await sounds(page)).toEqual(["request-accepted: Understanding", "processing: Working"]);
+  expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
 });
 
 test("a denied action plays the failure sound once, then speaks the result", async ({ page }) => {
@@ -209,7 +211,6 @@ test("a denied action plays the failure sound once, then speaks the result", asy
   await page.getByRole("button", { name: "Deny", exact: true }).click();
   await expect.poll(() => spoken.at(-1), { timeout: 10000 }).toBe("Request denied. The action was not carried out.");
   await page.getByRole("button", { name: "Switch microphone off" }).click();
-  // No processing sound while the approval waited.
   expect(await sounds(page)).toEqual(["request-accepted: Understanding", "request-failed: Preparing reply"]);
 });
 
@@ -224,14 +225,14 @@ test("Allow once lets the requested action go ahead", async ({ page }, info) => 
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
-test("the Stop work button cancels spoken work", async ({ page }) => {
+test("the Belay that button cancels spoken work", async ({ page }) => {
   await launch(page, "long");
   await startListening(page);
-  await expect(page.getByRole("button", { name: "Stop work" })).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole("button", { name: "Belay that" })).toBeVisible({ timeout: 15000 });
   await page.getByRole("button", { name: "Switch microphone off" }).click();
-  await page.getByRole("button", { name: "Stop work" }).click();
+  await page.getByRole("button", { name: "Belay that" }).click();
   await expect(status(page)).toHaveText("Microphone off", { timeout: 10000 });
-  await expect(page.getByRole("button", { name: "Stop work" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Belay that" })).toBeHidden();
 });
 
 test("a question can also be answered by choosing on screen", async ({ page }) => {
@@ -336,8 +337,7 @@ test("“Stop listening”, even without “Computer”, is acknowledged and ret
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1, { timeout: 20000 });
   await expect(page.locator(".message[data-role=user]")).toContainText("Computer, hello there");
   const heard = await sounds(page);
-  expect(heard[0]).toMatch(/^request-accepted/);
-  expect(heard).toHaveLength(2);
+  expect(heard.map((sound) => sound.split(":")[0])).toEqual(["request-accepted", "input-failed", "request-accepted"]);
   // Clicking the console does not switch the microphone off; the microphone button does.
   await page.locator("#status").click();
   await expect(status(page)).not.toHaveText("Microphone off");

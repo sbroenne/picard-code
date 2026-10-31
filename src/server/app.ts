@@ -7,7 +7,7 @@ import { chatMessages, availableModels, errorMessage } from "./engine.js";
 import { partID } from "./history.js";
 import type { OpenCode, OpenCodeEvent } from "./opencode.js";
 import { projectDirectory } from "./process.js";
-import { COMPUTER_MANNER } from "./instructions.js";
+import { computerInstructions } from "./instructions.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechService } from "./speech-types.js";
 import { describeSpeechSettings, mergeSpeechSettings, readSpeechSettings, saveSpeechSettings, speechFromSettings, speechSettingsFile } from "./speech.js";
@@ -275,7 +275,7 @@ export async function startApp(options: AppOptions) {
           json(response, 200, await state(project));
           return;
         }
-        const soundName = /^\/api\/sounds\/(request-accepted|processing|input-failed|request-failed)$/.exec(path)?.[1];
+        const soundName = /^\/api\/sounds\/(request-accepted|input-failed|request-failed)$/.exec(path)?.[1];
         if (soundName && method === "GET") {
           let sound: Buffer;
           try {
@@ -378,7 +378,7 @@ export async function startApp(options: AppOptions) {
             if (session.title === "New log entry" || session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
             if (session.model?.id !== modelID || session.model.providerID !== providerID) await client.setModel(id, project, { id: modelID, providerID });
             // Picard Code's conversation manner travels with the conversation, not as a file in the project.
-            await client.setInstructions(id, project, "picard-manner", COMPUTER_MANNER);
+            await client.setInstructions(id, project, "picard-manner", computerInstructions(new Date()));
             await client.prompt(id, project, text);
             json(response, 202, { accepted: true });
             return;
