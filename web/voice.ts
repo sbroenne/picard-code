@@ -1,8 +1,8 @@
 import { Utterance, type SpeechEvent } from "../src/shared/speech";
 
-type Cue = "request-accepted" | "input-failed" | "request-failed";
+type Cue = "startup" | "request-accepted" | "input-failed" | "request-failed";
 // The downloaded recordings differ in loudness; these keep each one quiet.
-const CUE_VOLUME: Record<Cue, number> = { "request-accepted": 1, "input-failed": 0.5, "request-failed": 0.08 };
+const CUE_VOLUME: Record<Cue, number> = { startup: 0.15, "request-accepted": 1, "input-failed": 0.5, "request-failed": 0.08 };
 
 /** "standby" listens on this computer only; "listening" sends one utterance to the listening service. */
 export type ConsolePhase = "off" | "standby" | "listening" | "thinking" | "speaking";
@@ -43,6 +43,8 @@ export class VoiceConversation {
   private cues = new Map<Cue, Promise<AudioBuffer | undefined>>();
   private cueSource?: AudioBufferSourceNode;
   private cueEnded = 0;
+  private startupPending = true;
+  private startupReady = false;
 
   constructor(private hooks: {
     changed(): void;
@@ -80,24 +82,25 @@ export class VoiceConversation {
     if (!cue) {
       cue = (async () => {
         const response = await fetch(`/api/sounds/${name}`);
-        if (response.status === 404) return undefined;
-        if (!response.ok) throw new Error();
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return await context.decodeAudioData(await response.arrayBuffer());
-      })().catch(() => {
-        this.hooks.error("A computer sound could not be loaded. Speaking and listening continue without it.");
+      })().catch((error: unknown) => {
+        this.hooks.error(`The ${name} sound could not be loaded: ${error instanceof Error ? error.message : String(error)}. Restart Picard Code to check and download its sounds.`);
         return undefined;
       });
       this.cues.set(name, cue);
     }
     return cue;
   }
-  /** Sounds play only while the microphone is on, nothing is being heard, and no spoken answer is due. */
+  /** The arrival call also works before speech is set up; no sound interrupts a request or spoken answer. */
   private canSound(context: AudioContext, revision: number, name: Cue) {
+    if (this.context !== context || revision !== this.revision) return false;
+    if (name === "startup") return context.state === "running" && !this.cueSource && !this.speechPending && !this.handling
+      && (this.phase === "off" || this.phase === "standby");
     // The failure sound plays just before its spoken explanation, so it is allowed while that speech waits.
-    return this.context === context && revision === this.revision && this.microphone && this.phase !== "listening"
-      && (!this.speechPending || name === "request-failed");
+    return this.microphone && this.phase !== "listening" && (!this.speechPending || name === "request-failed");
   }
-  /** Plays one short optional sound. Resolves when it ends or is stopped. Listening or computer speech stops it. */
+  /** Plays one short sound. Resolves when it ends or is stopped. Listening or computer speech stops it. */
   private async sound(name: Cue) {
     const context = this.context;
     const revision = this.revision;
@@ -125,6 +128,34 @@ export class VoiceConversation {
     });
   }
 
+  private startup() {
+    if (!this.startupReady || !this.startupPending || !this.context || this.context.state !== "running") return;
+    this.startupPending = false;
+    void this.sound("startup");
+  }
+
+  private audioContext() {
+    if (!this.context) {
+      const context = new AudioContext();
+      this.context = context;
+      context.onstatechange = () => {
+        if (this.context !== context) return;
+        this.waitingForClick = context.state === "suspended";
+        if (context.state === "running") this.startup();
+        this.hooks.changed();
+      };
+    }
+    return this.context;
+  }
+
+  /** Welcomes the Captain once after the app opens, waiting for browser permission to play audio. */
+  arrive() {
+    if (this.startupReady) return;
+    this.startupReady = true;
+    const context = this.audioContext();
+    void context.resume().catch(() => undefined);
+    this.startup();
+  }
 
   /** Called once when a spoken request has been accepted. */
   acknowledge() {
@@ -161,18 +192,10 @@ export class VoiceConversation {
     const revision = ++this.revision;
     try {
       if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error("This browser cannot capture live speech. Use a current Chrome, Edge, Firefox or Safari.");
-      if (!this.context) {
-        const context = new AudioContext();
-        this.context = context;
-        context.onstatechange = () => {
-          if (this.context !== context) return;
-          this.waitingForClick = context.state === "suspended";
-          this.hooks.changed();
-        };
-      }
+      const context = this.audioContext();
       // Without a recent click the browser keeps sound suspended until the next one; do not wait for it here.
-      void this.context.resume().catch(() => undefined);
-      for (const name of Object.keys(CUE_VOLUME) as Cue[]) void this.loadCue(this.context, name);
+      void context.resume().catch(() => undefined);
+      for (const name of Object.keys(CUE_VOLUME) as Cue[]) void this.loadCue(context, name);
       const media = await navigator.mediaDevices.getUserMedia({ audio: {
         channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
       } });
@@ -181,13 +204,13 @@ export class VoiceConversation {
       media.getTracks().forEach((track) => { track.onended = () => {
         if (this.microphone) { this.failed = true; this.microphoneOff(); this.hooks.error("The microphone disconnected. Check your device, then click the microphone button to listen again."); }
       }; });
-      await this.context.audioWorklet.addModule("/microphone-worklet.js");
+      await context.audioWorklet.addModule("/microphone-worklet.js");
       if (revision !== this.revision) return;
-      this.capture = new AudioWorkletNode(this.context, "picard-microphone");
-      const source = this.context.createMediaStreamSource(media);
-      const silent = this.context.createGain();
+      this.capture = new AudioWorkletNode(context, "picard-microphone");
+      const source = context.createMediaStreamSource(media);
+      const silent = context.createGain();
       silent.gain.value = 0;
-      source.connect(this.capture).connect(silent).connect(this.context.destination);
+      source.connect(this.capture).connect(silent).connect(context.destination);
       this.capture.port.onmessage = (event: MessageEvent<ArrayBuffer>) => this.heard(event.data);
       if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
         await this.connect();
@@ -195,7 +218,7 @@ export class VoiceConversation {
       if (revision !== this.revision) return;
       this.microphone = true;
       this.partial = "";
-      this.waitingForClick = this.context.state === "suspended";
+      this.waitingForClick = context.state === "suspended";
       if (!this.speechPending) this.resume();
     } catch (error) {
       this.failed = true;
@@ -203,6 +226,7 @@ export class VoiceConversation {
       throw new Error(`Could not start listening. ${error instanceof Error ? error.message : "Check microphone permissions and the selected speech setup."}`);
     } finally {
       this.opening = false;
+      this.startup();
       this.hooks.changed();
     }
   }
@@ -370,6 +394,7 @@ export class VoiceConversation {
     if (can ? this.phase === "thinking" || this.phase === "off" : this.phase === "standby" || this.phase === "listening") this.resume();
   }
   microphoneOff() {
+    this.startupPending = false;
     this.cancelFollowOn();
     ++this.revision;
     this.microphone = false;

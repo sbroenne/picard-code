@@ -62,10 +62,10 @@ original TNG-inspired look.
   "captain style" before sending. Negations, exact names, limits and approval
   boundaries must survive unchanged.
 - **No copied franchise material in the repository.** No show artwork,
-  dialogue, voice cloning or recordings are committed. The three optional
-  TrekCore sounds are downloaded by `npm run setup:sounds` into the ignored
-  `.picard-sounds` folder, with the owner's confirmed permission; keep them out
-  of git and keep their attribution in `THIRD_PARTY_NOTICES.md`.
+  dialogue, voice cloning or recordings are committed. The four TrekCore
+  sounds are downloaded at startup (or by `npm run setup:sounds`) into the
+  ignored `.picard-sounds` folder; keep them out of git and keep their
+  attribution and permission limits in `THIRD_PARTY_NOTICES.md`.
 - **Downloaded models, Python environments and samples stay out of git**
   (`.picard-voice`). Keep license notices for anything downloaded.
 
@@ -122,6 +122,7 @@ never instead of the written or spoken explanation:
 
 | Sound | When |
 | --- | --- |
+| `startup` | Once when the app opens, even before speech is set up; waits for a click if the browser blocks sound. Never for a new log entry or microphone restart. |
 | `request-accepted` | A spoken request was accepted by OpenCode, "Computer" was said on its own and the computer is waiting for the request, or "stop listening" was acknowledged. |
 | `input-failed` | Speech was not understood, could not be sent, or was not sent because it did not start with "Computer". |
 | `request-failed` | An accepted request finally failed or was denied, just before the spoken result. |
