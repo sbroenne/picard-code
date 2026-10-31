@@ -4,7 +4,7 @@ import { BRIDGE_CREW, addressedOfficer } from "../shared/crew.js";
 import { crewConfiguration, verifiedCrew } from "../server/crew.js";
 import type { AgentInfo, PermissionRule } from "../server/opencode.js";
 import { chatMessages } from "../server/history.js";
-import { COMPUTER_MANNER, CREW_ROUTING, computerInstructions, computerManner } from "../server/instructions.js";
+import { CAPTAINS_ORDERS, COMPUTER_MANNER, CREW_ROUTING, computerInstructions, computerManner } from "../server/instructions.js";
 import { crewInstructions } from "../server/crew.js";
 
 test("only explicit officer addresses select crew, without changing the user's words", () => {
@@ -14,6 +14,18 @@ test("only explicit officer addresses select crew, without changing the user's w
     assert.equal(addressedOfficer(`Have ${officer.name} coordinate this`)?.id, officer.id);
   }
   assert.equal(addressedOfficer("Computer, Doctor Crusher, check recovery")?.id, "picard-crusher");
+  const ranks: [string, string][] = [
+    ["Computer, Number One, report.", "picard-riker"], ["Will, coordinate this", "picard-riker"], ["Computer, Commander Riker, explain this", "picard-riker"],
+    ["Computer, Mr. Data, explain this", "picard-data"], ["Computer, Lieutenant Commander Data, analyse this", "picard-data"],
+    ["Computer, Mr. La Forge, repair the build", "picard-geordi"], ["Computer, LaForge, check this", "picard-geordi"], ["Have Geordi La Forge build it", "picard-geordi"],
+    ["Computer, Mr. Worf, review the login", "picard-worf"], ["Computer, Lieutenant Worf, check this", "picard-worf"],
+    ["Computer, Counselor, review this message", "picard-troi"], ["Computer, Deanna, explain this", "picard-troi"],
+    ["Computer, Doctor, check recovery", "picard-crusher"], ["Computer, Beverly, review this plan", "picard-crusher"], ["Computer, Dr. Crusher, check this", "picard-crusher"],
+  ];
+  for (const [text, id] of ranks) assert.equal(addressedOfficer(text)?.id, id, text);
+  for (const text of ["Computer, Commander, review this", "Computer, will the build pass?", "Computer, Doctor Who facts, please", "Computer, number one priority: fix the build"]) {
+    assert.equal(addressedOfficer(text), undefined, text);
+  }
   for (const text of ["Computer, do not ask Data to review this", "Computer, don't have Riker coordinate this", "Computer, explain what Geordi does", "Data is missing from this file", "Review Riker's suggestion"]) {
     assert.equal(addressedOfficer(text), undefined);
   }
@@ -63,6 +75,40 @@ test("officer personalities are supplied at registration and on each request; th
   assert.match(COMPUTER_MANNER, /Handle general questions, writing, research and planning as well as coding/);
   assert.match(computerInstructions(now), /neutral manner for both code and non-code requests/);
   assert.doesNotMatch(computerInstructions(now), /This reply is from Riker/);
+});
+
+test("officers speak in their own bridge voices, not the computer's neutral one", () => {
+  const now = new Date("2026-10-31T12:00:00Z");
+  for (const officer of BRIDGE_CREW) {
+    for (const instructions of [crewInstructions(officer), computerInstructions(now, officer.id)]) {
+      assert.doesNotMatch(instructions, /restrained manner of a helpful ship computer|use no other titles or names/, `${officer.name} must not be told to sound like the computer`);
+      assert.match(instructions, /Starfleet officer reporting to the Captain/);
+      assert.match(instructions, /Never quote or paraphrase lines from the show/);
+      assert.match(instructions, /never invent\s+ship status/);
+      assert.match(instructions, /Never invent completion/);
+      assert.match(instructions, /"Make it so"/);
+    }
+  }
+  const voice = (name: string) => BRIDGE_CREW.find((officer) => officer.name === name)!.personality;
+  assert.match(voice("Riker"), /Number One/);
+  assert.match(voice("Data"), /Never use contractions/);
+  assert.match(voice("Geordi"), /chief engineer/);
+  assert.match(voice("Worf"), /few words/);
+  assert.match(voice("Troi"), /I sense/);
+  assert.match(voice("Crusher"), /"Jean-Luc"/);
+  assert.match(COMPUTER_MANNER, /use no other titles or names/, "the computer keeps calling him only Captain");
+});
+
+test("the Captain's orders are understood, but never answer an approval or widen a request", () => {
+  for (const instructions of [COMPUTER_MANNER, ...BRIDGE_CREW.map((officer) => crewInstructions(officer))]) {
+    assert.ok(instructions.includes(CAPTAINS_ORDERS));
+  }
+  assert.match(CAPTAINS_ORDERS, /"Make it so"[\s\S]*carry out exactly what\s+was just proposed[\s\S]*nothing more/);
+  assert.match(CAPTAINS_ORDERS, /unclear which proposal he means[\s\S]*ask one short question instead of guessing/);
+  assert.match(CAPTAINS_ORDERS, /"Engage" means start the agreed work now/);
+  assert.match(CAPTAINS_ORDERS, /never answer an approval or a\s+question waiting on screen/);
+  assert.match(CREW_ROUTING, /"Number One" or "Will" is Riker/);
+  assert.match(CREW_ROUTING, /"Make it so" after that officer's proposal, give it to the same\s+officer and pass the sessionID/);
 });
 
 test("the computer routes only when the crew is loaded, and officers never route", () => {

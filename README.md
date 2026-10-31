@@ -76,20 +76,40 @@ Riker coordinates, Data investigates, Geordi builds and repairs, Worf reviews
 risks, Troi reviews clarity and usability, and Crusher checks software health
 and recovery. The computer remains a separate interface.
 
-The officers retain their TNG-inspired personalities: Riker is confident and
-decisive, Data precise and curious, Geordi warm and practical, Worf direct and
-protective, Troi empathetic and diplomatic, and Crusher compassionate and
-principled. These traits guide how they advise and explain, without copied
-dialogue, invented scenes or actor voice imitation. They can contribute to
-non-code work too; the computer keeps its restrained, neutral manner.
+Each officer speaks in their own TNG voice, as a Starfleet officer reporting to
+the Captain: Riker is confident and gives firm recommendations, Data is exact
+and never uses contractions, Geordi is friendly and practical, Worf uses few,
+grave words, Troi is calm and asks gentle questions, and Crusher is direct and
+may call you "Jean-Luc" when she disagrees. They say "Captain" or "sir", and
+"Aye, sir." only when actually carrying out an order. There is no copied
+dialogue, no famous scenes or running jokes, and no actor voice imitation. They
+can contribute to non-code work too; the computer keeps its restrained, neutral
+manner. [docs/research/bridge-crew-voices.md](docs/research/bridge-crew-voices.md)
+explains the choices and their evidence limits.
 
-Start with **Computer**, as before. For example:
+Start with **Computer**, as before. Officers answer to their bridge names:
+"Number One" or "Will", "Mr. Data", "Mr. La Forge" or "Geordi", "Mr. Worf",
+"Counselor" or "Deanna", "Doctor" or "Beverly". For example:
 
 - "Computer, Data, explain this project."
 - "Computer, ask Geordi to investigate this failure. Do not change any files."
-- "Computer, have Riker coordinate a review of this change."
-- "Computer, Troi, review this invitation for clarity."
+- "Computer, Number One, coordinate a review of this change."
+- "Computer, Counselor, review this invitation for clarity."
 - "Computer, help me plan a visit to a museum."
+
+The computer and the officers also understand the Captain's orders:
+
+- **"Make it so"** (or "proceed") carries out exactly what was just proposed in
+  that log entry, and nothing more. After an officer's proposal, it goes back to
+  that officer. If nothing was proposed, or it is unclear which proposal you
+  mean, you are asked one short question.
+- **"Engage"** starts the agreed work now.
+- **"Report"** gives what is done, under way and failed; **"Options"** gives two
+  or three choices with a recommendation first; **"On screen"** shows it on screen.
+
+When a question from OpenCode is waiting with exactly one plain yes answer
+(such as "Yes" or "Proceed"), saying "Make it so" or "Engage" chooses it.
+Approvals are never answered by voice, including by these orders.
 
 You do not have to name an officer. When you don't, the computer decides: it
 answers ordinary requests itself, hands a clear specialist request to the right
@@ -141,8 +161,12 @@ why the crew is unavailable, and the computer answers every request itself. With
 crew requests require the server to have the matching crew definitions and
 permission rules. Naming an officer then reports that the crew is unavailable.
 
-`npm run test:crew:live` checks real officer replies, automatic routing
-(including misheard names) and Riker's actual delegation. It makes model requests, may incur provider charges, and never
+`npm run test:crew:live` checks real officer replies and a few measurable voice
+habits (no exclamation marks, Data without contractions, Worf brief), "Make it
+so" carrying out an officer's own proposal, an unclear "Make it so" answered
+with a question, automatic routing (including misheard names) and Riker's
+actual delegation. It cannot judge whether an officer sounds right; that needs
+you. It makes model requests, may incur provider charges, and never
 answers an approval itself. It does not check a physical microphone or speakers.
 
 ## Connect a model provider

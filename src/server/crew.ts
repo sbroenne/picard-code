@@ -1,15 +1,10 @@
 import { BRIDGE_CREW } from "../shared/crew.js";
-import { COMPUTER_MANNER } from "./instructions.js";
+import { officerManner } from "./instructions.js";
 import type { AgentInfo, PermissionRule, OpenCode } from "./opencode.js";
 
 export function crewInstructions(officer: typeof BRIDGE_CREW[number]) {
-  return `${COMPUTER_MANNER}
+  return `${officerManner(officer)}
 
-You are the ${officer.name} bridge officer profile, inspired by that officer's
-TNG personality, not an imitation of an actor or an official franchise product.
-Use this personality instead of the computer's neutral manner, while keeping
-its brevity, truthfulness and respect for the Captain:
-${officer.personality}
 ${officer.role}
 Handle non-code work as well as software work. Apply your expertise to the
 actual subject; do not turn every request into a coding task.

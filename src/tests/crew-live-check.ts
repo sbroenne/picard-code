@@ -39,17 +39,18 @@ try {
     assert.equal(response.ok, true, result.error);
     return result as T;
   };
-  const settle = async (id: string) => {
+  const answered = (history: ChatMessage[]) => history.filter((message) => message.role === "assistant" && !message.background && (message.error || message.parts.some((part) => part.type === "text" && part.text.trim()))).length;
+  // Waits for a new reply. A question the computer asks on screen ends the wait only when allowed.
+  const settle = async (id: string, earlier = 0, questionAllowed = false) => {
     const deadline = Date.now() + 240_000;
     while (Date.now() < deadline) {
       await wait(500);
       const state = await api<AppState>("state");
       assert.equal(state.permissions.length, 0, "A real approval is waiting; this check will not answer it.");
+      const question = state.questions.find((item) => item.sessionID === id);
+      if (question && questionAllowed) return question;
       assert.equal(state.questions.length, 0, "A real question is waiting; this check will not invent an answer.");
-      if (!state.statuses[id]) {
-        const history = await api<ChatMessage[]>(`conversations/${id}/messages`);
-        if (history.some((message) => message.role === "assistant" && !message.background && (message.error || message.parts.some((part) => part.type === "text" && part.text.trim())))) return;
-      }
+      if (!state.statuses[id] && answered(await api<ChatMessage[]>(`conversations/${id}/messages`)) > earlier) return undefined;
     }
     throw new Error("The real crew did not finish within the check's limit.");
   };
@@ -60,6 +61,8 @@ try {
     await settle(entry.id);
     return { id: entry.id, messages: await api<ChatMessage[]>(`conversations/${entry.id}/messages`) };
   };
+  const text = (message?: ChatMessage) => message?.parts.filter((part) => part.type === "text").map((part) => part.text).join("").trim() ?? "";
+  const CONTRACTION = /\b(?:\w+n['’]t|\w+['’](?:re|ve|ll|m|d)|(?:it|that|there|what|let|here|he|she|who)['’]s)\b/i;
   const ordinary = await send("Computer, write one short sentence inviting a friend to visit a museum. Do not ask questions, use tools or change files.");
   const ordinaryReply = ordinary.messages.findLast((message) => message.role === "assistant");
   assert.equal(ordinaryReply?.speaker, undefined, "ordinary requests remain with the neutral computer");
@@ -99,8 +102,30 @@ try {
     assert.equal(reply?.speaker, officer.id);
     assert.ok(reply?.parts.some((part) => part.type === "text" && part.text.trim()));
     assert.equal(reply?.error, undefined);
-    assert.match(reply?.parts.filter((part) => part.type === "text").map((part) => part.text).join("") ?? "", request.expected, `${officer.name} must answer the non-code question`);
+    const said = text(reply);
+    assert.match(said, request.expected, `${officer.name} must answer the non-code question`);
+    assert.doesNotMatch(said, /!/, `${officer.name} speaks as a bridge officer, without exclamation marks:\n${said}`);
+    if (officer.id === "picard-data") assert.doesNotMatch(said, CONTRACTION, `Data never uses contractions:\n${said}`);
+    if (officer.id === "picard-worf") assert.ok(said.split(/\n\s*\n/)[0]!.split(/\s+/).length <= 30, `Worf uses few words:\n${said}`);
   }
+  // "Make it so" carries out exactly the officer's own proposal in the same log entry.
+  const proposal = await send("Computer, Data, I would like a short invitation to a museum visit for a friend. In one sentence, propose what it should say, then wait for my order before writing it. Do not use tools or change files.");
+  const proposed = text(proposal.messages.findLast((message) => message.role === "assistant"));
+  await api(`conversations/${proposal.id}/send`, { text: "Make it so.", providerID: model.providerID, modelID: model.modelID, bridge: true });
+  await settle(proposal.id, answered(proposal.messages));
+  const carried = (await api<ChatMessage[]>(`conversations/${proposal.id}/messages`)).findLast((message) => message.role === "assistant" && !message.background);
+  assert.equal(carried?.speaker, "picard-data", "the order goes to the officer who made the proposal");
+  assert.match(text(carried), /museum/i, `"Make it so" must carry out the proposal. Data proposed:\n${proposed}\nand then said:\n${text(carried)}`);
+  assert.notEqual(text(carried), proposed, `"Make it so" must write the invitation, not repeat the proposal:\n${text(carried)}`);
+  assert.doesNotMatch(text(carried), /\?\s*$/, `"Make it so" after a clear proposal is an order to act, not a reason to ask again:\n${text(carried)}`);
+  // With nothing proposed, the order to proceed is a question, never a guess.
+  const unclear = await api<{ id: string }>("conversations", {});
+  roots.push(unclear.id);
+  await api(`conversations/${unclear.id}/send`, { text: "Computer, make it so.", providerID: model.providerID, modelID: model.modelID, bridge: true });
+  const onScreen = await settle(unclear.id, 0, true);
+  if (onScreen) await api(`questions/${encodeURIComponent(onScreen.id)}`, { skip: true });
+  else assert.match(text((await api<ChatMessage[]>(`conversations/${unclear.id}/messages`)).findLast((message) => message.role === "assistant")), /\?/, "with nothing proposed, the computer must ask what to carry out");
+  assert.equal((await engine.client.sessions(project, unclear.id)).length, 0, "an unclear order is not handed to an officer");
   const coordinated = await send(`Computer, Riker, coordinate a review of example.ts. Use the actual subagent tool to give one separate assignment to each of picard-data, picard-geordi, picard-worf, picard-troi and picard-crusher. Pass these limits unchanged: review only, no edits, no shell commands, no approval answers, and use your current selected model. Each officer should read example.ts and return one sentence about their area. Wait for all five actual results and give a brief combined report.`);
   const children = await engine.client.sessions(project, coordinated.id);
   for (const officer of BRIDGE_CREW.filter((member) => member.id !== "picard-riker")) {
@@ -112,7 +137,7 @@ try {
   }
   assert.equal(coordinated.messages.findLast((message) => !message.background && message.role === "assistant")?.speaker, "picard-riker");
   assert.deepEqual((await readdir(project)).sort(), ["example.ts", "opencode.json"]);
-  console.log("Real crew check passed: neutral computer writing without routing, the computer answering an officer request with the Bridge crew off, automatic routing to Worf (also when misheard as Walt) and to Riker (misheard as Rika) with a computer relay, Riker handing work on to Worf and Data after being routed, all six non-code officer replies, five separate delegated coding contexts, selected-model inheritance and one combined Riker report. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
+  console.log("Real crew check passed: neutral computer writing without routing, the computer answering an officer request with the Bridge crew off, automatic routing to Worf (also when misheard as Walt) and to Riker (misheard as Rika) with a computer relay, Riker handing work on to Worf and Data after being routed, all six non-code officer replies in their own voices (Data without contractions, Worf brief, no exclamation marks), \"Make it so\" carrying out Data's proposal, an unclear \"Make it so\" answered with a question, five separate delegated coding contexts, selected-model inheritance and one combined Riker report. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
 } finally {
   await app?.close();
   try {

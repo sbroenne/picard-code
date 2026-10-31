@@ -72,11 +72,17 @@ and `src/shared/speech.ts` (what is spoken aloud). Keep replies brief, precise
 and neutral; acknowledge only when true; say clearly when information is not
 available. Spoken answers are complete short sentences, with detail on screen.
 The computer handles non-code questions, writing, research and planning too.
-The six bridge officers retain restrained TNG-inspired personalities alongside
-their responsibilities: confident Riker, precise and curious Data, practical
-and warm Geordi, direct and protective Worf, empathetic Troi, and compassionate
-and principled Crusher. Their manner does not invent results,
-copy television dialogue or imitate actors. The computer stays neutral.
+The six bridge officers speak in their own TNG voices, as Starfleet officers
+reporting to their Captain, alongside their responsibilities: Riker confident
+with firm recommendations, Data exact and without contractions, Geordi friendly
+and practical, Worf brief and grave, Troi calm and perceptive, and Crusher
+direct, calling him "Jean-Luc" when she challenges him. Their voice and the
+Captain's orders ("Make it so", "Engage", "Report", "Options", "On screen")
+live in `src/shared/crew.ts` and `src/server/instructions.ts`; see
+`docs/research/bridge-crew-voices.md`. "Make it so" carries out only what was
+just proposed, asks when that is unclear, and never answers an approval. The
+officers do not invent results, copy television dialogue, mention famous
+scenes or imitate actors. The computer stays neutral.
 Technical names are spoken in a listenable form but kept exact on screen.
 Avoid repeated catchphrases such as "Working". The user is always
 Captain Jean-Luc Picard: their lines are labelled "Picard" on screen, and the
