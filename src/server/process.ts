@@ -1,11 +1,13 @@
 import { spawn, execFile, type ChildProcess } from "node:child_process";
-import { access, realpath, stat } from "node:fs/promises";
+import { access, realpath, stat, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { createServer } from "node:net";
 import { delimiter, dirname, join, extname } from "node:path";
 import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { makeClient } from "./engine.js";
+import { crewConfiguration, requireCrew } from "./crew.js";
 
 const execute = promisify(execFile);
 
@@ -112,9 +114,23 @@ export async function startEngine(directory: string, signal?: AbortSignal) {
   const port = await freePort();
   const password = randomBytes(32).toString("hex");
   const command = await openCodeCommand();
+  const configuration = await mkdtemp(join(tmpdir(), "picard-crew-"));
+  const configFile = join(configuration, "opencode.json");
+  const env: NodeJS.ProcessEnv = { ...process.env, OPENCODE_SERVER_PASSWORD: password, OPENCODE_SERVER_USERNAME: "opencode" };
+  if (!env.OPENCODE_CONFIG_DIR) env.OPENCODE_CONFIG_DIR = configuration;
+  else if (!env.OPENCODE_CONFIG) env.OPENCODE_CONFIG = configFile;
+  else {
+    await rm(configuration, { recursive: true });
+    throw new Error("Picard Code needs a separate OpenCode configuration location for the bridge crew. Both OPENCODE_CONFIG and OPENCODE_CONFIG_DIR are already set. Keep one unset, or connect to an existing server without crew support.");
+  }
+  try { await writeFile(configFile, JSON.stringify(crewConfiguration()), { mode: 0o600 }); }
+  catch (error) {
+    await rm(configuration, { recursive: true });
+    throw error;
+  }
   const child = spawn(command.command, [...command.prefix, "serve", "--hostname", "127.0.0.1", "--port", String(port)], {
     cwd: directory,
-    env: { ...process.env, OPENCODE_SERVER_PASSWORD: password, OPENCODE_SERVER_USERNAME: "opencode" },
+    env,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
     detached: process.platform !== "win32",
@@ -125,6 +141,13 @@ export async function startEngine(directory: string, signal?: AbortSignal) {
   child.stdout?.resume();
   child.stderr?.resume();
   const client = makeClient(`http://127.0.0.1:${port}`, password);
+  const prepareCrew = async (project: string) => {
+    const build = (await client.agents(project)).find((agent) => agent.id === "build");
+    if (!build) throw new Error("OpenCode did not provide the current coding agent's permission rules.");
+    await writeFile(configFile, JSON.stringify(crewConfiguration(build.permissions)), { mode: 0o600 });
+    await client.reload(project);
+    await requireCrew(client, project);
+  };
   try {
     const deadline = Date.now() + 45_000;
     while (Date.now() < deadline) {
@@ -133,16 +156,22 @@ export async function startEngine(directory: string, signal?: AbortSignal) {
       if (child.exitCode !== null || child.signalCode !== null) throw new Error(`OpenCode stopped during startup (exit ${child.exitCode ?? child.signalCode}). Run opencode in your terminal to check its configuration.`);
       try {
         await client.info(1000);
-        return { client, child, close: () => stopOwnedProcess(child) };
       } catch (error) {
         if (failed) throw failed;
         if (Date.now() >= deadline) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        continue;
       }
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await prepareCrew(directory);
+      return { client, child, prepareCrew, close: async () => {
+        try { await stopOwnedProcess(child); }
+        finally { await rm(configuration, { recursive: true }); }
+      } };
     }
     throw new Error("OpenCode did not start within 45 seconds. Run opencode in your terminal to check its configuration.");
   } catch (error) {
-    await stopOwnedProcess(child);
+    try { await stopOwnedProcess(child); }
+    finally { await rm(configuration, { recursive: true }); }
     if (failed && "code" in failed && failed.code === "ENOENT") {
       throw new Error("OpenCode was not found. Install it from https://opencode.ai, then restart your terminal.");
     }

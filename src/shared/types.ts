@@ -27,6 +27,9 @@ export interface ChatMessage {
   error?: string;
   /** Present only when OpenCode recorded an actual terminal outcome. */
   outcome?: "succeeded" | "failed" | "interrupted";
+  speaker?: CrewID;
+  background?: boolean;
+  created?: number;
 }
 
 export interface AppState {
@@ -39,6 +42,7 @@ export interface AppState {
   statuses: Record<string, { type: "busy" | "retry"; message?: string }>;
   permissions: PermissionRequest[];
   questions: FormRequest[];
+  crew: { available: boolean; activity: { sessionID: string; logEntryID: string; officer?: CrewID; status: "busy" | "retry"; message?: string }[] };
   speech?: { configured: boolean; listening: "mai" | "whisper"; speaking: "mai" | "kokoro"; error?: string };
 }
 
@@ -64,6 +68,8 @@ export interface PermissionRequest {
   resources: string[];
   metadata?: Record<string, unknown>;
   message?: string;
+  logEntryID?: string;
+  officer?: CrewID;
 }
 
 export interface FormOption { value: string; label: string; description?: string }
@@ -82,6 +88,8 @@ export interface FormRequest {
   sessionID: string;
   title: string;
   fields: FormField[];
+  logEntryID?: string;
+  officer?: CrewID;
 }
 
 export type FormValue = string | number | boolean | string[];
@@ -90,7 +98,7 @@ export type FormValue = string | number | boolean | string[];
 export type BrowserEvent =
   | { type: "connection"; connected: boolean; message?: string }
   /** A piece of a reply that is still being written. */
-  | { type: "delta"; sessionID: string; messageID: string; partID: string; partType: "text" | "reasoning"; delta: string }
+  | { type: "delta"; sessionID: string; messageID: string; partID: string; partType: "text" | "reasoning"; delta: string; speaker?: CrewID; background?: boolean }
   /** The stored conversation changed; reload it. */
   | { type: "changed"; sessionID: string }
   /** The real execution outcome, used only for locally observed completed requests. */
@@ -101,3 +109,4 @@ export type BrowserEvent =
   | { type: "error"; sessionID: string; message: string }
   /** OpenCode will try again after a temporary problem. */
   | { type: "retry"; sessionID: string; message: string };
+import type { CrewID } from "./crew.js";

@@ -34,7 +34,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo") {
+async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -99,6 +99,49 @@ function sounds(page: import("@playwright/test").Page) {
 }
 
 test.setTimeout(60000);
+
+test("crew reports stay in one log entry; child approvals require a button and only Riker's final report is spoken", async ({ page }) => {
+  const spoken = spokenText(page);
+  await launch(page, "crew");
+  await startListening(page);
+  await expect(page.getByRole("heading", { name: "Approval required." })).toBeVisible({ timeout: 20000 });
+  await expect(page.getByText("Geordi needs your decision.", { exact: true })).toBeVisible();
+  await expect(page.locator(".crew-report")).toContainText("Data supplied an investigation report.");
+  expect(spoken.some((text) => text.includes("Data supplied"))).toBe(false);
+  await page.getByRole("button", { name: "Deny", exact: true }).click();
+  await expect(page.locator(".message.current[data-role=assistant]")).toContainText("Geordi's action was denied", { timeout: 15000 });
+  await expect.poll(() => spoken.filter((text) => text.includes("Geordi's action was denied")).length).toBe(1);
+  await expect(page.locator(".message.current[data-role=assistant] .message-header strong")).toHaveText("Riker");
+  expect(spoken.some((text) => text.includes("Data supplied"))).toBe(false);
+  await expect(page.locator("#approvals")).toBeEmpty();
+});
+
+test("with the Bridge crew off, an officer request goes to the computer", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("picard-bridge-enabled", "false"));
+  await launch(page, "crew");
+  await expect(page.getByRole("switch", { name: "Bridge crew", exact: true })).not.toBeChecked();
+  const sent = page.waitForRequest((request) => request.url().endsWith("/send"));
+  await startListening(page);
+  expect((await sent).postDataJSON()).toMatchObject({ text: "Computer, have Riker coordinate the repair", bridge: false });
+  await expect(page.locator(".message.current[data-role=assistant]").first()).toBeVisible({ timeout: 20000 });
+  await expect(page.locator(".message.current[data-role=assistant] .message-header strong").first()).toHaveText("Computer");
+  await expect(page.getByText("Geordi needs your decision.", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".crew-report")).toHaveCount(0);
+});
+
+test("crew activity and decisions return after reload, and Belay that stops the related work", async ({ page }) => {
+  await launch(page, "crew");
+  await startListening(page);
+  await expect(page.getByText("Geordi needs your decision.", { exact: true })).toBeVisible({ timeout: 20000 });
+  await page.reload();
+  await expect(page.getByText("Geordi needs your decision.", { exact: true })).toBeVisible();
+  await expect(page.locator(".crew-report")).toContainText("Data supplied an investigation report.");
+  await page.getByRole("button", { name: "Switch microphone off", exact: true }).click();
+  await page.getByRole("button", { name: "Belay that", exact: true }).click();
+  await expect(page.locator("#approvals")).toBeEmpty();
+  await expect(page.getByRole("button", { name: "Belay that", exact: true })).toBeHidden();
+  await expect(page.locator(".message.current[data-role=assistant]")).toContainText("Work stopped before it finished.");
+});
 
 test("listening stays on; “Computer” starts a task, follow-ups need no “Computer”; the app always opens listening", async ({ page }, info) => {
   await launch(page);

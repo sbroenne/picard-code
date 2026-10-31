@@ -42,10 +42,6 @@ original TNG-inspired look.
   Code names (such as `conversations` in the API) may stay as they are. Error
   messages stay exact and plain; never trade clarity for flavour. Spoken
   phrases like "new task" may still be understood as alternatives.
-- **Never weaken approvals.** OpenCode's own permission rules decide what
-  asks first; Picard Code adds no rules and answers no approval itself. Do not
-  add automatic approval, "always allow", voice approval, OpenCode's `--auto`
-  option, or remove deny rules. Approvals need a button (Allow once or Deny).
 - **Truthful results.** Never claim work succeeded, ran, or was heard before the
   real result arrives. Never replace a real error with a vague or themed message.
   No silent fallback from one speech service to another.
@@ -75,6 +71,12 @@ Conversation rules live in `src/server/instructions.ts` (sent to the model)
 and `src/shared/speech.ts` (what is spoken aloud). Keep replies brief, precise
 and neutral; acknowledge only when true; say clearly when information is not
 available. Spoken answers are complete short sentences, with detail on screen.
+The computer handles non-code questions, writing, research and planning too.
+The six bridge officers retain restrained TNG-inspired personalities alongside
+their responsibilities: confident Riker, precise and curious Data, practical
+and warm Geordi, direct and protective Worf, empathetic Troi, and compassionate
+and principled Crusher. Their manner does not invent results,
+copy television dialogue or imitate actors. The computer stays neutral.
 Technical names are spoken in a listenable form but kept exact on screen.
 Avoid repeated catchphrases such as "Working". The user is always
 Captain Jean-Luc Picard: their lines are labelled "Picard" on screen, and the

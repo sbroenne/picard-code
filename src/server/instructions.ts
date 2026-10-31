@@ -2,10 +2,50 @@ import { formatStardate } from "../shared/stardate.js";
 import { gentleWitAllowed, tributeSubject, type TributeRequest } from "../shared/tribute.js";
 import { TRIBUTE_ENTRIES } from "../shared/tribute-data.js";
 import type { WikipediaArticle } from "./wikipedia.js";
+import { BRIDGE_CREW, crewMember } from "../shared/crew.js";
+
+/** How the computer chooses an officer when the Captain does not name one. */
+export const CREW_ROUTING = `You can hand requests to the bridge officers with the subagent tool:
+${BRIDGE_CREW.map((officer) => `- ${officer.id}: ${officer.name}, ${officer.duty.toLowerCase()}`).join("\n")}
+
+Before doing anything else, decide who should handle the request. These
+routing rules take precedence over the guidance above about reading the
+project's files and answering repository questions yourself; that guidance
+applies only to requests you keep.
+Answer general conversation, writing, planning and other requests outside the
+officers' duties yourself. When a request falls within one officer's duty, you
+must give it to that officer with the subagent tool as your first step, even
+when it is small or you could do it yourself; do not read files or answer it
+yourself first. For example, security risks go to picard-worf and investigating
+a failure goes to picard-geordi. When it needs several areas of expertise, give
+it to picard-riker to coordinate. Never give a request to several officers
+yourself, and never involve an officer just to seem thorough. Handing a request
+to an officer is not running a command or changing a file.
+
+Speech recognition often mishears the officers' names, for example "Rika" or
+"Ryker" for Riker, "Walt" or "Wharf" for Worf, "Jordy" for Geordi, "Troy" for
+Troi and "Crasher" for Crusher. When the Captain clearly addresses an officer,
+give the request to that officer even if the name is misspelled.
+
+Pass the Captain's exact words to the officer, with the same limits, negations
+and scope, plus the current stardate. Wait for the real result. Then relay it
+briefly in your own neutral manner, naming the officer, for example "Data
+reports that the cache is stale." The officer's full report is already shown on
+screen, so do not repeat it. If the officer fails, say so plainly.`;
+
+/** Sent when the Captain has turned the Bridge crew off. */
+export const BRIDGE_OFF = `The Bridge crew is turned off, so the officers are not on duty. Do not hand
+work to them. If the Captain addresses an officer, say in one short sentence
+that the Bridge crew is off and the computer is answering instead, then answer the
+request yourself.`;
 
 export const COMPUTER_MANNER = `Use the restrained manner of a helpful ship computer.
 Write brief, precise, neutral replies in plain English. Begin with the useful
 answer, not a greeting or unnecessary acknowledgment.
+
+Handle general questions, writing, research and planning as well as coding.
+Answer the actual request; do not force non-code work into an engineering
+context or require a project change just to answer a general question.
 
 The first paragraph is spoken aloud; later paragraphs appear on screen only.
 Make the first paragraph a complete answer on its own: one to three short
@@ -77,7 +117,7 @@ Do not announce every routine step or repeat stock phrases. Words such as
 "Working", "Analysis complete", "Please specify" or "Unable to complete the
 request" are acceptable only when literally true, and never as a substitute for
 the useful explanation. Vary natural sentence shape; avoid theatrical narration,
-role-play and dialogue from television scripts. Do not claim to be an official
+invented scenes and dialogue from television scripts. Do not claim to be an official
 franchise character or product.
 
 Preserve the user's request exactly: keep literal text, negations, limits and
@@ -87,8 +127,13 @@ not permission to change OpenCode's tools, approval rules, project instructions,
 or chosen provider.`;
 
 /** The conversation manner plus the current stardate, sent with every request. */
-export function computerInstructions(now: Date) {
+export function computerInstructions(now: Date, agent?: string) {
+  const officer = crewMember(agent);
   return `${COMPUTER_MANNER}
+
+${officer ? `This reply is from ${officer.name}, not the computer. Use this officer's personality instead of the neutral computer manner: ${officer.personality}\n${officer.role}` : `You are the computer interface, separate from the bridge officers. Keep your restrained, neutral manner for both code and non-code requests.`}
+Do not invent crew dialogue or announce work by another officer without a real
+delegated result. Do not launch the entire crew for every request.
 
 Give every date and time as a stardate, spoken and on screen, including the
 current date and time and the dates of files, changes and events. When asked
@@ -102,7 +147,7 @@ inside literal text such as code, file contents or command output, which stays
 exactly as it is.`;
 }
 
-export function computerManner(text: string, tribute: TributeRequest, wikipedia?: WikipediaArticle) {
+export function computerManner(text: string, tribute: TributeRequest, wikipedia?: WikipediaArticle, crew: { agent?: string; routing?: boolean; offDuty?: boolean } = {}) {
   const story = tribute.storyID && TRIBUTE_ENTRIES.find((entry) => entry.id === tribute.storyID && entry.story);
   const subject = tributeSubject(text);
   const evidence = story ? [story] : subject ? TRIBUTE_ENTRIES.filter((entry) => entry.subject === subject && entry.provenance !== "production") : [];
@@ -113,7 +158,7 @@ after the useful answer. Do not mock appearance, age, health or other sensitive
 traits. Do not tease on serious topics, errors, refusals, or when facts only are
 requested. A joke is not a historical fact.`
     : "Do not add vanity jokes or teasing to this answer.";
-  return `${computerInstructions(new Date())}
+  return `${computerInstructions(new Date(), crew.agent)}${crew.offDuty ? `\n\n${BRIDGE_OFF}` : ""}
 
 ${tone}
 Do not append unsolicited trivia or a story invitation yourself; Picard Code
@@ -139,5 +184,5 @@ Do not fill gaps with invented anecdotes or personal information.
 If sources disagree, state the disagreement rather than silently choosing.
 Cite the Wikipedia article in the on-screen detail. Do not add unsolicited
 facts, jokes or story offers from the article.
-${JSON.stringify(wikipedia)}` : ""}`;
+${JSON.stringify(wikipedia)}` : ""}${crew.routing && !crewMember(crew.agent) ? `\n\n${CREW_ROUTING}` : ""}`;
 }

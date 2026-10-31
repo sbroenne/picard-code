@@ -12,6 +12,7 @@ import type { AppState, FormField, SpeechSettings } from "../shared/types.js";
 import type { AppOptions } from "../server/app.js";
 import { speechFixture } from "./speech-fixture.js";
 import { saveSpeechSettings, speechSettingsFile } from "../server/speech.js";
+import { BRIDGE_CREW } from "../shared/crew.js";
 
 async function setup(extra: Partial<AppOptions> = {}) {
   const temporary = await mkdtemp(resolve(".picard-test-"));
@@ -46,6 +47,147 @@ async function setup(extra: Partial<AppOptions> = {}) {
   };
   return { app, fixture, request, login, cleanup, directory, other, temporary, wikipediaRequests };
 }
+
+test("direct crew requests keep words and models unchanged; missing crew fails explicitly", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  for (const officer of BRIDGE_CREW) {
+    const session = await (await context.request("conversations", {})).json();
+    const text = `Computer, ${officer.name}, review this, but do not change any files.`;
+    const response = await context.request(`conversations/${session.id}/send`, { text, providerID: "other-provider", modelID: "other" });
+    assert.equal(response.status, 202);
+    assert.equal(context.fixture.sessions.get(session.id)?.agent, officer.id);
+    assert.equal(context.fixture.sessions.get(session.id)?.model?.providerID, "other-provider");
+    assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text });
+    assert.match(context.fixture.instructions.get(session.id)!["picard-manner"]!, new RegExp(`This reply is from ${officer.name}`));
+  }
+  const ordinary = await (await context.request("conversations", {})).json();
+  assert.equal((await context.request(`conversations/${ordinary.id}/send`, { text: "Computer, Walt, check this for risks.", providerID: "other-provider", modelID: "other" })).status, 202);
+  assert.equal(context.fixture.sessions.get(ordinary.id)?.agent, "build", "an unclear name stays with the computer, which may route it");
+  assert.match(context.fixture.instructions.get(ordinary.id)!["picard-manner"]!, /give\s+it\s+to\s+picard-riker\s+to\s+coordinate/);
+  const offDuty = await (await context.request("conversations", {})).json();
+  assert.equal((await context.request(`conversations/${offDuty.id}/send`, { text: "Computer, Data, explain this.", providerID: "other-provider", modelID: "other" })).status, 202);
+  assert.equal(context.fixture.sessions.get(offDuty.id)?.agent, "picard-data");
+  while (context.fixture.active.has(offDuty.id)) await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal((await context.request(`conversations/${offDuty.id}/send`, { text: "And the cache?", providerID: "other-provider", modelID: "other", bridge: false })).status, 202);
+  assert.equal(context.fixture.sessions.get(offDuty.id)?.agent, "build", "with the Bridge crew off, a follow-up in an officer's entry returns to the computer");
+  assert.equal((await context.request(`conversations/${offDuty.id}/send`, { text: "Hello", providerID: "other-provider", modelID: "other", bridge: "off" })).status, 400);
+  context.fixture.agents.splice(1);
+  const bridgeOff = await (await context.request("conversations", {})).json();
+  assert.equal((await context.request(`conversations/${bridgeOff.id}/send`, { text: "Computer, Data, explain this.", providerID: "other-provider", modelID: "other", bridge: false })).status, 202, "with the Bridge crew off, the crew is not needed");
+  assert.equal(context.fixture.sessions.get(bridgeOff.id)?.agent, "build");
+  const offManner = context.fixture.instructions.get(bridgeOff.id)!["picard-manner"]!;
+  assert.match(offManner, /The Bridge crew is turned off/);
+  assert.doesNotMatch(offManner, /picard-riker/);
+  const unrouted = await (await context.request("conversations", {})).json();
+  assert.equal((await context.request(`conversations/${unrouted.id}/send`, { text: "Computer, explain this.", providerID: "other-provider", modelID: "other" })).status, 202);
+  assert.doesNotMatch(context.fixture.instructions.get(unrouted.id)!["picard-manner"]!, /picard-riker/, "no routing is offered when the crew is not loaded");
+  const session = await (await context.request("conversations", {})).json();
+  const before = context.fixture.requests.filter((request) => request.path.endsWith("/prompt")).length;
+  const response = await context.request(`conversations/${session.id}/send`, { text: "Computer, Data, explain this", providerID: "other-provider", modelID: "other" });
+  assert.equal(response.status, 502);
+  assert.match((await response.json()).error, /bridge crew is not available/);
+  assert.equal(context.fixture.requests.filter((request) => request.path.endsWith("/prompt")).length, before);
+});
+
+test("related crew activity, approvals and history belong to one log entry, including after the parent stops", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const parent = context.fixture.createSession(context.directory, "Crew work", undefined, "picard-riker");
+  const child = context.fixture.createSession(context.directory, "Repair", parent.id, "picard-geordi");
+  const nested = context.fixture.createSession(context.directory, "Check", child.id, "picard-crusher");
+  const foreign = context.fixture.createSession(context.other, "Foreign", parent.id, "picard-worf");
+  context.fixture.active.add(child.id);
+  context.fixture.active.add(nested.id);
+  context.fixture.permissions.push({ id: "crew-approval", sessionID: child.id, action: "shell", resources: ["echo hello"] });
+  context.fixture.permissions.push({ id: "foreign-approval", sessionID: foreign.id, action: "shell", resources: ["echo foreign"] });
+  context.fixture.forms.push({ id: "crew-question", sessionID: nested.id, title: "Recovery", fields: [{ key: "answer", type: "string", custom: true }] });
+  context.fixture.messages.get(child.id)!.push(
+    { id: "delegation", type: "user", text: "An internal assignment", time: { created: 1 } },
+    { id: "crew-reply", type: "assistant", agent: "picard-geordi", content: [{ type: "text", text: "A verified repair report." }], time: { created: 2 } },
+  );
+  let state = await (await context.request("state")).json() as AppState;
+  assert.deepEqual(state.conversations.map((entry) => entry.id), [parent.id]);
+  assert.equal(state.statuses[parent.id]?.type, "busy");
+  assert.deepEqual(state.crew.activity.map((entry) => entry.officer), ["picard-geordi", "picard-crusher"]);
+  assert.equal(state.permissions[0]?.logEntryID, parent.id);
+  assert.equal(state.permissions[0]?.sessionID, child.id);
+  assert.equal(state.permissions.length, 1);
+  assert.equal(state.questions[0]?.logEntryID, parent.id);
+  assert.equal((await context.request(`conversations/${child.id}/stop`, {})).status, 403);
+  assert.equal((await context.request(`permissions/foreign-approval`, { reply: "once" })).status, 403);
+  assert.equal((await context.request(`conversations/${parent.id}/delete`, {})).status, 409);
+  assert.equal((await context.request("project", { path: context.other })).status, 409);
+  assert.equal((await context.request(`conversations/${parent.id}/send`, { text: "Continue", providerID: "other-provider", modelID: "other" })).status, 409);
+  const history = await (await context.request(`conversations/${parent.id}/messages`)).json();
+  assert.equal(history.length, 1);
+  assert.equal(history[0].speaker, "picard-geordi");
+  assert.equal(history[0].background, true);
+  assert.equal((await context.request("permissions/crew-approval", { reply: "always" })).status, 400);
+  assert.equal((await context.request("permissions/crew-approval", { reply: "reject" })).status, 200);
+  assert.equal(context.fixture.requests.at(-1)?.path, `/api/session/${child.id}/permission/crew-approval/reply`);
+  assert.equal((await context.request("questions/crew-question", { answer: { answer: "Explain first" } })).status, 200);
+  assert.equal(context.fixture.requests.at(-1)?.path, `/api/session/${nested.id}/form/crew-question/reply`);
+  assert.equal((await context.request(`conversations/${parent.id}/stop`, {})).status, 200);
+  assert.equal(context.fixture.active.size, 0);
+  state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.statuses[parent.id], undefined);
+  assert.ok([parent, child, nested].every((entry) => context.fixture.requests.some((request) => request.path === `/api/session/${entry.id}/interrupt`)));
+  assert.equal(context.fixture.requests.some((request) => request.path === `/api/session/${foreign.id}/interrupt`), false);
+  assert.equal((await context.request(`conversations/${parent.id}/delete`, {})).status, 200);
+  assert.ok([parent, child, nested].every((entry) => !context.fixture.sessions.has(entry.id)));
+  assert.equal(context.fixture.sessions.has(foreign.id), true);
+});
+
+test("new child events stream under the parent with verified officer attribution", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const parent = context.fixture.createSession(context.directory, "Riker coordination", undefined, "picard-riker");
+  const stream = await context.request("events");
+  const reader = stream.body!.getReader();
+  t.after(() => reader.cancel());
+  await reader.read();
+  const child = context.fixture.createSession(context.directory, "Data report", parent.id, "picard-data");
+  context.fixture.publish(context.directory, "session.text.delta", { sessionID: child.id, assistantMessageID: "msg_child", ordinal: 0, delta: "Evidence" });
+  let observed = "";
+  while (!observed.includes('"delta":"Evidence"')) observed += new TextDecoder().decode((await reader.read()).value);
+  assert.match(observed, new RegExp(`"sessionID":"${parent.id}".*"speaker":"picard-data".*"background":true`));
+  assert.doesNotMatch(observed, new RegExp(`"sessionID":"${child.id}"`));
+});
+
+test("child listings include every page, without treating children as separate log entries", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  const parent = context.fixture.createSession(context.directory, "A large crew assignment");
+  for (let index = 0; index < 105; index++) context.fixture.createSession(context.directory, `Report ${index}`, parent.id, "picard-data");
+  const client = makeClient(context.fixture.url, context.fixture.password);
+  assert.equal((await client.sessions(context.directory, parent.id)).length, 105);
+  assert.deepEqual((await client.sessions(context.directory)).map((entry) => entry.id), [parent.id]);
+});
+
+test("a retrying officer keeps the main entry retrying even when another officer is busy", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const parent = context.fixture.createSession(context.directory, "Coordinated review", undefined, "picard-riker");
+  const data = context.fixture.createSession(context.directory, "Investigation", parent.id, "picard-data");
+  const crusher = context.fixture.createSession(context.directory, "Recovery", parent.id, "picard-crusher");
+  context.fixture.active.add(data.id);
+  context.fixture.active.add(crusher.id);
+  const stream = await context.request("events");
+  const reader = stream.body!.getReader();
+  t.after(() => reader.cancel());
+  await reader.read();
+  context.fixture.publish(context.directory, "session.retry.scheduled", { sessionID: crusher.id, error: { message: "Provider temporarily unavailable." } });
+  let observed = "";
+  while (!observed.includes('"type":"retry"')) observed += new TextDecoder().decode((await reader.read()).value);
+  const state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.statuses[parent.id]?.type, "retry");
+  assert.equal(state.statuses[parent.id]?.message, "Provider temporarily unavailable.");
+});
 
 test("only explicit local HTTP server addresses are accepted", () => {
   assert.equal(localServerUrl("http://localhost:4096"), "http://127.0.0.1:4096");

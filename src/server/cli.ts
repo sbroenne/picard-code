@@ -68,6 +68,7 @@ and choose your provider.`);
   process.on("SIGHUP", shutdown);
   try {
     let client;
+    let prepareCrew: ((directory: string) => Promise<void>) | undefined;
     if (values.connect) {
       const baseUrl = localServerUrl(values.connect);
       const password = process.env.OPENCODE_SERVER_PASSWORD;
@@ -81,6 +82,7 @@ and choose your provider.`);
       console.log("Starting OpenCode on this computer...");
       const engine = await startEngine(project, controller.signal);
       client = engine.client;
+      prepareCrew = engine.prepareCrew;
       cleanupEngine = engine.close;
       engine.child.once("exit", () => {
         if (!stopping) {
@@ -105,7 +107,7 @@ and choose your provider.`);
     cleanupSpeech = () => speech?.close?.();
     controller.signal.throwIfAborted();
     const app = await startApp({
-      client, project, port,
+      client, project, port, prepareCrew,
       speech, speechError,
       webRoot: fileURLToPath(new URL("../../web-dist/", import.meta.url)),
       soundFolder: fileURLToPath(new URL("../../.picard-sounds/", import.meta.url)),

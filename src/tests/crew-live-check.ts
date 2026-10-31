@@ -1,0 +1,128 @@
+import assert from "node:assert/strict";
+import { mkdtemp, writeFile, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { setTimeout as wait } from "node:timers/promises";
+import { startEngine, projectDirectory } from "../server/process.js";
+import { startApp } from "../server/app.js";
+import { availableModels } from "../server/engine.js";
+import { BRIDGE_CREW, crewMember, type CrewID } from "../shared/crew.js";
+import type { AppState, ChatMessage } from "../shared/types.js";
+
+const temporary = await mkdtemp(join(tmpdir(), "picard-crew-check-"));
+const project = await projectDirectory(temporary);
+let engine: Awaited<ReturnType<typeof startEngine>> | undefined;
+let app: Awaited<ReturnType<typeof startApp>> | undefined;
+const roots: string[] = [];
+try {
+  await writeFile(join(project, "example.ts"), 'export function greeting(name: string) { return `Hello ${name}`; }\n');
+  await writeFile(join(project, "opencode.json"), JSON.stringify({
+    permissions: [{ action: "edit", resource: "*", effect: "deny" }, { action: "shell", resource: "*", effect: "deny" }],
+  }));
+  engine = await startEngine(project);
+  const { models, defaultModel } = await availableModels(engine.client, project);
+  const model = models.find((item) => item.modelID === "gpt-5-mini") ?? defaultModel;
+  assert.ok(model, "A model provider must be connected to run the real crew check.");
+  app = await startApp({ client: engine.client, project, prepareCrew: engine.prepareCrew, webRoot: resolve("web-dist"), speechFile: join(project, "speech.json") });
+  const connected = await fetch(`${app.origin}/api/connect`, {
+    method: "POST", headers: { "Content-Type": "application/json", "X-Picard-Request": "1" }, body: JSON.stringify({ token: app.token }),
+  });
+  assert.equal(connected.status, 200);
+  const cookie = connected.headers.get("set-cookie")!.split(";")[0]!;
+  const api = async <T>(path: string, data?: unknown): Promise<T> => {
+    const response = await fetch(`${app!.origin}/api/${path}`, {
+      method: data === undefined ? "GET" : "POST",
+      headers: { Cookie: cookie, "Content-Type": "application/json", "X-Picard-Request": "1" },
+      body: data === undefined ? undefined : JSON.stringify(data),
+    });
+    const result = await response.json();
+    assert.equal(response.ok, true, result.error);
+    return result as T;
+  };
+  const settle = async (id: string) => {
+    const deadline = Date.now() + 240_000;
+    while (Date.now() < deadline) {
+      await wait(500);
+      const state = await api<AppState>("state");
+      assert.equal(state.permissions.length, 0, "A real approval is waiting; this check will not answer it.");
+      assert.equal(state.questions.length, 0, "A real question is waiting; this check will not invent an answer.");
+      if (!state.statuses[id]) {
+        const history = await api<ChatMessage[]>(`conversations/${id}/messages`);
+        if (history.some((message) => message.role === "assistant" && !message.background && (message.error || message.parts.some((part) => part.type === "text" && part.text.trim())))) return;
+      }
+    }
+    throw new Error("The real crew did not finish within the check's limit.");
+  };
+  const send = async (text: string, bridge = true) => {
+    const entry = await api<{ id: string }>("conversations", {});
+    roots.push(entry.id);
+    await api(`conversations/${entry.id}/send`, { text, providerID: model.providerID, modelID: model.modelID, bridge });
+    await settle(entry.id);
+    return { id: entry.id, messages: await api<ChatMessage[]>(`conversations/${entry.id}/messages`) };
+  };
+  const ordinary = await send("Computer, write one short sentence inviting a friend to visit a museum. Do not ask questions, use tools or change files.");
+  const ordinaryReply = ordinary.messages.findLast((message) => message.role === "assistant");
+  assert.equal(ordinaryReply?.speaker, undefined, "ordinary requests remain with the neutral computer");
+  assert.match(ordinaryReply?.parts.filter((part) => part.type === "text").map((part) => part.text).join("") ?? "", /museum/i);
+  assert.equal((await engine.client.sessions(project, ordinary.id)).length, 0, "an ordinary request must not be handed to an officer");
+  const routed = async (text: string, expected: CrewID) => {
+    const result = await send(text);
+    const children = await engine!.client.sessions(project, result.id);
+    const said = result.messages.filter((message) => message.role === "assistant").map((message) => message.parts.filter((part) => part.type === "text").map((part) => part.text).join("")).join("\n---\n");
+    assert.deepEqual(children.map((child) => child.agent), [expected], `"${text}" must go to exactly ${expected}. The computer said:\n${said}`);
+    const relay = result.messages.findLast((message) => message.role === "assistant" && !message.background);
+    assert.equal(relay?.speaker, undefined, "the computer relays the officer's answer");
+    assert.match(relay?.parts.filter((part) => part.type === "text").map((part) => part.text).join("") ?? "", new RegExp(crewMember(expected)!.name, "i"));
+    assert.ok(result.messages.some((message) => message.background && message.speaker === expected));
+  };
+  const offDuty = await send("Computer, Worf, review example.ts for security risks. Do not change any files or run commands.", false);
+  assert.equal((await engine.client.sessions(project, offDuty.id)).length, 0, "with the Bridge crew off, no officer is involved");
+  assert.ok(offDuty.messages.filter((message) => message.role === "assistant").every((message) => message.speaker === undefined), "with the Bridge crew off, the computer answers");
+  await routed("Computer, review example.ts for security risks. Do not change any files or run commands.", "picard-worf");
+  await routed("Computer, Walt, is it risky to log the greeting name in example.ts? Do not change any files or run commands.", "picard-worf");
+  await routed("Computer, Rika, coordinate a short review of example.ts covering security risks and clarity. Do not change any files or run commands.", "picard-riker");
+  const requests: Record<CrewID, { text: string; expected: RegExp }> = {
+    "picard-riker": { text: "Rain is forecast. Recommend an indoor museum visit or an outdoor picnic, and give one reason.", expected: /museum|indoor/i },
+    "picard-data": { text: "There are two red tickets and three blue tickets. How many tickets are there altogether?", expected: /\b5\b|five/i },
+    "picard-geordi": { text: "My desk lamp is unplugged and will not turn on. What should I check first?", expected: /plug|socket|power|connect/i },
+    "picard-worf": { text: "Should I include my private home address in a public invitation? Give one privacy precaution.", expected: /address|private|privacy/i },
+    "picard-troi": { text: "Rewrite 'You must come to my museum visit' as a considerate invitation.", expected: /museum/i },
+    "picard-crusher": { text: "I have a busy afternoon planned with no breaks. Suggest one simple improvement.", expected: /break|rest|pause/i },
+  };
+  for (const officer of BRIDGE_CREW) {
+    const request = requests[officer.id];
+    const result = await send(`Computer, ${officer.name}, ${request.text} Keep your answer brief. Do not use tools or change files.`);
+    const reply = result.messages.findLast((message) => message.role === "assistant");
+    assert.equal(reply?.speaker, officer.id);
+    assert.ok(reply?.parts.some((part) => part.type === "text" && part.text.trim()));
+    assert.equal(reply?.error, undefined);
+    assert.match(reply?.parts.filter((part) => part.type === "text").map((part) => part.text).join("") ?? "", request.expected, `${officer.name} must answer the non-code question`);
+  }
+  const coordinated = await send(`Computer, Riker, coordinate a review of example.ts. Use the actual subagent tool to give one separate assignment to each of picard-data, picard-geordi, picard-worf, picard-troi and picard-crusher. Pass these limits unchanged: review only, no edits, no shell commands, no approval answers, and use your current selected model. Each officer should read example.ts and return one sentence about their area. Wait for all five actual results and give a brief combined report.`);
+  const children = await engine.client.sessions(project, coordinated.id);
+  for (const officer of BRIDGE_CREW.filter((member) => member.id !== "picard-riker")) {
+    const child = children.find((entry) => entry.agent === officer.id);
+    assert.ok(child, `Riker must actually delegate to ${officer.name}, not invent a report.`);
+    assert.equal(child.model?.providerID, model.providerID);
+    assert.equal(child.model?.id, model.modelID);
+    assert.ok(coordinated.messages.some((message) => message.background && message.speaker === officer.id && message.parts.some((part) => part.type === "text" && part.text.trim())));
+  }
+  assert.equal(coordinated.messages.findLast((message) => !message.background && message.role === "assistant")?.speaker, "picard-riker");
+  assert.deepEqual((await readdir(project)).sort(), ["example.ts", "opencode.json"]);
+  console.log("Real crew check passed: neutral computer writing without routing, the computer answering an officer request with the Bridge crew off, automatic routing to Worf (also when misheard as Walt) and to Riker (misheard as Rika) with a computer relay, all six non-code officer replies, five separate delegated coding contexts, selected-model inheritance and one combined Riker report. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
+} finally {
+  await app?.close();
+  try {
+    if (engine) for (const id of roots) {
+      await engine.client.interrupt(id, project);
+      for (const child of await engine.client.sessions(project, id)) {
+        await engine.client.interrupt(child.id, project);
+        await engine.client.deleteSession(child.id, project);
+      }
+      await engine.client.deleteSession(id, project);
+    }
+  } finally {
+    try { await engine?.close(); }
+    finally { await rm(temporary, { recursive: true }); }
+  }
+}

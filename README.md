@@ -13,6 +13,10 @@ you "Captain". There is no typing: like the captain, you speak to the computer.
 It is unofficial and made with admiration: original artwork in the spirit of
 the ship's displays, no franchise material, and no endorsement.
 
+The computer handles general questions, writing, research and planning as well
+as code. A project folder is context for project work, not a limit on what you
+can ask.
+
 ### How it works
 
 A small local browser app. OpenCode does the coding, with any model provider it
@@ -64,6 +68,81 @@ The folder is passed to OpenCode for every log entry and request.
 **`npx picard-code` is not available yet.** This repository is private and the
 package has not been published. The commands above are the supported launch
 path for this version.
+
+## Bridge crew
+
+You remain Captain Picard. Six OpenCode officers bring different expertise:
+Riker coordinates, Data investigates, Geordi builds and repairs, Worf reviews
+risks, Troi reviews clarity and usability, and Crusher checks software health
+and recovery. The computer remains a separate interface.
+
+The officers retain their TNG-inspired personalities: Riker is confident and
+decisive, Data precise and curious, Geordi warm and practical, Worf direct and
+protective, Troi empathetic and diplomatic, and Crusher compassionate and
+principled. These traits guide how they advise and explain, without copied
+dialogue, invented scenes or actor voice imitation. They can contribute to
+non-code work too; the computer keeps its restrained, neutral manner.
+
+Start with **Computer**, as before. For example:
+
+- "Computer, Data, explain this project."
+- "Computer, ask Geordi to investigate this failure. Do not change any files."
+- "Computer, have Riker coordinate a review of this change."
+- "Computer, Troi, review this invitation for clarity."
+- "Computer, help me plan a visit to a museum."
+
+You do not have to name an officer. When you don't, the computer decides: it
+answers ordinary requests itself, hands a clear specialist request to the right
+officer (for example a security question to Worf), and gives work that needs
+several officers to Riker. It then tells you briefly what the officer found,
+such as "Data reports the cache is stale."; the officer's full report stays on
+screen. The computer also recognises common mishearings, such as "Rika" for
+Riker or "Walt" for Worf. Each hand-over makes an extra model request.
+
+An explicit officer address at the start always selects that officer directly;
+mentioning Data or saying "do not ask Data" does not. Follow-ups stay with that
+officer in the same log entry. Riker can delegate real assignments to other
+officers; he does not launch the whole crew for every request. Separate
+assignments can make additional model requests and increase cost.
+
+Reports are labelled by officer inside the same Current log entry; there is no
+separate crew display. Related approvals and questions appear there too, naming
+the officer. Approvals still require
+**Allow once** or **Deny** on screen. **Belay that** asks OpenCode to stop both
+the main entry and its related crew work. Running crew work also prevents
+deleting that entry or changing projects.
+
+The **Bridge crew** switch in the left navigation brings the officers on or off
+duty, and is remembered in this browser. When it is off, the computer answers
+every request itself, including requests that name an officer and follow-ups
+in an officer's log entry. Work already running continues until it finishes or
+you say **Belay that**. If the crew cannot be loaded (see below), the computer
+also answers everything itself, and naming an officer reports why.
+
+Everyone uses the selected model and the existing speech service and voice.
+Only the directly addressed officer's final answer, Riker's combined report or
+the computer's brief relay is spoken; background reports stay on screen. There are no actor imitations,
+lasting shared crew memory or automatic issue watching.
+
+When Picard Code starts its own OpenCode server, it loads the crew from a
+temporary settings folder outside your project and removes that folder on
+normal shutdown. Each officer receives the current coding agent's effective
+permission rules unchanged, including project-specific rules. Changing projects
+or refreshing the connection refreshes those rules. No crew settings, agent
+files or team memory are added to your project or global settings.
+These temporary crew definitions are separate from your saved speech settings
+in `~/.picard-code/speech.json`.
+
+If both `OPENCODE_CONFIG` and `OPENCODE_CONFIG_DIR` are already set, keep one
+unset so Picard Code can use a separate settings location without replacing
+yours. Settings that override the reserved `picard-` agents are reported rather
+than bypassed. With `--connect`, ordinary computer requests remain available;
+crew requests require the server to have the matching crew definitions and
+permission rules. Naming an officer then reports that the crew is unavailable.
+
+`npm run test:crew:live` checks real officer replies, automatic routing
+(including misheard names) and Riker's actual delegation. It makes model requests, may incur provider charges, and never
+answers an approval itself. It does not check a physical microphone or speakers.
 
 ## Connect a model provider
 

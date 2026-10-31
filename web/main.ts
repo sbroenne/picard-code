@@ -9,6 +9,7 @@ import { renderMarkdown } from "./markdown";
 import { formatStardate } from "../src/shared/stardate";
 import { TRIBUTE_ENTRIES, type TributeEntry } from "../src/shared/tribute-data";
 import { TributeCycle, tributeMode, declinedReply, storyOfferAllowed, storyAcceptance, explicitStorySubject, tributeQuestion, tributeSubject, randomIndex, storyInvitation, type ExecutionOutcome } from "../src/shared/tribute";
+import { crewMember, type CrewID } from "../src/shared/crew";
 
 function element<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -46,10 +47,11 @@ let historyDue = false;
 let approvalKey = "";
 let renderScheduled = false;
 /** Reply text that is still being written, shown until the stored conversation catches up. */
-const live = new Map<string, { sessionID: string; messageID: string; partType: "text" | "reasoning"; text: string }>();
+const live = new Map<string, { sessionID: string; messageID: string; partType: "text" | "reasoning"; text: string; speaker?: CrewID; background?: boolean }>();
 let voiceTurn: { session: string; known: Set<string>; request: string; storyID?: string; outcome?: ExecutionOutcome; reference?: TributeEntry["source"] } | undefined;
 let tributeEnabled = true;
 let tributeSpoken = false;
+let bridgeEnabled = true;
 let tributeCycle: TributeCycle;
 let pendingStory: { session: string; storyID: string } | undefined;
 let lastStoryID: string | undefined;
@@ -71,6 +73,10 @@ const voice = new VoiceConversation({
   transcript: heard,
   canListen: () => !!state?.models.length && connected,
 });
+
+function logEntryID(request: PermissionRequest | FormRequest) {
+  return request.logEntryID ?? request.sessionID;
+}
 
 /**
  * Handles one utterance heard while listening. Like the computer on the show, a task starts with
@@ -102,7 +108,7 @@ async function heard(text: string, startedAt: number) {
   }
   // A finished reply is still being collected; wait briefly rather than refuse.
   for (let waited = 0; (submitting || historyLoading) && waited < 5000; waited += 100) await new Promise((done) => setTimeout(done, 100));
-  const blocked = state?.permissions.some((item) => item.sessionID === selected) ? "A decision is needed first. Choose Allow once or Deny on screen."
+  const blocked = state?.permissions.some((item) => logEntryID(item) === selected) ? "A decision is needed first. Choose Allow once or Deny on screen."
     : pending() ? "Please answer the question on screen first."
     : busy() || submitting ? "Work is in progress. Say stop to cancel it." : undefined;
   // Room speech during a task is not answered aloud while the computer cannot take it; the sound marks it as not sent.
@@ -133,7 +139,7 @@ function inTask() {
 }
 
 function freshByVoice() {
-  if (state?.permissions.some((item) => item.sessionID === selected)) voice.speak("A decision is needed first. Choose Allow once or Deny on screen.");
+  if (state?.permissions.some((item) => logEntryID(item) === selected)) voice.speak("A decision is needed first. Choose Allow once or Deny on screen.");
   else if (pending()) voice.speak("Please answer the question on screen first.");
   else if (busy() || submitting) voice.speak("Work is in progress. Say stop to cancel it first.");
   else { startFresh(); voice.speak("Ready for a new log entry."); }
@@ -151,8 +157,8 @@ async function stopByVoice() {
 
 /** The single OpenCode question that was asked aloud and may be answered by voice. */
 function askedQuestion() {
-  if (!spokenQuestionID || answering || state?.permissions.some((item) => item.sessionID === selected)) return undefined;
-  const waiting = state?.questions.filter((item) => item.sessionID === selected) ?? [];
+  if (!spokenQuestionID || answering || state?.permissions.some((item) => logEntryID(item) === selected)) return undefined;
+  const waiting = state?.questions.filter((item) => logEntryID(item) === selected) ?? [];
   const request = waiting.length === 1 && waiting[0]!.id === spokenQuestionID ? waiting[0] : undefined;
   return request && canAskAloud(request) ? request : undefined;
 }
@@ -201,7 +207,7 @@ function consoleStatus(): [string, string] {
   if (voice.phase === "listening") return ["Listening", ""];
   if (voice.microphone && voice.phase === "thinking") return ["Understanding", ""];
   const listening = voice.microphone && voice.phase === "standby";
-  if (state.permissions.some((item) => item.sessionID === selected)) return ["Decision needed", "Choose Allow once or Deny on screen."];
+  if (state.permissions.some((item) => logEntryID(item) === selected)) return ["Decision needed", "Choose Allow once or Deny on screen."];
   if (listening && askedQuestion()) return ["Answer needed", "Say your answer, or choose it on screen."];
   if (pending()) return ["Answer needed", "Answer the question on screen."];
   const stopHint = !listening ? "Choose Belay that to cancel." : inTask() ? "Say “Stop” to cancel." : "Say “Computer, stop” to cancel.";
@@ -241,7 +247,8 @@ function voiceControls() {
 
 function completeVoiceReply() {
   if (!voiceTurn || voiceTurn.session !== selected || busy() || pending() || submitting || historyLoading || historyDue) return;
-  const reply = messages.findLast((message) => message.role === "assistant" && !voiceTurn!.known.has(message.id));
+  const reply = messages.findLast((message) => message.role === "assistant" && !message.background && !voiceTurn!.known.has(message.id))
+    ?? messages.findLast((message) => message.background && replyFailed(message) && !voiceTurn!.known.has(message.id));
   if (!reply) return;
   const outcome = reply.outcome ?? voiceTurn.outcome;
   if (!outcome) return;
@@ -292,17 +299,17 @@ function tributeStorageError(message: string) {
 }
 function saveTributeValue(key: string, value: string) {
   try { localStorage.setItem(key, value); }
-  catch { tributeStorageError("Tribute preferences could not be saved in this browser. They apply only until this page closes."); }
+  catch { tributeStorageError("Preferences could not be saved in this browser. They apply only until this page closes."); }
 }
 function readTributeValue(key: string) {
   try { return localStorage.getItem(key); }
-  catch { tributeStorageError("Tribute preferences could not be read in this browser. This page uses the default choices."); return null; }
+  catch { tributeStorageError("Preferences could not be read in this browser. This page uses the default choices."); return null; }
 }
 function readTributeBoolean(key: string, fallback: boolean) {
   const value = readTributeValue(key);
   if (value === null) return fallback;
   if (value === "true" || value === "false") return value === "true";
-  tributeStorageError("A saved tribute preference was invalid and has been reset to its default.");
+  tributeStorageError("A saved preference was invalid and has been reset to its default.");
   saveTributeValue(key, String(fallback));
   return fallback;
 }
@@ -315,9 +322,15 @@ function tributeControls() {
   element("tribute-speech-hint").textContent = !tributeEnabled ? "Turn Tribute on in the left navigation to change automatic speech."
     : "Automatic facts appear on screen. Requested answers and story invitations are still spoken.";
 }
+function bridgeControls() {
+  element<HTMLInputElement>("bridge-toggle").checked = bridgeEnabled;
+  element("bridge-toggle-state").textContent = bridgeEnabled ? "On" : "Off";
+}
 function loadTribute() {
   tributeEnabled = readTributeBoolean("picard-tribute-enabled", true);
   tributeSpoken = readTributeBoolean("picard-tribute-spoken", false);
+  bridgeEnabled = readTributeBoolean("picard-bridge-enabled", true);
+  bridgeControls();
   let seen: string[] = [];
   const saved = readTributeValue("picard-tribute-seen");
   if (saved !== null) {
@@ -367,7 +380,7 @@ function busy() {
   return !!selected && !!state?.statuses[selected];
 }
 function pending() {
-  return !!selected && (state?.permissions.some((item) => item.sessionID === selected) || state?.questions.some((item) => item.sessionID === selected));
+  return !!selected && (state?.permissions.some((item) => logEntryID(item) === selected) || state?.questions.some((item) => logEntryID(item) === selected));
 }
 
 function readout(name: string, value: string) {
@@ -448,7 +461,7 @@ function renderState() {
     node.append(make("span", "log-title", item.title));
     node.setAttribute("aria-label", `${item.title}${when}`);
     if (item.id === selected) node.setAttribute("aria-current", "page");
-    if (state.permissions.some((request) => request.sessionID === item.id) || state.questions.some((request) => request.sessionID === item.id)) {
+    if (state.permissions.some((request) => logEntryID(request) === item.id) || state.questions.some((request) => logEntryID(request) === item.id)) {
       const dot = make("span", "pending-dot");
       dot.setAttribute("aria-hidden", "true");
       node.prepend(dot);
@@ -464,17 +477,17 @@ function renderState() {
   }
   if (!state.conversations.length) list.append(make("p", "muted", "Your log entries will appear here."));
   renderApprovals();
-  const decision = state.permissions.find((item) => item.sessionID === selected)?.id
-    ?? state.questions.find((item) => item.sessionID === selected)?.id;
+  const decision = state.permissions.find((item) => logEntryID(item) === selected)?.id
+    ?? state.questions.find((item) => logEntryID(item) === selected)?.id;
   if (decision) cancelTributeSpeech();
   if (voiceTurn && decision && decision !== spokenDecision) {
     cancelTributeSpeech();
     spokenDecision = decision;
     const question = state.questions.find((item) => item.id === decision);
-    const waiting = state.questions.filter((item) => item.sessionID === selected).length;
+    const waiting = state.questions.filter((item) => logEntryID(item) === selected).length;
     if (!question) {
       voice.speak("Captain, approval is required. Review the requested action on screen, then choose Allow once or Deny.");
-    } else if (waiting === 1 && canAskAloud(question)) {
+    } else if (!state.permissions.some((item) => logEntryID(item) === selected) && waiting === 1 && canAskAloud(question)) {
       spokenQuestionID = question.id;
       voice.speak(spokenQuestion(question));
     } else {
@@ -505,10 +518,11 @@ function renderMessages() {
     const texts = message.parts.filter((part) => part.type === "text" && part.text.trim());
     const failures = texts.length ? [] : message.parts.filter((part) => part.type === "tool" && part.status === "error");
     if (message.role === "assistant" && !texts.length && !failures.length && !message.error) return;
-    const article = make("article", `message ${index >= latest ? "current" : "earlier"}`);
+    const article = make("article", `message ${message.background ? "crew-report earlier" : index >= latest ? "current" : "earlier"}`);
     article.dataset.role = message.role;
     const header = make("div", "message-header");
-    header.append(make("strong", undefined, message.role === "user" ? "Picard" : "Computer"));
+    header.append(make("strong", undefined, message.role === "user" ? "Picard" : crewMember(message.speaker)?.name ?? "Computer"));
+    if (message.background) header.append(make("small", undefined, message.speaker ? "Crew report" : "Supporting report"));
     const copy = button("Copy", "copy-button", async () => {
       await navigator.clipboard.writeText(message.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n"));
       copy.textContent = "Copied";
@@ -573,6 +587,7 @@ async function answerRequest(container: HTMLElement, path: string, data: unknown
 function permissionPanel(request: PermissionRequest) {
   const panel = make("section", "approval");
   panel.append(make("h3", undefined, "Approval required."));
+  if (request.officer) panel.append(make("p", "crew-request", `${crewMember(request.officer)!.name} needs your decision.`));
   const actions: Record<string, string> = {
     shell: "run a command",
     edit: "change a file",
@@ -671,6 +686,7 @@ function formField(request: FormRequest, field: FormField, index: number) {
 function questionPanel(request: FormRequest) {
   const form = make("form", "approval");
   form.append(make("h3", undefined, "Additional information required."));
+  if (request.officer) form.append(make("p", "crew-request", `${crewMember(request.officer)!.name} asks:`));
   const fields = request.fields.filter((field) => !field.hidden).map((field, index) => formField(request, field, index));
   const value = (key: string) => fields.find((item) => item.field.key === key)?.read();
   const visible = (field: FormField) => (field.when ?? []).every((rule) => rule.op === "eq" ? value(rule.key) === rule.value : value(rule.key) !== rule.value);
@@ -701,8 +717,8 @@ function questionPanel(request: FormRequest) {
 }
 
 function renderApprovals() {
-  const permissions = state?.permissions.filter((request) => request.sessionID === selected) ?? [];
-  const questions = state?.questions.filter((request) => request.sessionID === selected) ?? [];
+  const permissions = state?.permissions.filter((request) => logEntryID(request) === selected) ?? [];
+  const questions = state?.questions.filter((request) => logEntryID(request) === selected) ?? [];
   const key = `${selected}:${permissions.map((request) => request.id).join(",")}:${questions.map((request) => request.id).join(",")}`;
   if (key === approvalKey) return;
   approvalKey = key;
@@ -724,7 +740,7 @@ function shown(): ChatMessage[] {
   const result = structuredClone(messages);
   for (const [id, piece] of pieces) {
     let message = result.find((item) => item.id === piece.messageID);
-    if (!message) { message = { id: piece.messageID, role: "assistant", parts: [] }; result.push(message); }
+    if (!message) { message = { id: piece.messageID, role: "assistant", parts: [], speaker: piece.speaker, background: piece.background }; result.push(message); }
     const part = message.parts.find((item) => item.id === id);
     if (!part) message.parts.push({ id, type: piece.partType, text: piece.text });
     else if (part.text.length < piece.text.length) part.text = piece.text;
@@ -750,7 +766,7 @@ function handleEvent(event: BrowserEvent) {
   if (!state || event.type === "connection") return;
   if (event.type === "delta") {
     if (event.sessionID !== selected) return;
-    const piece = live.get(event.partID) ?? { sessionID: event.sessionID, messageID: event.messageID, partType: event.partType, text: "" };
+    const piece = live.get(event.partID) ?? { sessionID: event.sessionID, messageID: event.messageID, partType: event.partType, text: "", speaker: event.speaker, background: event.background };
     piece.text += event.delta;
     live.set(event.partID, piece);
     scheduleRender();
@@ -773,7 +789,7 @@ function handleEvent(event: BrowserEvent) {
   } else if (event.type === "error" && event.sessionID === selected) {
     cancelTributeSpeech();
     notice(event.message);
-    if (voiceTurn) { voiceTurn = undefined; voice.speak(spokenSummary(event.message), true); }
+    scheduleHistory();
   }
 }
 
@@ -921,7 +937,7 @@ async function sendMessage(spoken: string, requestedStoryID?: string) {
     if (!requestedStoryID && subject && !stories.length) throw new Error(`No reviewed ${subject} stories are available.`);
     const storyID = requestedStoryID ?? (subject ? stories[randomIndex(stories.length, Math.random)]!.id : undefined);
     voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)), request: text, storyID };
-    const accepted = await api<{ accepted: boolean; reference?: TributeEntry["source"] }>(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, tribute: { mode: tributeMode(tributeEnabled, tributeSpoken), ...(storyID ? { storyID } : {}) } });
+    const accepted = await api<{ accepted: boolean; reference?: TributeEntry["source"] }>(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, bridge: bridgeEnabled, tribute: { mode: tributeMode(tributeEnabled, tributeSpoken), ...(storyID ? { storyID } : {}) } });
     if (voiceTurn) voiceTurn.reference = accepted.reference;
     voice.acknowledge();
     await refreshState();
@@ -1167,6 +1183,12 @@ element("tribute-toggle").addEventListener("change", () => {
   tributeControls();
   element("tribute-status").textContent = tributeEnabled ? "Tribute is on." : "Tribute is off.";
   scheduleRender();
+});
+element("bridge-toggle").addEventListener("change", () => {
+  bridgeEnabled = element<HTMLInputElement>("bridge-toggle").checked;
+  saveTributeValue("picard-bridge-enabled", String(bridgeEnabled));
+  bridgeControls();
+  element("bridge-status").textContent = bridgeEnabled ? "The Bridge crew is on." : "The Bridge crew is off. The computer answers every request.";
 });
 element("tribute-spoken").addEventListener("change", () => {
   tributeSpoken = element<HTMLInputElement>("tribute-spoken").checked;
