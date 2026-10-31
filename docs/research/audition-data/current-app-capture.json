@@ -1,0 +1,44 @@
+[
+  {
+    "user": "Computer, why did the last build fail?",
+    "reply": "The release check failed before tests ran because two required settings were absent:\n\n- `SERVICE_URL`\n- `SIGNING_CERT_PATH`\n\nSee `logs/last-build.log:3-5`. The login test log also contains failures from an expired session fixture, but per `README.md`, those tests run only after `npm run release-check`; they were not the cause of this build failure.",
+    "spoken": "The release check failed before tests ran because two required settings were absent:",
+    "replyMs": 7588,
+    "model": "gpt-5.6-terra"
+  },
+  {
+    "user": "Which settings?",
+    "reply": "The missing required release settings are:\n\n- `SERVICE_URL`: the service’s deployment or public base URL.\n- `SIGNING_CERT_PATH`: filesystem path to the certificate used for release signing.\n\nBoth must be supplied to `npm run release-check`, typically as environment variables in the CI/CD job or release environment.",
+    "spoken": "The missing required release settings are:",
+    "replyMs": 1709,
+    "model": "gpt-5.6-terra"
+  },
+  {
+    "user": "Show me.",
+    "reply": "The available files show only the setting names, not their expected values:\n\n```text\nSERVICE_URL\nSIGNING_CERT_PATH\n```\n\nThe build log confirms both were unset. No deployment configuration, CI workflow, certificate, or environment file is present in this workspace to determine the correct URL or certificate path.",
+    "spoken": "The available files show only the setting names, not their expected values:",
+    "replyMs": 4559,
+    "model": "gpt-5.6-terra"
+  },
+  {
+    "user": "Check why the login tests fail. Don't edit anything.",
+    "reply": "All three login tests use `fixtures/session.json`, whose session expiry is `2025-01-01T00:00:00Z`. That time is already past, so authentication rejects it with `TokenExpired`.\n\nAffected tests:\n\n- `accepts a valid session`\n- `refreshes a session`\n- `signs out`\n\nThe immediate cause is stale test fixture data, not separate failures in the three login flows. No files were edited.",
+    "spoken": "All three login tests use fixtures/session.json, whose session expiry is 2025-01-01T00:00:00Z. That time is already past, so authentication rejects it with TokenExpired.",
+    "replyMs": 3644,
+    "model": "gpt-5.6-terra"
+  },
+  {
+    "user": "Who approved that test data?",
+    "reply": "No approval record is available in this workspace. It contains only the expired fixture and test/build logs; there is no Git history, CI metadata, code-review record, or ownership information identifying who added or approved `fixtures/session.json`.",
+    "spoken": "No approval record is available in this workspace. It contains only the expired fixture and test/build logs; there is no Git history, CI metadata, code-review record, or ownership information identifying who added or approved fixtures/session.json.",
+    "replyMs": 2885,
+    "model": "gpt-5.6-terra"
+  },
+  {
+    "user": "Could we publish this?",
+    "reply": "Not safely. The release gate is currently blocked because `SERVICE_URL` and `SIGNING_CERT_PATH` are unset. Independently, all three login tests fail because the committed session fixture expired on `2025-01-01`.\n\nBefore publishing:\n\n1. Provide the approved production `SERVICE_URL`.\n2. Provide access to the authorized signing certificate and set `SIGNING_CERT_PATH`.\n3. Replace or regenerate the expired test session fixture using the project’s approved test-data process.\n4. Re-run the release check and login tests successfully.",
+    "spoken": "Not safely. The release gate is currently blocked because SERVICEURL and SIGNINGCERTPATH are unset. Independently, all three login tests fail because the committed session fixture expired on 2025-01-01.",
+    "replyMs": 2309,
+    "model": "gpt-5.6-terra"
+  }
+]

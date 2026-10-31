@@ -1,5 +1,10 @@
 import { EndOfSpeech, type SpeechEvent, type VoicePhase } from "../src/shared/speech";
 
+type Cue = "request-accepted" | "processing" | "input-failed" | "request-failed";
+// The downloaded recordings differ in loudness; these keep each one quiet.
+const CUE_VOLUME: Record<Cue, number> = { "request-accepted": 1, "processing": 0.35, "input-failed": 0.5, "request-failed": 0.08 };
+const PROCESSING_DELAY = 2500;
+
 export class VoiceConversation {
   microphone = false;
   phase: VoicePhase = "off";
@@ -17,6 +22,9 @@ export class VoiceConversation {
   private detector = new EndOfSpeech();
   private revision = 0;
   private opening = false;
+  private cues = new Map<Cue, Promise<AudioBuffer | undefined>>();
+  private cueSource?: AudioBufferSourceNode;
+  private processingTimer?: ReturnType<typeof setTimeout>;
 
   constructor(private hooks: {
     changed(): void;
@@ -39,11 +47,79 @@ export class VoiceConversation {
   private clearAudio() {
     clearTimeout(this.playbackTimer);
     this.receivingAudio = false;
+    clearTimeout(this.processingTimer);
+    this.stopCue();
     for (const source of this.sources) source.stop();
     this.sources.clear();
     this.nextAudio = this.context?.currentTime ?? 0;
   }
+  private stopCue() {
+    this.cueSource?.stop();
+    this.cueSource = undefined;
+  }
+  private loadCue(context: AudioContext, name: Cue) {
+    let cue = this.cues.get(name);
+    if (!cue) {
+      cue = (async () => {
+        const response = await fetch(`/api/sounds/${name}`);
+        if (response.status === 404) return undefined;
+        if (!response.ok) throw new Error();
+        return await context.decodeAudioData(await response.arrayBuffer());
+      })().catch(() => {
+        this.hooks.error("A computer sound could not be loaded. Spoken conversation continues without it.");
+        return undefined;
+      });
+      this.cues.set(name, cue);
+    }
+    return cue;
+  }
+  /** Sounds play only while the microphone is on, nothing is being heard, and no spoken answer is due. */
+  private canSound(context: AudioContext, revision: number, name: Cue) {
+    // The failure sound plays just before its spoken explanation, so it is allowed while that speech waits.
+    return this.context === context && revision === this.revision && this.microphone && this.phase !== "listening"
+      && (!this.speechPending || name === "request-failed");
+  }
+  /** Plays one short optional sound. Resolves when it ends or is stopped. Listening or computer speech stops it. */
+  private async sound(name: Cue) {
+    const context = this.context;
+    const revision = this.revision;
+    if (!context || !this.canSound(context, revision, name)) return;
+    const buffer = await this.loadCue(context, name);
+    if (!buffer || !this.canSound(context, revision, name)) return;
+    this.stopCue();
+    const source = context.createBufferSource();
+    const volume = context.createGain();
+    volume.gain.value = CUE_VOLUME[name];
+    source.buffer = buffer;
+    source.connect(volume).connect(context.destination);
+    this.cueSource = source;
+    await new Promise<void>((done) => {
+      source.onended = () => { if (this.cueSource === source) this.cueSource = undefined; source.disconnect(); volume.disconnect(); done(); };
+      try { source.start(); }
+      catch {
+        this.cueSource = undefined;
+        this.hooks.error("A computer sound could not be played. Spoken conversation continues without it.");
+        done();
+      }
+    });
+  }
 
+  /**
+   * Called once when a spoken request has been accepted. Plays the accepted sound, then the processing
+   * sound once if the work is still running after a short wait with nothing else to report.
+   */
+  acknowledge(stillWorking: () => boolean) {
+    void this.sound("request-accepted");
+    const revision = this.revision;
+    clearTimeout(this.processingTimer);
+    this.processingTimer = setTimeout(() => {
+      if (revision === this.revision && this.phase === "thinking" && stillWorking()) void this.sound("processing");
+    }, PROCESSING_DELAY);
+  }
+  /** Plays the input-failed sound, then resumes listening once it has finished. */
+  private inputFailed() {
+    void this.sound("input-failed").then(() => this.resume());
+  }
   async activate() {
     if (this.opening || this.microphone) return;
     this.opening = true;
@@ -52,6 +128,7 @@ export class VoiceConversation {
       if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error("This browser cannot capture live speech. Use a current Chrome, Edge, Firefox or Safari, or type instead.");
       this.context ??= new AudioContext();
       await this.context.resume();
+      for (const name of Object.keys(CUE_VOLUME) as Cue[]) void this.loadCue(this.context, name);
       const media = await navigator.mediaDevices.getUserMedia({ audio: {
         channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
       } });
@@ -133,9 +210,9 @@ export class VoiceConversation {
             this.hooks.changed();
             if (data.text.trim()) void this.hooks.transcript(data.text).catch((error) => {
               this.hooks.error(error instanceof Error ? error.message : "The spoken request could not be sent.");
-              this.resume();
+              this.inputFailed();
             });
-            else { this.hooks.error("No words were understood. Please try again."); this.resume(); }
+            else { this.hooks.error("No words were understood. Please try again."); this.inputFailed(); }
           } else if (data.type === "audio-start") {
             if (!this.speechPending || data.id !== this.speechRevision) return;
             if (data.rate !== 24000) throw new Error("The speaking service returned an unsupported audio format.");
@@ -206,17 +283,24 @@ export class VoiceConversation {
     this.media?.getTracks().forEach((track) => track.stop());
     this.media = undefined;
     this.detector.reset();
+    clearTimeout(this.processingTimer);
+    this.stopCue();
     if (this.socket?.readyState === WebSocket.OPEN) this.command({ type: "pause" });
     if (this.phase !== "speaking") this.state("off");
     this.hooks.changed();
   }
-  speak(text: string) {
+  /** Speaks a reply. A final failure or denial is preceded by the failure sound, never overlapping the speech. */
+  speak(text: string, failed = false) {
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.clearAudio();
     this.speechPending = true;
     const id = ++this.speechRevision;
     this.state("thinking");
-    this.command({ type: "speak", text, id });
+    const say = () => {
+      if (this.speechPending && id === this.speechRevision && this.socket?.readyState === WebSocket.OPEN) this.command({ type: "speak", text, id });
+    };
+    if (failed) void this.sound("request-failed").then(say);
+    else say();
   }
   stopSpeaking() {
     this.speechPending = false;

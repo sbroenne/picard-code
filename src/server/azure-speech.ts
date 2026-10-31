@@ -11,6 +11,8 @@ export interface AzureSettings {
   region: string;
   deployment?: string;
   voice: string;
+  /** A documented MAI speaking style such as neutral, or "none" to send no style. */
+  voiceStyle?: string;
 }
 
 const run = promisify(execFile);
@@ -47,6 +49,13 @@ function serviceCode(value: unknown) {
 
 function escapeXml(text: string) {
   return text.replace(/[<>&"']/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[character]!);
+}
+
+export function speakingDocument(settings: Pick<AzureSettings, "voice" | "voiceStyle">, text: string) {
+  const language = /^([a-z]{2}-[A-Z]{2})-/.exec(settings.voice)?.[1] ?? "en-US";
+  const style = settings.voiceStyle && settings.voiceStyle !== "none" ? settings.voiceStyle : undefined;
+  const body = style ? `<mstts:express-as style="${escapeXml(style)}">${escapeXml(text)}</mstts:express-as>` : escapeXml(text);
+  return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="${language}"><voice name="${escapeXml(settings.voice)}">${body}</voice></speak>`;
 }
 
 export function azureSpeech(settings: AzureSettings, key: string): SpeechService {
@@ -140,10 +149,10 @@ export function azureSpeech(settings: AzureSettings, key: string): SpeechService
         method: "POST", signal: AbortSignal.any([signal, AbortSignal.timeout(60_000)]),
         headers: { "Ocp-Apim-Subscription-Key": key, "Content-Type": "application/ssml+xml",
           "X-Microsoft-OutputFormat": "raw-24khz-16bit-mono-pcm" },
-        body: `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US"><voice name="${escapeXml(settings.voice)}">${escapeXml(text)}</voice></speak>`,
+        body: speakingDocument(settings, text),
       });
       if (!response.ok) {
-        throw new Error(`Azure rejected the speaking request (HTTP ${response.status}). Check the configured voice, region, resource access and quota.`);
+        throw new Error(`Azure rejected the speaking request (HTTP ${response.status}). Check the configured voice, voice style, region, resource access and quota.`);
       }
       if (!response.body) throw new Error("Azure returned no spoken audio.");
       let total = 0;

@@ -58,8 +58,15 @@ or implied endorsement.
 
 The computer's writing should be brief, precise, and neutral. Use original
 phrasing, truthful acknowledgments, explicit uncertainty, and useful errors.
-No voice cloning or show recordings. No fictional ship status, repetitive
+No voice cloning, show dialogue, or recordings in the repository. Four short
+computer sounds chosen by the project owner are an optional separate download,
+used with the owner's confirmed permission; they accompany, never replace,
+the visible and spoken explanation. No fictional ship status, repetitive
 catchphrases, or claims that work succeeded before the real result arrives.
+
+The owner prefers the British prebuilt voices: MAI Emily (neutral style) by
+default, with Kokoro `bf_emma` as the local default. This is a preference for
+British delivery, not a claim of authenticity.
 
 ## Evidence on Hand
 
@@ -72,5 +79,7 @@ using test audio and check the conversation loop on desktop and phone layouts.
 Real local Kokoro synthesis, Whisper recognition, cancellation, and fresh
 listening are verified. Both MAI and Whisper/Kokoro complete a real browser
 conversation through OpenCode and the user's authorized GitHub Copilot,
-with saved replies and actual spoken playback. Physical microphone/speaker
-and macOS/Linux checks remain unverified.
+with saved replies and actual spoken playback. A real six-turn conversation
+check covers follow-ups, a correction, "show me", OpenCode's real question
+and a refused command. Physical microphone/speaker, subjective voice and
+timing review, and macOS/Linux checks remain unverified.

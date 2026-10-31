@@ -64,10 +64,10 @@ test("questions receive real answers and conversations reopen after reload", asy
   await expect(page.getByRole("heading", { name: "Additional information required." })).toBeVisible();
   await page.getByRole("radio", { name: "Explain first" }).check();
   await page.getByRole("button", { name: "Send answer" }).click();
-  await expect(page.locator("#messages")).toContainText("Your test answer was received.");
+  await expect(page.locator("#messages")).toContainText('Your test answer was received: [["Explain first"]].');
   await expect(page.getByRole("status")).toHaveText("Ready");
   await page.reload();
-  await expect(page.locator("#messages")).toContainText("Your test answer was received.");
+  await expect(page.locator("#messages")).toContainText('Your test answer was received: [["Explain first"]].');
   await expect(page.getByRole("status")).toHaveText("Ready");
   await page.screenshot({ path: testInfo.outputPath("conversation-screen.png"), fullPage: true });
 });

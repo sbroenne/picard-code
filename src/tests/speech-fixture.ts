@@ -1,7 +1,8 @@
 import { setTimeout as wait } from "node:timers/promises";
 import type { SpeechService } from "../server/speech-types.js";
 
-export function speechFixture(phrase = "Hello computer") {
+export function speechFixture(phrases: string | string[] = "Hello computer") {
+  const queue = Array.isArray(phrases) ? [...phrases] : [phrases];
   let audioWrites = 0;
   let closes = 0;
   let spoken = "";
@@ -9,13 +10,14 @@ export function speechFixture(phrase = "Hello computer") {
     async listen(callbacks, signal) {
       await wait(5, undefined, { signal });
       let closed = false;
+      // Each completed turn hears the next phrase; the last one repeats.
       return {
         write() {
           if (closed) throw new Error("Test listening is closed.");
           ++audioWrites;
-          callbacks.partial(phrase);
+          callbacks.partial(queue[0]!);
         },
-        commit() { callbacks.final(phrase); },
+        commit() { callbacks.final(queue.length > 1 ? queue.shift()! : queue[0]!); },
         close() { if (!closed) { closed = true; ++closes; } },
       };
     },

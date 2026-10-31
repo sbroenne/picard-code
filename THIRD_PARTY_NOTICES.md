@@ -3,6 +3,8 @@
 Picard Code uses original artwork, writing guidance, and generated test phrases.
 It includes no Star Trek artwork, episode dialogue, recordings, or cloned
 performer voices. The prebuilt speech voices are not affiliated with the show.
+The optional computer sounds below are downloaded separately and are not part
+of this repository.
 
 The JavaScript dependencies are installed through npm. Local speech
 dependencies and weights are downloaded separately, not bundled or committed.
@@ -37,6 +39,22 @@ review and satisfy their licenses, including the GPL source and notice
 requirements and the particular FFmpeg build's notices. Do not assume all
 local speech dependencies are MIT licensed. This repository's download setup
 does not grant permission to remove notices or bypass redistribution terms.
+
+## Optional computer sounds
+
+`npm run setup:sounds` downloads four short sound files from
+[TrekCore](https://www.trekcore.com/audio/) into the ignored `.picard-sounds`
+folder. The project owner chose these files and confirmed permission to use
+them. They are not covered by this project's license, are not redistributed
+in this repository, and no license terms are stated for them here. Picard Code
+works without them.
+
+| Used for | Source |
+| --- | --- |
+| A spoken request was accepted | https://www.trekcore.com/audio/computer/computer_work_beep.mp3 |
+| Work is still running after a short wait | https://www.trekcore.com/audio/computer/processing3.mp3 |
+| Speech was not understood or could not be sent | https://www.trekcore.com/audio/computer/input_failed_clean.mp3 |
+| An accepted request finally failed or was denied | https://www.trekcore.com/audio/computer/denybeep1.mp3 |
 
 ## Hosted services
 

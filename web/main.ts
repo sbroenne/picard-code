@@ -2,7 +2,8 @@ import "./style.css";
 import type { Event, PermissionRequest, QuestionRequest } from "@opencode-ai/sdk/v2";
 import type { AppState, BrowserEvent, ChatMessage, Conversation, ModelChoice } from "../src/shared/types";
 import { chatPart, errorMessage } from "../src/shared/messages";
-import { spokenSummary } from "../src/shared/speech";
+import { replyFailed, spokenReply, spokenSummary } from "../src/shared/speech";
+import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../src/shared/questions";
 import { VoiceConversation } from "./voice";
 
 function element<T extends HTMLElement>(id: string): T {
@@ -43,12 +44,39 @@ const drafts = new Map<string, string>();
 const historyEvents: Event[] = [];
 let voiceTurn: { session: string; known: Set<string> } | undefined;
 let spokenDecision = "";
+let spokenQuestionID: string | undefined;
+let answering = false;
 const voice = new VoiceConversation({
   changed: voiceControls,
   error: notice,
-  transcript: (text) => sendMessage(text),
-  canListen: () => !!state?.models.length && connected && !busy() && !submitting && !pending() && !historyLoading && !voiceTurn,
+  transcript: (text) => askedQuestion() ? answerAloud(text) : sendMessage(text),
+  canListen: () => !!state?.models.length && connected && !submitting && !historyLoading
+    && (!!askedQuestion() || !busy() && !pending() && !voiceTurn),
 });
+
+/** The single OpenCode question that was asked aloud and may be answered by voice. */
+function askedQuestion() {
+  if (!spokenQuestionID || answering || state?.permissions.some((item) => item.sessionID === selected)) return undefined;
+  const waiting = state?.questions.filter((item) => item.sessionID === selected) ?? [];
+  const request = waiting.length === 1 && waiting[0]!.id === spokenQuestionID ? waiting[0] : undefined;
+  return request && canAskAloud(request.questions) ? request : undefined;
+}
+
+async function answerAloud(text: string) {
+  const request = askedQuestion();
+  if (!request) throw new Error("The question is no longer waiting. Check the conversation on screen.");
+  const result = matchSpokenAnswer(request.questions[0]!, text);
+  if ("retry" in result) { voice.speak(result.retry); return; }
+  answering = true;
+  try {
+    await api(`questions/${encodeURIComponent(request.id)}`, { answers: [[result.answer]] });
+    spokenQuestionID = undefined;
+    await refreshState();
+  } finally {
+    answering = false;
+    controls();
+  }
+}
 
 function voiceControls() {
   const ready = !!state?.speech?.configured && !!state.models.length && connected;
@@ -59,7 +87,7 @@ function voiceControls() {
   element("voice-console").dataset.phase = voice.phase;
   element("voice-status").textContent = voice.phase === "speaking" ? voice.microphone ? "Computer speaking" : "Microphone off / computer speaking"
     : voice.speechPending ? voice.microphone ? "Preparing the spoken reply" : "Microphone off / preparing the spoken reply"
-    : voice.microphone && voice.phase === "listening" ? "Listening"
+    : voice.microphone && voice.phase === "listening" ? askedQuestion() ? "Listening for your answer" : "Listening"
     : voice.microphone ? pending() ? "Waiting for your decision" : "Understanding / working"
     : "Microphone off";
   element("voice-partial").textContent = voice.partial;
@@ -70,7 +98,7 @@ function voiceControls() {
   element("voice-disclosure").textContent = `${cloudListening
     ? "When on, microphone audio goes to Azure, which may process it outside Europe."
     : "Whisper understands microphone audio on this computer."} ${cloudSpeaking
-    ? "Reply text goes to Azure for speaking." : "Kokoro speaks locally."} Understood requests are sent to Copilot automatically. Listening pauses during work and playback. Stop speaking interrupts playback, not work.`;
+    ? "Reply text goes to Azure for speaking." : "Kokoro speaks locally."} Understood requests are sent to Copilot automatically. Listening pauses during work and playback, except to hear your answer to a question the computer asks aloud. Approvals always need a button. Stop speaking interrupts playback, not work.`;
   element("stop-speaking").hidden = !voice.speechPending;
 }
 
@@ -78,10 +106,8 @@ function completeVoiceReply() {
   if (!voiceTurn || voiceTurn.session !== selected || busy() || pending() || submitting || historyLoading) return;
   const reply = messages.findLast((message) => message.role === "assistant" && !voiceTurn!.known.has(message.id));
   if (!reply) return;
-  const text = reply.error ?? reply.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n");
-  if (!text.trim()) return;
   voiceTurn = undefined;
-  voice.speak(spokenSummary(text));
+  voice.speak(spokenReply(reply), replyFailed(reply));
 }
 
 async function api<T>(path: string, data?: unknown): Promise<T> {
@@ -140,8 +166,9 @@ function controls() {
   element("mode-hint").textContent = agent.value === "plan"
     ? "Discuss uses OpenCode's planning mode. Review its suggestions before asking for changes."
     : "OpenCode may change files or run commands. Its permission settings decide which actions ask first.";
-  if (voice.microphone && voice.phase === "listening" && (!ready || working || pending())) voice.resume();
-  if (voice.microphone && voice.phase === "off" && ready && !working && !pending() && !voiceTurn && !voice.speechPending && !historyLoading) voice.resume();
+  if (voice.microphone && voice.phase === "listening" && (!ready || (working || pending()) && !askedQuestion())) voice.resume();
+  if (voice.microphone && voice.phase === "off" && ready && !voice.speechPending && !historyLoading
+    && (askedQuestion() || !working && !pending() && !voiceTurn)) voice.resume();
   voiceControls();
 }
 
@@ -182,10 +209,18 @@ function renderState() {
     ?? state.questions.find((item) => item.sessionID === selected)?.id;
   if (voiceTurn && decision && decision !== spokenDecision) {
     spokenDecision = decision;
-    voice.speak(state.permissions.some((item) => item.id === decision)
-      ? "Approval required. Review the requested action on screen, then choose Allow once or Deny."
-      : "Additional information is required. Please answer the question on screen.");
+    const question = state.questions.find((item) => item.id === decision);
+    const waiting = state.questions.filter((item) => item.sessionID === selected).length;
+    if (!question) {
+      voice.speak("Approval required. Review the requested action on screen, then choose Allow once or Deny.");
+    } else if (waiting === 1 && canAskAloud(question.questions)) {
+      spokenQuestionID = question.id;
+      voice.speak(spokenQuestion(question.questions[0]!));
+    } else {
+      voice.speak("Additional information is required. Please answer the questions on screen.");
+    }
   }
+  if (spokenQuestionID && !state.questions.some((item) => item.id === spokenQuestionID)) spokenQuestionID = undefined;
   controls();
 }
 
@@ -401,7 +436,7 @@ function handleEvent(event: Event) {
     if (!event.properties.sessionID || event.properties.sessionID === selected) {
       const message = errorMessage(event.properties.error);
       notice(message);
-      if (voiceTurn) { voiceTurn = undefined; voice.speak(spokenSummary(message)); }
+      if (voiceTurn) { voiceTurn = undefined; voice.speak(spokenSummary(message), event.properties.error?.name !== "MessageAbortedError"); }
     }
   } else if (event.type.startsWith("permission.") || event.type.startsWith("question.") || ["session.created", "session.updated", "session.deleted"].includes(event.type)) {
     void perform(refreshState);
@@ -487,7 +522,7 @@ function closeMenu() {
 }
 
 async function selectConversation(id: string) {
-  if (selected && id !== selected) { voiceTurn = undefined; voice.close(); }
+  if (selected && id !== selected) { voiceTurn = undefined; spokenQuestionID = undefined; voice.close(); }
   drafts.set(selected ?? "new", prompt.value);
   selected = id;
   selectionRevision++;
@@ -533,6 +568,7 @@ async function sendMessage(spokenText?: string) {
     // Keep the draft until OpenCode confirms it accepted the message.
     drafts.set(id, text);
     await api(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, agent: mode });
+    if (spokenText) voice.acknowledge(() => !!voiceTurn && busy() && !pending());
     drafts.delete(id);
     prompt.value = "";
     await refreshState();
@@ -602,6 +638,7 @@ element("project-form").addEventListener("submit", (event) => {
   void perform(async () => {
     const next = await api<AppState>("project", { path: element<HTMLInputElement>("project-path").value });
     voiceTurn = undefined;
+    spokenQuestionID = undefined;
     voice.close();
     events?.close();
     selected = undefined;

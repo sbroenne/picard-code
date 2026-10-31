@@ -59,6 +59,8 @@ export interface AppOptions {
   webRoot: string;
   port?: number;
   speech?: SpeechService;
+  /** Optional folder holding the short sounds downloaded by `npm run setup:sounds`. */
+  soundFolder?: string;
 }
 
 export async function startApp(options: AppOptions) {
@@ -196,6 +198,17 @@ export async function startApp(options: AppOptions) {
         }
         if (path === "/api/state" && method === "GET") {
           json(response, 200, await state(project));
+          return;
+        }
+        const soundName = /^\/api\/sounds\/(request-accepted|processing|input-failed|request-failed)$/.exec(path)?.[1];
+        if (soundName && method === "GET") {
+          let sound: Buffer;
+          try {
+            if (!options.soundFolder) throw new Error();
+            sound = await readFile(resolve(options.soundFolder, `${soundName}.mp3`));
+          } catch { throw new HttpError(404, "This sound is not set up."); }
+          response.writeHead(200, { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" });
+          response.end(sound);
           return;
         }
         if (path === "/api/events" && method === "GET") {

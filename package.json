@@ -20,7 +20,9 @@
     "test:live": "node dist/tests/live-check.js",
     "test:speech:live": "node dist/tests/speech-live-check.js",
     "test:speech:local": "node dist/tests/speech-local-check.js",
-    "test:conversation:live": "node dist/tests/conversation-live-check.js"
+    "test:conversation:live": "node dist/tests/conversation-live-check.js",
+    "test:behavior:live": "node dist/tests/behavior-live-check.js",
+    "setup:sounds": "node scripts/setup-sounds.mjs"
   },
   "dependencies": {
     "@opencode-ai/sdk": "1.19.5",

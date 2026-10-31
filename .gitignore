@@ -9,6 +9,7 @@ playwright-report/
 *.log
 .picard-speech.json
 .picard-voice/
+.picard-sounds/
 __pycache__/
 .picard-test-*/
 .picard-live-check-*/

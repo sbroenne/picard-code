@@ -85,24 +85,48 @@ than substituting another provider.
   audio goes to the selected listening service. A pause of about a second ends your turn and sends the
   understood request automatically. There is no routine transcript review or
   Send step. Understood words and the saved request remain visible.
-- The computer speaks the answer's brief opening paragraph. Detailed code and
-  results stay on screen. Follow-up requests use the same conversation.
+- The computer speaks a complete short answer, usually one to three
+  sentences. Detailed code and results stay on screen. File names, settings
+  and dates are spoken in a listenable form ("src slash app dot ts, line 3")
+  while the screen keeps the exact text. Follow-ups, corrections and
+  "show me" use the same conversation.
 - Listening pauses during work, decisions, and spoken playback so the
   computer cannot send its own answer as a new request. **Stop speaking**
   interrupts playback and resumes listening when the current work allows it.
+  Speaking over the computer does not interrupt it.
+- When OpenCode asks a single question, the computer reads it aloud with its
+  choices and listens for your answer. Say the option's name or, for example,
+  "the second one". A reply containing "not" or "don't" is never taken as a
+  choice, and when only the offered answers are allowed, anything else is
+  asked again. To skip a question, use **Skip question** on screen. Several
+  questions at once are answered on screen.
 - **Microphone off** stops microphone capture without cancelling OpenCode's
   work. **Stop work** cancels the current OpenCode request. These are separate
   controls.
 - **Type instead** opens the fallback message box and turns the microphone off.
+- **Optional computer sounds:** run `npm run setup:sounds` once to download four
+  short TrekCore sounds (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
+  then restart Picard Code. During spoken conversation they play quietly, once
+  each: a beep when a spoken request is accepted; a processing sound if the
+  work is still running after about 2.5 seconds with no answer, question or
+  approval request yet; an input-failed sound when speech was not understood
+  or could not be sent; and a deny beep just before the spoken result when an
+  accepted request finally fails or is denied. Typed requests, answers to
+  questions, **Stop work** and **Microphone off** play no sound. Listening is
+  paused while a sound plays, and listening, speech, **Stop speaking** or
+  **Microphone off** stop it. Each sound only accompanies the visible and
+  spoken explanation; it never replaces it. Without the files, there are no
+  sounds and nothing else changes.
 - **New conversation** starts a saved OpenCode conversation. Existing
   conversations in the selected folder appear in the sidebar (latest 100).
 - **Discuss** uses OpenCode's `plan` mode. **Make changes** uses its `build` mode.
 - Replies update live. Tool activity and thinking can be expanded, and code
   blocks remain readable. **Copy** copies the reply text.
 - **Allow once** or **Deny** answers an actual OpenCode approval request. There
-  is no automatic approval or “always allow” shortcut.
-- Questions from OpenCode support choices and written answers. **Stop work**
-  asks OpenCode to stop the current conversation.
+  is no automatic approval or “always allow” shortcut, and approvals cannot be
+  given by voice. After **Deny**, the computer says the action was not carried out.
+- Questions from OpenCode can also be answered on screen with choices or a
+  written answer. **Stop work** asks OpenCode to stop the current conversation.
 
 **OpenCode's own permission rules decide which actions need approval.** Its
 default settings allow many tools without asking. Picard Code does not change
@@ -123,8 +147,10 @@ them to be sent; background speech can be misunderstood.
 ## Azure speech setup
 
 This version uses **MAI-Transcribe-2-Streaming** for live listening and the
-prebuilt **Harper / MAI-Voice-2.1-Flash** voice for speaking. Both are preview
-services. It does not create a second AI assistant in Azure: coding stays
+prebuilt British **Emily / MAI-Voice-2.1-Flash** voice with its **neutral**
+style for speaking. The user chose British voices after a listening
+comparison; this is a preference, not a recreation of the show's voice. Both
+are preview services. It does not create a second AI assistant in Azure: coding stays
 with OpenCode and GitHub Copilot.
 
 Use an Azure AI resource in a supported region, such as Sweden Central.
@@ -150,9 +176,17 @@ Use your own resource's settings:
   "resourceName": "your-ai-resource",
   "region": "swedencentral",
   "deployment": "your-live-listening-deployment",
-  "voice": "en-US-Harper:MAI-Voice-2.1-Flash"
+  "voice": "en-GB-Emily:MAI-Voice-2.1-Flash",
+  "voiceStyle": "neutral"
 }
 ```
+
+`voice` and `voiceStyle` are optional; the values above are the defaults.
+Other prebuilt voices work too, for example
+`en-US-Harper:MAI-Voice-2.1-Flash` or `en-GB-Harry:MAI-Voice-2.1-Flash`. A
+saved `voice` is always used as written. Styles that worked in testing are
+`neutral`, `agent`, `narrator` and `softvoice`; use `none` to send no style.
+An unsupported voice or style is reported as an Azure error, not replaced.
 
 This file is ignored by Git and contains **no key**. Install Azure CLI and
 sign in using `az login` in your own terminal. Your Azure account must
@@ -173,7 +207,8 @@ the written conversation intact and reports what failed.
 
 Local listening uses **faster-whisper** with the English `tiny.en` model.
 Local speaking uses **kokoro-onnx**, the standard Kokoro model, and its original
-prebuilt `af_heart` voice. Both run on the CPU. No Azure resource, key, or login
+prebuilt British `bf_emma` voice by default (`af_heart` and the other Kokoro
+voices can be chosen with `kokoroVoice`). Both run on the CPU. No Azure resource, key, or login
 is needed when both sides are local. Copilot authorization is still required.
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and make
@@ -207,9 +242,9 @@ recognizing after the pause; unlike MAI, it does not display live words while
 you are speaking. Stopping speech discards late audio and does not block the
 separate listening worker. No service is silently replaced if setup fails.
 
-On the checked Windows machine, real Kokoro speaking produced **4.1 seconds
-of audio in 1.9 seconds**, and Whisper understood that audio in **0.5 seconds**.
-Worker startup took **3.7 seconds**. These are short-phrase measurements, not
+On the checked Windows machine, real Kokoro speaking with `bf_emma` produced
+**4.2 seconds of audio in 2.4 seconds**, and Whisper understood that audio in
+**0.5 seconds**. Worker startup took **4.4 seconds**. These are short-phrase measurements, not
 speed or accuracy promises for other machines. Longer turns and older CPUs
 can take longer. This small English model can misunderstand accents and
 technical terms; the understood request remains visible.
@@ -251,16 +286,24 @@ dependencies or downloaded models.
 
 ### The computer's manner
 
-Each request includes original writing guidance for a restrained ship-computer
-manner: brief, precise, neutral, and useful. Acknowledgments are not repeated.
-"Working" and "Analysis complete" are appropriate only when true; uncertainty
-and failures must be explained plainly, with actionable details. Longer code
-and results remain available rather than being trimmed for the theme.
+Picard Code sends its own conversation instructions with every request, as
+OpenCode's per-request system instructions (`src/server/instructions.ts`).
+It does not use an optional skill, and it never writes an `AGENTS.md` or
+other rules file into your project, so your project's own development rules
+stay as they are.
+
+The instructions ask for a restrained ship-computer manner: a complete short
+spoken answer first, details after it for the screen, short follow-ups
+understood from context, one focused question when something is missing,
+specific reasons when information is unavailable, and completion reports only
+for work that actually happened. Stock phrases such as "Working" are not
+repeated as catchphrases. Exact names, negations, limits and approvals in your
+request are kept as you said them; your request is never rewritten.
 
 This changes phrasing, not OpenCode's tools or approval rules. The voice is a
-prebuilt voice, not a performer's clone or a show recording. The model
-is asked to put its useful answer and important uncertainty in a brief first
-paragraph for speaking, with supporting details afterward.
+prebuilt voice, not a performer's clone or a show recording. The research
+behind these choices, with its evidence limits, is in
+[docs/research](docs/research/conversation-research.md).
 
 ## Reuse an existing OpenCode server
 
@@ -312,6 +355,7 @@ npm run test:speech:live
 npm run test:speech:local
 npm run test:conversation:live
 npm.cmd run test:conversation:live -- --local
+npm run test:behavior:live
 ```
 
 The server and browser tests use a clearly labeled local test server that follows
@@ -321,7 +365,9 @@ protection, safe text rendering, and desktop/phone layouts. They do not claim
 to have called Copilot or executed a shell command. Speech tests use an
 artificial browser microphone and an explicitly separate speech test service
 to check automatic turns, follow-up context, paused listening during playback,
-deliberate approvals, and separate stopping controls.
+deliberate approvals, and separate stopping controls. They also use silent
+stand-in sound files to check that each computer sound plays once at the right
+moment, never while listening, and not for answers to questions or cancelled work.
 
 `test:live` starts **real OpenCode**, checks its health, project folder, saved
 conversation, live updates, and approval/question requests, then removes its
@@ -345,6 +391,14 @@ same path with Whisper and Kokoro. These checks make real Copilot requests;
 the MAI variant also makes chargeable Azure requests. Both passed on the
 Windows development machine. They remove their own check conversations and
 save screenshots and generated audio in the ignored samples folder.
+
+`test:behavior:live` holds a six-turn conversation with your authorized Copilot
+model through Picard Code's own local interface, in a temporary project
+outside this repository. It checks a short investigation, a follow-up, a
+correction, "show me", OpenCode's real question with a spoken-style answer,
+and a refused command approval that must not run. It writes the full exchange
+to `.picard-voice/samples/behavior-transcript.md`. Model wording varies; the
+check verifies behavior, not exact words.
 
 A check with your physical microphone and speakers is still needed
 to judge room noise, listening sensitivity, comfortable pauses, and playback.
@@ -400,3 +454,10 @@ through `@opencode-ai/sdk/v2`:
 Windows is checked on the development machine. App startup and shutdown are
 implemented for macOS and Linux but still need checks on those systems. This first version
 does not include file attachments, a full file editor, or package publication.
+
+## Developing Picard Code
+
+- [AGENTS.md](AGENTS.md): rules for people and coding agents changing this repository.
+- [Continuing on another computer](docs/CONTINUING.md): setup, checks and open work.
+- [Conversation research](docs/research/conversation-research.md) and
+  [voice and conversation direction](docs/research/voice-and-conversation-direction.md).

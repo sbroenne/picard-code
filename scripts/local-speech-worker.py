@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--whisper-model")
 parser.add_argument("--kokoro-model")
 parser.add_argument("--kokoro-voices")
-parser.add_argument("--kokoro-voice", default="af_heart")
+parser.add_argument("--kokoro-voice", default="bf_emma")
 args = parser.parse_args()
 try:
     with contextlib.redirect_stdout(sys.stderr):
@@ -53,7 +53,9 @@ try:
                 raise ValueError(f"Kokoro does not have the voice {args.kokoro_voice}.")
             from phonemizer.backend import EspeakBackend
             # Reuse the native backend; repeated Windows initialization is costly.
-            phonemizer = EspeakBackend("en-us", preserve_punctuation=True, with_stress=True)
+            # Kokoro's voice names start with "b" for British English voices.
+            accent = "en-gb" if args.kokoro_voice.startswith("b") else "en-us"
+            phonemizer = EspeakBackend(accent, preserve_punctuation=True, with_stress=True)
             warmup = phonemizer.phonemize(["Ready."], strip=True)[0]
             kokoro.create(warmup, voice=args.kokoro_voice, is_phonemes=True)
 except Exception as error:

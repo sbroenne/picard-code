@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { WebSocket } from "ws";
 import { setTimeout as wait } from "node:timers/promises";
-import { EndOfSpeech, spokenSummary, type SpeechEvent } from "../shared/speech.js";
+import { EndOfSpeech, replyFailed, speakable, spokenReply, spokenSummary, type SpeechEvent } from "../shared/speech.js";
+import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
+import { speakingDocument } from "../server/azure-speech.js";
+import { DEFAULT_MAI_VOICE } from "../server/speech.js";
 import { attachSpeech } from "../server/speech-bridge.js";
 import { speechFixture } from "./speech-fixture.js";
 
@@ -90,7 +93,74 @@ test("spoken answers preserve a concise first paragraph without reading code or 
   assert.equal(spokenSummary("I could not complete that change.\n\n```js\nconst x = 1;\n```"), "I could not complete that change.");
   assert.equal(spokenSummary("**Two problems** remain. Read [the details](https://example.com).\n\nLong details."), "Two problems remain. Read the details.");
   assert.equal(spokenSummary("```js\nconst x = 1;\n```"), "The result is on screen.");
-  assert.ok(spokenSummary("A very long explanation. ".repeat(100)).length <= 700);
+  assert.ok(spokenSummary("A very long explanation. ".repeat(100)).length <= 420);
+});
+
+test("a reply that opens with a list is spoken completely, not cut off at the colon", () => {
+  const written = "The missing required release settings are:\n\n- `SERVICE_URL`: the address of the service\n- `RELEASE_TOKEN` — used for signing\n- `BUILD_NUMBER`\n\nSet them in `config/release.json`.";
+  assert.equal(spokenSummary(written), "The missing required release settings are: service URL, release token, and build number.");
+  assert.equal(spokenSummary("Here is the fix:\n\n```ts\nconst x = 1;\n```"), "Here is the fix. The details are on screen.");
+  assert.equal(spokenSummary("1. First step\n2. Second step"), "First step and Second step.");
+  const many = `Changed files:\n${Array.from({ length: 7 }, (_value, index) => `- file${index}`).join("\n")}`;
+  assert.equal(spokenSummary(many), "Changed files: file0, file1, file2, file3, file4, and 2 more on screen.");
+});
+
+test("technical names are spoken understandably while the written text keeps exact names", () => {
+  const written = "The token in `fixtures/session.json` expired on 2025-01-01T00:00:00Z. See `src/app.ts:3-5` and `spokenSummary`.";
+  assert.equal(spokenSummary(written),
+    "The token in fixtures slash session dot json expired on January 1, 2025 at midnight UTC. See src slash app dot ts, lines 3 to 5 and spoken summary.");
+  assert.equal(speakable("Read README.md and package.json at https://example.com/a/b."), "Read README dot md and package dot json at the link on screen.");
+  assert.equal(speakable("Set API_KEY and MAX_RETRY_COUNT on 2026-03-09 14:05."), "Set API key and max retry count on March 9, 2026 at 14:05.");
+  assert.equal(speakable("Use one and/or the other, version 1.2.3, e.g. this."), "Use one and/or the other, version 1.2.3, e.g. this.");
+  assert.equal(spokenSummary("`src/config.ts` sets `MAX_RETRIES` to `3`."), "src slash config dot ts sets max retries to 3.");
+});
+
+test("a finished reply is described truthfully even when it has no text", () => {
+  assert.equal(spokenReply({ parts: [{ type: "text", text: "Analysis complete." }] }), "Analysis complete.");
+  assert.equal(spokenReply({ error: "Copilot is not connected.", parts: [] }), "Copilot is not connected.");
+  assert.equal(spokenReply({ parts: [{ type: "tool", status: "error", text: "bash\nThe user rejected permission to use this specific tool call." }] }),
+    "Request denied. The action was not carried out.");
+  assert.equal(spokenReply({ parts: [{ type: "tool", status: "error", text: "bash\nCommand exited with code 1" }] }),
+    "Unable to complete the request. The action failed. The details are on screen.");
+  assert.equal(spokenReply({ parts: [] }), "The work finished without a written reply.");
+});
+
+test("only a final error or an unexplained failed action counts as a failed request", () => {
+  const failedTool = { type: "tool", status: "error", text: "bash\nCommand exited with code 1" };
+  assert.equal(replyFailed({ error: "Copilot is not connected.", parts: [] }), true);
+  assert.equal(replyFailed({ parts: [failedTool] }), true);
+  assert.equal(replyFailed({ parts: [failedTool, { type: "text", text: "The first attempt failed; the second worked." }] }), false);
+  assert.equal(replyFailed({ parts: [{ type: "text", text: "Analysis complete." }] }), false);
+  assert.equal(replyFailed({ parts: [] }), false);
+});
+
+test("spoken question answers match only clear, offered choices and keep the user's own words", () => {
+  const question = { header: "Direction", question: "Which approach should I use?", options: [{ label: "Small change", description: "" }, { label: "Explain first", description: "" }] };
+  const closed = { ...question, custom: false };
+  assert.equal(spokenQuestion(question), "Which approach should I use? The options are Small change or Explain first. You may also give a different answer.");
+  assert.equal(spokenQuestion(closed), "Which approach should I use? The options are Small change or Explain first.");
+  assert.deepEqual(matchSpokenAnswer(question, "Explain first."), { answer: "Explain first" });
+  assert.deepEqual(matchSpokenAnswer(question, "the second one"), { answer: "Explain first" });
+  assert.deepEqual(matchSpokenAnswer(question, "Option 1"), { answer: "Small change" });
+  assert.deepEqual(matchSpokenAnswer(question, "Let's go with the small change please"), { answer: "Small change" });
+  assert.deepEqual(matchSpokenAnswer(question, "Not the small change."), { answer: "Not the small change." }, "A negated reply must never become that choice.");
+  assert.deepEqual(matchSpokenAnswer(closed, "Not the small change."), { retry: "Please choose Small change or Explain first." });
+  assert.deepEqual(matchSpokenAnswer(closed, "small change or explain first"), { retry: "Please choose Small change or Explain first." });
+  assert.deepEqual(matchSpokenAnswer(closed, "Something else entirely"), { retry: "Please choose Small change or Explain first." });
+  const skip = matchSpokenAnswer(question, "Skip");
+  assert.match("retry" in skip ? skip.retry : "", /Skip question on screen/);
+  const negativeLabel = { ...closed, options: [{ label: "Do not change files", description: "" }, { label: "Change files", description: "" }] };
+  assert.deepEqual(matchSpokenAnswer(negativeLabel, "do not change files"), { answer: "Do not change files" });
+  assert.equal(canAskAloud([question]), true);
+  assert.equal(canAskAloud([{ ...question, multiple: true }]), false);
+  assert.equal(canAskAloud([question, question]), false);
+});
+
+test("MAI speaking uses the British default voice with its neutral style unless configured otherwise", () => {
+  assert.equal(DEFAULT_MAI_VOICE, "en-GB-Emily:MAI-Voice-2.1-Flash");
+  const british = speakingDocument({ voice: DEFAULT_MAI_VOICE, voiceStyle: "neutral" }, "Ready & <waiting>.");
+  assert.match(british, /xml:lang="en-GB"><voice name="en-GB-Emily:MAI-Voice-2\.1-Flash"><mstts:express-as style="neutral">Ready &amp; &lt;waiting&gt;\.<\/mstts:express-as>/);
+  assert.doesNotMatch(speakingDocument({ voice: "en-US-Harper:MAI-Voice-2.1-Flash", voiceStyle: "none" }, "Ready."), /express-as/);
 });
 
 test("voice transport rejects other websites, pauses recognition during speech, and stops speaking without starting work", async (t) => {

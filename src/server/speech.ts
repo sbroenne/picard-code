@@ -4,6 +4,9 @@ import { loadAzureSpeech } from "./azure-speech.js";
 import { localSpeech } from "./local-speech.js";
 import type { SpeechService, SpeechSelection } from "./speech-types.js";
 
+/** British prebuilt MAI voice chosen by the user after listening to the comparison. */
+export const DEFAULT_MAI_VOICE = "en-GB-Emily:MAI-Voice-2.1-Flash";
+
 export async function loadSpeech(overrides: { listening?: string; speaking?: string } = {}, signal?: AbortSignal): Promise<SpeechService | undefined> {
   let record: Record<string, unknown> = {};
   try {
@@ -34,14 +37,15 @@ export async function loadSpeech(overrides: { listening?: string; speaking?: str
     subscription: name("subscription"), resourceGroup: name("resourceGroup"),
     resourceName: name("resourceName"), region: name("region"),
     deployment: listening === "mai" ? name("deployment") : undefined,
-    voice: speaking === "mai" ? name("voice", "en-US-Harper:MAI-Voice-2.1-Flash") : "en-US-Harper:MAI-Voice-2.1-Flash",
+    voice: speaking === "mai" ? name("voice", DEFAULT_MAI_VOICE) : DEFAULT_MAI_VOICE,
+    voiceStyle: speaking === "mai" ? name("voiceStyle", "neutral") : "neutral",
   }) : undefined;
   const local = listening === "whisper" || speaking === "kokoro" ? await localSpeech({
     python: path("localPython", resolve(".picard-voice", process.platform === "win32" ? "Scripts" : "bin", process.platform === "win32" ? "python.exe" : "python")),
     whisperModel: path("whisperModel", resolve(".picard-voice", "models", "whisper-tiny.en")),
     kokoroModel: path("kokoroModel", resolve(".picard-voice", "models", "kokoro-v1.0.onnx")),
     kokoroVoices: path("kokoroVoices", resolve(".picard-voice", "models", "voices-v1.0.bin")),
-    kokoroVoice: name("kokoroVoice", "af_heart"),
+    kokoroVoice: name("kokoroVoice", "bf_emma"),
   }, listening === "whisper", speaking === "kokoro", signal) : undefined;
   const listener = listening === "mai" ? azure! : local!.listener;
   const speaker = speaking === "mai" ? azure! : local!.speaker;

@@ -1,0 +1,833 @@
+{
+  "generatedAt": "2026-10-31T10:50:04.605Z",
+  "scenes": [
+    {
+      "id": "build",
+      "title": "Build failure: short contextual follow-ups",
+      "shows": "investigation, contextual follow-up, display hand-off",
+      "turns": [
+        {
+          "user": "Why did the last build fail?",
+          "display": "Computer, why did the last build fail?",
+          "computer": "The release check failed. Two required settings are missing."
+        },
+        {
+          "user": "Which settings?",
+          "display": "Computer, which settings?",
+          "computer": "The service address and the signing certificate path."
+        },
+        {
+          "user": "Show me.",
+          "display": "Computer, display them.",
+          "computer": "The build log is on screen. Both settings are empty."
+        }
+      ]
+    },
+    {
+      "id": "login",
+      "title": "Login tests: limits, a focused question and a correction",
+      "shows": "no-edit investigation, unavailable information, focused clarification, correction",
+      "turns": [
+        {
+          "user": "Check why the login tests fail. Don't edit anything.",
+          "display": "Computer, investigate the failing login tests. Make no changes.",
+          "keep": "Do not edit",
+          "computer": "Three login tests fail. They share one test session, and its token expired on the first of January. Nothing was changed."
+        },
+        {
+          "user": "Who approved that test data?",
+          "display": "Computer, who approved the test data?",
+          "computer": "There is no approval record. This folder has no review history."
+        },
+        {
+          "user": "Fix the test session.",
+          "display": "Computer, correct the test session.",
+          "computer": "What expiry date should it use?"
+        },
+        {
+          "user": "A year from today. Actually, use the release branch. Do not edit yet.",
+          "display": "Computer, set the expiry to one year from today, on the release branch. Do not edit yet.",
+          "keep": "release branch; do not edit yet",
+          "computer": "The release branch, one year from today. I will not edit until you tell me to."
+        }
+      ]
+    },
+    {
+      "id": "publish",
+      "title": "Publishing: a question is not an approval",
+      "shows": "assessment versus explicit order, named consequence, approval question, truthful completion",
+      "turns": [
+        {
+          "user": "Could we publish this?",
+          "display": "Computer, assess whether this branch can be published.",
+          "keep": "question only, not permission",
+          "computer": "Not yet. The release check still needs both settings, and the login tests are failing."
+        },
+        {
+          "user": "Publish this branch anyway.",
+          "display": "Computer, publish this branch despite the failing checks.",
+          "keep": "this branch only",
+          "computer": "This will publish the release branch to the shared repository with two checks failing. Do you approve?"
+        },
+        {
+          "user": "Yes, publish it.",
+          "display": "Computer, publication approved.",
+          "computer": "The release branch is published. Two checks are still failing."
+        }
+      ]
+    }
+  ],
+  "capture": [
+    {
+      "user": "Computer, why did the last build fail?",
+      "reply": "The release check failed before tests ran because two required settings were absent:\n\n- `SERVICE_URL`\n- `SIGNING_CERT_PATH`\n\nSee `logs/last-build.log:3-5`. The login test log also contains failures from an expired session fixture, but per `README.md`, those tests run only after `npm run release-check`; they were not the cause of this build failure.",
+      "spoken": "The release check failed before tests ran because two required settings were absent:",
+      "replyMs": 7588,
+      "model": "gpt-5.6-terra"
+    },
+    {
+      "user": "Which settings?",
+      "reply": "The missing required release settings are:\n\n- `SERVICE_URL`: the service’s deployment or public base URL.\n- `SIGNING_CERT_PATH`: filesystem path to the certificate used for release signing.\n\nBoth must be supplied to `npm run release-check`, typically as environment variables in the CI/CD job or release environment.",
+      "spoken": "The missing required release settings are:",
+      "replyMs": 1709,
+      "model": "gpt-5.6-terra"
+    },
+    {
+      "user": "Show me.",
+      "reply": "The available files show only the setting names, not their expected values:\n\n```text\nSERVICE_URL\nSIGNING_CERT_PATH\n```\n\nThe build log confirms both were unset. No deployment configuration, CI workflow, certificate, or environment file is present in this workspace to determine the correct URL or certificate path.",
+      "spoken": "The available files show only the setting names, not their expected values:",
+      "replyMs": 4559,
+      "model": "gpt-5.6-terra"
+    },
+    {
+      "user": "Check why the login tests fail. Don't edit anything.",
+      "reply": "All three login tests use `fixtures/session.json`, whose session expiry is `2025-01-01T00:00:00Z`. That time is already past, so authentication rejects it with `TokenExpired`.\n\nAffected tests:\n\n- `accepts a valid session`\n- `refreshes a session`\n- `signs out`\n\nThe immediate cause is stale test fixture data, not separate failures in the three login flows. No files were edited.",
+      "spoken": "All three login tests use fixtures/session.json, whose session expiry is 2025-01-01T00:00:00Z. That time is already past, so authentication rejects it with TokenExpired.",
+      "replyMs": 3644,
+      "model": "gpt-5.6-terra"
+    },
+    {
+      "user": "Who approved that test data?",
+      "reply": "No approval record is available in this workspace. It contains only the expired fixture and test/build logs; there is no Git history, CI metadata, code-review record, or ownership information identifying who added or approved `fixtures/session.json`.",
+      "spoken": "No approval record is available in this workspace. It contains only the expired fixture and test/build logs; there is no Git history, CI metadata, code-review record, or ownership information identifying who added or approved fixtures/session.json.",
+      "replyMs": 2885,
+      "model": "gpt-5.6-terra"
+    },
+    {
+      "user": "Could we publish this?",
+      "reply": "Not safely. The release gate is currently blocked because `SERVICE_URL` and `SIGNING_CERT_PATH` are unset. Independently, all three login tests fail because the committed session fixture expired on `2025-01-01`.\n\nBefore publishing:\n\n1. Provide the approved production `SERVICE_URL`.\n2. Provide access to the authorized signing certificate and set `SIGNING_CERT_PATH`.\n3. Replace or regenerate the expired test session fixture using the project’s approved test-data process.\n4. Re-run the release check and login tests successfully.",
+      "spoken": "Not safely. The release gate is currently blocked because SERVICEURL and SIGNINGCERTPATH are unset. Independently, all three login tests fail because the committed session fixture expired on 2025-01-01.",
+      "replyMs": 2309,
+      "model": "gpt-5.6-terra"
+    }
+  ],
+  "variants": [
+    {
+      "id": "current-app",
+      "engine": "Azure MAI",
+      "label": "Current app: real wording, Harper",
+      "voice": "en-US-Harper:MAI-Voice-2.1-Flash",
+      "options": {},
+      "note": "Real replies captured from OpenCode + Copilot with today's instructions, cut down by today's spoken-summary rule. Same voice and settings as the app.",
+      "current": true
+    },
+    {
+      "id": "harper",
+      "engine": "Azure MAI",
+      "label": "New wording, Harper (current voice)",
+      "voice": "en-US-Harper:MAI-Voice-2.1-Flash",
+      "options": {},
+      "note": "Isolates the wording change: same voice and settings as the app today."
+    },
+    {
+      "id": "harper-neutral",
+      "engine": "Azure MAI",
+      "label": "New wording, Harper neutral, 5% slower",
+      "voice": "en-US-Harper:MAI-Voice-2.1-Flash",
+      "options": {
+        "style": "neutral",
+        "rate": "-5%"
+      },
+      "note": "Documented 'neutral' style plus a small rate change."
+    },
+    {
+      "id": "emily",
+      "engine": "Azure MAI",
+      "label": "New wording, Emily (British) neutral",
+      "voice": "en-GB-Emily:MAI-Voice-2.1-Flash",
+      "options": {
+        "style": "neutral"
+      },
+      "note": "Different prebuilt MAI voice with British English; documented 'neutral' style."
+    },
+    {
+      "id": "kokoro-heart",
+      "engine": "Kokoro (local)",
+      "label": "New wording, Kokoro af_heart (current local voice)",
+      "voice": "af_heart",
+      "note": "Local baseline: same voice the app uses with --local."
+    },
+    {
+      "id": "kokoro-emma",
+      "engine": "Kokoro (local)",
+      "label": "New wording, Kokoro bf_emma (British)",
+      "voice": "bf_emma",
+      "note": "Local alternative with a British English voice."
+    }
+  ],
+  "lines": [
+    {
+      "variant": "current-app",
+      "scene": "build",
+      "index": 0,
+      "text": "The release check failed before tests ran because two required settings were absent:",
+      "file": "current-app-build-1.wav",
+      "firstAudioMs": 419,
+      "totalMs": 522,
+      "seconds": 4.83
+    },
+    {
+      "variant": "current-app",
+      "scene": "build",
+      "index": 1,
+      "text": "The missing required release settings are:",
+      "file": "current-app-build-2.wav",
+      "firstAudioMs": 298,
+      "totalMs": 372,
+      "seconds": 2.85
+    },
+    {
+      "variant": "current-app",
+      "scene": "build",
+      "index": 2,
+      "text": "The available files show only the setting names, not their expected values:",
+      "file": "current-app-build-3.wav",
+      "firstAudioMs": 233,
+      "totalMs": 330,
+      "seconds": 4.86
+    },
+    {
+      "variant": "current-app",
+      "scene": "login",
+      "index": 0,
+      "text": "All three login tests use fixtures/session.json, whose session expiry is 2025-01-01T00:00:00Z. That time is already past, so authentication rejects it with TokenExpired.",
+      "file": "current-app-login-1.wav",
+      "firstAudioMs": 230,
+      "totalMs": 416,
+      "seconds": 16.16
+    },
+    {
+      "variant": "current-app",
+      "scene": "login",
+      "index": 1,
+      "text": "No approval record is available in this workspace. It contains only the expired fixture and test/build logs; there is no Git history, CI metadata, code-review record, or ownership information identifying who added or approved fixtures/session.json.",
+      "file": "current-app-login-2.wav",
+      "firstAudioMs": 237,
+      "totalMs": 462,
+      "seconds": 18.11
+    },
+    {
+      "variant": "current-app",
+      "scene": "publish",
+      "index": 0,
+      "text": "Not safely. The release gate is currently blocked because SERVICEURL and SIGNINGCERTPATH are unset. Independently, all three login tests fail because the committed session fixture expired on 2025-01-01.",
+      "file": "current-app-publish-1.wav",
+      "firstAudioMs": 225,
+      "totalMs": 445,
+      "seconds": 16.16
+    },
+    {
+      "variant": "harper",
+      "scene": "build",
+      "index": 0,
+      "text": "The release check failed. Two required settings are missing.",
+      "file": "harper-build-1.wav",
+      "firstAudioMs": 225,
+      "totalMs": 287,
+      "seconds": 3.87
+    },
+    {
+      "variant": "harper",
+      "scene": "build",
+      "index": 1,
+      "text": "The service address and the signing certificate path.",
+      "file": "harper-build-2.wav",
+      "firstAudioMs": 219,
+      "totalMs": 258,
+      "seconds": 2.98
+    },
+    {
+      "variant": "harper",
+      "scene": "build",
+      "index": 2,
+      "text": "The build log is on screen. Both settings are empty.",
+      "file": "harper-build-3.wav",
+      "firstAudioMs": 224,
+      "totalMs": 311,
+      "seconds": 3.74
+    },
+    {
+      "variant": "harper",
+      "scene": "login",
+      "index": 0,
+      "text": "Three login tests fail. They share one test session, and its token expired on the first of January. Nothing was changed.",
+      "file": "harper-login-1.wav",
+      "firstAudioMs": 210,
+      "totalMs": 336,
+      "seconds": 9.13
+    },
+    {
+      "variant": "harper",
+      "scene": "login",
+      "index": 1,
+      "text": "There is no approval record. This folder has no review history.",
+      "file": "harper-login-2.wav",
+      "firstAudioMs": 219,
+      "totalMs": 301,
+      "seconds": 3.92
+    },
+    {
+      "variant": "harper",
+      "scene": "login",
+      "index": 2,
+      "text": "What expiry date should it use?",
+      "file": "harper-login-3.wav",
+      "firstAudioMs": 188,
+      "totalMs": 244,
+      "seconds": 1.82
+    },
+    {
+      "variant": "harper",
+      "scene": "login",
+      "index": 3,
+      "text": "The release branch, one year from today. I will not edit until you tell me to.",
+      "file": "harper-login-4.wav",
+      "firstAudioMs": 240,
+      "totalMs": 314,
+      "seconds": 4.64
+    },
+    {
+      "variant": "harper",
+      "scene": "publish",
+      "index": 0,
+      "text": "Not yet. The release check still needs both settings, and the login tests are failing.",
+      "file": "harper-publish-1.wav",
+      "firstAudioMs": 212,
+      "totalMs": 342,
+      "seconds": 5.8
+    },
+    {
+      "variant": "harper",
+      "scene": "publish",
+      "index": 1,
+      "text": "This will publish the release branch to the shared repository with two checks failing. Do you approve?",
+      "file": "harper-publish-2.wav",
+      "firstAudioMs": 186,
+      "totalMs": 278,
+      "seconds": 5.88
+    },
+    {
+      "variant": "harper",
+      "scene": "publish",
+      "index": 2,
+      "text": "The release branch is published. Two checks are still failing.",
+      "file": "harper-publish-3.wav",
+      "firstAudioMs": 244,
+      "totalMs": 331,
+      "seconds": 4.03
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "build",
+      "index": 0,
+      "text": "The release check failed. Two required settings are missing.",
+      "file": "harper-neutral-build-1.wav",
+      "firstAudioMs": 224,
+      "totalMs": 305,
+      "seconds": 4.28
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "build",
+      "index": 1,
+      "text": "The service address and the signing certificate path.",
+      "file": "harper-neutral-build-2.wav",
+      "firstAudioMs": 222,
+      "totalMs": 308,
+      "seconds": 3.04
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "build",
+      "index": 2,
+      "text": "The build log is on screen. Both settings are empty.",
+      "file": "harper-neutral-build-3.wav",
+      "firstAudioMs": 212,
+      "totalMs": 299,
+      "seconds": 4
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "login",
+      "index": 0,
+      "text": "Three login tests fail. They share one test session, and its token expired on the first of January. Nothing was changed.",
+      "file": "harper-neutral-login-1.wav",
+      "firstAudioMs": 236,
+      "totalMs": 359,
+      "seconds": 9.13
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "login",
+      "index": 1,
+      "text": "There is no approval record. This folder has no review history.",
+      "file": "harper-neutral-login-2.wav",
+      "firstAudioMs": 214,
+      "totalMs": 304,
+      "seconds": 4.05
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "login",
+      "index": 2,
+      "text": "What expiry date should it use?",
+      "file": "harper-neutral-login-3.wav",
+      "firstAudioMs": 198,
+      "totalMs": 252,
+      "seconds": 2.11
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "login",
+      "index": 3,
+      "text": "The release branch, one year from today. I will not edit until you tell me to.",
+      "file": "harper-neutral-login-4.wav",
+      "firstAudioMs": 236,
+      "totalMs": 329,
+      "seconds": 6.04
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "publish",
+      "index": 0,
+      "text": "Not yet. The release check still needs both settings, and the login tests are failing.",
+      "file": "harper-neutral-publish-1.wav",
+      "firstAudioMs": 257,
+      "totalMs": 369,
+      "seconds": 6.43
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "publish",
+      "index": 1,
+      "text": "This will publish the release branch to the shared repository with two checks failing. Do you approve?",
+      "file": "harper-neutral-publish-2.wav",
+      "firstAudioMs": 201,
+      "totalMs": 321,
+      "seconds": 7.06
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "publish",
+      "index": 2,
+      "text": "The release branch is published. Two checks are still failing.",
+      "file": "harper-neutral-publish-3.wav",
+      "firstAudioMs": 189,
+      "totalMs": 298,
+      "seconds": 4
+    },
+    {
+      "variant": "emily",
+      "scene": "build",
+      "index": 0,
+      "text": "The release check failed. Two required settings are missing.",
+      "file": "emily-build-1.wav",
+      "firstAudioMs": 223,
+      "totalMs": 299,
+      "seconds": 3.98
+    },
+    {
+      "variant": "emily",
+      "scene": "build",
+      "index": 1,
+      "text": "The service address and the signing certificate path.",
+      "file": "emily-build-2.wav",
+      "firstAudioMs": 204,
+      "totalMs": 292,
+      "seconds": 3.08
+    },
+    {
+      "variant": "emily",
+      "scene": "build",
+      "index": 2,
+      "text": "The build log is on screen. Both settings are empty.",
+      "file": "emily-build-3.wav",
+      "firstAudioMs": 218,
+      "totalMs": 302,
+      "seconds": 3.47
+    },
+    {
+      "variant": "emily",
+      "scene": "login",
+      "index": 0,
+      "text": "Three login tests fail. They share one test session, and its token expired on the first of January. Nothing was changed.",
+      "file": "emily-login-1.wav",
+      "firstAudioMs": 205,
+      "totalMs": 329,
+      "seconds": 8.64
+    },
+    {
+      "variant": "emily",
+      "scene": "login",
+      "index": 1,
+      "text": "There is no approval record. This folder has no review history.",
+      "file": "emily-login-2.wav",
+      "firstAudioMs": 221,
+      "totalMs": 305,
+      "seconds": 4.35
+    },
+    {
+      "variant": "emily",
+      "scene": "login",
+      "index": 2,
+      "text": "What expiry date should it use?",
+      "file": "emily-login-3.wav",
+      "firstAudioMs": 190,
+      "totalMs": 239,
+      "seconds": 2.38
+    },
+    {
+      "variant": "emily",
+      "scene": "login",
+      "index": 3,
+      "text": "The release branch, one year from today. I will not edit until you tell me to.",
+      "file": "emily-login-4.wav",
+      "firstAudioMs": 220,
+      "totalMs": 306,
+      "seconds": 5.26
+    },
+    {
+      "variant": "emily",
+      "scene": "publish",
+      "index": 0,
+      "text": "Not yet. The release check still needs both settings, and the login tests are failing.",
+      "file": "emily-publish-1.wav",
+      "firstAudioMs": 211,
+      "totalMs": 306,
+      "seconds": 5.34
+    },
+    {
+      "variant": "emily",
+      "scene": "publish",
+      "index": 1,
+      "text": "This will publish the release branch to the shared repository with two checks failing. Do you approve?",
+      "file": "emily-publish-2.wav",
+      "firstAudioMs": 212,
+      "totalMs": 312,
+      "seconds": 6.03
+    },
+    {
+      "variant": "emily",
+      "scene": "publish",
+      "index": 2,
+      "text": "The release branch is published. Two checks are still failing.",
+      "file": "emily-publish-3.wav",
+      "firstAudioMs": 226,
+      "totalMs": 317,
+      "seconds": 4.54
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "build",
+      "index": 0,
+      "text": "The release check failed. Two required settings are missing.",
+      "file": "kokoro-heart-build-1.wav",
+      "firstAudioMs": 687,
+      "totalMs": 1544,
+      "seconds": 3.51
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "build",
+      "index": 1,
+      "text": "The service address and the signing certificate path.",
+      "file": "kokoro-heart-build-2.wav",
+      "firstAudioMs": 1140,
+      "totalMs": 1140,
+      "seconds": 2.94
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "build",
+      "index": 2,
+      "text": "The build log is on screen. Both settings are empty.",
+      "file": "kokoro-heart-build-3.wav",
+      "firstAudioMs": 774,
+      "totalMs": 1470,
+      "seconds": 3.31
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "login",
+      "index": 0,
+      "text": "Three login tests fail. They share one test session, and its token expired on the first of January. Nothing was changed.",
+      "file": "kokoro-heart-login-1.wav",
+      "firstAudioMs": 737,
+      "totalMs": 3119,
+      "seconds": 7.57
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "login",
+      "index": 1,
+      "text": "There is no approval record. This folder has no review history.",
+      "file": "kokoro-heart-login-2.wav",
+      "firstAudioMs": 768,
+      "totalMs": 1895,
+      "seconds": 3.93
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "login",
+      "index": 2,
+      "text": "What expiry date should it use?",
+      "file": "kokoro-heart-login-3.wav",
+      "firstAudioMs": 829,
+      "totalMs": 829,
+      "seconds": 1.87
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "login",
+      "index": 3,
+      "text": "The release branch, one year from today. I will not edit until you tell me to.",
+      "file": "kokoro-heart-login-4.wav",
+      "firstAudioMs": 1023,
+      "totalMs": 2004,
+      "seconds": 4.68
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "publish",
+      "index": 0,
+      "text": "Not yet. The release check still needs both settings, and the login tests are failing.",
+      "file": "kokoro-heart-publish-1.wav",
+      "firstAudioMs": 505,
+      "totalMs": 2162,
+      "seconds": 5.32
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "publish",
+      "index": 1,
+      "text": "This will publish the release branch to the shared repository with two checks failing. Do you approve?",
+      "file": "kokoro-heart-publish-2.wav",
+      "firstAudioMs": 1827,
+      "totalMs": 2362,
+      "seconds": 6.07
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "publish",
+      "index": 2,
+      "text": "The release branch is published. Two checks are still failing.",
+      "file": "kokoro-heart-publish-3.wav",
+      "firstAudioMs": 790,
+      "totalMs": 1559,
+      "seconds": 3.46
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "build",
+      "index": 0,
+      "text": "The release check failed. Two required settings are missing.",
+      "file": "kokoro-emma-build-1.wav",
+      "firstAudioMs": 699,
+      "totalMs": 1655,
+      "seconds": 3.83
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "build",
+      "index": 1,
+      "text": "The service address and the signing certificate path.",
+      "file": "kokoro-emma-build-2.wav",
+      "firstAudioMs": 1223,
+      "totalMs": 1223,
+      "seconds": 2.89
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "build",
+      "index": 2,
+      "text": "The build log is on screen. Both settings are empty.",
+      "file": "kokoro-emma-build-3.wav",
+      "firstAudioMs": 868,
+      "totalMs": 1690,
+      "seconds": 3.46
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "login",
+      "index": 0,
+      "text": "Three login tests fail. They share one test session, and its token expired on the first of January. Nothing was changed.",
+      "file": "kokoro-emma-login-1.wav",
+      "firstAudioMs": 884,
+      "totalMs": 3318,
+      "seconds": 7.89
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "login",
+      "index": 1,
+      "text": "There is no approval record. This folder has no review history.",
+      "file": "kokoro-emma-login-2.wav",
+      "firstAudioMs": 890,
+      "totalMs": 1854,
+      "seconds": 4.06
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "login",
+      "index": 2,
+      "text": "What expiry date should it use?",
+      "file": "kokoro-emma-login-3.wav",
+      "firstAudioMs": 906,
+      "totalMs": 906,
+      "seconds": 2.06
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "login",
+      "index": 3,
+      "text": "The release branch, one year from today. I will not edit until you tell me to.",
+      "file": "kokoro-emma-login-4.wav",
+      "firstAudioMs": 1017,
+      "totalMs": 1994,
+      "seconds": 4.45
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "publish",
+      "index": 0,
+      "text": "Not yet. The release check still needs both settings, and the login tests are failing.",
+      "file": "kokoro-emma-publish-1.wav",
+      "firstAudioMs": 531,
+      "totalMs": 2262,
+      "seconds": 5.38
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "publish",
+      "index": 1,
+      "text": "This will publish the release branch to the shared repository with two checks failing. Do you approve?",
+      "file": "kokoro-emma-publish-2.wav",
+      "firstAudioMs": 1692,
+      "totalMs": 2225,
+      "seconds": 5.73
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "publish",
+      "index": 2,
+      "text": "The release branch is published. Two checks are still failing.",
+      "file": "kokoro-emma-publish-3.wav",
+      "firstAudioMs": 956,
+      "totalMs": 1863,
+      "seconds": 3.85
+    }
+  ],
+  "conversations": [
+    {
+      "variant": "current-app",
+      "scene": "build",
+      "file": "conversation-current-app-build.wav"
+    },
+    {
+      "variant": "current-app",
+      "scene": "login",
+      "file": "conversation-current-app-login.wav"
+    },
+    {
+      "variant": "current-app",
+      "scene": "publish",
+      "file": "conversation-current-app-publish.wav"
+    },
+    {
+      "variant": "harper",
+      "scene": "build",
+      "file": "conversation-harper-build.wav"
+    },
+    {
+      "variant": "harper",
+      "scene": "login",
+      "file": "conversation-harper-login.wav"
+    },
+    {
+      "variant": "harper",
+      "scene": "publish",
+      "file": "conversation-harper-publish.wav"
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "build",
+      "file": "conversation-harper-neutral-build.wav"
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "login",
+      "file": "conversation-harper-neutral-login.wav"
+    },
+    {
+      "variant": "harper-neutral",
+      "scene": "publish",
+      "file": "conversation-harper-neutral-publish.wav"
+    },
+    {
+      "variant": "emily",
+      "scene": "build",
+      "file": "conversation-emily-build.wav"
+    },
+    {
+      "variant": "emily",
+      "scene": "login",
+      "file": "conversation-emily-login.wav"
+    },
+    {
+      "variant": "emily",
+      "scene": "publish",
+      "file": "conversation-emily-publish.wav"
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "build",
+      "file": "conversation-kokoro-heart-build.wav"
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "login",
+      "file": "conversation-kokoro-heart-login.wav"
+    },
+    {
+      "variant": "kokoro-heart",
+      "scene": "publish",
+      "file": "conversation-kokoro-heart-publish.wav"
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "build",
+      "file": "conversation-kokoro-emma-build.wav"
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "login",
+      "file": "conversation-kokoro-emma-login.wav"
+    },
+    {
+      "variant": "kokoro-emma",
+      "scene": "publish",
+      "file": "conversation-kokoro-emma-publish.wav"
+    }
+  ],
+  "userVoice": "en-US-Grant:MAI-Voice-2.1-Flash"
+}

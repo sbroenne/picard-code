@@ -24,7 +24,7 @@ export async function startFixture(project: string) {
   const questions: QuestionRequest[] = [];
   const listeners = new Set<{ directory: string; response: ServerResponse }>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
-  const pending = new Map<string, () => void>();
+  const pending = new Map<string, (data: Record<string, unknown>) => void>();
   const generations = new Map<string, number>();
   const requests: { method: string; path: string; directory: string; data: Record<string, unknown> }[] = [];
   let copilot = true;
@@ -72,6 +72,19 @@ export async function startFixture(project: string) {
         }
       }, 80 * (index + 1));
     });
+  };
+  // Like real OpenCode, a denied action ends the turn with a failed tool and no written reply.
+  const refuse = (id: string, generation = generations.get(id)) => {
+    if (generations.get(id) !== generation || statuses[id]?.type === "idle") return;
+    const session = sessions.get(id)!;
+    const messageID = `msg_${randomUUID()}`;
+    const part = { id: `prt_${randomUUID()}`, messageID, sessionID: id, type: "tool" as const, callID: "call_test", tool: "bash",
+      state: { status: "error" as const, input: { command: "echo hello" }, error: "The user rejected permission to use this specific tool call.", time: { start: Date.now(), end: Date.now() } } };
+    const message = { info: { id: messageID, sessionID: id, role: "assistant", time: { created: Date.now() } }, parts: [part] } as unknown as FixtureMessage;
+    messages.get(id)!.push(message);
+    publish(session.directory, "message.updated", { sessionID: id, info: message.info });
+    publish(session.directory, "message.part.updated", { sessionID: id, part, time: Date.now() });
+    setStatus(id, "idle");
   };
   const server = createServer((request, response) => {
     void (async () => {
@@ -152,15 +165,16 @@ export async function startFixture(project: string) {
           if (text.includes("approval")) {
             const permission = { id: `per_${randomUUID()}`, sessionID: id, permission: "bash", patterns: ["echo hello"], metadata: { command: "echo hello" }, always: ["echo *"] };
             permissions.push(permission);
-            pending.set(id, () => reply(id, "The test approval was answered. No command was executed.", generation));
+            pending.set(id, (answer) => answer.reply === "reject" ? refuse(id, generation)
+              : reply(id, "The test approval was answered. No command was executed.", generation));
             later(() => publish(directory, "permission.asked", permission), 50);
           } else if (text.includes("question")) {
-            const question = { id: `que_${randomUUID()}`, sessionID: id, questions: [{ header: "Direction", question: "Which approach should I use?", options: [{ label: "Small change", description: "Keep the scope focused." }, { label: "Explain first", description: "Discuss before changing files." }], custom: true }] };
+            const question = { id: `que_${randomUUID()}`, sessionID: id, questions: [{ header: "Direction", question: "Which approach should I use?", options: [{ label: "Small change", description: "Keep the scope focused." }, { label: "Explain first", description: "Discuss before changing files." }], custom: !text.includes("choose") }] };
             questions.push(question);
-            pending.set(id, () => reply(id, "Your test answer was received.", generation));
+            pending.set(id, (answer) => reply(id, `Your test answer was received: ${JSON.stringify(answer.answers ?? "skipped")}.`, generation));
             later(() => publish(directory, "question.asked", question), 50);
           } else {
-            later(() => reply(id, text.includes("unsafe") ? "<img src=x onerror=alert('unsafe')>\n```js\nconst safe = true;\n```" : undefined, generation), 100);
+            later(() => reply(id, text.includes("unsafe") ? "<img src=x onerror=alert('unsafe')>\n```js\nconst safe = true;\n```" : undefined, generation), text.includes("slow") ? 5000 : 100);
           }
         }
         return;
@@ -176,7 +190,7 @@ export async function startFixture(project: string) {
         send(200, true);
         const continuation = pending.get(item.sessionID);
         pending.delete(item.sessionID);
-        later(() => continuation?.(), 20);
+        later(() => continuation?.(data), 20);
         return;
       }
       send(404, { message: `Unimplemented fixture path ${url.pathname}` });

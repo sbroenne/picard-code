@@ -97,6 +97,7 @@ An existing gh sign-in is not a Copilot sign-in.`);
       client, project, port,
       speech,
       webRoot: fileURLToPath(new URL("../../web-dist/", import.meta.url)),
+      soundFolder: fileURLToPath(new URL("../../.picard-sounds/", import.meta.url)),
     });
     cleanupApp = app.close;
     console.log(`\nPicard Code is ready.\nProject: ${project}\n\n${app.url}\n\nKeep this terminal open. Press Ctrl+C to stop.\n`);
