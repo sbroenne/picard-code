@@ -108,14 +108,15 @@ analytics scripts, or private project content to the website.
 
 The normal browser suite checks the site at desktop and phone widths under
 GitHub Pages' project path. The app itself remains desktop-only.
-After a build, regenerate the sanitized interface screenshot on macOS/Linux
-with `PICARD_SITE_CAPTURE=1 npx playwright test browser-tests/app.spec.ts --grep "empty screen"`.
+After a build, regenerate the interface screenshot on macOS/Linux with
+`PICARD_SITE_CAPTURE=1 npx playwright test browser-tests/voice.spec.ts --grep "everyday answer"`.
 On Windows, set `$env:PICARD_SITE_CAPTURE = "1"` in PowerShell and run
-`npx.cmd playwright test browser-tests/app.spec.ts --grep "empty screen"`,
+`npx.cmd playwright test browser-tests/voice.spec.ts --grep "everyday answer"`,
 then remove the environment variable with
 `Remove-Item Env:PICARD_SITE_CAPTURE`.
-Review the image before committing it. It uses the real interface with a
-labeled stand-in, not a real model or speech result.
+Review the image before committing it. It shows the real interface with a
+staged example from the labeled test stand-in, not a real model, project, or
+speech result, and the website caption must say so.
 
 Pages deploys only `site/` from `main` after public launch. Deployment is
 deliberately disabled while the repository is private.

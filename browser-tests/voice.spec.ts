@@ -34,7 +34,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo") {
+async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "example") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -521,4 +521,26 @@ test("“Stop listening”, even without “Computer”, is acknowledged and ret
   await page.getByRole("button", { name: "Switch microphone on" }).click();
   await expect(status(page)).toHaveText(/Standing by|Listening|Understanding|Speaking/, { timeout: 15000 });
   await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("an everyday answer is spoken briefly while the exact code stays on screen", async ({ page }, info) => {
+  const spoken = spokenText(page);
+  await launch(page, "example");
+  await startListening(page);
+  const answer = page.locator(".message[data-role=assistant]");
+  await expect(answer).toHaveCount(1, { timeout: 15000 });
+  await expect(answer.locator("pre code")).toHaveText("const settings = { ...defaults, ...saved };");
+  await expect.poll(() => spoken[0], { timeout: 15000 })
+    .toBe("The settings test fails because the default voice replaces the saved choice when the app starts.");
+  await expect(status(page)).not.toHaveText("Speaking", { timeout: 15000 });
+  await expect(status(page)).toHaveText(/Standing by|Listening/, { timeout: 15000 });
+  await page.screenshot({ path: info.outputPath("example-answer.png"), fullPage: true });
+  if (process.env.PICARD_SITE_CAPTURE === "1") {
+    // The website shows the real interface with this staged example; the local project name is removed.
+    await page.locator("#readout-project").evaluate((node) => {
+      node.textContent = "Example project";
+      node.removeAttribute("title");
+    });
+    await page.screenshot({ path: "site/assets/console.png", fullPage: true });
+  }
 });
