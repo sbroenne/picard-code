@@ -273,17 +273,23 @@ on-screen button.
 - "Stop listening" and switching the microphone off do not cancel OpenCode's work.
   **Belay that** cancels the current OpenCode request. These are separate
   controls.
-- **Optional computer sounds:** run `npm run setup:sounds` once to download three
-  short TrekCore sounds (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
-  then restart Picard Code. During spoken conversation they play quietly, once
+- **Computer sounds:** Picard Code downloads four short TrekCore sounds
+  automatically on first startup (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+  Later starts use the checked local copies; missing or changed files are downloaded
+  again. If a download fails, startup reports the error rather than silently
+  leaving sounds out. `npm run setup:sounds` also checks and downloads them.
+  The TNG-era ship-wide call welcomes the Captain once when the app opens,
+  after a click if the browser requires one, even before speech is set up. It does not play
+  for new log entries or when the microphone is switched back on.
+  During spoken conversation the other sounds play quietly, once
   each: a beep when a spoken request is accepted, when you say "Computer"
   on its own, or when you say "stop listening"; an input-failed sound when speech was not understood,
   could not be sent, or was "Not sent"; and a deny beep just before the spoken result when an
   accepted request finally fails or is denied. Answers to questions, **Belay that**, "Computer, stop" and switching the microphone off play no sound.
   Listening is paused while a sound plays, and listening, speech,
-  **Stop speaking** or stopping listening stop it. Each sound only accompanies the visible and
-  spoken explanation; it never replaces it. Without the files, there are no
-  sounds and nothing else changes.
+  **Stop speaking** or stopping listening stop it. Request sounds only accompany the visible and
+  spoken explanation; it never replaces it. A missing or unreadable sound is
+  reported on screen.
 - Replies update live. Only the written answer is shown, without the model's
   thinking or tool steps; when an action fails or is refused with no written
   answer, its error is shown instead. Code blocks remain readable. **Copy** copies the reply text.

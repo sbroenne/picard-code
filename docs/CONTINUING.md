@@ -49,15 +49,18 @@ it downloads about 432 MB of models into the ignored
 Either side can be chosen separately, for example
 `npm start -- --listening whisper --speaking mai`.
 
-## 4. Optional computer sounds
+## 4. Computer sounds
 
-```sh
-npm run setup:sounds
-```
+The first startup downloads four short TrekCore sounds, checks them, and saves
+them in the ignored `.picard-sounds` folder. Later starts reuse the checked
+files and replace missing or changed copies. A download failure is reported
+and stops startup. Run `npm run setup:sounds` to check and download them
+separately. They are never committed. See
+[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md).
 
-This downloads three short TrekCore sounds, checks them, and saves them in the
-ignored `.picard-sounds` folder. They are never committed. See
-[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). The app works without them.
+The TNG-era ship-wide call plays once when the app opens, even before speech
+is set up. If the browser blocks sound, it waits for the first click. New log entries
+and switching the microphone back on do not repeat it.
 
 ## 5. Start and check
 

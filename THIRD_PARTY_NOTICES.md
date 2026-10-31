@@ -3,7 +3,7 @@
 Picard Code uses original artwork, writing guidance, and generated test phrases.
 It includes no Star Trek artwork, episode dialogue, recordings, or cloned
 performer voices. The prebuilt speech voices are not affiliated with the show.
-The optional computer sounds below are downloaded separately and are not part
+The computer sounds below are downloaded separately and are not part
 of this repository.
 
 The JavaScript dependencies are installed through npm. Local speech
@@ -40,17 +40,22 @@ requirements and the particular FFmpeg build's notices. Do not assume all
 local speech dependencies are MIT licensed. This repository's download setup
 does not grant permission to remove notices or bypass redistribution terms.
 
-## Optional computer sounds
+## Computer sounds
 
-`npm run setup:sounds` downloads three short sound files from
+Picard Code automatically downloads four short sound files from
 [TrekCore](https://www.trekcore.com/audio/) into the ignored `.picard-sounds`
-folder. The project owner chose these files and confirmed permission to use
-them. They are not covered by this project's license, are not redistributed
-in this repository, and no license terms are stated for them here. Picard Code
-works without them.
+folder on first startup. `npm run setup:sounds` can also check and download
+them. The project owner chose the existing three computer sounds and confirmed
+permission to use those files. The added startup call is listed by TrekCore
+as “Hail All Ship” under Next Generation Era Computer Sounds; it is not
+claimed to be the exact recording from Picard's arrival ceremony.
+These recordings are not covered by this project's license, are not
+redistributed in this repository, and no license or redistribution permission
+is granted here.
 
 | Used for | Source |
 | --- | --- |
+| The Captain's arrival at startup | https://www.trekcore.com/audio/computer/hail_allship_ep.mp3 |
 | A spoken request was accepted | https://www.trekcore.com/audio/computer/computer_work_beep.mp3 |
 | Speech was not understood or could not be sent | https://www.trekcore.com/audio/computer/input_failed_clean.mp3 |
 | An accepted request finally failed or was denied | https://www.trekcore.com/audio/computer/denybeep1.mp3 |
