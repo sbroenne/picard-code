@@ -86,7 +86,10 @@ Self-questions mean Picard's fictional life, not the actor's biography or
 private information about the real user. Project references keep their real
 meaning. The single Tribute switch in the left navigation controls occasional
 source-linked facts, bounded original wit about the Captain's vanity, and
-spoken Patrick Stewart story offers. Off removes those extras, not Picard's
+spoken Picard and Patrick Stewart story offers. Offers match the person
+being discussed; both subjects use the same acceptance and source-link flow.
+Keep Picard's fictional adventures separate from Stewart's real career.
+Off removes those extras, not Picard's
 identity or explicitly requested stories. About only holds the secondary
 automatic-speech preference. Never put switches inside answers.
 

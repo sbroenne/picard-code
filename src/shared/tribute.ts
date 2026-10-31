@@ -5,7 +5,9 @@ import { replyFailed } from "./speech.js";
 export type TributeMode = "off" | "screen" | "spoken";
 export interface TributeRequest { mode: TributeMode; storyID?: string }
 export type ExecutionOutcome = "succeeded" | "failed" | "interrupted";
-export const STORY_INVITATION = "I can tell you a short story about Sir Patrick Stewart.";
+export function storyInvitation(subject: TributeEntry["subject"]) {
+  return `I can tell you a short story about ${subject === "Picard" ? "Captain Jean-Luc Picard" : "Sir Patrick Stewart"}.`;
+}
 
 export function tributeMode(enabled: boolean, spoken: boolean): TributeMode {
   return !enabled ? "off" : spoken ? "spoken" : "screen";
@@ -22,21 +24,40 @@ export function picardSelfQuestion(text: string) {
 }
 
 export function gentleWitAllowed(text: string) {
-  return picardSelfQuestion(text) && !/\b(serious|strictly|factual|facts only|(?:no|without) (?:jokes?|humou?r|teasing)|(?:don't|do not) (?:joke|tease)|death|loss|trauma|borg|assimilat\w*|torture|health|illness|family)\b/i.test(text.replace(/\u2019/g, "'"));
+  return picardSelfQuestion(text) && storyOfferAllowed(text);
+}
+
+export function storyOfferAllowed(text: string) {
+  return !!tributeSubject(text) && !/\b(serious|strictly|factual|facts only|(?:no|without) (?:jokes?|humou?r|teasing|stories|offers)|(?:don't|do not) (?:joke|tease|offer)|death|loss|trauma|borg|assimilat\w*|torture|health|illness|family)\b/i.test(text.replace(/\u2019/g, "'"));
 }
 
 export function storyAcceptance(text: string) {
   return /^(?:yes(?: please)?|please do|go ahead|tell me|tell (?:me )?(?:a |the )?(?:short )?story|tell me more|i'd like that|i would like that)$/.test(words(text));
 }
 
+export function explicitStorySubject(text: string): TributeEntry["subject"] | undefined {
+  const request = words(text);
+  const match = /^(?:please )?(?:tell|give|read)(?: me)? (?:(?:a |another |the |a short |a little )?(?:story|anecdote) (?:about|of) ((?:sir )?patrick stewart|(?:captain )?(?:jean[- ]luc )?picard|myself)|(?:a |another |the |a short )?((?:sir )?patrick stewart|(?:captain )?(?:jean[- ]luc )?picard) (?:story|anecdote))$/.exec(request);
+  const subject = match?.[1] ?? match?.[2];
+  return subject ? subject.includes("patrick stewart") ? "Patrick Stewart" : "Picard" : undefined;
+}
+
 export function explicitStoryRequest(text: string) {
-  return /^(?:please )?(?:tell|give|read)(?: me)? (?:(?:a |another |the |a short |a little )?(?:story|anecdote) (?:about|of) (?:sir )?patrick stewart|(?:a |another |the |a short )?(?:sir )?patrick stewart (?:story|anecdote))$/.test(words(text));
+  return explicitStorySubject(text) !== undefined;
 }
 
 export function tributeQuestion(text: string) {
   return picardSelfQuestion(text) || explicitStoryRequest(text)
     || /^(?:please )?(?:tell|give|explain|describe|what|who|how|why)\b.*\b(?:picard|patrick stewart)\b/.test(words(text))
       && !/\b(file|project|code|rename|edit|implement)\b/.test(words(text));
+}
+
+export function tributeSubject(text: string): TributeEntry["subject"] | undefined {
+  if (picardSelfQuestion(text)) return "Picard";
+  const story = explicitStorySubject(text);
+  if (story) return story;
+  if (!tributeQuestion(text)) return undefined;
+  return /\bpatrick stewart\b/i.test(text) ? "Patrick Stewart" : /\bpicard\b/i.test(text) ? "Picard" : undefined;
 }
 
 export function declinedReply(reply: ChatMessage) {
@@ -63,7 +84,8 @@ export function checkedEntries(entries: readonly TributeEntry[]) {
     if (!entry.id || ids.has(entry.id) || !entry.text.trim() || !entry.source.title.trim()
       || url.protocol !== "https:" || url.username || url.password || !/^\d{4}-\d{2}-\d{2}$/.test(entry.verified)
       || !["Picard", "Patrick Stewart"].includes(entry.subject) || !["screen", "career", "production"].includes(entry.provenance)
-      || entry.story !== undefined && (!entry.story.trim() || entry.subject !== "Patrick Stewart")) {
+      || entry.story !== undefined && (!entry.story.trim() || entry.subject === "Picard" && entry.provenance !== "screen"
+        || entry.subject === "Patrick Stewart" && entry.provenance !== "career")) {
       throw new Error("A tribute fact has missing or invalid source details.");
     }
     ids.add(entry.id);

@@ -8,7 +8,8 @@ import { partID } from "./history.js";
 import type { OpenCode, OpenCodeEvent } from "./opencode.js";
 import { projectDirectory } from "./process.js";
 import { computerManner } from "./instructions.js";
-import { checkTributeRequest, explicitStoryRequest, storyAcceptance } from "../shared/tribute.js";
+import { checkTributeRequest, explicitStorySubject, storyAcceptance } from "../shared/tribute.js";
+import { TRIBUTE_ENTRIES } from "../shared/tribute-data.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechService } from "./speech-types.js";
 import { canSetUpLocalSpeech, describeSpeechSettings, localSpeechReady, mergeSpeechSettings, readSpeechSettings, saveSpeechSettings, setUpLocalSpeech, speechFromSettings, speechSettingsFile } from "./speech.js";
@@ -411,8 +412,12 @@ export async function startApp(options: AppOptions) {
             let tribute;
             try { tribute = checkTributeRequest(data.tribute); }
             catch (error) { throw new HttpError(400, errorMessage(error)); }
-            if (tribute.storyID && !explicitStoryRequest(text) && !storyAcceptance(text)) {
-              throw new HttpError(400, "That response did not request a tribute story.");
+            if (tribute.storyID) {
+              const subject = explicitStorySubject(text);
+              if (!subject && !storyAcceptance(text)) throw new HttpError(400, "That response did not request a tribute story.");
+              if (subject && TRIBUTE_ENTRIES.find((entry) => entry.id === tribute.storyID)?.subject !== subject) {
+                throw new HttpError(400, "That story does not match the person you requested.");
+              }
             }
             const { models } = await availableModels(client, project);
             if (!models.some((model) => model.providerID === providerID && model.modelID === modelID)) {

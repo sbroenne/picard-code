@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { TRIBUTE_ENTRIES } from "../shared/tribute-data.js";
-import { TributeCycle, checkedEntries, checkTributeRequest, declinedReply, explicitStoryRequest, gentleWitAllowed, picardSelfQuestion, randomIndex, storyAcceptance, tributeMode, tributeQuestion } from "../shared/tribute.js";
+import { TributeCycle, checkedEntries, checkTributeRequest, declinedReply, explicitStoryRequest, explicitStorySubject, gentleWitAllowed, picardSelfQuestion, randomIndex, storyAcceptance, storyInvitation, storyOfferAllowed, tributeMode, tributeQuestion, tributeSubject } from "../shared/tribute.js";
 import { computerManner } from "../server/instructions.js";
 import type { ChatMessage } from "../shared/types.js";
 
 const reply: ChatMessage = { id: "reply", role: "assistant", parts: [{ id: "text", type: "text", text: "The result is ready." }] };
 const completed = (id: string) => ({ id, reply, outcome: "succeeded" as const, blocked: false, explicit: false });
 
-test("the reviewed collection has unique sourced facts and original short Stewart stories", () => {
+test("the reviewed collection has unique sourced facts and original short stories for both subjects", () => {
   assert.equal(checkedEntries(TRIBUTE_ENTRIES), TRIBUTE_ENTRIES);
   assert.ok(TRIBUTE_ENTRIES.length >= 10);
-  assert.ok(TRIBUTE_ENTRIES.filter((entry) => entry.story).length >= 3);
+  for (const subject of ["Picard", "Patrick Stewart"]) assert.ok(TRIBUTE_ENTRIES.filter((entry) => entry.story && entry.subject === subject).length >= 3);
   for (const entry of TRIBUTE_ENTRIES) {
     assert.ok(entry.text.length <= 240);
     if (entry.story) assert.ok(entry.story.split(/\s+/).length <= 100);
@@ -21,7 +21,7 @@ test("the reviewed collection has unique sourced facts and original short Stewar
     { ...first, source: { title: "", url: first.source.url } },
     { ...first, source: { title: "Source", url: "http://example.com" } },
     { ...first, source: { title: "Source", url: "https://user:password@example.com" } },
-    { ...first, text: "" }, { ...first, verified: "" }, { ...first, story: "Actor story attributed to Picard." },
+    { ...first, text: "" }, { ...first, verified: "" }, { ...first, story: "A production account is not a fictional adventure.", provenance: "production" as const },
   ]) assert.throws(() => checkedEntries([entry]));
   assert.throws(() => checkedEntries([first, first]));
 });
@@ -115,6 +115,22 @@ test("story acceptance is explicit, never a negation, vague reply, or unrelated 
   assert.ok(explicitStoryRequest("Tell me a Patrick Stewart story"));
   assert.equal(explicitStoryRequest("Don't tell me a story about Patrick Stewart"), false);
   assert.equal(explicitStoryRequest("Write a story file about Patrick Stewart"), false);
+  for (const text of ["Tell me a short story about Picard", "Computer, tell me a story about Captain Jean-Luc Picard.", "Tell me another story about Jean Luc Picard", "Tell me a Picard story", "Tell me a story about myself"]) {
+    assert.equal(explicitStorySubject(text), "Picard", text);
+  }
+  assert.equal(explicitStorySubject("Tell me a Patrick Stewart story"), "Patrick Stewart");
+  for (const text of ["Don't tell me a story about Picard", "Tell me a story about my project", "Write a Picard story file", "Tell me a story about Picard but not now"]) assert.equal(explicitStorySubject(text), undefined, text);
+});
+
+test("story offers and reference subjects follow the question without mixing the Captain and actor", () => {
+  for (const [text, subject] of [["Tell me about myself", "Picard"], ["Tell me about Picard", "Picard"], ["Tell me about Patrick Stewart", "Patrick Stewart"]] as const) {
+    assert.equal(tributeSubject(text), subject);
+    assert.equal(storyOfferAllowed(text), true);
+    assert.match(storyInvitation(subject), subject === "Picard" ? /Captain Jean-Luc Picard/ : /Sir Patrick Stewart/);
+  }
+  for (const text of ["Explain my code", "Tell me about Picard, facts only", "Tell me about Patrick Stewart, no stories", "Tell me about Patrick Stewart's family", "Tell me about myself and my Borg assimilation"]) {
+    assert.equal(storyOfferAllowed(text), false, text);
+  }
 });
 
 test("request options are allowlisted and instructions preserve identity in every mode", () => {
@@ -142,4 +158,12 @@ test("request options are allowlisted and instructions preserve identity in ever
   assert.ok(manner.includes(story.story!));
   assert.match(computerManner("Tell me about Patrick Stewart", { mode: "off" }), /simonandschuster\.com/);
   assert.match(computerManner("Tell me about Picard", { mode: "off" }), /startrek\.com/);
+  for (const subject of ["Picard", "Patrick Stewart"] as const) {
+    const entry = TRIBUTE_ENTRIES.find((entry) => entry.story && entry.subject === subject)!;
+    const instructions = computerManner("Yes, please.", { mode: "off", storyID: entry.id });
+    assert.ok(instructions.includes(`explicitly requested the following ${subject} story`));
+    assert.ok(instructions.includes(entry.story!));
+    assert.ok(instructions.includes(entry.source.url));
+    assert.match(instructions, subject === "Picard" ? /fictional adventures, not Patrick Stewart/ : /Patrick Stewart is the actor/);
+  }
 });

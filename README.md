@@ -152,14 +152,18 @@ Questions such as "Computer, tell me about myself" always mean Captain
 Jean-Luc Picard's fictional life, not Patrick Stewart's biography or your
 private information. Your files, settings and earlier requests retain their
 ordinary meaning. With Tribute on, light-hearted questions about the Captain
-may receive one affectionate remark about his vanity and a spoken offer of
-a short Patrick Stewart story. Say "yes, please" or "tell me" to accept; the
+may receive one affectionate remark about his vanity. Questions about Picard
+or Patrick Stewart may receive a spoken offer of a short story about the same
+person. Say "yes, please" or "tell me" to accept; the
 computer does not tell the story without your request. Serious questions and
 requests for facts only receive no teasing.
 
 Tribute off removes automatic facts, teasing and unsolicited story offers,
 not Picard's identity. You can still say "Computer, tell me a short story
-about Sir Patrick Stewart". Story replies use reviewed reference material
+about Captain Jean-Luc Picard" or "Computer, tell me a short story about Sir
+Patrick Stewart". Both use the same spoken request and acceptance flow.
+Picard stories describe his fictional adventures; Stewart stories describe
+the actor's real career. Story replies use reviewed reference material
 and show its source in the log entry. The reference collection is small and
 growing, not an exhaustive biography, and makes no background web searches.
 Its original summaries contain no copied show dialogue or actor recordings.

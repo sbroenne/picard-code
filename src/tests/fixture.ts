@@ -219,9 +219,14 @@ export async function startFixture(project: string) {
             publish(directory, "session.text.ended", { sessionID });
             reply(sessionID, undefined, generation);
           } else if (manner.includes("The Captain has explicitly requested")) {
-            reply(sessionID, "Patrick Stewart performed every character in his solo A Christmas Carol.\n\nThis is a test stand-in for the reviewed story, not a model response.", generation);
+            const story = manner.includes("explicitly requested the following Picard story")
+              ? "In First Contact, Picard touches the historic Phoenix he knew from the Smithsonian."
+              : "Patrick Stewart performed every character in his solo A Christmas Carol.";
+            reply(sessionID, `${story}\n\nThis is a test stand-in for the reviewed story, not a model response.`, generation);
           } else if (/tell me about myself/i.test(text)) {
             reply(sessionID, "You are Captain Jean-Luc Picard, whose interests include archaeology.\n\nThis is a test stand-in, not a model response.", generation);
+          } else if (/tell me about patrick stewart/i.test(text)) {
+            reply(sessionID, "Patrick Stewart's career includes the Royal Shakespeare Company and Captain Picard.\n\nThis is a test stand-in, not a model response.", generation);
           } else if (text.includes("approval")) {
             const input = { command: "echo hello" };
             assistant(sessionID, [{ type: "tool", id: "call_test", name: "shell", state: { status: "running", input } }]);

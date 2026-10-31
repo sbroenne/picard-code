@@ -8,7 +8,7 @@ import { VoiceConversation } from "./voice";
 import { renderMarkdown } from "./markdown";
 import { formatStardate } from "../src/shared/stardate";
 import { TRIBUTE_ENTRIES, type TributeEntry } from "../src/shared/tribute-data";
-import { TributeCycle, tributeMode, declinedReply, picardSelfQuestion, gentleWitAllowed, storyAcceptance, explicitStoryRequest, tributeQuestion, randomIndex, STORY_INVITATION, type ExecutionOutcome } from "../src/shared/tribute";
+import { TributeCycle, tributeMode, declinedReply, storyOfferAllowed, storyAcceptance, explicitStorySubject, tributeQuestion, tributeSubject, randomIndex, storyInvitation, type ExecutionOutcome } from "../src/shared/tribute";
 
 function element<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -53,7 +53,7 @@ let tributeSpoken = false;
 let tributeCycle: TributeCycle;
 let pendingStory: { session: string; storyID: string } | undefined;
 let lastStoryID: string | undefined;
-const tributeDisplay = new Map<string, { fact?: TributeEntry; invitation?: boolean; story?: TributeEntry }>();
+const tributeDisplay = new Map<string, { fact?: TributeEntry; invitation?: string; story?: TributeEntry }>();
 let spokenDecision = "";
 let spokenQuestionID: string | undefined;
 let answering = false;
@@ -249,18 +249,19 @@ function completeVoiceReply() {
   voiceTurn = undefined;
   const successful = outcome === "succeeded" && !replyFailed(reply) && !declinedReply(reply);
   const key = `${turn.session}:${reply.id}`;
-  const display: { fact?: TributeEntry; invitation?: boolean; story?: TributeEntry } = {};
+  const display: { fact?: TributeEntry; invitation?: string; story?: TributeEntry } = {};
   if (successful && turn.storyID) display.story = TRIBUTE_ENTRIES.find((entry) => entry.id === turn.storyID);
   let tail: { text: string; valid(): boolean; started?(): void } | undefined;
   const stillCurrent = () => tributeEnabled && selected === turn.session && !busy() && !pending()
     && !submitting && connected && !muted() && !openDrawer() && !voice.failed;
-  if (successful && tributeEnabled && !turn.storyID && picardSelfQuestion(turn.request) && gentleWitAllowed(turn.request)) {
-    const stories = TRIBUTE_ENTRIES.filter((entry) => entry.story && entry.id !== lastStoryID);
-    if (!stories.length) { notice("No reviewed Patrick Stewart stories are available."); }
+  if (successful && tributeEnabled && !turn.storyID && storyOfferAllowed(turn.request)) {
+    const subject = tributeSubject(turn.request);
+    const stories = TRIBUTE_ENTRIES.filter((entry) => entry.story && entry.subject === subject && entry.id !== lastStoryID);
+    if (!stories.length) { notice(`No reviewed ${subject} stories are available.`); }
     else {
       const story = stories[randomIndex(stories.length, Math.random)]!;
-      display.invitation = true;
-      tail = { text: STORY_INVITATION, valid: stillCurrent, started: () => {
+      display.invitation = storyInvitation(story.subject);
+      tail = { text: display.invitation, valid: stillCurrent, started: () => {
         pendingStory = { session: turn.session, storyID: story.id };
         lastStoryID = story.id;
       } };
@@ -522,7 +523,7 @@ function renderMessages() {
       fact.append(make("strong", undefined, `${extra.fact.subject} fact`), make("p", undefined, extra.fact.text), tributeSource(extra.fact));
       article.append(fact);
     }
-    if (extra?.invitation && tributeEnabled) article.append(make("p", "tribute-invitation", STORY_INVITATION));
+    if (extra?.invitation && tributeEnabled) article.append(make("p", "tribute-invitation", extra.invitation));
     if (extra?.story) {
       const source = make("p", "tribute-source");
       source.append(tributeSource(extra.story));
@@ -905,8 +906,10 @@ async function sendMessage(spoken: string, requestedStoryID?: string) {
     if (selected && engagedWith !== selected) startFresh();
     if (!selected) await newConversation((addressed(text) || text).slice(0, 60));
     const id = selected!;
-    const stories = TRIBUTE_ENTRIES.filter((entry) => entry.story);
-    const storyID = requestedStoryID ?? (explicitStoryRequest(text) ? stories[randomIndex(stories.length, Math.random)]!.id : undefined);
+    const subject = explicitStorySubject(text);
+    const stories = TRIBUTE_ENTRIES.filter((entry) => entry.story && entry.subject === subject);
+    if (!requestedStoryID && subject && !stories.length) throw new Error(`No reviewed ${subject} stories are available.`);
+    const storyID = requestedStoryID ?? (subject ? stories[randomIndex(stories.length, Math.random)]!.id : undefined);
     voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)), request: text, storyID };
     await api(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, tribute: { mode: tributeMode(tributeEnabled, tributeSpoken), ...(storyID ? { storyID } : {}) } });
     voice.acknowledge();

@@ -155,6 +155,10 @@ try {
   check(/stewart/i.test(story.reply) && /christmas carol/i.test(story.reply), "Story: uses the selected Patrick Stewart account");
   check(/londontheatre\.co\.uk/i.test(story.reply), "Story: includes the reviewed source link");
   check(!story.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Story: no file changes or commands");
+  const picardStory = await turn("Reviewed Picard story", "Tell me a short story about Captain Jean-Luc Picard.", undefined, { mode: "off", storyID: "picard-kamin" });
+  check(/picard/i.test(picardStory.reply) && /inner light/i.test(picardStory.reply) && /kamin|kataan/i.test(picardStory.reply), "Picard story: uses the selected fictional account");
+  check(/startrek\.com/i.test(picardStory.reply), "Picard story: includes the reviewed source link");
+  check(!picardStory.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Picard story: no file changes or commands");
 } finally {
   try {
     if (engine) {

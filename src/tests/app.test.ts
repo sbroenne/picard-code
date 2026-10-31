@@ -198,6 +198,15 @@ test("tribute options are checked and reviewed story context never rewrites the 
     text: "Don't tell me a story.", providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "screen", storyID: "stewart-dickens" },
   });
   assert.equal(negated.status, 400);
+  for (const [text, storyID] of [
+    ["Tell me a story about Picard", "stewart-dickens"],
+    ["Tell me a story about Patrick Stewart", "picard-phoenix"],
+  ]) {
+    const mismatched = await context.request(`conversations/${session.id}/send`, {
+      text, providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "off", storyID },
+    });
+    assert.equal(mismatched.status, 400);
+  }
   assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/prompt")), false);
   const response = await context.request(`conversations/${session.id}/send`, {
     text: "Yes, please.", providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "off", storyID: "stewart-dickens" },
@@ -210,6 +219,24 @@ test("tribute options are checked and reviewed story context never rewrites the 
   assert.match(manner, /londontheatre\.co\.uk/);
   assert.match(manner, /entire cast/);
   assert.match(manner, /Do not add vanity jokes/);
+});
+
+test("an explicit Picard story uses reviewed fictional evidence without changing the request", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const session = await (await context.request("conversations", {})).json();
+  const text = "Computer, tell me a story about Captain Jean-Luc Picard.";
+  const response = await context.request(`conversations/${session.id}/send`, {
+    text, providerID: "github-copilot", modelID: "fixture-model", tribute: { mode: "off", storyID: "picard-kamin" },
+  });
+  assert.equal(response.status, 202);
+  assert.deepEqual(context.fixture.requests.find((request) => request.path.endsWith("/prompt"))!.data, { text });
+  const manner = context.fixture.instructions.get(session.id)?.["picard-manner"] ?? "";
+  assert.match(manner, /explicitly requested the following Picard story/);
+  assert.match(manner, /fictional adventures, not Patrick Stewart/);
+  assert.match(manner, /trek-class-preserving-our-inner-light/);
+  assert.match(manner, /twenty minutes/);
 });
 
 test("answers are checked against the question before they reach OpenCode", () => {

@@ -15,6 +15,8 @@ const phrases = process.argv.includes("--tribute") ? ["Computer, multi-message a
   : process.argv.includes("--picard") ? ["Computer, tell me about myself", "Yes, please.", ""]
   : process.argv.includes("--picard-decline") ? ["Computer, tell me about myself", "Not now", ""]
   : process.argv.includes("--stewart") ? ["Computer, tell me a short story about Sir Patrick Stewart", ""]
+  : process.argv.includes("--stewart-about") ? ["Computer, tell me about Patrick Stewart", "Yes, please.", ""]
+  : process.argv.includes("--picard-story") ? ["Computer, tell me a short story about Captain Jean-Luc Picard", ""]
   : process.argv.includes("--approval") ? ["Computer, request an approval", ""]
   : process.argv.includes("--question") ? ["Computer, ask a question and let me choose", "Not the small change", "the second one", ""]
   : process.argv.includes("--unclear") ? ["", "Is it raining outside", "Computer, hello there", ""]

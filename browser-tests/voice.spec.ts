@@ -34,7 +34,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart") {
+async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -212,19 +212,22 @@ test("turning Tribute off cancels the optional tail without cutting off the answ
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
-test("a Picard self-answer offers a story aloud; clear acceptance keeps the words and shows a reviewed source", async ({ page }) => {
+for (const subject of ["Picard", "Patrick Stewart"] as const) {
+test(`a ${subject} answer offers a matching story aloud; acceptance keeps the words and source`, async ({ page }) => {
   await page.addInitScript(() => { Math.random = () => 0; });
   const spoken = spokenText(page);
-  await launch(page, "picard");
+  await launch(page, subject === "Picard" ? "picard" : "stewart-about");
   await startListening(page);
-  await expect.poll(() => spoken.includes("I can tell you a short story about Sir Patrick Stewart."), { timeout: 20000 }).toBe(true);
-  await expect(page.locator(".tribute-invitation")).toContainText("Sir Patrick Stewart");
+  const name = subject === "Picard" ? "Captain Jean-Luc Picard" : "Sir Patrick Stewart";
+  await expect.poll(() => spoken.includes(`I can tell you a short story about ${name}.`), { timeout: 20000 }).toBe(true);
+  await expect(page.locator(".tribute-invitation")).toContainText(name);
   await expect(page.getByRole("button", { name: /story/i })).toHaveCount(0);
-  await expect(page.locator(".tribute-source a")).toHaveAttribute("href", /londontheatre/, { timeout: 25000 });
+  await expect(page.locator(".tribute-source a")).toHaveAttribute("href", subject === "Picard" ? /startrek/ : /londontheatre/, { timeout: 25000 });
   await expect(page.locator(".message[data-role=user]").last()).toContainText("Yes, please.");
   await expect(page.locator(".tribute-fact")).toHaveCount(0);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
+}
 
 test("a negated story response is not an acceptance", async ({ page }) => {
   await page.addInitScript(() => { Math.random = () => 0; });
@@ -260,7 +263,7 @@ for (const action of ["Stop speaking", "New log entry", "Settings", "Microphone 
   });
 }
 
-test("Tribute off keeps Picard identity without offers, and an explicit Stewart story still works", async ({ page }) => {
+test("Tribute off keeps Picard identity without offers", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("picard-tribute-enabled", "false");
     Math.random = () => 0;
@@ -275,19 +278,21 @@ test("Tribute off keeps Picard identity without offers, and an explicit Stewart 
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
-test("an explicitly requested Stewart story is sourced and spoken with Tribute off", async ({ page }) => {
+for (const subject of ["Picard", "Patrick Stewart"] as const) {
+test(`an explicitly requested ${subject} story is sourced and spoken with Tribute off`, async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("picard-tribute-enabled", "false");
     Math.random = () => 0;
   });
   const spoken = spokenText(page);
-  await launch(page, "stewart");
+  await launch(page, subject === "Picard" ? "picard-story" : "stewart");
   await startListening(page);
-  await expect(page.locator(".tribute-source a")).toHaveAttribute("href", /londontheatre/, { timeout: 15000 });
-  await expect.poll(() => spoken.some((text) => text.includes("A Christmas Carol")), { timeout: 10000 }).toBe(true);
+  await expect(page.locator(".tribute-source a")).toHaveAttribute("href", subject === "Picard" ? /startrek/ : /londontheatre/, { timeout: 15000 });
+  await expect.poll(() => spoken.some((text) => text.includes(subject === "Picard" ? "Phoenix" : "A Christmas Carol")), { timeout: 10000 }).toBe(true);
   await expect(page.locator(".tribute-fact, .tribute-invitation")).toHaveCount(0);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
+}
 
 test("spoken work asks for deliberate approval; voice cannot approve", async ({ page }) => {
   await launch(page, "approval");
