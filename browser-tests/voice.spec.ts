@@ -7,7 +7,7 @@ const folder = resolve(`.picard-test-voice-audio-${process.pid}`);
 const microphoneFile = join(folder, "utterance.wav");
 const soundFolder = join(folder, "sounds");
 // Silent stand-ins for the downloaded sounds; each has its own length so the test can tell them apart.
-const SOUND_LENGTHS = { "request-accepted": 0.3, "input-failed": 0.4, "request-failed": 0.6 };
+const SOUND_LENGTHS = { startup: 0.2, "request-accepted": 0.3, "input-failed": 0.4, "request-failed": 0.6 };
 // Simulated speaker output keeps the browser's audio clock running even when this computer's real speakers are unavailable.
 test.use({ permissions: ["microphone"], launchOptions: { args: [
   "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--disable-audio-output",
@@ -34,7 +34,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo") {
+async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "no-speech") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -56,7 +56,7 @@ async function launch(page: import("@playwright/test").Page, mode?: "approval" |
       return start.apply(this, args);
     };
   }, SOUND_LENGTHS);
-  const child = spawn(process.execPath, ["dist/tests/browser-launch.js", "--speech", "--sounds", soundFolder, ...(mode ? [`--${mode}`] : [])], { stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, ["dist/tests/browser-launch.js", ...(mode === "no-speech" ? [] : ["--speech"]), "--sounds", soundFolder, ...(mode ? [`--${mode}`] : [])], { stdio: ["ignore", "pipe", "pipe"] });
   const url = await new Promise<string>((resolve, reject) => {
     child.on("error", reject);
     let output = "";
@@ -95,10 +95,68 @@ function spokenText(page: import("@playwright/test").Page) {
 }
 
 function sounds(page: import("@playwright/test").Page) {
-  return page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds);
+  return page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => !sound.startsWith("startup:")));
 }
 
 test.setTimeout(60000);
+
+test("the arrival call plays once at startup, not when switching the microphone or starting a new log entry", async ({ page }) => {
+  await launch(page);
+  await startListening(page);
+  const arrivals = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
+  await expect.poll(arrivals).toHaveLength(1);
+  expect((await arrivals())[0]).toMatch(/^startup: (Ready|Starting microphone|Standing by)$/);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await page.getByRole("button", { name: "Switch microphone on" }).click();
+  await startListening(page);
+  await page.getByRole("button", { name: "New log entry", exact: true }).click();
+  await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
+  expect(await arrivals()).toHaveLength(1);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await page.reload();
+  await startListening(page);
+  await expect.poll(arrivals).toHaveLength(1);
+  expect((await arrivals())[0]).toMatch(/^startup: (Ready|Starting microphone|Standing by)$/);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("a missing arrival sound is reported, without preventing listening", async ({ page }) => {
+  await page.route("**/api/sounds/startup", (route) => route.fulfill({ status: 404, body: "This sound is not set up." }));
+  await launch(page);
+  await expect(page.getByText("The startup sound could not be loaded: HTTP 404. Restart Picard Code to check and download its sounds.", { exact: true })).toBeVisible();
+  await startListening(page);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("the arrival call waits for a click and works before speech is set up", async ({ playwright }) => {
+  const browser = await playwright.chromium.launch({ args: [
+    "--disable-audio-output", "--autoplay-policy=user-gesture-required",
+    "--disable-features=MediaEngagementBypassAutoplayPolicies,AutoplayIgnoreWebAudio",
+  ] });
+  try {
+    const page = await browser.newPage();
+    await launch(page, "no-speech");
+    const played = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds);
+    expect(await played()).toEqual([]);
+    await page.locator("#voice-console").click();
+    await expect.poll(played).toEqual(["startup: Ready"]);
+    await expect(page.locator("#voice-setup-hint")).toBeVisible();
+  } finally { await browser.close(); }
+});
+
+test("a slow arrival sound never interrupts a spoken request", async ({ page }) => {
+  let release!: () => void;
+  const ready = new Promise<void>((done) => { release = done; });
+  await page.route("**/api/sounds/startup", async (route) => { await ready; await route.continue(); });
+  await launch(page);
+  await startListening(page);
+  await expect(status(page)).toHaveText("Listening");
+  release();
+  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
+  const arrivals = await page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
+  expect(arrivals).toEqual([]);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
 
 test("listening stays on; “Computer” starts a task, follow-ups need no “Computer”; the app always opens listening", async ({ page }, info) => {
   await launch(page);

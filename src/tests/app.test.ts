@@ -87,6 +87,22 @@ test("local browser access needs the launch token; unrelated sites and hosts are
   assert.equal((await fetch(`${context.app.origin}/%2e%2e%5cpackage.json`)).status, 403);
 });
 
+test("computer sounds include the arrival call and require the local browser connection", async (t) => {
+  const folder = await mkdtemp(resolve(".picard-test-sounds-"));
+  t.after(() => rm(folder, { recursive: true }));
+  const context = await setup({ soundFolder: folder });
+  t.after(context.cleanup);
+  await writeFile(join(folder, "startup.mp3"), "stand-in arrival call");
+  assert.equal((await context.request("sounds/startup")).status, 401);
+  await context.login();
+  const response = await context.request("sounds/startup");
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "audio/mpeg");
+  assert.equal(await response.text(), "stand-in arrival call");
+  assert.equal((await context.request("sounds/request-accepted")).status, 404);
+  assert.equal((await context.request("sounds/unknown")).status, 404);
+});
+
 test("saved conversations and project context go through OpenCode; other folders cannot be controlled", async (t) => {
   const context = await setup();
   t.after(context.cleanup);

@@ -835,6 +835,7 @@ function openEvents() {
           await loadHistory();
         }
         controls();
+        if (connected) voice.arrive();
       } else handleEvent(data);
     });
   });
