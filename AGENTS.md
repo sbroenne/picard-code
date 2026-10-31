@@ -34,8 +34,9 @@ original TNG-inspired look.
   | log entry | conversation, chat, session, task |
   | New log entry | New task, New chat |
   | Current log entry (the main screen) | Conversation, Home |
-  | Stardate | date; dates are always shown and spoken as stardates |
+  | Stardate | date or time; dates and times are always shown and spoken as stardates |
   | Standing by | Idle, Ready |
+  | Belay that | Stop work, Cancel (the button that cancels running work) |
   | “Computer” | wake word, assistant |
 
   Code names (such as `conversations` in the API) may stay as they are. Error
@@ -87,7 +88,7 @@ never instead of the written or spoken explanation:
 | Sound | When |
 | --- | --- |
 | `request-accepted` | A spoken request was accepted by OpenCode, "Computer" was said on its own and the computer is waiting for the request, or "stop listening" was acknowledged. |
-| `input-failed` | Speech was not understood or could not be sent. |
+| `input-failed` | Speech was not understood, could not be sent, or was not sent because it did not start with "Computer". |
 | `request-failed` | An accepted request finally failed or was denied, just before the spoken result. |
 
 ## Checks

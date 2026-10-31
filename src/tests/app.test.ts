@@ -135,7 +135,7 @@ test("a request streams live text and a saved reply, with Picard's manner sent p
   const manner = context.fixture.instructions.get(session.id)?.["picard-manner"] ?? "";
   assert.match(manner, /brief, precise, neutral/i);
   assert.match(manner, /Never invent completion/);
-  assert.match(manner, /Give every date as a stardate/);
+  assert.match(manner, /Give every date and time as a stardate/);
   assert.match(manner, /The current stardate is\s+-?\d+\.\d\./, "each request carries the current stardate");
   const prepared = context.fixture.requests.filter((request) => request.method !== "GET" && /\/session\/.+\/(model|instructions\/entries\/picard-manner)$/.test(request.path));
   assert.equal(prepared.length, 2);

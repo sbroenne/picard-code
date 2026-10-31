@@ -94,7 +94,7 @@ The main screen shows only the current log entry: the messages, any
 question or approval waiting for you, and the computer console with one large
 status (for example Standing by, Listening, Understanding, Working, Speaking
 or Decision needed) and a line saying what to do next. The console also holds
-**Stop speaking** and **Stop work** when they apply, and the microphone
+**Stop speaking** and **Belay that** when they apply, and the microphone
 button; the row of lights beside it shows listening. The latest request and reply are shown
 large; earlier messages are smaller. The header shows only the name and the
 tribute badge. Like the ship's computer, there are no entry names or
@@ -108,8 +108,9 @@ screen; there is no phone layout.
 
 - **Stardate**: the last tile shows today's stardate, using the common fan
   formula 1000 × (year − 2323) plus the part of the year gone by, so today's
-  dates are negative. Dates are always given as stardates: on screen, and
-  when the computer answers, since each request tells it the current stardate.
+  dates are negative. Dates and times are always given as stardates: on screen, and
+  when the computer answers ("what time is it?" gets the current stardate),
+  since each request tells it the current stardate.
 - **Captain’s log** (`#records`): earlier log entries in the project folder (latest
   100), each marked with the stardate it was started. Choose one to reopen it. The ✕ beside an entry deletes it from OpenCode
   permanently, after you confirm; an entry that is still working cannot be
@@ -145,8 +146,8 @@ error rather than switching to another model or provider.
   is kept) goes to the selected listening service. A pause of about a second
   ends the turn.
 - **Start a task with "Computer"**, for example "Computer, explain this
-  project". Before a task starts, anything else is shown as "Not sent" and
-  dropped. Saying "Computer" on its own plays the accepted sound and gives you
+  project". Before a task starts, anything else is shown as "Not sent",
+  plays the not-understood sound and is dropped. Saying "Computer" on its own plays the accepted sound and gives you
   about eight seconds to say the request.
 - **Within a task, "Computer" is not needed.** Once the first request is
   sent, everything said is sent to the model, with your words unchanged, until
@@ -158,15 +159,15 @@ error rather than switching to another model or provider.
   by.", ends the task and waits for "Computer" again. Work already running
   carries on, and the microphone stays on.
 - **"Stop"** (or "cancel that", "belay that", "never mind"; with "Computer"
-  before a task) cancels the current work, the same as **Stop work**.
+  before a task) cancels the current work, the same as **Belay that**.
 - There is one current log entry. **"Computer, new log entry"** (or "new
   task", "start over") clears the screen, the same as the **New log entry**
   button. Every request that starts a task with "Computer" begins a new log
   entry; follow-ups within the task join it. Earlier entries stay in the
   **Captain’s log**. Requests made while work is
   running, a question is waiting, or a decision is needed are not sent: with
-  "Computer" you get a short spoken reminder; without it, only a "Not sent"
-  line on screen.
+  "Computer" you get a short spoken reminder; without it, a "Not sent"
+  line on screen and the not-understood sound.
 - The computer speaks a complete short answer, usually one to three
   sentences. Detailed code and results stay on screen. File names, settings
   and dates are spoken in a listenable form ("src slash app dot ts, line 3")
@@ -184,15 +185,15 @@ error rather than switching to another model or provider.
   stops the work, and the computer says so. Several questions at once are
   answered on screen.
 - "Stop listening" and switching the microphone off do not cancel OpenCode's work.
-  **Stop work** cancels the current OpenCode request. These are separate
+  **Belay that** cancels the current OpenCode request. These are separate
   controls.
 - **Optional computer sounds:** run `npm run setup:sounds` once to download three
   short TrekCore sounds (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
   then restart Picard Code. During spoken conversation they play quietly, once
   each: a beep when a spoken request is accepted, when you say "Computer"
-  on its own, or when you say "stop listening"; an input-failed sound when speech was not understood
-  or could not be sent; and a deny beep just before the spoken result when an
-  accepted request finally fails or is denied. Answers to questions, **Stop work**, "Computer, stop" and switching the microphone off play no sound.
+  on its own, or when you say "stop listening"; an input-failed sound when speech was not understood,
+  could not be sent, or was "Not sent"; and a deny beep just before the spoken result when an
+  accepted request finally fails or is denied. Answers to questions, **Belay that**, "Computer, stop" and switching the microphone off play no sound.
   Listening is paused while a sound plays, and listening, speech,
   **Stop speaking** or stopping listening stop it. Each sound only accompanies the visible and
   spoken explanation; it never replaces it. Without the files, there are no
@@ -204,7 +205,7 @@ error rather than switching to another model or provider.
   is no automatic approval or “always allow” shortcut, and approvals cannot be
   given by voice. **Deny** stops the work, and the computer says the action was
   not carried out.
-- Questions from OpenCode can also be answered on screen. **Stop work** asks OpenCode to stop the current work.
+- Questions from OpenCode can also be answered on screen. **Belay that** asks OpenCode to stop the current work.
 
 **OpenCode's own rules decide what asks first.** Picard Code adds no rules of
 its own and never answers an approval for you. Out of the box, OpenCode 2
@@ -572,7 +573,7 @@ and repeat the browser checks.
   device. The selected speech setup and an available model are required.
 - **Azure rejects speech:** check resource access, the deployed live listening
   model, supported region and voice, and service quota. A speech error does
-  not mean OpenCode stopped; use **Stop work** separately when needed.
+  not mean OpenCode stopped; use **Belay that** separately when needed.
 - **Local speech will not start:** complete the Python setup and model download,
   check the configured paths, and choose **Save and apply** in the **Listen · Speak**
   setting again (no restart needed). The reported error is not replaced

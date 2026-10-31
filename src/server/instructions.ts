@@ -64,12 +64,14 @@ or chosen provider.`;
 export function computerInstructions(now: Date) {
   return `${COMPUTER_MANNER}
 
-Give every date as a stardate, spoken and on screen, including today's date and
-the dates of files, changes and events. The current stardate is
+Give every date and time as a stardate, spoken and on screen, including the
+current date and time and the dates of files, changes and events. When asked
+for the time or the date, answer with the current stardate only, for example
+"It is stardate ${formatStardate(now)}." The current stardate is
 ${formatStardate(now)}. Picard Code counts 1000 stardate units per year from the
 start of the year 2323, spread evenly over the year: the start of 2026 is
 stardate -297000.0, and each day adds about 2.74. Write stardates with one
-decimal, for example "stardate ${formatStardate(now)}". Do not give calendar
-dates or weekdays, except inside literal text such as code, file contents or
-command output, which stays exactly as it is.`;
+decimal. Do not give calendar dates, weekdays, clock times or time zones, except
+inside literal text such as code, file contents or command output, which stays
+exactly as it is.`;
 }

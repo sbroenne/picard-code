@@ -135,6 +135,10 @@ export class VoiceConversation {
   private inputFailed() {
     void this.sound("input-failed").then(() => { this.handling = false; this.resume(); });
   }
+  /** Heard speech that was not sent. Resolves when the input-failed sound has ended. */
+  notSent() {
+    return this.sound("input-failed");
+  }
   private fail(message: string) {
     this.failed = true;
     this.speechPending = false;

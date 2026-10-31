@@ -76,6 +76,7 @@ async function heard(text: string, startedAt: number) {
   const question = askedQuestion();
   if (words === undefined && !question && !inTask() && startedAt > goAheadUntil) {
     notSent = `Not sent: “${text}” Start with “Computer”.`;
+    await voice.notSent();
     return;
   }
   goAheadUntil = 0;
@@ -96,8 +97,8 @@ async function heard(text: string, startedAt: number) {
   const blocked = state?.permissions.some((item) => item.sessionID === selected) ? "A decision is needed first. Choose Allow once or Deny on screen."
     : pending() ? "Please answer the question on screen first."
     : busy() || submitting ? "Work is in progress. Say stop to cancel it." : undefined;
-  // Room speech during a task is not answered aloud while the computer cannot take it.
-  if (blocked && words === undefined) notSent = `Not sent: “${text}” ${blocked}`;
+  // Room speech during a task is not answered aloud while the computer cannot take it; the sound marks it as not sent.
+  if (blocked && words === undefined) { notSent = `Not sent: “${text}” ${blocked}`; await voice.notSent(); }
   else if (blocked) voice.speak(blocked);
   else {
     await sendMessage(text);
@@ -190,7 +191,7 @@ function consoleStatus(): [string, string] {
   if (state.permissions.some((item) => item.sessionID === selected)) return ["Decision needed", "Choose Allow once or Deny on screen."];
   if (listening && askedQuestion()) return ["Answer needed", "Say your answer, or choose it on screen."];
   if (pending()) return ["Answer needed", "Answer the question on screen."];
-  const stopHint = !listening ? "Choose Stop work to cancel." : inTask() ? "Say “Stop” to cancel." : "Say “Computer, stop” to cancel.";
+  const stopHint = !listening ? "Choose Belay that to cancel." : inTask() ? "Say “Stop” to cancel." : "Say “Computer, stop” to cancel.";
   if (selected && state.statuses[selected]?.type === "retry") return ["Retrying", stopHint];
   if (busy() || submitting) return ["Working", stopHint];
   if (historyLoading) return ["Loading", ""];

@@ -199,7 +199,9 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .voice-partial.not-sent { color: var(--muted); font-size: 15px; }
 .voice-note, .voice-setup-hint { margin: 10px 0 0; max-width: 62ch; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .voice-setup-hint { color: #ffb3a8; }
-.console-actions { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.console-actions { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 190px; }
+/* LCARS segments: square on the console side, rounded on the outer end. */
+.console-actions .pill { justify-content: flex-end; min-height: 48px; padding: 8px 20px; border-radius: 0 24px 24px 0; }
 .console-actions:not(:has(:not([hidden]))) { display: none; }
 
 /* Slide-outs: they open beside the side panel, over the conversation. */
@@ -254,7 +256,8 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
   .brand { align-items: flex-start; }
   .tribute { white-space: normal; }
   .console { grid-template-columns: auto minmax(0, 1fr); }
-  .console-actions { grid-column: 1 / -1; flex-direction: row; }
+  .console-actions { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; }
+  .console-actions .pill { min-width: 190px; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .drawer:not([hidden]) { animation: slide 180ms ease-out; }
