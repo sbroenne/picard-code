@@ -146,6 +146,12 @@ matching real check from the README (`test:live`, `test:speech:live`,
 these make real model requests and some make small Azure charges. Report
 plainly which real checks ran and which could not.
 
+If a local speech check needs missing Whisper or Kokoro files, run
+`npm run setup:speech` in this checkout before retrying it. Install `uv` first
+if it is missing. This downloads the models and Python packages into the
+ignored `.picard-voice` folder; never commit them or change the owner's saved
+speech choices just to run a check.
+
 Still not checked anywhere: a physical microphone and speakers (room noise,
 echo), macOS and Linux, and the owner's subjective review of voice and timing.
 

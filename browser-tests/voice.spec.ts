@@ -27,14 +27,14 @@ test.beforeAll(async () => {
   await mkdir(soundFolder);
   for (const [name, seconds] of Object.entries(SOUND_LENGTHS)) await writeFile(join(soundFolder, `${name}.mp3`), wave(24000, Buffer.alloc(24000 * 2 * seconds)));
   const rate = 48000;
-  // One short utterance every six seconds, leaving time for each reply before the next.
-  const audio = Buffer.alloc(rate * 2 * 6);
+  // Leave time for the answer and optional story invitation before a follow-up without "Computer".
+  const audio = Buffer.alloc(rate * 2 * 8);
   for (let index = rate / 2; index < rate * 1.5; index++) audio.writeInt16LE(Math.round(Math.sin(index / rate * 240 * 2 * Math.PI) * 6000), index * 2);
   await writeFile(microphoneFile, wave(rate, audio));
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "no-speech") {
+async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "interrupt" | "interrupt-room" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -100,6 +100,89 @@ function sounds(page: import("@playwright/test").Page) {
 
 test.setTimeout(60000);
 
+test("Computer interrupts playback, then the next request keeps its exact words", async ({ page }) => {
+  const commands: string[] = [];
+  page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
+    if (typeof payload === "string") commands.push(JSON.parse(payload).type);
+  }));
+  const stoppedWork: string[] = [];
+  page.on("request", (request) => { if (/\/conversations\/[^/]+\/stop$/.test(request.url())) stoppedWork.push(request.url()); });
+  await launch(page, "interrupt");
+  await startListening(page);
+  await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+  await expect.poll(() => commands.includes("stop-speaking"), { timeout: 15000 }).toBe(true);
+  await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
+  await expect(page.locator(".message[data-role=user]").last()).toContainText("Keep the exact name and do not change files.", { timeout: 15000 });
+  expect(stoppedWork).toEqual([]);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+for (const mode of ["interrupt-request", "interrupt-final"] as const) {
+test(`${mode}: a request spoken over an answer keeps Computer and the exact words`, async ({ page }) => {
+  const commands: string[] = [];
+  page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
+    if (typeof payload === "string") commands.push(JSON.parse(payload).type);
+  }));
+  await launch(page, mode);
+  await startListening(page);
+  await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+  await expect(page.locator(".message[data-role=user]")).toHaveCount(2, { timeout: 15000 });
+  await expect(page.locator(".message[data-role=user]").last()).toContainText("Computer, keep the exact name and do not change files.");
+  expect(commands).toContain("stop-speaking");
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+}
+
+test("room speech during playback is ignored even within a log entry", async ({ page }) => {
+  const commands: string[] = [];
+  const transcripts: string[] = [];
+  page.on("websocket", (socket) => {
+    socket.on("framesent", ({ payload }) => {
+      if (typeof payload === "string") commands.push(JSON.parse(payload).type);
+    });
+    socket.on("framereceived", ({ payload }) => {
+      if (typeof payload === "string") {
+        const event = JSON.parse(payload);
+        if (event.type === "transcript") transcripts.push(event.text);
+      }
+    });
+  });
+  await launch(page, "interrupt-room");
+  await startListening(page);
+  await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+  await expect.poll(() => transcripts.includes("Hello again"), { timeout: 15000 }).toBe(true);
+  await expect(status(page)).toHaveText("Speaking");
+  await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
+  expect(commands).not.toContain("stop-speaking");
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+for (const muted of [false, true]) {
+test(`clicking the computer panel interrupts speech with the microphone ${muted ? "off" : "on"}`, async ({ page }) => {
+  await launch(page, "interrupt-room");
+  await startListening(page);
+  await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+  if (muted) await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await page.locator("#status").click();
+  await expect(status(page)).toHaveText(muted ? "Microphone off" : "Standing by");
+  await expect(page.getByRole("button", { name: `Switch microphone ${muted ? "on" : "off"}` })).toBeVisible();
+  if (!muted) await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+}
+
+test("a spoken interruption cannot approve an action", async ({ page }) => {
+  const decisions: string[] = [];
+  const spoken = spokenText(page);
+  page.on("request", (request) => { if (request.method() === "POST" && /\/permissions\//.test(request.url())) decisions.push(request.url()); });
+  await launch(page, "interrupt-approval");
+  await startListening(page);
+  await expect(page.getByRole("button", { name: "Allow once", exact: true })).toBeVisible({ timeout: 15000 });
+  await expect.poll(() => spoken.includes("A decision is needed first. Choose Allow once or Deny on screen."), { timeout: 15000 }).toBe(true);
+  await expect(page.getByRole("button", { name: "Allow once", exact: true })).toBeVisible();
+  expect(decisions).toEqual([]);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
 test("the arrival call plays once at startup, not when switching the microphone or starting a new log entry", async ({ page }) => {
   await launch(page);
   await startListening(page);
@@ -130,11 +213,24 @@ test("a missing arrival sound is reported, without preventing listening", async 
 
 test("the arrival call waits for a click and works before speech is set up", async ({ playwright }) => {
   const browser = await playwright.chromium.launch({ args: [
-    "--disable-audio-output", "--autoplay-policy=user-gesture-required",
+    "--disable-audio-output", "--autoplay-policy=document-user-activation-required",
     "--disable-features=MediaEngagementBypassAutoplayPolicies,AutoplayIgnoreWebAudio",
   ] });
   try {
     const page = await browser.newPage();
+    // Headless Chromium can allow autoplay despite its policy flags; hold audio until a real click.
+    await page.addInitScript(() => {
+      const NativeAudioContext = window.AudioContext;
+      window.AudioContext = class extends NativeAudioContext {
+        constructor(options?: AudioContextOptions) {
+          super(options);
+          void this.suspend();
+        }
+        override resume() {
+          return navigator.userActivation.hasBeenActive ? super.resume() : Promise.resolve();
+        }
+      };
+    });
     await launch(page, "no-speech");
     const played = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds);
     expect(await played()).toEqual([]);
