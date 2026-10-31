@@ -98,7 +98,7 @@ function sounds(page: import("@playwright/test").Page) {
 
 test.setTimeout(60000);
 
-test("listening stays on; only requests addressed to the computer are sent; stopping is remembered", async ({ page }, info) => {
+test("listening stays on; “Computer” starts a task, follow-ups need no “Computer”; stopping is remembered", async ({ page }, info) => {
   await launch(page);
   await expect(page.getByRole("button", { name: "Start listening" })).toHaveCount(0);
   await expect(page.getByRole("textbox")).toHaveCount(0);
@@ -108,12 +108,12 @@ test("listening stays on; only requests addressed to the computer are sent; stop
   await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
   await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(2, { timeout: 15000 });
-  // The original words are sent unchanged, including "Computer".
-  await expect(page.locator(".message[data-role=user]").last()).toContainText("Computer, hello again");
+  // The original words are sent unchanged, including "Computer"; the follow-up needed no "Computer".
+  await expect(page.locator(".message[data-role=user]").first()).toContainText("Computer, hello there");
+  await expect(page.locator(".message[data-role=user]").last()).toContainText("Hello again");
+  await expect(page.locator("#status-detail")).toHaveText("Go ahead with the next request, or say “New task”.");
   await expect(page.locator(".message.current")).toHaveCount(2);
   await expect(page.locator(".message.earlier")).toHaveCount(2);
-  // Speech that does not start with "Computer" is shown as not sent, silently.
-  await expect(page.locator("#voice-partial")).toHaveText("Not sent: “Is anyone there” Start with “Computer”.", { timeout: 15000 });
   await expect(page.locator(".message[data-role=user]")).toHaveCount(2);
   expect(await sounds(page)).toEqual(["request-accepted: Understanding", "request-accepted: Understanding"]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -180,12 +180,12 @@ test("silence and speech not addressed to the computer are not sent and make no 
   expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
 });
 
-test("long work plays the processing sound once, and “Computer, stop” cancels it", async ({ page }) => {
+test("long work plays the processing sound once, and “Stop” cancels it within the task", async ({ page }) => {
   const spoken = spokenText(page);
   await launch(page, "slow");
   await startListening(page);
   await expect.poll(() => sounds(page), { timeout: 15000 }).toEqual(["request-accepted: Understanding", "processing: Working"]);
-  await expect(page.locator("#status-detail")).toHaveText("Say “Computer, stop” to cancel.");
+  await expect(page.locator("#status-detail")).toHaveText("Say “Stop” to cancel.");
   await expect.poll(() => spoken.at(-1), { timeout: 15000 }).toBe("Work stopped, Captain.");
   await expect(status(page)).toHaveText(/Speaking|Preparing reply|Standing by/);
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
@@ -263,7 +263,7 @@ test("replies show code safely, and the conversation reopens after reload", asyn
   await page.screenshot({ path: info.outputPath("conversation-screen.png"), fullPage: true });
 });
 
-test("“Computer, new task” clears the screen; the earlier conversation stays in Logs", async ({ page }) => {
+test("“New task” clears the screen and ends the task; the earlier conversation stays in Logs", async ({ page }) => {
   const spoken = spokenText(page);
   await launch(page, "fresh");
   await startListening(page);
@@ -273,6 +273,9 @@ test("“Computer, new task” clears the screen; the earlier conversation stays
   await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toBe("Ready for a new task.");
   await expect(page.locator(".message")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
+  // After the task ends, speech needs "Computer" again.
+  await expect(page.locator("#voice-partial")).toHaveText("Not sent: “Is anyone there” Start with “Computer”.", { timeout: 20000 });
+  await expect(page.locator(".message")).toHaveCount(0);
   await page.getByRole("button", { name: "Stop listening" }).click();
   await page.getByRole("link", { name: "Logs" }).click();
   await expect(page.locator("#conversations")).toContainText("hello there");

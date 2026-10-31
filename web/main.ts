@@ -50,6 +50,8 @@ let answering = false;
 // After "Computer" alone, the next words are taken as the request.
 const GO_AHEAD = 8000;
 let goAheadUntil = 0;
+// "Computer" starts a task; after that every request in the task counts, until "new task" or "stop listening".
+let engagedWith: string | undefined;
 let notSent = "";
 const voice = new VoiceConversation({
   changed: voiceControls,
@@ -59,14 +61,15 @@ const voice = new VoiceConversation({
 });
 
 /**
- * Handles one utterance heard while listening. Like the computer on the show, only speech that starts
- * with "Computer" is acted on; the words are sent unchanged. Approvals are never given by voice.
+ * Handles one utterance heard while listening. Like the computer on the show, a task starts with
+ * "Computer"; within the task, follow-ups need no "Computer". The words are sent unchanged.
+ * Approvals are never given by voice.
  */
 async function heard(text: string, startedAt: number) {
   if (!text) return;
   const words = addressed(text);
   const question = askedQuestion();
-  if (words === undefined && !question && startedAt > goAheadUntil) {
+  if (words === undefined && !question && !inTask() && startedAt > goAheadUntil) {
     notSent = `Not sent: “${text}” Start with “Computer”.`;
     return;
   }
@@ -85,19 +88,27 @@ async function heard(text: string, startedAt: number) {
   }
   // A finished reply is still being collected; wait briefly rather than refuse.
   for (let waited = 0; (submitting || historyLoading) && waited < 5000; waited += 100) await new Promise((done) => setTimeout(done, 100));
-  if (state?.permissions.some((item) => item.sessionID === selected)) {
-    voice.speak("A decision is needed first. Choose Allow once or Deny on screen.");
-  } else if (pending()) {
-    voice.speak("Please answer the question on screen first.");
-  } else if (busy() || submitting) {
-    voice.speak("Work is in progress. Say Computer, stop, to cancel it.");
-  } else await sendMessage(text);
+  const blocked = state?.permissions.some((item) => item.sessionID === selected) ? "A decision is needed first. Choose Allow once or Deny on screen."
+    : pending() ? "Please answer the question on screen first."
+    : busy() || submitting ? "Work is in progress. Say stop to cancel it." : undefined;
+  // Room speech during a task is not answered aloud while the computer cannot take it.
+  if (blocked && words === undefined) notSent = `Not sent: “${text}” ${blocked}`;
+  else if (blocked) voice.speak(blocked);
+  else {
+    await sendMessage(text);
+    engagedWith = selected;
+  }
+}
+
+/** Whether a task started with "Computer" is under way, so follow-ups need no "Computer". */
+function inTask() {
+  return !!selected && engagedWith === selected;
 }
 
 function freshByVoice() {
   if (state?.permissions.some((item) => item.sessionID === selected)) voice.speak("A decision is needed first. Choose Allow once or Deny on screen.");
   else if (pending()) voice.speak("Please answer the question on screen first.");
-  else if (busy() || submitting) voice.speak("Work is in progress. Say Computer, stop, to cancel it first.");
+  else if (busy() || submitting) voice.speak("Work is in progress. Say stop to cancel it first.");
   else { startFresh(); voice.speak("Ready for a new task."); }
 }
 
@@ -164,11 +175,11 @@ function consoleStatus(): [string, string] {
   if (state.permissions.some((item) => item.sessionID === selected)) return ["Decision needed", "Choose Allow once or Deny on screen."];
   if (listening && askedQuestion()) return ["Answer needed", "Say your answer, or choose it on screen."];
   if (pending()) return ["Answer needed", "Answer the question on screen."];
-  const stopHint = listening ? "Say “Computer, stop” to cancel." : "Choose Stop work to cancel.";
+  const stopHint = !listening ? "Choose Stop work to cancel." : inTask() ? "Say “Stop” to cancel." : "Say “Computer, stop” to cancel.";
   if (selected && state.statuses[selected]?.type === "retry") return ["Retrying", stopHint];
   if (busy() || submitting) return ["Working", stopHint];
   if (historyLoading) return ["Loading", ""];
-  if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : "Say “Computer”, then your request."];
+  if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New task”." : "Say “Computer”, then your request."];
   if (voice.opening) return ["Starting microphone", ""];
   if (!state.speech?.configured) return ["Ready", ""];
   if (muted()) return ["Not listening", "Click here to listen again."];
@@ -802,6 +813,9 @@ async function route() {
     if (current) link.setAttribute("aria-current", "true");
     else link.removeAttribute("aria-current");
   });
+  // The Conversation tile is lit while the conversation is in front, and brings it back from any panel.
+  if (open) element("nav-conversation").removeAttribute("aria-current");
+  else element("nav-conversation").setAttribute("aria-current", "page");
   // A tile shows its part; choosing it again closes the panel.
   document.querySelectorAll<HTMLAnchorElement>("a.readout, #tribute").forEach((tile) => {
     tile.dataset.part ??= tile.getAttribute("href") ?? "";
@@ -829,6 +843,11 @@ element("new-conversation").addEventListener("click", () => { void perform(async
   startFresh();
 }); });
 window.addEventListener("hashchange", () => { void perform(route); });
+// Clicking the conversation behind an open panel closes the panel.
+document.addEventListener("click", (event) => {
+  const target = event.target as Element | null;
+  if (openDrawer() && target && !target.closest(".drawer, #sidebar, .header")) closeDrawer();
+});
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && openDrawer()) { event.preventDefault(); closeDrawer(); }
 });
@@ -898,6 +917,7 @@ element("project-form").addEventListener("submit", (event) => {
   });
 });
 function stopListening() {
+  engagedWith = undefined;
   setMuted(true);
   voice.microphoneOff();
   controls();

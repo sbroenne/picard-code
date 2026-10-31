@@ -102,7 +102,9 @@ tribute badge. Like the ship's computer, there are no conversation names or
 modes on the main screen.
 
 Everything else is hidden in slide-outs, opened from the side panel.
-Choosing the same tile again, or the Escape key, closes them. Picard Code is made for a computer
+The **Conversation** tile at the top is lit while the conversation is in
+front; choosing it brings the conversation back. Choosing the same tile again,
+clicking the conversation beside the slide-out, or the Escape key also closes it. Picard Code is made for a computer
 screen; there is no phone layout.
 
 - **Logs** (`#records`): earlier conversations in the project folder (latest
@@ -134,19 +136,24 @@ error rather than switching to another model or provider.
   talking, that speech (including the half second before it, so the first word
   is kept) goes to the selected listening service. A pause of about a second
   ends the turn.
-- **Start every request with "Computer"**, for example "Computer, explain this
-  project". Only those requests are sent to the model, with your words
-  unchanged. Anything else is shown as "Not sent" and dropped. Saying
-  "Computer" on its own plays the accepted sound and gives you about eight
-  seconds to say the request.
-- **"Computer, stop"** (or "cancel that", "belay that", "never mind") cancels
-  the current work, the same as **Stop work**.
+- **Start a task with "Computer"**, for example "Computer, explain this
+  project". Before a task starts, anything else is shown as "Not sent" and
+  dropped. Saying "Computer" on its own plays the accepted sound and gives you
+  about eight seconds to say the request.
+- **Within a task, "Computer" is not needed.** Once the first request is
+  sent, everything said is sent to the model, with your words unchanged, until
+  you say "new task" or "stop listening" (or choose New task, Logs or another
+  project). Keep other conversations out of earshot during a task, or say
+  "Computer, stop listening".
+- **"Stop"** (or "cancel that", "belay that", "never mind"; with "Computer"
+  before a task) cancels the current work, the same as **Stop work**.
 - There is one ongoing conversation. **"Computer, new task"** (or "start
   over", "new conversation") clears the screen, the same as the **New task**
-  button; your next request starts a new log. Earlier conversations stay
-  under **Logs**. Other requests made while work
-  is running, a question is waiting, or a decision is needed get a short
-  spoken reminder instead of being sent.
+  button; your next request, again starting with "Computer", starts a new
+  log. Earlier conversations stay under **Logs**. Requests made while work is
+  running, a question is waiting, or a decision is needed are not sent: with
+  "Computer" you get a short spoken reminder; without it, only a "Not sent"
+  line on screen.
 - The computer speaks a complete short answer, usually one to three
   sentences. Detailed code and results stay on screen. File names, settings
   and dates are spoken in a listenable form ("src slash app dot ts, line 3")

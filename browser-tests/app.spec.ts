@@ -52,15 +52,25 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("link", { name: "Options" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Settings", exact: true })).toHaveCount(0);
   await expect(page.getByRole("tab")).toHaveCount(0);
+  const conversation = page.getByRole("link", { name: "Conversation", exact: true });
+  await expect(conversation).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: /^Model/ }).click();
+  await expect(conversation).not.toHaveAttribute("aria-current", "page");
   await expect(page).toHaveURL(/#settings\/model$/);
   await expect(page.getByRole("heading", { name: "Model" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Model" })).toBeVisible();
   await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeHidden();
   await expect(page.getByLabel("Mode", { exact: true })).toHaveCount(0);
-  // Choosing the same tile again closes it.
+  // Choosing the same tile again closes it; so do the Conversation tile and a click on the conversation.
   await page.getByRole("link", { name: /^Model/ }).click();
+  await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
+  await page.getByRole("link", { name: /^Model/ }).click();
+  await conversation.click();
+  await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
+  await expect(conversation).toHaveAttribute("aria-current", "page");
+  await page.getByRole("link", { name: /^Model/ }).click();
+  await page.mouse.click(700, 500);
   await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
 
   await page.getByRole("link", { name: /^Provider/ }).click();
