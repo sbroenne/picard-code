@@ -174,7 +174,7 @@ export async function startFixture(project: string) {
             pending.set(id, (answer) => reply(id, `Your test answer was received: ${JSON.stringify(answer.answers ?? "skipped")}.`, generation));
             later(() => publish(directory, "question.asked", question), 50);
           } else {
-            later(() => reply(id, text.includes("unsafe") ? "<img src=x onerror=alert('unsafe')>\n```js\nconst safe = true;\n```" : undefined, generation), text.includes("slow") ? 5000 : 100);
+            later(() => reply(id, text.includes("unsafe") ? "<img src=x onerror=alert('unsafe')>\n```js\nconst safe = true;\n```" : undefined, generation), text.includes("very") ? 20_000 : text.includes("slow") ? 5000 : 100);
           }
         }
         return;

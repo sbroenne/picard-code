@@ -1,25 +1,45 @@
 export type VoicePhase = "off" | "listening" | "thinking" | "speaking";
 
 export type SpeechEvent =
-  | { type: "state"; phase: VoicePhase }
+  // `id` repeats the number of the listen request that is now open.
+  | { type: "state"; phase: VoicePhase; id?: number }
   | { type: "partial"; text: string }
   | { type: "transcript"; text: string }
   | { type: "audio-start"; rate: number; id: number }
   | { type: "audio-end"; id: number }
   | { type: "error"; message: string };
 
-export class EndOfSpeech {
+const VOICE_LEVEL = 0.012;
+
+/**
+ * Finds one spoken utterance in microphone levels, on this computer, before any audio is sent.
+ * It starts after a short run of voice, ends after a real pause, and is dropped when it was
+ * only a click or a cough. Very long speech is ended after a minute.
+ */
+export class Utterance {
+  active = false;
+  private run = 0;
   private voiced = 0;
   private silence = 0;
-  reset() { this.voiced = 0; this.silence = 0; }
-  update(level: number, milliseconds: number) {
-    if (level >= 0.012) { this.voiced += milliseconds; this.silence = 0; }
-    else if (this.voiced) this.silence += milliseconds;
-    if (this.voiced >= 120 && this.silence >= 900) {
-      this.reset();
-      return true;
+  private length = 0;
+  reset() { this.active = false; this.run = 0; this.voiced = 0; this.silence = 0; this.length = 0; }
+  update(level: number, milliseconds: number): "start" | "end" | "drop" | undefined {
+    const voice = level >= VOICE_LEVEL;
+    if (!this.active) {
+      this.run = voice ? this.run + milliseconds : 0;
+      if (this.run < 60) return undefined;
+      this.active = true;
+      this.voiced = this.length = this.run;
+      this.silence = 0;
+      return "start";
     }
-    return false;
+    this.length += milliseconds;
+    if (voice) { this.voiced += milliseconds; this.silence = 0; }
+    else this.silence += milliseconds;
+    if (this.silence < 900 && this.length < 60_000) return undefined;
+    const result = this.voiced >= 150 ? "end" : "drop";
+    this.reset();
+    return result;
   }
 }
 

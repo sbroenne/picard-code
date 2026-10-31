@@ -4,9 +4,14 @@ A small local browser app for coding with **OpenCode and GitHub Copilot**.
 Black, peach, orange, and lilac computer-display panels surround a readable
 conversation. An unofficial tribute to Patrick Stewart's portrayal of
 Jean-Luc Picard, with original artwork and no franchise assets or endorsement.
+A small badge under the title reads "With deepest respect and gratitude:
+Patrick Stewart 1940 – 2026". You are always addressed as Captain Picard:
+your lines are labeled "Picard", and the computer may sometimes call you
+"Captain".
 
-Spoken conversation is the main experience: turn the microphone on, speak,
-and receive a brief spoken reply with detailed results on screen. OpenCode
+Spoken conversation is the main experience. Like the ship's computer, it
+listens all the time: start a request with "Computer", and receive a brief
+spoken reply with detailed results on screen. OpenCode
 stores conversations and performs the work. Azure MAI is the preferred
 listening and speaking service; local Whisper and Kokoro are also implemented.
 Either side can be selected independently. Typing remains a fallback.
@@ -73,9 +78,13 @@ If OpenCode is not connected:
 ## The main screen and Settings
 
 The main screen is only for the spoken conversation: the messages, any
-question or approval waiting for you, the large microphone button with its
-listening status, **Stop speaking** and **Stop work**. The header shows the
-conversation name, whether work is running, and the current mode.
+question or approval waiting for you, and the computer console with one large
+status (for example Standing by, Listening, Understanding, Working, Speaking
+or Decision needed) and a line saying what to do next. The console also holds
+**Start listening** (only before the first start), **Mute** or **Unmute**,
+**Stop speaking** and **Stop work**. The latest request and reply are shown
+large; earlier messages are smaller. The header shows the conversation name,
+the current mode and the tribute badge.
 
 Everything else is hidden in slide-outs, opened from the side panel.
 **Close** or the Escape key closes them. Picard Code is made for a computer
@@ -86,7 +95,7 @@ screen; there is no phone layout.
   opens this too.
 - **Settings** (`#settings`): the Copilot connection steps, the project folder,
   speech, and the full privacy and approvals text. If Copilot is not connected
-  when the app opens, Settings is shown first. The microphone turns off while
+  when the app opens, Settings is shown first. Listening pauses while
   Settings is open. Speech changes apply without restarting.
 
 Suggested starting requests and the message box are under **Type instead**.
@@ -103,40 +112,56 @@ than substituting another provider.
 
 ## Use it
 
-- **Turn microphone on** asks for browser microphone access. After activation,
-  audio goes to the selected listening service. A pause of about a second ends your turn and sends the
-  understood request automatically. There is no routine transcript review or
-  Send step. Understood words and the saved request remain visible.
+- The first time, choose **Start listening**. It asks for browser microphone
+  access and shows where audio goes. After that, listening starts by itself
+  whenever the app opens, unless you chose **Mute** (remembered), opened
+  **Type instead**, or Settings is open. If the browser blocks sound until you
+  interact, the screen says "Click anywhere to start listening."
+- The microphone stays on. While the room is quiet, the console shows
+  **Standing by** and nothing leaves your computer. When someone starts
+  talking, that speech (including the half second before it, so the first word
+  is kept) goes to the selected listening service. A pause of about a second
+  ends the turn.
+- **Start every request with "Computer"**, for example "Computer, explain this
+  project". Only those requests are sent to Copilot, with your words
+  unchanged. Anything else is shown as "Not sent" and dropped. Saying
+  "Computer" on its own plays the accepted sound and gives you about eight
+  seconds to say the request.
+- **"Computer, stop"** (or "cancel that", "belay that", "never mind") cancels
+  the current work, the same as **Stop work**. Other requests made while work
+  is running, a question is waiting, or a decision is needed get a short
+  spoken reminder instead of being sent.
 - The computer speaks a complete short answer, usually one to three
   sentences. Detailed code and results stay on screen. File names, settings
   and dates are spoken in a listenable form ("src slash app dot ts, line 3")
   while the screen keeps the exact text. Follow-ups, corrections and
   "show me" use the same conversation.
-- Listening pauses during work, decisions, and spoken playback so the
-  computer cannot send its own answer as a new request. **Stop speaking**
-  interrupts playback and resumes listening when the current work allows it.
+- Listening pauses while the computer speaks or plays a sound, so it cannot
+  take its own voice as a new request. **Stop speaking** interrupts playback.
   Speaking over the computer does not interrupt it.
 - When OpenCode asks a single question, the computer reads it aloud with its
-  choices and listens for your answer. Say the option's name or, for example,
+  choices and listens for your answer; no "Computer" is needed for the answer.
+  Say the option's name or, for example,
   "the second one". A reply containing "not" or "don't" is never taken as a
   choice, and when only the offered answers are allowed, anything else is
   asked again. To skip a question, use **Skip question** on screen. Several
   questions at once are answered on screen.
-- **Microphone off** stops microphone capture without cancelling OpenCode's
-  work. **Stop work** cancels the current OpenCode request. These are separate
+- **Mute** stops microphone capture without cancelling OpenCode's work.
+  **Stop work** cancels the current OpenCode request. These are separate
   controls.
-- **Type instead** opens the fallback message box and turns the microphone off.
+- **Type instead** opens the fallback message box and pauses listening.
 - **Optional computer sounds:** run `npm run setup:sounds` once to download four
   short TrekCore sounds (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
   then restart Picard Code. During spoken conversation they play quietly, once
-  each: a beep when a spoken request is accepted; a processing sound if the
+  each: a beep when a spoken request is accepted, or when you say "Computer"
+  on its own; a processing sound if the
   work is still running after about 2.5 seconds with no answer, question or
   approval request yet; an input-failed sound when speech was not understood
   or could not be sent; and a deny beep just before the spoken result when an
   accepted request finally fails or is denied. Typed requests, answers to
-  questions, **Stop work** and **Microphone off** play no sound. Listening is
-  paused while a sound plays, and listening, speech, **Stop speaking** or
-  **Microphone off** stop it. Each sound only accompanies the visible and
+  questions, **Stop work**, "Computer, stop" and **Mute** play no sound.
+  Listening is paused while a sound plays, and listening, speech,
+  **Stop speaking** or **Mute** stop it. Each sound only accompanies the visible and
   spoken explanation; it never replaces it. Without the files, there are no
   sounds and nothing else changes.
 - **New conversation** starts a saved OpenCode conversation. Existing
@@ -161,11 +186,14 @@ deny rules when adjusting your settings. Planning mode is not a security
 boundary: installed extensions and agent configuration also matter.
 
 The interface runs locally, but OpenCode sends messages and relevant project
-content to GitHub Copilot. MAI listening sends activated microphone audio to
-Azure; MAI speaking sends reply text to Azure. Whisper and Kokoro process
-their audio locally. Even with both local speech services, coding still uses
-Copilot: this is not an offline AI app. Speak ordinary requests only when you intend
-them to be sent; background speech can be misunderstood.
+content to GitHub Copilot. Because the microphone stays on, **MAI listening
+sends any speech it hears to Azure** to find out whether it starts with
+"Computer", even speech not meant for the computer; quiet room sound is not
+sent. Only requests that start with "Computer" go to Copilot. MAI speaking
+sends reply text to Azure. Whisper and Kokoro process their audio locally.
+Even with both local speech services, coding still uses Copilot: this is not
+an offline AI app. Use **Mute** for conversations you do not want sent;
+background speech can be misunderstood.
 
 ## Azure speech setup
 
@@ -184,8 +212,8 @@ The speaking voice uses the same resource and needs no voice cloning or
 separate model deployment.
 
 **MAI live listening can process audio outside Europe**, even when the
-resource is in Sweden. A short note beside the microphone says where audio
-goes until you first turn it on with those services; the full text is in
+resource is in Sweden. A short note in the console says where audio goes
+until you first start listening with those services; the full text is in
 Settings.
 Azure charges and any Visual Studio credit coverage depend on your
 subscription; this app does not change spending limits or promise credits
@@ -231,8 +259,8 @@ environment using your own secure local setup. Never paste keys into chat,
 browser addresses, or committed files.
 
 The browser receives no Azure key or account credentials. Only microphone
-audio and spoken playback cross its private local connection. Turning the
-microphone off, changing conversation, closing the page, or shutting down
+audio and spoken playback cross its private local connection. **Mute**,
+changing conversation, closing the page, or shutting down
 Picard Code stops the relevant listening connection. A speech failure leaves
 the written conversation intact and reports what failed.
 
@@ -462,7 +490,8 @@ and repeat the browser checks.
 - **Unusual installation:** `PICARD_OPENCODE_PATH` can point to the real
   OpenCode program or its JavaScript starting file, but not a Windows `.cmd` shortcut.
 - **Microphone will not start:** use a current browser at the printed local
-  address, allow microphone access when you activate it, and check the input
+  address, choose **Start listening** or **Unmute**, allow microphone access,
+  and check the input
   device. The selected speech setup and a connected Copilot model are required.
 - **Azure rejects speech:** check resource access, the deployed live listening
   model, supported region and voice, and service quota. A speech error does

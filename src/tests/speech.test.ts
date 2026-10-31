@@ -3,23 +3,49 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { WebSocket } from "ws";
 import { setTimeout as wait } from "node:timers/promises";
-import { EndOfSpeech, replyFailed, speakable, spokenReply, spokenSummary, type SpeechEvent } from "../shared/speech.js";
+import { Utterance, replyFailed, speakable, spokenReply, spokenSummary, type SpeechEvent } from "../shared/speech.js";
+import { addressed, voiceCommand } from "../shared/wake.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
 import { speakingDocument } from "../server/azure-speech.js";
 import { DEFAULT_MAI_VOICE } from "../server/speech.js";
 import { attachSpeech } from "../server/speech-bridge.js";
 import { speechFixture } from "./speech-fixture.js";
 
-test("end of speech needs voice followed by a real pause, not silence or a click", () => {
-  const detector = new EndOfSpeech();
-  for (let index = 0; index < 100; index++) assert.equal(detector.update(0, 20), false);
-  assert.equal(detector.update(0.1, 20), false);
-  assert.equal(detector.update(0, 1000), false);
-  detector.reset();
-  assert.equal(detector.update(0.02, 120), false);
-  assert.equal(detector.update(0, 880), false);
-  assert.equal(detector.update(0, 20), true);
-  assert.equal(detector.update(0, 1000), false);
+test("an utterance starts with a short run of voice, ends after a real pause, and a click is dropped", () => {
+  const detector = new Utterance();
+  for (let index = 0; index < 100; index++) assert.equal(detector.update(0, 20), undefined);
+  assert.equal(detector.update(0.1, 20), undefined);
+  assert.equal(detector.update(0, 20), undefined, "A single loud frame is not speech.");
+  assert.equal(detector.update(0.1, 20), undefined);
+  assert.equal(detector.update(0.1, 20), undefined);
+  assert.equal(detector.update(0.1, 20), "start");
+  assert.equal(detector.update(0, 880), undefined);
+  assert.equal(detector.update(0, 20), "drop", "Voice too short to be words is dropped.");
+  assert.equal(detector.active, false);
+  assert.equal(detector.update(0.02, 60), "start");
+  assert.equal(detector.update(0.02, 200), undefined);
+  assert.equal(detector.update(0, 400), undefined);
+  assert.equal(detector.update(0.02, 100), undefined, "A short breath does not end the utterance.");
+  assert.equal(detector.update(0, 899), undefined);
+  assert.equal(detector.update(0, 1), "end");
+  assert.equal(detector.update(0, 1000), undefined);
+  assert.equal(detector.update(0.02, 60), "start");
+  for (let index = 0; index < 2996; index++) assert.equal(detector.update(0.02, 20), undefined);
+  assert.equal(detector.update(0.02, 20), "end", "Endless sound is ended after a minute.");
+});
+
+test("only speech that starts with Computer is addressed; stop commands are whole short phrases", () => {
+  assert.equal(addressed("Computer, explain this project."), "explain this project.");
+  assert.equal(addressed("computer what files are here"), "what files are here");
+  assert.equal(addressed("Okay, computer. Run the tests"), "Run the tests");
+  assert.equal(addressed("Computer."), "");
+  assert.equal(addressed("Computer — stop!"), "stop!");
+  assert.equal(addressed("Is the computer on?"), undefined);
+  assert.equal(addressed("Computers are fast."), undefined);
+  assert.equal(addressed("Computer's fan is loud."), undefined);
+  assert.equal(addressed("Hello computer"), undefined);
+  for (const words of ["stop", "Stop.", "Cancel that, please.", "belay that", "Never mind", "abort", "stop work"]) assert.equal(voiceCommand(words), "stop", words);
+  for (const words of ["stop the server from crashing", "don't stop", "cancel the subscription code", "", "explain the stop button"]) assert.equal(voiceCommand(words), undefined, words);
 });
 
 test("microphone off preserves pending speech; stopped speech cannot send late audio into a new reply", async (t) => {
@@ -201,8 +227,9 @@ test("voice transport rejects other websites, pauses recognition during speech, 
   };
   await new Promise<void>((resolve, reject) => { socket.once("open", resolve); socket.once("error", reject); });
   t.after(() => socket.terminate());
-  socket.send(JSON.stringify({ type: "listen" }));
-  await next("state", "listening");
+  socket.send(JSON.stringify({ type: "listen", id: 7 }));
+  const opened = await next("state", "listening");
+  assert.equal(opened.type === "state" && opened.id, 7, "The open listening state names the request it belongs to.");
   socket.send(Buffer.alloc(640));
   socket.send(JSON.stringify({ type: "commit" }));
   const transcript = await next("transcript");

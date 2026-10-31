@@ -11,7 +11,7 @@
     <!-- An original computer display inspired by the TNG era: black ground, rounded elbows,
     flat color blocks and short uppercase readouts. The main screen is for the spoken
     conversation; everything else slides out from the side panel when asked for. -->
-    <a class="skip-link" href="#microphone">Skip to the microphone</a>
+    <a class="skip-link" href="#voice-console">Skip to the computer status</a>
     <div id="shell" class="shell" data-drawer="">
       <div class="top-rail" aria-hidden="true">
         <span class="block peach"><i>01</i></span>
@@ -21,11 +21,13 @@
         <div class="header-readouts">
           <h2 id="conversation-title" class="conversation-title">New conversation</h2>
           <div class="header-pills">
-            <span id="work-status" class="work-status" role="status">Starting up</span>
             <a id="mode-readout" class="mode-readout" href="#options" title="Change mode or model">Discuss</a>
           </div>
         </div>
-        <h1>Picard Code</h1>
+        <div class="brand">
+          <h1>Picard Code</h1>
+          <p id="tribute" class="tribute">With deepest respect and gratitude: <span>Patrick Stewart</span> <span class="tribute-years">1940 – 2026</span></p>
+        </div>
       </header>
       <div class="elbow elbow-top" aria-hidden="true"></div>
       <div class="bar bar-top" aria-hidden="true"><span class="orange grow"></span><span class="lilac"></span><span class="peach short"></span><span class="blue"></span></div>
@@ -57,18 +59,17 @@
           <div id="approvals" class="approvals" aria-live="polite"></div>
         </div>
 
-        <section id="voice-console" class="console" aria-label="Spoken conversation" data-phase="off">
-          <button id="microphone" class="microphone" type="button" aria-pressed="false" disabled>Turn microphone on</button>
+        <section id="voice-console" class="console" tabindex="-1" aria-label="Computer" data-phase="off">
+          <span class="voice-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
           <div class="voice-readout">
-            <div class="voice-heading">
-              <span class="voice-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-              <span id="voice-status" aria-live="polite">Microphone off</span>
-            </div>
-            <p id="voice-partial" class="voice-partial" aria-label="Words being understood"></p>
+            <p id="status" class="status" role="status">Starting up</p>
+            <p id="status-detail" class="status-detail"></p>
+            <p id="voice-partial" class="voice-partial" aria-label="Words heard"></p>
             <p id="voice-disclosure" class="voice-note" hidden></p>
             <p id="voice-setup-hint" class="voice-setup-hint" hidden><span id="voice-setup-text">Speech is not set up.</span> <a href="#settings">Open settings</a></p>
           </div>
           <div class="console-actions">
+            <button id="microphone" class="pill" type="button" data-kind="start" hidden disabled>Start listening</button>
             <button id="stop-speaking" class="pill lilac" type="button" hidden>Stop speaking</button>
             <button id="stop" class="pill red" type="button" hidden>Stop work</button>
           </div>

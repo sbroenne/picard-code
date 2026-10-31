@@ -95,7 +95,7 @@ export function azureSpeech(settings: AzureSettings, key: string): SpeechService
         fail(`Azure rejected the listening connection (HTTP ${response.statusCode}). Check access to the configured live model deployment.`);
       });
       socket.on("close", () => {
-        if (!closed) fail("Azure closed its listening connection. Turn the microphone on again.");
+        if (!closed) fail("Azure closed its listening connection. Choose Start listening again.");
       });
       socket.on("message", (raw) => {
         let event: Record<string, unknown>;
@@ -120,7 +120,7 @@ export function azureSpeech(settings: AzureSettings, key: string): SpeechService
           accept({
             write(audio) {
               if (closed || socket.readyState !== WebSocket.OPEN) throw new Error("Azure's listening connection is closed.");
-              if (socket.bufferedAmount > 128_000) throw new Error("The listening connection fell behind. Turn the microphone off and check your connection.");
+              if (socket.bufferedAmount > 128_000) throw new Error("The listening connection fell behind. Check your connection, then choose Start listening.");
               socket.send(JSON.stringify({ type: "input_audio_buffer.append", audio: Buffer.from(audio).toString("base64") }));
             },
             commit() {

@@ -57,7 +57,9 @@ and `src/shared/speech.ts` (what is spoken aloud). Keep replies brief, precise
 and neutral; acknowledge only when true; say clearly when information is not
 available. Spoken answers are complete short sentences, with detail on screen.
 Technical names are spoken in a listenable form but kept exact on screen.
-Avoid repeated catchphrases such as "Working". The research in
+Avoid repeated catchphrases such as "Working". The user is always
+Captain Jean-Luc Picard: their lines are labelled "Picard" on screen, and the
+computer says "Captain" now and then, never in every reply. The research in
 `docs/research/` explains why, including which evidence is weak; do not cite
 it as stronger than it is.
 
@@ -66,7 +68,7 @@ never instead of the written or spoken explanation:
 
 | Sound | When |
 | --- | --- |
-| `request-accepted` | A spoken request was accepted by OpenCode. |
+| `request-accepted` | A spoken request was accepted by OpenCode, or "Computer" was said on its own and the computer is waiting for the request. |
 | `processing` | Work is still running about 2.5 s later, with no answer, question or approval yet. |
 | `input-failed` | Speech was not understood or could not be sent. |
 | `request-failed` | An accepted request finally failed or was denied, just before the spoken result. |

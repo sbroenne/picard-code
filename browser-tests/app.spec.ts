@@ -23,6 +23,8 @@ test.beforeEach(async ({ page }) => {
 
 test("empty screen, folder controls and long content fit without horizontal overflow", async ({ page }, testInfo) => {
   await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
+  await expect(page.locator("#tribute")).toBeVisible();
+  await expect(page.locator("#tribute")).toHaveText("With deepest respect and gratitude: Patrick Stewart 1940 – 2026");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await expect(page.getByRole("button", { name: "New conversation" })).toBeVisible();
   await page.getByRole("button", { name: "Understand this project" }).click();
@@ -31,7 +33,10 @@ test("empty screen, folder controls and long content fit without horizontal over
 });
 
 test("the main screen shows only the conversation; setup and options stay in slide-outs", async ({ page }, testInfo) => {
-  await expect(page.getByRole("button", { name: "Turn microphone on" })).toBeVisible();
+  // Without speech set up, the console says so and points to Settings.
+  await expect(page.getByRole("status")).toHaveText("Ready");
+  await expect(page.locator("#voice-setup-hint")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start listening" })).toBeHidden();
   for (const name of ["Project folder", "Copilot connection"]) await expect(page.getByRole("heading", { name })).toBeHidden();
   await expect(page.getByLabel("Model")).toBeHidden();
   await expect(page.getByLabel("Mode", { exact: true })).toBeHidden();

@@ -27,8 +27,9 @@ try {
   speech = await loadSpeech(local ? { listening: "whisper", speaking: "kokoro" } : { listening: "mai", speaking: "mai" });
   assert.ok(speech);
   const chunks: Uint8Array[] = [];
-  for await (const chunk of speech.speak("Please reply with just the words, the connection is ready.", AbortSignal.timeout(60_000))) chunks.push(chunk);
-  const audio = Buffer.concat([Buffer.alloc(24000), ...chunks, Buffer.alloc(48000)]);
+  for await (const chunk of speech.speak("Computer, please reply with just the words, the connection is ready.", AbortSignal.timeout(60_000))) chunks.push(chunk);
+  // Long silence afterwards, so the looping test microphone does not repeat the request during the check.
+  const audio = Buffer.concat([Buffer.alloc(24000), ...chunks, Buffer.alloc(48000 * 180)]);
   const header = Buffer.alloc(44);
   header.write("RIFF"); header.writeUInt32LE(audio.length + 36, 4); header.write("WAVEfmt ", 8);
   header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(1, 22);
@@ -73,14 +74,14 @@ try {
     });
   });
   await page.goto(app.url);
-  await expect(page.locator("#work-status")).toHaveText("Ready", { timeout: 30_000 });
+  await expect(page.getByRole("status")).toHaveText("Ready", { timeout: 30_000 });
   await page.selectOption("#model", JSON.stringify([choice.providerID, choice.modelID]));
-  await page.getByRole("button", { name: "Turn microphone on" }).click();
+  await page.getByRole("button", { name: "Start listening" }).click();
   await expect(page.locator(".message[data-role=user]")).toContainText(/connection is ready/i, { timeout: 60_000 });
   await expect(page.locator(".message[data-role=assistant]")).toContainText(/connection is ready/i, { timeout: 90_000 });
-  await expect(page.locator("#voice-status")).toHaveText("Computer speaking", { timeout: 30_000 });
-  await page.getByRole("button", { name: "Microphone off", exact: true }).click();
-  await expect(page.locator("#voice-status")).toHaveText("Microphone off", { timeout: 30_000 });
+  await expect(page.getByRole("status")).toHaveText("Speaking", { timeout: 30_000 });
+  await page.getByRole("button", { name: "Mute", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Muted", { timeout: 30_000 });
   assert.ok(sentAudio > 16000, "Actual browser microphone audio must reach the chosen listener.");
   assert.ok(receivedAudio > 16000, "Actual chosen speaking service must return audible-length audio.");
   assert.equal(audioWhileSpeaking, 0, "Playback must not be transcribed as another user request.");
@@ -93,7 +94,7 @@ try {
   if (observationError) throw observationError;
   assert.ok((deltas.get(sessionID) ?? 0) > 0, "The real Copilot answer must produce live text updates, not only a saved final reply.");
   await page.screenshot({ path: resolve(directory, `${name}-conversation.png`), fullPage: true });
-  console.log(`Real ${name} browser conversation passed: synthesized test microphone, automatic turn submission, OpenCode + Copilot ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, microphone off and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
+  console.log(`Real ${name} browser conversation passed: synthesized test microphone, automatic turn submission, OpenCode + Copilot ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, mute and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
 } finally {
   controller.abort();
   await observation;
