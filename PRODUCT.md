@@ -34,7 +34,7 @@ speech is ready, subject to browser permission and sound restrictions.
 standing by. End-of-speech detection sends ordinary requests
 without routine transcript review or a Send step. Brief spoken answers accompany
 full written results. Follow-ups keep context; microphone off, stop speaking,
-and stop work have separate meanings. Decisions remain deliberate.
+and Belay that (stop work) have separate meanings. Decisions remain deliberate.
 Listening pauses during playback and settings changes; requests heard while
 work or a decision is pending are not sent.
 
@@ -64,7 +64,7 @@ or implied endorsement.
 
 The computer's writing should be brief, precise, and neutral. Use original
 phrasing, truthful acknowledgments, explicit uncertainty, and useful errors.
-No voice cloning, show dialogue, or recordings in the repository. Four short
+No voice cloning, show dialogue, or recordings in the repository. Three short
 computer sounds chosen by the project owner are an optional separate download,
 used with the owner's confirmed permission; they accompany, never replace,
 the visible and spoken explanation. No fictional ship status, repetitive

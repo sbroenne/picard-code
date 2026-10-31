@@ -50,11 +50,11 @@ and sound restrictions. "Computer" starts a task; follow-ups within it need no
 prefix. Standing by still listens; the microphone button or M key stops capture.
 Requests heard during work or a pending decision are not sent. Live understood
 words and "Not sent" feedback remain visible without a routine Send step.
-Microphone off, Stop speaking, and Stop work are separate controls.
+Microphone off, Stop speaking, and Belay that (stop work) are separate controls.
 Playback and settings pause listening; interruption uses Stop speaking.
 Azure listening can receive speech before "Computer" is recognized.
 Optional computer sounds are quiet, play once at a real event (accepted,
-still processing, not understood, failed or denied), never while listening,
+not understood, failed or denied), never while listening,
 and never stand in for the written or spoken explanation.
 
 Use the TNG terms in AGENTS.md and label the user's lines "Picard".

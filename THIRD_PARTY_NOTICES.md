@@ -42,7 +42,7 @@ does not grant permission to remove notices or bypass redistribution terms.
 
 ## Optional computer sounds
 
-`npm run setup:sounds` downloads four short sound files from
+`npm run setup:sounds` downloads three short sound files from
 [TrekCore](https://www.trekcore.com/audio/) into the ignored `.picard-sounds`
 folder. The project owner chose these files for their own setup. This is not
 a license grant from the rights holders: users must confirm their own right
@@ -53,7 +53,6 @@ works without them.
 | Used for | Source |
 | --- | --- |
 | A spoken request was accepted | https://www.trekcore.com/audio/computer/computer_work_beep.mp3 |
-| Work is still running after a short wait | https://www.trekcore.com/audio/computer/processing3.mp3 |
 | Speech was not understood or could not be sent | https://www.trekcore.com/audio/computer/input_failed_clean.mp3 |
 | An accepted request finally failed or was denied | https://www.trekcore.com/audio/computer/denybeep1.mp3 |
 
