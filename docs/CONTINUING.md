@@ -41,8 +41,8 @@ deployment, then choose **Save and apply**; no restart is needed. This saves
 is already there), as described in the README. The default voice is British Emily (`neutral` style). The file
 holds no key; the key is read into memory at startup.
 
-**Local Whisper and Kokoro.** Install `uv` and Python 3.11, then follow the
-README's local setup. It downloads about 432 MB of models into the ignored
+**Local Whisper and Kokoro.** Install `uv`, then run `npm run setup:speech`.
+It downloads about 432 MB of models into the ignored
 `.picard-voice` folder. Kokoro uses the British `bf_emma` voice by default.
 
 Either side can be chosen separately, for example
