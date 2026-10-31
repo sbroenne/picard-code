@@ -62,9 +62,10 @@ An existing gh sign-in is not a Copilot sign-in.`);
       process.exitCode = 1;
     });
   };
-  process.once("SIGINT", shutdown);
-  process.once("SIGTERM", shutdown);
-  process.once("SIGHUP", shutdown);
+  // npm passes Ctrl+C on as well, so the same signal can arrive twice; keep handling it until OpenCode has stopped.
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+  process.on("SIGHUP", shutdown);
   try {
     let client;
     if (values.connect) {
