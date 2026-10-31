@@ -6,7 +6,7 @@ import { setTimeout as wait } from "node:timers/promises";
 import { startEngine, projectDirectory } from "../server/process.js";
 import { startApp } from "../server/app.js";
 import { availableModels } from "../server/engine.js";
-import { BRIDGE_CREW, crewMember, type CrewID } from "../shared/crew.js";
+import { BRIDGE_CREW, crewMember, repeatsReport, type CrewID } from "../shared/crew.js";
 import type { AppState, ChatMessage } from "../shared/types.js";
 
 const temporary = await mkdtemp(join(tmpdir(), "picard-crew-check-"));
@@ -68,15 +68,18 @@ try {
   assert.equal(ordinaryReply?.speaker, undefined, "ordinary requests remain with the neutral computer");
   assert.match(ordinaryReply?.parts.filter((part) => part.type === "text").map((part) => part.text).join("") ?? "", /museum/i);
   assert.equal((await engine.client.sessions(project, ordinary.id)).length, 0, "an ordinary request must not be handed to an officer");
-  const routed = async (text: string, expected: CrewID) => {
-    const result = await send(text);
+  const routed = async (request: string, expected: CrewID) => {
+    const result = await send(request);
     const children = await engine!.client.sessions(project, result.id);
     const said = result.messages.filter((message) => message.role === "assistant").map((message) => message.parts.filter((part) => part.type === "text").map((part) => part.text).join("")).join("\n---\n");
-    assert.deepEqual(children.map((child) => child.agent), [expected], `"${text}" must go to exactly ${expected}. The computer said:\n${said}`);
+    assert.deepEqual(children.map((child) => child.agent), [expected], `"${request}" must go to exactly ${expected}. The computer said:\n${said}`);
+    const name = crewMember(expected)!.name;
+    const report = text(result.messages.findLast((message) => message.background && message.speaker === expected));
+    assert.ok(report, `${name} must report`);
     const relay = result.messages.findLast((message) => message.role === "assistant" && !message.background);
     assert.equal(relay?.speaker, undefined, "the computer relays the officer's answer");
-    assert.match(relay?.parts.filter((part) => part.type === "text").map((part) => part.text).join("") ?? "", new RegExp(crewMember(expected)!.name, "i"));
-    assert.ok(result.messages.some((message) => message.background && message.speaker === expected));
+    // A word-for-word copy is hidden on screen and the report is spoken instead; any other relay names the officer.
+    if (!repeatsReport(text(relay), report, name)) assert.match(text(relay), new RegExp(name, "i"), `the computer's relay names ${name}`);
     return children[0]!;
   };
   const offDuty = await send("Computer, Worf, review example.ts for security risks. Do not change any files or run commands.", false);
@@ -144,7 +147,7 @@ try {
   assert.equal(summary?.speaker, undefined, "the computer gives the briefing summary");
   assert.match(text(summary), /Riker/i, `the summary includes Riker's recommendation:\n${text(summary)}`);
   assert.deepEqual((await readdir(project)).sort(), ["example.ts", "opencode.json"]);
-  console.log("Real crew check passed: neutral computer writing without routing, the computer answering an officer request with the Bridge crew off, automatic routing to Worf (also when misheard as Walt) and to Riker (misheard as Rika) with a computer relay, Riker recommending without handing work on, all six non-code officer replies in their own voices (Data without contractions, Worf brief, no exclamation marks), \"Make it so\" carrying out Data's proposal, an unclear \"Make it so\" answered with a question, an automatic briefing of Worf and Troi or Data, a full briefing in which the computer itself called all six officers with the selected model and none handed work on, and the computer's summary with Riker's recommendation. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
+  console.log("Real crew check passed: neutral computer writing without routing, the computer answering an officer request with the Bridge crew off, automatic routing to Worf (also when misheard as Walt) and to Riker (misheard as Rika) with the officer's full report and a computer relay naming the officer, Riker recommending without handing work on, all six non-code officer replies in their own voices (Data without contractions, Worf brief, no exclamation marks), \"Make it so\" carrying out Data's proposal, an unclear \"Make it so\" answered with a question, an automatic briefing of Worf and Troi or Data, a full briefing in which the computer itself called all six officers with the selected model and none handed work on, and the computer's summary with Riker's recommendation. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
 } finally {
   await app?.close();
   try {

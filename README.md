@@ -117,8 +117,10 @@ answers ordinary requests itself, hands a clear specialist request to the right
 officer (for example a security question to Worf), and holds a briefing when
 work needs several officers. It then tells you briefly what the officer found,
 such as "Data reports the cache is stale."; the officer's full report stays on
-screen. The computer also recognises common mishearings, such as "Rika" for
-Riker or "Walt" for Worf. Each hand-over makes an extra model request.
+screen. If the computer only copies the report word for word, the copy is not
+shown and the report itself is spoken. The computer also recognises common
+mishearings, such as "Rika" for Riker or "Walt" for Worf. Each hand-over makes
+an extra model request.
 
 An explicit officer address at the start always selects that officer directly;
 mentioning Data or saying "do not ask Data" does not. Follow-ups stay with that

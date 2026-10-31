@@ -124,6 +124,8 @@ a.tribute { text-decoration: none; }
 .message[data-role="user"] { border-left-color: var(--blue); }
 .message-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .message-header strong { font: 600 14px/1 var(--lcars); letter-spacing: .16em; text-transform: uppercase; color: var(--orange); }
+/* "Crew report" sits beside the officer's name; the copy button stays at the right. */
+.message-header small { margin: 0 auto 0 14px; color: var(--muted); font: 500 12px/1 var(--lcars); letter-spacing: .12em; text-transform: uppercase; }
 .message[data-role="user"] .message-header strong { color: var(--blue); }
 .message[data-role="user"] .message-text { color: #d9d4ff; }
 .copy-button { color: var(--muted); background: transparent; padding: 4px 8px; font: 500 12px/1 var(--lcars); letter-spacing: .1em; text-transform: uppercase; opacity: 0; transition: opacity 120ms; }
@@ -285,4 +287,6 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
   .voice-mark i:nth-child(5n) { animation-delay: 600ms !important; }
   @keyframes level { from { height: 10px; } to { height: 60px; } }
 }
-.crew-report { border-left: 3px solid currentColor; padding-left: .8rem; }
+/* An officer's report keeps a narrower peach bar; reports for the latest request are shown in full. */
+.message.crew-report { border-left-color: var(--peach); border-left-width: 4px; }
+.message.current.crew-report .message-text { font-size: 18px; }

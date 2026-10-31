@@ -9,7 +9,7 @@ import { renderMarkdown } from "./markdown";
 import { formatStardate } from "../src/shared/stardate";
 import { TRIBUTE_ENTRIES, type TributeEntry } from "../src/shared/tribute-data";
 import { TributeCycle, tributeMode, declinedReply, storyOfferAllowed, storyAcceptance, explicitStorySubject, tributeQuestion, tributeSubject, randomIndex, storyInvitation, type ExecutionOutcome } from "../src/shared/tribute";
-import { crewMember, type CrewID } from "../src/shared/crew";
+import { crewMember, repeatsReport, type CrewID } from "../src/shared/crew";
 
 function element<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -285,7 +285,11 @@ function completeVoiceReply() {
     tributeDisplay.set(key, display);
     renderMessages();
   }
-  voice.speak(spokenReply(reply), replyFailed(reply), tail);
+  // When one officer's report is the answer, it is spoken instead of silence or the computer's word-for-word copy.
+  const at = messages.indexOf(reply);
+  const reports = reply.background ? [] : reportsAround(messages, at).filter((message) => !turn.known.has(message.id));
+  const answer = !replyFailed(reply) && reports.length === 1 && (!written(reply).trim() || repeatsOfficer(messages, at)) ? reports[0]! : reply;
+  voice.speak(spokenReply(answer), replyFailed(reply), tail);
 }
 
 function cancelTributeSpeech() {
@@ -518,7 +522,8 @@ function renderMessages() {
     const texts = message.parts.filter((part) => part.type === "text" && part.text.trim());
     const failures = texts.length ? [] : message.parts.filter((part) => part.type === "tool" && part.status === "error");
     if (message.role === "assistant" && !texts.length && !failures.length && !message.error) return;
-    const article = make("article", `message ${message.background ? "crew-report earlier" : index >= latest ? "current" : "earlier"}`);
+    if (repeatsOfficer(list, index)) return;
+    const article = make("article", `message ${message.background ? "crew-report " : ""}${index >= latest ? "current" : "earlier"}`);
     article.dataset.role = message.role;
     const header = make("div", "message-header");
     header.append(make("strong", undefined, message.role === "user" ? "Picard" : crewMember(message.speaker)?.name ?? "Computer"));
@@ -731,6 +736,25 @@ function renderApprovals() {
       else container.lastElementChild?.scrollIntoView({ block: "end" });
     });
   }
+}
+
+function written(message: ChatMessage) {
+  return message.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n");
+}
+
+/** The officers' reports made for the same request as the message at this position. */
+function reportsAround(list: ChatMessage[], index: number) {
+  const start = list.findLastIndex((message, at) => at < index && message.role === "user");
+  const next = list.findIndex((message, at) => at > index && message.role === "user");
+  return list.slice(start + 1, next < 0 ? undefined : next)
+    .filter((message) => message.background && crewMember(message.speaker) && written(message).trim() && !replyFailed(message));
+}
+
+/** A computer reply that only repeats an officer's report adds nothing; the report itself is the answer. */
+function repeatsOfficer(list: ChatMessage[], index: number) {
+  const message = list[index]!;
+  if (message.role !== "assistant" || message.background || message.speaker || message.error || !written(message).trim()) return false;
+  return reportsAround(list, index).some((report) => repeatsReport(written(message), written(report), crewMember(report.speaker)!.name));
 }
 
 /** The stored conversation with any reply text that is still being written. */

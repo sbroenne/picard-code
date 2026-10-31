@@ -34,7 +34,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew") {
+async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "officer") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -109,11 +109,26 @@ test("briefing reports stay in one log entry; officer approvals require a button
   await expect(page.locator(".crew-report")).toContainText("Data supplied an investigation report.");
   expect(spoken.some((text) => text.includes("Data supplied"))).toBe(false);
   await page.getByRole("button", { name: "Deny", exact: true }).click();
-  await expect(page.locator(".message.current[data-role=assistant]")).toContainText("Geordi's action was denied", { timeout: 15000 });
+  await expect(page.locator(".message.current[data-role=assistant]:not(.crew-report)")).toContainText("Geordi's action was denied", { timeout: 15000 });
   await expect.poll(() => spoken.filter((text) => text.includes("Geordi's action was denied")).length).toBe(1);
-  await expect(page.locator(".message.current[data-role=assistant] .message-header strong")).toHaveText("Computer");
+  await expect(page.locator(".message.current[data-role=assistant]:not(.crew-report) .message-header strong")).toHaveText("Computer");
   expect(spoken.some((text) => text.includes("Data supplied"))).toBe(false);
   await expect(page.locator("#approvals")).toBeEmpty();
+});
+
+test("when one officer answers, the report is the answer: shown in full, spoken once, and not repeated by the computer", async ({ page }) => {
+  const spoken = spokenText(page);
+  await launch(page, "officer");
+  await startListening(page);
+  const report = page.locator(".message.current.crew-report");
+  await expect(report).toContainText("Test stand-in: Captain, the cache is stale.", { timeout: 20000 });
+  await expect(report.locator(".message-header strong")).toHaveText("Data");
+  await expect.poll(() => spoken.filter((text) => text.includes("the cache is stale")).length, { timeout: 15000 }).toBe(1);
+  await expect(page.locator(".message[data-role=assistant]:not(.crew-report)")).toHaveCount(0);
+  // The "Crew report" label sits beside the officer's name, not in the middle of the line.
+  const name = (await report.locator(".message-header strong").boundingBox())!;
+  const label = (await report.locator(".message-header small").boundingBox())!;
+  expect(label.x - (name.x + name.width)).toBeLessThan(30);
 });
 
 test("with the Bridge crew off, an officer request goes to the computer", async ({ page }) => {
@@ -140,7 +155,7 @@ test("crew activity and decisions return after reload, and Belay that stops the 
   await page.getByRole("button", { name: "Belay that", exact: true }).click();
   await expect(page.locator("#approvals")).toBeEmpty();
   await expect(page.getByRole("button", { name: "Belay that", exact: true })).toBeHidden();
-  await expect(page.locator(".message.current[data-role=assistant]")).toContainText("Work stopped before it finished.");
+  await expect(page.locator(".message.current[data-role=assistant]:not(.crew-report)")).toContainText("Work stopped before it finished.");
 });
 
 test("listening stays on; “Computer” starts a task, follow-ups need no “Computer”; the app always opens listening", async ({ page }, info) => {

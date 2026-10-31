@@ -12,6 +12,7 @@ const fixture = await startFixture(project);
 // Each utterance hears the next phrase; the last one repeats. Within a task everything said is sent,
 // so most end in silence ("").
 const phrases = process.argv.includes("--crew") ? ["Computer, have Data and Geordi look at the repair", ""]
+  : process.argv.includes("--officer") ? ["Computer, I wanted to have an answer from Data", ""]
   : process.argv.includes("--tribute") ? ["Computer, multi-message answer", "Hello again", "Another answer", "One more answer", "Keep going", "The last answer", ""]
   : process.argv.includes("--picard") ? ["Computer, tell me about myself", "Yes, please.", ""]
   : process.argv.includes("--picard-decline") ? ["Computer, tell me about myself", "Not now", ""]

@@ -39,6 +39,15 @@ export function crewMember(id: string | undefined) {
   return BRIDGE_CREW.find((officer) => officer.id === id);
 }
 
+const plain = (text: string) => text.toLowerCase().replace(/[*_`>"“”‘’']/g, "").replace(/\s+/g, " ").trim();
+
+/** True when the computer's reply only repeats an officer's report, perhaps after the officer's name; the reply may still be arriving. */
+export function repeatsReport(reply: string, report: string, officer: string) {
+  const body = plain(report);
+  const rest = plain(reply).replace(new RegExp(String.raw`^${officer.toLowerCase()}\b(?:\s+(?:reports|says|answers)(?:\s+that)?)?\s*[:,.—–-]?\s*`), "");
+  return !!body && body.startsWith(rest);
+}
+
 // The names and ranks the Captain uses on the bridge, such as "Number One" or "Mr. La Forge".
 const RANK = String.raw`(?:(?:mr\.?|mister|commander|lieutenant(?:\s+commander)?)\s+)?`;
 const ADDRESSES: [CrewID, string][] = [

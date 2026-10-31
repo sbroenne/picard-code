@@ -263,6 +263,13 @@ export async function startFixture(project: string) {
                 : "Test stand-in: the briefing reports are collected. No command was run.", generation);
             });
             later(() => publish(directory, "permission.asked", permission), 50);
+          } else if (manner.includes("hold a briefing") && /\ban answer from Data\b/i.test(text)) {
+            // Like a real model that ignores the rule, the computer copies Data's report word for word.
+            const report = "Test stand-in: Captain, the cache is stale. No command was run.";
+            const data = createSession(directory, "Data answer", sessionID, "picard-data");
+            data.model = session.model;
+            assistant(data.id, [{ type: "text", text: report }]);
+            later(() => reply(sessionID, `**Data:** ${report}`, generation), 30);
           } else if (text.includes("multi-message")) {
             assistant(sessionID, [{ type: "text", text: "An intermediate test reply, not a finished answer." }]);
             publish(directory, "session.text.ended", { sessionID });

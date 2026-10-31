@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BRIDGE_CREW, addressedOfficer } from "../shared/crew.js";
+import { BRIDGE_CREW, addressedOfficer, repeatsReport } from "../shared/crew.js";
 import { crewConfiguration, verifiedCrew } from "../server/crew.js";
 import type { AgentInfo, PermissionRule } from "../server/opencode.js";
 import { chatMessages } from "../server/history.js";
@@ -124,6 +124,18 @@ test("the computer holds briefings itself; Riker weighs options instead of coord
     assert.match(crewInstructions(officer), /Do not hand work to other officers/);
     assert.doesNotMatch(crewInstructions(officer), /When delegating|Only Riker/);
   }
+});
+
+test("the computer relays an officer's report briefly; a word-for-word copy is recognised", () => {
+  assert.match(CREW_ROUTING, /relay it\s+briefly in your own neutral manner, naming the officer/);
+  assert.match(CREW_ROUTING, /full reports are already shown on\s+screen, so do not repeat them/);
+  const report = "Captain, I refused because the procedure risked losing the experiences and memories that make me who I am.";
+  assert.equal(repeatsReport(`**Data:** ${report}`, report, "Data"), true);
+  assert.equal(repeatsReport(`Data reports: "${report}"`, report, "Data"), true);
+  assert.equal(repeatsReport("**Data:** Captain, I refused because the proc", report, "Data"), true, "a copy still arriving is already recognised");
+  assert.equal(repeatsReport(`${report} I could not confirm this in the project.`, report, "Data"), false, "anything the computer adds stays visible");
+  assert.equal(repeatsReport("Data refused to protect his memories.", report, "Data"), false);
+  assert.equal(repeatsReport(`Worf: ${report}`, report, "Data"), false);
 });
 
 test("the computer routes only when the crew is loaded, and officers never route", () => {
