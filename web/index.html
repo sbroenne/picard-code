@@ -29,7 +29,7 @@
       <div class="bar bar-main" aria-hidden="true"><span class="orange"></span><span class="peach grow"></span><span class="red short"></span><span class="lilac"></span></div>
 
       <nav id="sidebar" class="sidebar" aria-label="Panels">
-        <a id="nav-conversation" class="rail-button tan" href="#">Conversation</a>
+        <a id="nav-conversation" class="rail-button tan" href="#">Current log entry</a>
         <button id="new-conversation" class="rail-button orange" type="button">New log entry</button>
         <a class="rail-button peach" href="#records" data-drawer-link="records">Captain’s log</a>
         <span class="rail-fill"><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Model"><small>Model</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a></span>
@@ -47,9 +47,9 @@
             <a class="pill orange" href="#settings/provider">Open setup</a>
           </section>
           <section id="welcome" class="welcome">
-            <h3>Please specify a task.</h3>
+            <h3>Please specify your request.</h3>
           </section>
-          <div id="messages" class="messages" aria-label="Conversation messages"></div>
+          <div id="messages" class="messages" aria-label="Log entry"></div>
           <div id="approvals" class="approvals" aria-live="polite"></div>
         </div>
 
@@ -75,7 +75,6 @@
 
       <section id="drawer-records" class="drawer" hidden tabindex="-1" aria-labelledby="records-title">
         <div class="drawer-bar peach"><h2 id="records-title">Captain’s log</h2></div>
-        <p class="drawer-caption">Project folder: <span id="project-name">Connecting</span></p>
         <div id="conversations" class="conversation-list"></div>
       </section>
 

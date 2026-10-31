@@ -216,7 +216,6 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .drawer-bar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 0 0 18px; padding: 6px 6px 6px 20px; border-radius: 0 26px 26px 0; box-shadow: 0 -14px 0 var(--ink); }
 .drawer-bar h2 { margin: 0; color: var(--ink); font: 600 26px/1.2 var(--lcars); letter-spacing: .1em; text-transform: uppercase; }
 .drawer-caption { margin: 0 0 14px; color: var(--muted); font: 500 15px/1.4 var(--lcars); letter-spacing: .08em; text-transform: uppercase; }
-#project-name { color: var(--peach); }
 .conversation-list { display: flex; flex-direction: column; gap: 6px; }
 .conversation-button { width: 100%; min-height: 50px; padding: 8px 18px; border-radius: 0 25px 25px 0; text-align: left; color: var(--ink); background: var(--peach); font: 500 16px/1.15 var(--lcars); letter-spacing: .04em; text-transform: uppercase; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: none; }
 .conversation-row:nth-child(3n+2) .conversation-button { background: var(--blue); }

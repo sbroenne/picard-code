@@ -34,7 +34,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep") {
+async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -290,7 +290,7 @@ test("“New log entry” clears the screen and ends the task; the earlier conve
   await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
   await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toBe("Ready for a new log entry.");
   await expect(page.locator(".message")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
   // After the task ends, speech needs "Computer" again.
   await expect(page.locator("#voice-partial")).toHaveText("Not sent: “Is anyone there” Start with “Computer”.", { timeout: 20000 });
   await expect(page.locator(".message")).toHaveCount(0);
@@ -305,9 +305,22 @@ test("“New log entry” clears the screen and ends the task; the earlier conve
   await expect(page.locator("#conversations .conversation-button")).toHaveCount(1);
   await page.getByRole("button", { name: /^Delete .*hello there/ }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await expect(page.locator("#conversations")).toHaveText("Your conversations will appear here.");
+  await expect(page.locator("#conversations")).toHaveText("Your log entries will appear here.");
   // The panel stays open after deleting.
   await expect(page.locator("#drawer-records")).toBeVisible();
+});
+
+test("after a task ends, the next “Computer” request starts its own log entry", async ({ page }) => {
+  await launch(page, "separate");
+  await startListening(page);
+  await expect(page.locator(".message[data-role=user]")).toContainText(["Computer, show unsafe output"], { timeout: 40000 });
+  await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await page.getByRole("link", { name: "Captain’s log" }).click();
+  await expect(page.locator("#conversations .log-title")).toHaveCount(2);
+  await page.locator("#conversations .conversation-button", { hasText: "hello there" }).click();
+  await expect(page.locator(".message[data-role=user]")).toContainText(["Computer, hello there"]);
+  await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
 });
 
 test("“Stop listening”, even without “Computer”, is acknowledged and returns to standing by; only the microphone button switches the microphone", async ({ page }) => {

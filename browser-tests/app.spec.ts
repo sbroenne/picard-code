@@ -21,7 +21,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("empty screen fits without horizontal overflow and has no typing box", async ({ page }, testInfo) => {
-  await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
   await expect(page.locator("#tribute")).toBeVisible();
   await expect(page.locator("#tribute")).toHaveText("With deepest respect and gratitude: Sir Patrick Stewart 1940 – 2026");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -53,7 +53,7 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("link", { name: "Options" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Settings", exact: true })).toHaveCount(0);
   await expect(page.getByRole("tab")).toHaveCount(0);
-  const conversation = page.getByRole("link", { name: "Conversation", exact: true });
+  const conversation = page.getByRole("link", { name: "Current log entry", exact: true });
   await expect(conversation).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: /^Model/ }).click();
   await expect(conversation).not.toHaveAttribute("aria-current", "page");
@@ -96,5 +96,5 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await page.screenshot({ path: testInfo.outputPath("settings.png"), fullPage: true });
   await page.keyboard.press("Escape");
   await expect(page.getByRole("heading", { name: "Speech" })).toBeHidden();
-  await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
 });

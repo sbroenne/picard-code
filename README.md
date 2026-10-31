@@ -16,7 +16,7 @@ the ship's displays, no franchise material, and no endorsement.
 ### How it works
 
 A small local browser app. OpenCode does the coding, with any model provider it
-supports, and stores the conversations. Like the ship's computer, it
+supports, and keeps every log entry. Like the ship's computer, it
 listens all the time and acts only on requests that start with "Computer".
 Listening and speaking use your own Azure MAI resource, or Whisper and Kokoro
 on this computer; each side can be chosen on its own.
@@ -59,7 +59,7 @@ npm start -- --project "$HOME/projects/my-project"
 
 You can also change the folder with the **Project** tile in the side panel.
 Stop running work first.
-The folder is passed to OpenCode for every conversation and request.
+The folder is passed to OpenCode for every log entry and request.
 
 **`npx picard-code` is not available yet.** This repository is private and the
 package has not been published. The commands above are the supported launch
@@ -90,27 +90,26 @@ To sign in to a provider:
 
 ## The main screen and Settings
 
-The main screen is only for the spoken conversation: the messages, any
+The main screen shows only the current log entry: the messages, any
 question or approval waiting for you, and the computer console with one large
 status (for example Standing by, Listening, Understanding, Working, Speaking
 or Decision needed) and a line saying what to do next. The console also holds
-**Stop speaking** and **Stop work** when they apply. There is no microphone
-button: the row of lights beside the status shows listening, and clicking the
-console switches listening back on after you stopped it. The latest request and reply are shown
+**Stop speaking** and **Stop work** when they apply, and the microphone
+button; the row of lights beside it shows listening. The latest request and reply are shown
 large; earlier messages are smaller. The header shows only the name and the
-tribute badge. Like the ship's computer, there are no conversation names or
+tribute badge. Like the ship's computer, there are no entry names or
 modes on the main screen.
 
 Everything else is hidden in slide-outs, opened from the side panel.
-The **Conversation** tile at the top is lit while the conversation is in
-front; choosing it brings the conversation back. Choosing the same tile again,
-clicking the conversation beside the slide-out, or the Escape key also closes it. Picard Code is made for a computer
+The **Current log entry** tile at the top is lit while the current log entry is in
+front; choosing it brings it back. Choosing the same tile again,
+clicking the log entry beside the slide-out, or the Escape key also closes it. Picard Code is made for a computer
 screen; there is no phone layout.
 
 - **Stardate**: the last tile shows today's stardate, using the common fan
   formula 1000 × (year − 2323) plus the part of the year gone by, so today's
   dates are negative. Hover over it for the ordinary date and time.
-- **Captain’s log** (`#records`): earlier conversations in the project folder (latest
+- **Captain’s log** (`#records`): earlier log entries in the project folder (latest
   100), each marked with the stardate it was started (hover for the ordinary
   date). Choose one to reopen it. The ✕ beside an entry deletes it from OpenCode
   permanently, after you confirm; an entry that is still working cannot be
@@ -152,7 +151,7 @@ error rather than switching to another model or provider.
 - **Within a task, "Computer" is not needed.** Once the first request is
   sent, everything said is sent to the model, with your words unchanged, until
   you say "new log entry" or "stop listening" (or choose New log entry, Captain’s log or another
-  project). Keep other conversations out of earshot during a task, or say
+  project). Keep other people's talk out of earshot during a task, or say
   "stop listening".
 - **"Stop listening"** (or "stand by", "that will be all") is always
   understood, with or without "Computer". The computer beeps, says "Standing
@@ -160,10 +159,11 @@ error rather than switching to another model or provider.
   carries on, and the microphone stays on.
 - **"Stop"** (or "cancel that", "belay that", "never mind"; with "Computer"
   before a task) cancels the current work, the same as **Stop work**.
-- There is one ongoing conversation. **"Computer, new log entry"** (or "new
+- There is one current log entry. **"Computer, new log entry"** (or "new
   task", "start over") clears the screen, the same as the **New log entry**
-  button; your next request, again starting with "Computer", starts a new
-  log. Earlier conversations stay in the **Captain’s log**. Requests made while work is
+  button. Every request that starts a task with "Computer" begins a new log
+  entry; follow-ups within the task join it. Earlier entries stay in the
+  **Captain’s log**. Requests made while work is
   running, a question is waiting, or a decision is needed are not sent: with
   "Computer" you get a short spoken reminder; without it, only a "Not sent"
   line on screen.
@@ -171,7 +171,7 @@ error rather than switching to another model or provider.
   sentences. Detailed code and results stay on screen. File names, settings
   and dates are spoken in a listenable form ("src slash app dot ts, line 3")
   while the screen keeps the exact text. Follow-ups, corrections and
-  "show me" use the same conversation.
+  "show me" stay in the same log entry.
 - Listening pauses while the computer speaks or plays a sound, so it cannot
   take its own voice as a new request. **Stop speaking** interrupts playback.
   Speaking over the computer does not interrupt it.
@@ -205,7 +205,7 @@ error rather than switching to another model or provider.
   is no automatic approval or “always allow” shortcut, and approvals cannot be
   given by voice. **Deny** stops the work, and the computer says the action was
   not carried out.
-- Questions from OpenCode can also be answered on screen. **Stop work** asks OpenCode to stop the current conversation.
+- Questions from OpenCode can also be answered on screen. **Stop work** asks OpenCode to stop the current work.
 
 **OpenCode's own rules decide what asks first.** Picard Code adds no rules of
 its own and never answers an approval for you. Out of the box, OpenCode 2
@@ -335,9 +335,9 @@ browser addresses, or committed files.
 
 The browser receives no Azure key or account credentials. Only microphone
 audio and spoken playback cross its private local connection. Stopping listening,
-changing conversation, closing the page, or shutting down
+changing log entry, closing the page, or shutting down
 Picard Code stops the relevant listening connection. A speech failure leaves
-the written conversation intact and reports what failed.
+the written log entry intact and reports what failed.
 
 ## Local Whisper and Kokoro setup
 

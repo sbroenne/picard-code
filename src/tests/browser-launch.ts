@@ -14,6 +14,7 @@ const phrases = process.argv.includes("--approval") ? ["Computer, request an app
   : process.argv.includes("--unclear") ? ["", "Is it raining outside", "Computer, hello there", ""]
   : process.argv.includes("--slow") ? ["Computer, take a very slow look", "Stop", ""]
   : process.argv.includes("--sleep") ? ["Stop listening", "Hello again", "Computer, hello there", ""]
+  : process.argv.includes("--separate") ? ["Computer, hello there", "Stop listening", "Computer, show unsafe output", ""]
   : process.argv.includes("--long") ? ["Computer, take a very slow look", ""]
   : process.argv.includes("--choose") ? ["Computer, ask a question and let me choose", ""]
   : process.argv.includes("--unsafe") ? ["Computer, show unsafe output", ""]

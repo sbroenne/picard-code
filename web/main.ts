@@ -145,7 +145,7 @@ function askedQuestion() {
 
 async function answerAloud(text: string) {
   const request = askedQuestion();
-  if (!request) throw new Error("The question is no longer waiting. Check the conversation on screen.");
+  if (!request) throw new Error("The question is no longer waiting. Check the log entry on screen.");
   const field = spokenField(request)!;
   const result = matchSpokenAnswer(field, text);
   if ("retry" in result) { voice.speak(result.retry); return; }
@@ -303,9 +303,6 @@ function controls() {
 
 function renderState() {
   if (!state) { controls(); return; }
-  const projectName = state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project;
-  element("project-name").textContent = projectName;
-  element("project-name").title = state.project;
   if (document.activeElement !== element("project-path")) element<HTMLInputElement>("project-path").value = state.project;
   element("workspace-caption").textContent = `OpenCode ${state.version} · ${state.project}`;
   const currentModel = model.value;
@@ -367,7 +364,7 @@ function renderState() {
     row.append(node, remove);
     list.append(row);
   }
-  if (!state.conversations.length) list.append(make("p", "muted", "Your conversations will appear here."));
+  if (!state.conversations.length) list.append(make("p", "muted", "Your log entries will appear here."));
   renderApprovals();
   const decision = state.permissions.find((item) => item.sessionID === selected)?.id
     ?? state.questions.find((item) => item.sessionID === selected)?.id;
@@ -765,7 +762,7 @@ async function deleteConversation(id: string) {
   else renderState();
 }
 
-async function newConversation(title = "New conversation") {
+async function newConversation(title = "New log entry") {
   const conversation = await api<Conversation>("conversations", { title });
   if (state) state.conversations.unshift(conversation);
   await selectConversation(conversation.id);
@@ -782,6 +779,8 @@ async function sendMessage(spoken: string) {
   controls();
   notice();
   try {
+    // A request that starts a task begins its own log entry; only follow-ups within the task join it.
+    if (selected && engagedWith !== selected) startFresh();
     if (!selected) await newConversation((addressed(text) || text).slice(0, 60));
     const id = selected!;
     voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)) };

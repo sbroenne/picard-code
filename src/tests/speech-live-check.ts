@@ -4,7 +4,7 @@ import { loadSpeech } from "../server/speech.js";
 
 const service = await loadSpeech({ listening: "mai", speaking: "mai" });
 if (!service) throw new Error("Set up .picard-speech.json before checking real Azure speech.");
-const phrase = "The listening connection is ready. Please specify a task.";
+const phrase = "The listening connection is ready. Please specify your request.";
 const chunks: Uint8Array[] = [];
 for await (const chunk of service.speak(phrase, AbortSignal.timeout(60_000))) chunks.push(chunk);
 const audio = Buffer.concat(chunks);

@@ -84,7 +84,7 @@ export class VoiceConversation {
         if (!response.ok) throw new Error();
         return await context.decodeAudioData(await response.arrayBuffer());
       })().catch(() => {
-        this.hooks.error("A computer sound could not be loaded. Spoken conversation continues without it.");
+        this.hooks.error("A computer sound could not be loaded. Speaking and listening continue without it.");
         return undefined;
       });
       this.cues.set(name, cue);
@@ -119,7 +119,7 @@ export class VoiceConversation {
       try { source.start(); }
       catch {
         this.cueSource = undefined;
-        this.hooks.error("A computer sound could not be played. Spoken conversation continues without it.");
+        this.hooks.error("A computer sound could not be played. Speaking and listening continue without it.");
         done();
       }
     });
@@ -281,7 +281,7 @@ export class VoiceConversation {
         this.microphoneOff();
         this.clearAudio();
         this.state("off");
-        this.hooks.error("The voice connection stopped. The written conversation is preserved. Click the computer panel to listen again.");
+        this.hooks.error("The voice connection stopped. The log entry on screen is kept. Click the microphone button to listen again.");
       };
       socket.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
         try {

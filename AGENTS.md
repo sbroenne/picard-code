@@ -24,6 +24,23 @@ original TNG-inspired look.
 
 - **Plain English** in everything users or the owner read: interface text,
   errors, docs, issues and pull requests. Avoid jargon.
+- **Star Trek: The Next Generation terms** in everything the user sees or
+  hears, as long as they stay plain and clear. Use these names, not generic
+  app words:
+
+  | Say | Not |
+  | --- | --- |
+  | Captain’s log | history, logs, records |
+  | log entry | conversation, chat, session, task |
+  | New log entry | New task, New chat |
+  | Current log entry (the main screen) | Conversation, Home |
+  | Stardate | date (the ordinary date may go in a tooltip) |
+  | Standing by | Idle, Ready |
+  | “Computer” | wake word, assistant |
+
+  Code names (such as `conversations` in the API) may stay as they are. Error
+  messages stay exact and plain; never trade clarity for flavour. Spoken
+  phrases like "new task" may still be understood as alternatives.
 - **Never weaken approvals.** OpenCode's own permission rules decide what
   asks first; Picard Code adds no rules and answers no approval itself. Do not
   add automatic approval, "always allow", voice approval, OpenCode's `--auto`

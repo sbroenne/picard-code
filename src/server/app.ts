@@ -153,7 +153,7 @@ export async function startApp(options: AppOptions) {
 
   const assertSession = async (id: string, project: string) => {
     const result = await client.session(id, project);
-    if (!sameDirectory(result.location.directory, project) || result.parentID) throw new HttpError(403, "That conversation belongs to another project folder.");
+    if (!sameDirectory(result.location.directory, project) || result.parentID) throw new HttpError(403, "That log entry belongs to another project folder.");
     return result;
   };
 
@@ -340,7 +340,7 @@ export async function startApp(options: AppOptions) {
         }
         if (path === "/api/conversations" && method === "POST") {
           const data = await body(request);
-          const result = await client.createSession(project, typeof data.title === "string" ? data.title.trim().slice(0, 120) || "New conversation" : "New conversation");
+          const result = await client.createSession(project, typeof data.title === "string" ? data.title.trim().slice(0, 120) || "New log entry" : "New log entry");
           json(response, 201, { id: result.id, title: result.title, created: result.time.created, updated: result.time.updated });
           return;
         }
@@ -375,7 +375,7 @@ export async function startApp(options: AppOptions) {
               throw new HttpError(400, "Sign in to a model provider in OpenCode and choose an available model.");
             }
             if ((await client.active(project)).includes(id)) throw new HttpError(409, "Wait for the current reply, or stop it before sending another message.");
-            if (session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
+            if (session.title === "New log entry" || session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
             if (session.model?.id !== modelID || session.model.providerID !== providerID) await client.setModel(id, project, { id: modelID, providerID });
             // Picard Code's conversation manner travels with the conversation, not as a file in the project.
             await client.setInstructions(id, project, "picard-manner", COMPUTER_MANNER);
@@ -390,13 +390,13 @@ export async function startApp(options: AppOptions) {
           const requestID = approval[2]!;
           if (approval[1] === "permissions") {
             const item = (await client.permissions(project)).find((item) => item.id === requestID);
-            if (!item) throw new HttpError(409, "That approval is no longer waiting. Refresh the conversation.");
+            if (!item) throw new HttpError(409, "That approval is no longer waiting. Refresh the log entry.");
             await assertSession(item.sessionID, project);
             if (data.reply !== "once" && data.reply !== "reject") throw new HttpError(400, "Choose Allow once or Deny.");
             await client.replyPermission(item.sessionID, requestID, project, data.reply);
           } else {
             const item = (await client.forms(project)).find((item) => item.id === requestID);
-            if (!item) throw new HttpError(409, "That question is no longer waiting. Refresh the conversation.");
+            if (!item) throw new HttpError(409, "That question is no longer waiting. Refresh the log entry.");
             await assertSession(item.sessionID, project);
             if (data.skip === true) await client.cancelForm(item.sessionID, requestID, project);
             else await client.replyForm(item.sessionID, requestID, project, checkAnswer(item.fields, data.answer));
