@@ -2,15 +2,15 @@
 
 ## Purpose
 
-An operating interface: the user chooses a folder, talks to OpenCode through
-GitHub Copilot, and answers real requests. The computer-display styling frames
+An operating interface: the user chooses a folder, speaks to OpenCode 2 through
+any model provider it supports, and answers real requests. The computer-display styling frames
 the work rather than replacing familiar controls.
 
 ## Original visual language
 
 Near-black `#080808` surrounds peach `#efba91`, orange `#e99a53`, and lilac
 `#b6a0d5` rails. Peach identifies the project and assistant; lilac identifies
-conversations and the user's side; orange marks active listening. These are
+Captain's log and the user's side; orange marks active listening. These are
 original flat shapes, not franchise artwork.
 
 The top-left curve, rounded side panels, disconnected top bands, and narrow
@@ -26,31 +26,39 @@ per line and uses generous line spacing.
 
 ## Layout
 
-Desktop: a 230-pixel sidebar at left, a flexible conversation at right, and a
-set of spoken controls below an independently scrollable reading area. A straight
-peach rail introduces these controls; the typing fallback is folded away.
-At intermediate
-widths the sidebar narrows to 190 pixels.
+The app is designed for a computer screen, with a side panel, current log
+entry, and computer console. The latest request and reply are prominent;
+earlier messages are smaller. The console shows the current state and next
+step, listening lights, a microphone button, and stopping controls when needed.
+There is no typing box or phone layout.
 
-At 700 pixels and below, the same interface becomes one column. The sidebar
-opens with a labeled Menu button, conversation content uses normal page
-scrolling, and message controls wrap without horizontal page overflow.
+Each side-panel tile opens its own setting or Captain's log in a slide-out.
+Choosing it again, Current log entry, Escape, or the log entry beside it closes
+the slide-out. Provider, Model, Project, Listen · Speak, and About have separate
+tiles. Stardate shows the fan-formula date, with the ordinary date on hover.
 
 ## States and access
 
-The setup screen tells the truth when Copilot is missing. Ready means the real
-OpenCode event stream is connected and a Copilot model is available. Working, loading, reconnecting, unanswered
+The Provider setting tells the truth when no model is available.
+Connection readiness means OpenCode is connected and a model is available.
+Standing by, listening, understanding, working, speaking, reconnecting, unanswered
 questions, and approval requests have visible labels. Errors name the problem
 and the recovery step.
 
-The microphone starts off. Listening, understanding/working, speaking, and
-waiting for a decision have explicit labels. Live understood words are visible,
-without becoming a routine review step. The selected services and their audio disclosure sit beside
-activation. Microphone off, Stop speaking, and Belay that (stop work) are separate controls.
-Playback pauses listening; interruption uses the Stop speaking control.
+The microphone starts on when speech is ready, subject to browser permission
+and sound restrictions. "Computer" starts a task; follow-ups within it need no
+prefix. Standing by still listens; the microphone button or M key stops capture.
+Requests heard during work or a pending decision are not sent. Live understood
+words and "Not sent" feedback remain visible without a routine Send step.
+Microphone off, Stop speaking, and Belay that (stop work) are separate controls.
+Playback and settings pause listening; interruption uses Stop speaking.
+Azure listening can receive speech before "Computer" is recognized.
 Optional computer sounds are quiet, play once at a real event (accepted,
 not understood, failed or denied), never while listening,
 and never stand in for the written or spoken explanation.
+
+Use the TNG terms in AGENTS.md and label the user's lines "Picard".
+Replies use Markdown with unsafe HTML removed; exact errors stay plain.
 
 Native buttons, form labels, disclosure controls, visible keyboard focus, a
 skip link, and reduced-motion support remain intact. Permission choices are
@@ -62,3 +70,12 @@ the user away from older conversation text.
 One short clipping reveal assembles the welcome symbol. It is disabled when
 the system requests reduced motion. No flashing indicators or decorative
 glows.
+
+## Public project website
+
+The separate static site in `site/` introduces the project and welcomes
+contributions. It uses the same original palette, but works on phone-sized
+screens too. It does not host the app, access a microphone, or connect to
+local services. Its interface screenshot uses a labeled test stand-in.
+Setup and contribution details stay in the repository rather than being
+maintained twice.

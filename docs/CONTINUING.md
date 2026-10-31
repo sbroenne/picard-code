@@ -6,13 +6,12 @@ details for each step; [AGENTS.md](../AGENTS.md) has the rules for changes.
 
 ## 1. Get the code and build it
 
-You need Node.js **22.12 or newer**, Git, and access to the private
-`sbroenne/picard-code` repository.
+You need Node.js **22.12 or newer**, Git, and the source repository.
 
 ```sh
 git clone https://github.com/sbroenne/picard-code.git
 cd picard-code
-npm install
+npm ci
 npm run build
 npm test
 ```
@@ -26,15 +25,15 @@ it, then run `npm install-scripts approve @opencode/cli` and
 
 Picard Code works with any provider OpenCode supports. Each computer needs its
 own sign-in. Run `npm run opencode -- auth login` and choose your provider. For
-GitHub Copilot, approve the official GitHub device sign-in yourself with the
-`sbroenne` account. Do not copy tokens from another computer.
+GitHub Copilot, approve the official GitHub device sign-in yourself with your
+own account. Do not copy tokens from another computer.
 `npm run opencode -- auth list` shows which providers are signed in. A sign-in made
 with OpenCode 1 does not carry over; sign in again.
 
 ## 3. Choose speech
 
 **Azure MAI (preferred).** Install Azure CLI and run `az login`. Start
-Picard Code, open **Settings**, and fill in the Speech section with your
+Picard Code, choose the **Listen · Speak** tile, and fill in the speech fields with your
 subscription, resource group, resource name, region and live-listening
 deployment, then choose **Save and apply**; no restart is needed. This saves
 `speech.json` in the `.picard-code` folder in your home folder (on Windows,
@@ -84,13 +83,22 @@ npm run test:behavior:live
 
 ## What is verified, and what is still open
 
-Verified on the Windows development machine: real OpenCode startup and
+Earlier checks on the Windows development machine, before the OpenCode 2
+migration, verified real OpenCode startup and
 shutdown, Copilot conversations, live replies, approvals and questions; real
 MAI listening and Emily speaking; real Whisper and Kokoro; full spoken
 conversations on both speech paths using generated audio; a six-turn real
 conversation check (follow-up, correction, "show me", a real question, a
 refused command); and the sounds loading and playing at the right
 moments in browser checks.
+
+The OpenCode 2 migration passed types, build, server tests, and desktop browser
+checks using stand-ins. Real model and Azure checks did not run in that change.
+Do not treat the earlier results as verification of the current version.
+Picard Code is now voice-only and desktop-focused. It starts listening when
+speech is ready, needs "Computer" to begin a task, and accepts follow-ups
+without that prefix. Standing by is not microphone off; with Azure listening,
+detected speech can leave the computer before "Computer" is recognized.
 
 Still open:
 
@@ -99,6 +107,7 @@ Still open:
 - **macOS and Linux**: startup, shutdown and local speech are implemented but unchecked.
 - The owner's **subjective review** of voice, timing and wording. British
   voices were chosen; final tuning has not been judged.
+- Fresh real OpenCode 2, model, Azure, and local speech checks.
 - Not planned yet: rewriting spoken requests into "captain style", interrupting
   the computer by speaking over it, and publishing `npx picard-code`.
 
