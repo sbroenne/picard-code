@@ -3,8 +3,6 @@ import type { ModelChoice } from "../shared/types.js";
 export { errorMessage } from "../shared/messages.js";
 export { chatMessages } from "./history.js";
 
-export const COPILOT_PROVIDERS = new Set(["github-copilot", "github-copilot-enterprise"]);
-
 export function localServerUrl(input: string): string {
   const url = new URL(input);
   if (
@@ -30,16 +28,19 @@ export async function checkVersion(client: OpenCode) {
   return version;
 }
 
-/** GitHub Copilot models OpenCode can use. OpenCode lists only providers that are signed in. */
-export async function copilotModels(client: OpenCode, directory: string) {
-  const [all, preferred] = await Promise.all([
+/** Every model OpenCode can use right now, from any provider. OpenCode lists only providers it can reach. */
+export async function availableModels(client: OpenCode, directory: string) {
+  const [all, preferred, providers] = await Promise.all([
     client.models(directory),
     client.defaultModel(directory).catch(() => null),
+    client.providers(directory).catch(() => []),
   ]);
+  // Only provider names are kept: OpenCode's provider settings can hold keys.
+  const providerName = new Map(providers.map((provider) => [provider.id, provider.name]));
   const models: ModelChoice[] = all
-    .filter((model) => COPILOT_PROVIDERS.has(model.providerID) && model.enabled !== false && model.status !== "deprecated")
-    .map((model) => ({ providerID: model.providerID, modelID: model.id, name: model.name }));
-  models.sort((a, b) => a.name.localeCompare(b.name));
+    .filter((model) => model.enabled !== false && model.status !== "deprecated")
+    .map((model) => ({ providerID: model.providerID, provider: providerName.get(model.providerID) ?? model.providerID, modelID: model.id, name: model.name }));
+  models.sort((a, b) => a.provider.localeCompare(b.provider) || a.name.localeCompare(b.name));
   const defaultModel = models.find((model) => model.providerID === preferred?.providerID && model.modelID === preferred.id) ?? models[0];
   return { models, defaultModel };
 }

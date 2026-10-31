@@ -17,7 +17,7 @@ original computer-display design inspired by Star Trek: The Next Generation.
 
 Runs locally on Windows, macOS, and Linux. Node.js and OpenCode are prerequisites.
 The user chooses a project folder and connects an AI provider through OpenCode.
-OpenCode, not the Copilot SDK, performs the coding work.
+OpenCode performs the coding work, with any model provider it supports.
 
 ## Capabilities and Constraints
 
@@ -44,12 +44,11 @@ Listening and speaking share small, separate interfaces. Real CPU Whisper
 listening and Kokoro speaking are independently selectable alternatives.
 Both use the same automatic conversation loop and deliberate decisions, with
 no silent fallback. Local audio processing needs no Azure credentials;
-recognized coding requests still go to Copilot.
+recognized coding requests still go to the chosen model.
 
-GitHub Copilot is the chosen AI provider, accessed through OpenCode's supported
-connection flow. The user approves the official GitHub device sign-in. Existing
-OpenCode authorization can be reused; unrelated GitHub or Copilot credentials
-must not be extracted.
+Any model provider OpenCode supports can be used, such as GitHub Copilot,
+Anthropic, OpenAI or a local model. Sign-ins go through OpenCode's own flow and
+stay with OpenCode; credentials from other tools must not be extracted.
 
 ## Brand Commitments
 
@@ -71,7 +70,7 @@ British delivery, not a claim of authenticity.
 
 ## Evidence on Hand
 
-The official OpenCode server, SDK, and Copilot setup documentation. Automated
+The official OpenCode server, SDK, and provider documentation. Automated
 checks cover the local connection and interface; real OpenCode startup, saved
 conversations, event subscription, and shutdown are verified on Windows.
 Real Azure speaking and live MAI listening are verified with an original
@@ -79,7 +78,8 @@ synthesized phrase. Automated browser checks exercise actual microphone capture
 using test audio and check the conversation loop on desktop and phone layouts.
 Real local Kokoro synthesis, Whisper recognition, cancellation, and fresh
 listening are verified. Both MAI and Whisper/Kokoro complete a real browser
-conversation through OpenCode and the user's authorized GitHub Copilot,
+conversation through OpenCode and the user's authorized GitHub Copilot (the provider
+used for the real checks so far),
 with saved replies and actual spoken playback. A real six-turn conversation
 check covers follow-ups, a correction, "show me", OpenCode's real question
 and a refused command. Physical microphone/speaker, subjective voice and

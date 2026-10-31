@@ -154,7 +154,7 @@ function autoListen() {
 function consoleStatus(): [string, string] {
   if (!state) return ["Starting up", ""];
   if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open."];
-  if (!state.models.length) return ["Setup needed", "Connect GitHub Copilot in Settings."];
+  if (!state.models.length) return ["Setup needed", "Sign in to a model provider: open Provider."];
   if (voice.phase === "speaking") return ["Speaking", "Choose Stop speaking to interrupt."];
   if (voice.speechPending) return ["Preparing reply", ""];
   if (voice.microphone && voice.waitingForClick) return ["Ready", "Click anywhere to start listening."];
@@ -249,7 +249,7 @@ function readout(name: string, value: string) {
 
 /** The side panel's readouts show what the computer is connected to right now. */
 function readouts() {
-  readout("copilot", !state ? "Checking" : !connected ? "Reconnecting" : state.models.length ? "Connected" : "Not connected");
+  readout("provider", !state ? "Checking" : !connected ? "Reconnecting" : state.models.length ? "Connected" : "Not connected");
   readout("project", state ? state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project : "—");
   readout("model", state?.models.length ? model.selectedOptions[0]?.textContent ?? "—" : "None");
   const speech = state?.speech;
@@ -266,8 +266,8 @@ function controls() {
   element<HTMLButtonElement>("new-conversation").disabled = !state || submitting;
   element("setup").hidden = !state || !!state.models.length;
   element("welcome").hidden = !!messages.length || !!selected && historyLoading || !!state && !state.models.length;
-  element("copilot-status").textContent = !state ? "Checking" : state.models.length
-    ? `Connected: ${state.models.length} Copilot model${state.models.length === 1 ? "" : "s"} available` : "Not connected";
+  element("provider-status").textContent = !state ? "Checking" : state.models.length
+    ? `Connected: ${[...new Set(state.models.map((choice) => choice.provider))].join(", ")}. ${state.models.length} model${state.models.length === 1 ? "" : "s"} available.` : "Not connected";
   readouts();
   voice.sync();
   autoListen();
@@ -283,12 +283,20 @@ function renderState() {
   element("workspace-caption").textContent = `OpenCode ${state.version} · ${state.project}`;
   const currentModel = model.value;
   model.replaceChildren();
+  const groups = new Map<string, HTMLOptGroupElement>();
   for (const choice of state.models) {
+    let group = groups.get(choice.provider);
+    if (!group) {
+      group = make("optgroup");
+      group.label = choice.provider;
+      groups.set(choice.provider, group);
+      model.append(group);
+    }
     const option = make("option", undefined, choice.name);
     option.value = modelValue(choice);
-    model.append(option);
+    group.append(option);
   }
-  if (!state.models.length) model.append(make("option", undefined, "Connect GitHub Copilot"));
+  if (!state.models.length) model.append(make("option", undefined, "Sign in to a model provider"));
   else if (state.models.some((choice) => modelValue(choice) === currentModel)) model.value = currentModel;
   else if (state.defaultModel) model.value = modelValue(state.defaultModel);
   const list = element("conversations");
@@ -706,7 +714,7 @@ async function sendMessage(spoken: string) {
   const text = spoken.trim();
   if (!text) return;
   const choice = state.models.find((choice) => modelValue(choice) === model.value);
-  if (!choice) throw new Error("Connect GitHub Copilot and choose a model first.");
+  if (!choice) throw new Error("Sign in to a model provider and choose a model first.");
   submitting = true;
   controls();
   notice();
@@ -735,8 +743,8 @@ async function boot() {
     history.replaceState(null, "", location.pathname);
   }
   await refreshState();
-  // First run: without Copilot there is nothing to do on the main screen yet.
-  if (state && !state.models.length && !location.hash) location.hash = "settings/copilot";
+  // First run: without a model there is nothing to do on the main screen yet.
+  if (state && !state.models.length && !location.hash) location.hash = "settings/provider";
   if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id);
   openEvents();
 }
@@ -769,12 +777,12 @@ function closeDrawer() {
   if (openDrawer()) location.hash = "";
 }
 
-const settingsParts = { copilot: ["Copilot connection", "orange"], model: ["Model", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
+const settingsParts = { provider: ["Provider sign-in", "orange"], model: ["Model", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
 type SettingsPart = keyof typeof settingsParts;
 /** Each side panel tile opens its own part, for example #settings/voice. Without one, open what still needs doing. */
 function showSettingsPart(requested?: string) {
   const part = requested && requested in settingsParts ? requested as SettingsPart
-    : state && !state.models.length ? "copilot" : "voice";
+    : state && !state.models.length ? "provider" : "voice";
   for (const name of Object.keys(settingsParts) as SettingsPart[]) element(`settings-${name}`).hidden = name !== part;
   const [title, colour] = settingsParts[part];
   element("settings-title").textContent = title;

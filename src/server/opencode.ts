@@ -18,6 +18,8 @@ export interface ModelInfo {
   enabled?: boolean;
 }
 
+export interface ProviderInfo { id: string; name: string }
+
 export interface SessionInfo {
   id: string;
   title: string;
@@ -98,6 +100,10 @@ export class OpenCode {
 
   async models(directory: string) {
     return (await this.call<{ data: ModelInfo[] }>("GET", "/api/model", { directory })).data;
+  }
+
+  async providers(directory: string) {
+    return (await this.call<{ data: ProviderInfo[] }>("GET", "/api/provider", { directory })).data;
   }
 
   async defaultModel(directory: string) {

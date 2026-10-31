@@ -22,12 +22,13 @@ brings the tested copy. If npm asks to approve OpenCode's setup script, review
 it, then run `npm install-scripts approve @opencode/cli` and
 `npm rebuild @opencode/cli`.
 
-## 2. Connect GitHub Copilot through OpenCode
+## 2. Sign in to a model provider through OpenCode
 
-Each computer needs its own sign-in. Run `npm run opencode -- auth login`,
-choose **GitHub Copilot**, and approve the official GitHub device sign-in
-yourself with the `sbroenne` account. Do not copy tokens from another computer.
-`npm run opencode -- auth list` shows whether it is connected. A sign-in made
+Picard Code works with any provider OpenCode supports. Each computer needs its
+own sign-in. Run `npm run opencode -- auth login` and choose your provider. For
+GitHub Copilot, approve the official GitHub device sign-in yourself with the
+`sbroenne` account. Do not copy tokens from another computer.
+`npm run opencode -- auth list` shows which providers are signed in. A sign-in made
 with OpenCode 1 does not carry over; sign in again.
 
 ## 3. Choose speech
@@ -64,7 +65,7 @@ npm start
 ```
 
 Then run the checks. The first four use test stand-ins; the rest use real
-services, and most make real Copilot requests (MAI checks also make small
+services, and most make real model requests (MAI checks also make small
 Azure charges):
 
 ```sh

@@ -6,6 +6,8 @@ export interface Conversation {
 
 export interface ModelChoice {
   providerID: string;
+  /** The provider's display name, such as GitHub Copilot. */
+  provider: string;
   modelID: string;
   name: string;
 }

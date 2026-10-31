@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { chromium, expect } from "@playwright/test";
 import { startEngine, projectDirectory } from "../server/process.js";
 import { startApp } from "../server/app.js";
-import { copilotModels } from "../server/engine.js";
+import { availableModels } from "../server/engine.js";
 import { loadSpeech } from "../server/speech.js";
 import type { SpeechService } from "../server/speech-types.js";
 
@@ -38,11 +38,11 @@ try {
   const recording = resolve(directory, `${name}-test-request.wav`);
   await writeFile(recording, Buffer.concat([header, audio]));
   engine = await startEngine(project);
-  const models = await copilotModels(engine.client, project);
+  const models = await availableModels(engine.client, project);
   const choice = models.models.find((model) => model.modelID === "gpt-4.1")
     ?? models.models.find((model) => model.modelID === "gpt-5-mini")
     ?? models.defaultModel;
-  assert.ok(choice, "Complete OpenCode's official Copilot sign-in before this real conversation check.");
+  assert.ok(choice, "Sign in to a model provider in OpenCode before this real conversation check.");
   const events = engine.client.events(controller.signal);
   observation = (async () => {
     for await (const event of events) {
@@ -80,7 +80,7 @@ try {
   // Settings pauses listening, so choose the model there first; closing it starts listening.
   await page.goto(`${new URL(app.url).origin}/#settings/model`);
   await page.selectOption("#model", JSON.stringify([choice.providerID, choice.modelID]));
-  await page.getByRole("link", { name: "Close" }).first().click();
+  await page.keyboard.press("Escape");
   await page.locator("#voice-console").click();
   await expect(page.locator(".message[data-role=user]")).toContainText(/connection is ready/i, { timeout: 60_000 });
   await expect(page.locator(".message[data-role=assistant]")).toContainText(/connection is ready/i, { timeout: 90_000 });
@@ -96,9 +96,9 @@ try {
   const saved = await engine.client.messages(sessionID, project);
   assert.ok(saved.some((message) => message.type === "assistant" && "content" in message && message.content.some((item) => item.type === "text" && /connection is ready/i.test(item.text))));
   if (observationError) throw observationError;
-  assert.ok((deltas.get(sessionID) ?? 0) > 0, "The real Copilot answer must produce live text updates, not only a saved final reply.");
+  assert.ok((deltas.get(sessionID) ?? 0) > 0, "The real model answer must produce live text updates, not only a saved final reply.");
   await page.screenshot({ path: resolve(directory, `${name}-conversation.png`), fullPage: true });
-  console.log(`Real ${name} browser conversation passed: synthesized test microphone, automatic turn submission, OpenCode + Copilot ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, mute and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
+  console.log(`Real ${name} browser conversation passed: synthesized test microphone, automatic turn submission, OpenCode + ${choice.provider} ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, mute and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
 } finally {
   controller.abort();
   await observation;

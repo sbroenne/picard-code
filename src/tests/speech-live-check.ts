@@ -45,7 +45,7 @@ try {
   assert.match(understood, /listening connection is ready/i);
   assert.match(understood, /specify a task/i);
   assert.ok(partials > 0, "Listening must provide live intermediate words.");
-  console.log(`Real Azure speaking and MAI live listening passed. ${partials} live word updates; the original test phrase was understood. No microphone or Copilot was used.`);
+  console.log(`Real Azure speaking and MAI live listening passed. ${partials} live word updates; the original test phrase was understood. No microphone or model was used.`);
 } finally {
   clearTimeout(deadline);
   controller.abort();

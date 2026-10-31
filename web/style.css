@@ -191,7 +191,6 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .drawer:focus { outline: 0; }
 .drawer-bar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 0 0 18px; padding: 6px 6px 6px 20px; border-radius: 0 26px 26px 0; box-shadow: 0 -14px 0 var(--ink); }
 .drawer-bar h2 { margin: 0; color: var(--ink); font: 600 26px/1.2 var(--lcars); letter-spacing: .1em; text-transform: uppercase; }
-.drawer-close { display: inline-flex; align-items: center; min-height: 38px; padding: 0 20px; border-radius: 20px; background: var(--ink); color: var(--peach); text-decoration: none; font: 600 15px/1 var(--lcars); letter-spacing: .12em; text-transform: uppercase; }
 .drawer-caption { margin: 0 0 14px; color: var(--muted); font: 500 15px/1.4 var(--lcars); letter-spacing: .08em; text-transform: uppercase; }
 #project-name { color: var(--peach); }
 .conversation-list { display: flex; flex-direction: column; gap: 6px; }

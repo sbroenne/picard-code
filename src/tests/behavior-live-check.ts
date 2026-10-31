@@ -5,13 +5,13 @@ import { resolve } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
 import { startEngine, projectDirectory } from "../server/process.js";
 import { startApp } from "../server/app.js";
-import { copilotModels } from "../server/engine.js";
+import { availableModels } from "../server/engine.js";
 import { spokenReply } from "../shared/speech.js";
 import { chatMessages } from "../server/history.js";
 import type { FormRequest, PermissionRequest } from "../shared/types.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
 
-// Real multi-turn check: Picard Code's own API, its always-supplied instructions, OpenCode and GitHub Copilot.
+// Real multi-turn check: Picard Code's own API, its always-supplied instructions, OpenCode and a signed-in model provider.
 // Model wording varies, so this records the full transcript and checks behavior that must hold every time.
 const samples = resolve(".picard-voice", "samples");
 await mkdir(samples, { recursive: true });
@@ -30,9 +30,9 @@ const check = (ok: boolean, label: string) => { transcript.push(`- ${ok ? "PASS"
 try {
   engine = await startEngine(project);
   const client = engine.client;
-  const { models, defaultModel } = await copilotModels(client, project);
+  const { models, defaultModel } = await availableModels(client, project);
   const model = models.find((item) => item.modelID === "gpt-4.1") ?? models.find((item) => item.modelID === "gpt-5-mini") ?? defaultModel;
-  assert.ok(model, "Complete OpenCode's official Copilot sign-in before this real check.");
+  assert.ok(model, "Sign in to a model provider in OpenCode before this real check.");
   app = await startApp({ client, project, webRoot: resolve("web-dist") });
   const origin = app.origin;
   const connected = await fetch(`${origin}/api/connect`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "x-picard-request": "1" }, body: JSON.stringify({ token: app.token }) });
@@ -161,4 +161,4 @@ try {
 console.log(transcript.filter((line) => line.startsWith("- ")).join("\n"));
 console.log("Transcript: .picard-voice\\samples\\behavior-transcript.md");
 if (failures.length) { console.error(`${failures.length} behavior check(s) failed.`); process.exitCode = 1; }
-else console.log("Real multi-turn behavior passed with OpenCode, GitHub Copilot and Picard Code's instructions.");
+else console.log("Real multi-turn behavior passed with OpenCode, a signed-in model provider and Picard Code's instructions.");

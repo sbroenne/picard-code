@@ -58,7 +58,8 @@ works without them.
 
 ## Hosted services
 
-OpenCode performs coding through its supported GitHub Copilot provider.
+OpenCode performs coding through the model provider the user chooses, under
+that provider's own terms.
 Microsoft's MAI listening and speaking are hosted Azure services, subject to
 their service terms, preview availability, and usage charges. No service
 credentials or hosted model weights are included in this repository.

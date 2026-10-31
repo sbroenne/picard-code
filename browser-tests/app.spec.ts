@@ -32,7 +32,7 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
   await expect(page.getByText("Type instead")).toHaveCount(0);
   await expect(page.getByText("Discuss", { exact: true })).toHaveCount(0);
   // The side panel shows live readouts, not decorative numbers.
-  await expect(page.locator("#readout-copilot")).toHaveText("Connected");
+  await expect(page.locator("#readout-provider")).toHaveText("Connected");
   await expect(page.locator("#readout-model")).not.toHaveText(/^(—|None)$/);
   await expect(page.locator("#readout-project")).not.toHaveText("—");
   await expect(page.locator("#readout-speech")).toHaveText("Not set up");
@@ -44,7 +44,7 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("status")).toHaveText("Ready");
   await expect(page.locator("#voice-setup-hint")).toBeVisible();
   await expect(page.locator("#listen-toggle")).toBeHidden();
-  for (const name of ["Project folder", "Copilot connection"]) await expect(page.getByRole("heading", { name })).toBeHidden();
+  for (const name of ["Project folder", "Provider sign-in"]) await expect(page.getByRole("heading", { name })).toBeHidden();
   await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
   await expect(page.locator("#conversations")).toBeHidden();
 
@@ -57,17 +57,17 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("heading", { name: "Model" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Model" })).toBeVisible();
   await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Copilot connection" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeHidden();
   await expect(page.getByLabel("Mode", { exact: true })).toHaveCount(0);
   // Choosing the same tile again closes it.
   await page.getByRole("link", { name: /^Model/ }).click();
   await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
 
-  await page.getByRole("link", { name: /^Copilot/ }).click();
-  await expect(page.getByRole("heading", { name: "Copilot connection" })).toBeVisible();
+  await page.getByRole("link", { name: /^Provider/ }).click();
+  await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeVisible();
   await page.getByRole("link", { name: /^Project/ }).click();
   await expect(page.getByRole("heading", { name: "Project folder" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Copilot connection" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeHidden();
   await page.getByRole("link", { name: /Sir Patrick Stewart/ }).click();
   await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
   await page.getByRole("link", { name: /^Listen/ }).click();

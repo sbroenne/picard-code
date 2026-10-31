@@ -3,7 +3,7 @@ import { readFile, realpath } from "node:fs/promises";
 import { resolve, sep, extname } from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { AppState, BrowserEvent, FormField, FormValue } from "../shared/types.js";
-import { chatMessages, copilotModels, errorMessage } from "./engine.js";
+import { chatMessages, availableModels, errorMessage } from "./engine.js";
 import { partID } from "./history.js";
 import type { OpenCode, OpenCodeEvent } from "./opencode.js";
 import { projectDirectory } from "./process.js";
@@ -166,7 +166,7 @@ export async function startApp(options: AppOptions) {
   const state = async (project: string): Promise<AppState> => {
     const [info, models, conversations, active, permissions, questions] = await Promise.all([
       client.info(),
-      copilotModels(client, project),
+      availableModels(client, project),
       sessions(project),
       client.active(project),
       client.permissions(project),
@@ -319,7 +319,7 @@ export async function startApp(options: AppOptions) {
         }
         if (path === "/api/refresh" && method === "POST") {
           await body(request);
-          if ((await working(project)).length) throw new HttpError(409, "Stop the current work before refreshing the Copilot connection.");
+          if ((await working(project)).length) throw new HttpError(409, "Stop the current work before refreshing the provider connection.");
           for (const stream of streams) stream.end();
           await client.reload(project);
           json(response, 200, { refreshed: true });
@@ -363,9 +363,9 @@ export async function startApp(options: AppOptions) {
             const text = textField(data, "text");
             const modelID = textField(data, "modelID", 256);
             const providerID = textField(data, "providerID", 256);
-            const { models } = await copilotModels(client, project);
+            const { models } = await availableModels(client, project);
             if (!models.some((model) => model.providerID === providerID && model.modelID === modelID)) {
-              throw new HttpError(400, "Connect GitHub Copilot in OpenCode and choose an available model.");
+              throw new HttpError(400, "Sign in to a model provider in OpenCode and choose an available model.");
             }
             if ((await client.active(project)).includes(id)) throw new HttpError(409, "Wait for the current reply, or stop it before sending another message.");
             if (session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));

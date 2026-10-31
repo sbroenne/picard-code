@@ -7,8 +7,8 @@ Rules for people and coding agents who change this repository. Read
 ## What this is
 
 A small local browser app. Spoken conversation is the only way to make
-requests; there is no typing. OpenCode does the coding through the user's own GitHub Copilot
-sign-in. Azure MAI is the preferred listening and speaking service; local
+requests; there is no typing. OpenCode does the coding with any model provider it
+supports, using the user's own sign-in. Azure MAI is the preferred listening and speaking service; local
 Whisper listening and Kokoro speaking can be chosen instead, each side on its
 own. It is an unofficial tribute to Sir Patrick Stewart's Jean-Luc Picard with an
 original TNG-inspired look.
@@ -90,7 +90,7 @@ microphone and silent stand-in sounds. They do not prove real services work.
 When you change OpenCode, speech or conversation behavior, also run the
 matching real check from the README (`test:live`, `test:speech:live`,
 `test:speech:local`, `test:conversation:live`, `test:behavior:live`). Most of
-these make real Copilot requests and some make small Azure charges. Report
+these make real model requests and some make small Azure charges. Report
 plainly which real checks ran and which could not.
 
 Still not checked anywhere: a physical microphone and speakers (room noise,

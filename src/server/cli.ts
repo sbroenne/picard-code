@@ -33,9 +33,9 @@ async function main() {
   --speaking      mai (Azure, preferred) or kokoro (local)
   --help, -h      Show these instructions
 
-First connect GitHub Copilot in OpenCode: run "npm run opencode -- auth login",
-choose GitHub Copilot, and approve the device sign-in using your account.
-An existing gh sign-in is not a Copilot sign-in.`);
+Picard Code works with any model provider OpenCode supports, such as GitHub
+Copilot, Anthropic or OpenAI. To sign in, run "npm run opencode -- auth login"
+and choose your provider.`);
     return;
   }
   const port = values.port === undefined ? 0 : Number(values.port);

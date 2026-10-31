@@ -74,9 +74,10 @@ test("local browser access needs the launch token; unrelated sites and hosts are
   assert.equal((await context.request("conversations", {}, { "Content-Type": "text/plain" })).status, 415);
   const stateResponse = await context.request("state");
   const text = await stateResponse.text();
-  assert.doesNotMatch(text, /must-never-reach-browser|fixture-password|other-provider/);
+  assert.doesNotMatch(text, /must-never-reach-browser|fixture-password|Retired model/);
   const state = JSON.parse(text) as AppState;
-  assert.equal(state.models[0]?.providerID, "github-copilot");
+  // Every provider OpenCode can use is offered, by its display name only.
+  assert.deepEqual(state.models.map((model) => [model.provider, model.name]), [["GitHub Copilot", "Copilot test model"], ["Other Provider", "Other model"]]);
   const page = await fetch(context.app.origin);
   assert.match(page.headers.get("content-security-policy")!, /frame-ancestors 'none'/);
   assert.doesNotMatch(await page.text(), new RegExp(context.app.token));
@@ -95,7 +96,7 @@ test("saved conversations and project context go through OpenCode; other folders
   assert.equal((await context.request(`conversations/${session.id}/messages`)).status, 200);
   const foreign = context.fixture.createSession(context.other, "Other folder");
   assert.equal((await context.request(`conversations/${foreign.id}/stop`, {})).status, 403);
-  assert.equal((await context.request(`conversations/${session.id}/send`, { text: "Hello", providerID: "other-provider", modelID: "other" })).status, 400);
+  assert.equal((await context.request(`conversations/${session.id}/send`, { text: "Hello", providerID: "other-provider", modelID: "old" })).status, 400);
   assert.equal((await context.request("project", { path: join(context.other, "missing") })).status, 400);
   const switched = await context.request("project", { path: context.other });
   assert.equal(switched.status, 200);
@@ -226,11 +227,11 @@ test("saved history keeps real errors and explains stopped work", () => {
   assert.equal(chat[5]!.error, "The model cannot be reached.");
 });
 
-test("missing Copilot authorization is an honest setup state, not a fallback to another provider", async (t) => {
+test("with no provider signed in, setup is needed and nothing is invented", async (t) => {
   const context = await setup();
   t.after(context.cleanup);
   await context.login();
-  context.fixture.setCopilot(false);
+  context.fixture.setSignedIn(false);
   const state = await (await context.request("state")).json() as AppState;
   assert.deepEqual(state.models, []);
   assert.equal(state.defaultModel, undefined);

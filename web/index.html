@@ -14,7 +14,7 @@
     <a class="skip-link" href="#voice-console">Skip to the computer status</a>
     <div id="shell" class="shell" data-drawer="">
       <div class="top-rail" aria-label="Connection">
-        <a class="readout peach" href="#settings/copilot" title="Copilot connection"><small>Copilot</small><b id="readout-copilot">—</b></a>
+        <a class="readout peach" href="#settings/provider" title="Provider sign-in"><small>Provider</small><b id="readout-provider">—</b></a>
         <span class="block lilac grow" aria-hidden="true"><i>02-1701</i></span>
       </div>
       <header class="header">
@@ -42,8 +42,8 @@
         </div>
         <div id="reading-area" class="reading-area">
           <section id="setup" class="setup" hidden aria-labelledby="setup-title">
-            <h3 id="setup-title">Copilot not connected</h3>
-            <a class="pill orange" href="#settings/copilot">Open setup</a>
+            <h3 id="setup-title">No model available</h3>
+            <a class="pill orange" href="#settings/provider">Open setup</a>
           </section>
           <section id="welcome" class="welcome">
             <h3>Please specify a task.</h3>
@@ -68,29 +68,30 @@
       </main>
 
       <section id="drawer-records" class="drawer" hidden tabindex="-1" aria-labelledby="records-title">
-        <div class="drawer-bar peach"><h2 id="records-title">Logs</h2><a class="drawer-close" href="#">Close</a></div>
+        <div class="drawer-bar peach"><h2 id="records-title">Logs</h2></div>
         <p class="drawer-caption">Project folder: <span id="project-name">Connecting</span></p>
         <div id="conversations" class="conversation-list"></div>
       </section>
 
       <section id="drawer-settings" class="drawer wide" hidden tabindex="-1" aria-labelledby="settings-title">
-        <div id="settings-bar" class="drawer-bar blue"><h2 id="settings-title">Settings</h2><a class="drawer-close" href="#">Close</a></div>
-        <section id="settings-copilot" class="panel" hidden>
-          <p id="copilot-status" class="readout-line">Checking</p>
+        <div id="settings-bar" class="drawer-bar blue"><h2 id="settings-title">Settings</h2></div>
+        <section id="settings-provider" class="panel" hidden>
+          <p id="provider-status" class="readout-line">Checking</p>
           <p id="workspace-caption" class="muted"></p>
+          <p>Picard Code works with any model provider OpenCode supports, such as GitHub Copilot, Anthropic, OpenAI or a model on this computer.</p>
           <ol>
             <li>In a terminal in the Picard Code folder, run <code>npm run opencode -- auth login</code>.</li>
-            <li>Choose <strong>GitHub Copilot</strong> from the list.</li>
-            <li>Open <a href="https://github.com/login/device" target="_blank" rel="noreferrer">GitHub's device sign-in</a>, check your account, and enter the code OpenCode gives you.</li>
+            <li>Choose your provider from the list and follow its sign-in.</li>
+            <li>Choose <strong>Refresh connection</strong> below.</li>
           </ol>
-          <p class="muted">Your account needs Copilot access. A GitHub command-line sign-in does not connect Copilot. No password or token is entered here.</p>
+          <p class="muted">Sign-ins and keys stay with OpenCode. Nothing is entered here.</p>
           <button id="refresh-provider" class="pill orange" type="button">Refresh connection</button>
         </section>
 
         <section id="settings-model" class="panel" hidden>
           <div class="field-grid">
             <label for="model">Model</label>
-            <select id="model" disabled><option>Waiting for Copilot</option></select>
+            <select id="model" disabled><option>Waiting for OpenCode</option></select>
             <p class="muted span">OpenCode's own rules decide which actions ask first. Out of the box it changes files and runs commands without asking. When it asks, choose Allow once or Deny on screen.</p>
           </div>
         </section>
@@ -116,7 +117,7 @@
             <input id="setting-kokoroVoice" class="kokoro-field" name="kokoroVoice" autocomplete="off" />
             <fieldset id="azure-fields" class="field-grid nested">
               <legend>Your Azure resource</legend>
-              <p class="muted span">Uses your own Azure subscription and its charges. Sign in with <code>az login</code>; the server reads the key from there, and it never reaches this page.</p>
+              <p class="muted span">Uses your own Azure subscription and its charges. Sign in with <code>az login</code>; the server reads the key from there, and it never reaches this page. New to this? Follow <a href="https://github.com/sbroenne/picard-code#azure-setup-step-by-step" target="_blank" rel="noreferrer">the step-by-step Azure setup</a>.</p>
               <label for="setting-subscription">Subscription ID</label><input id="setting-subscription" name="subscription" autocomplete="off" />
               <label for="setting-resourceGroup">Resource group</label><input id="setting-resourceGroup" name="resourceGroup" autocomplete="off" />
               <label for="setting-resourceName">Resource name</label><input id="setting-resourceName" name="resourceName" autocomplete="off" />
@@ -133,7 +134,7 @@
 
         <section id="settings-about" class="panel" hidden>
           <p>A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard. Unofficial, made with deep respect and gratitude.</p>
-          <p class="muted">It runs on this computer and uses GitHub Copilot through OpenCode.</p>
+          <p class="muted">It runs on this computer and does its coding through OpenCode, with the model provider you choose.</p>
         </section>
       </section>
     </div>

@@ -21,7 +21,7 @@ export async function startFixture(project: string) {
   const pending = new Map<string, (data: Record<string, unknown>) => void>();
   const generations = new Map<string, number>();
   const requests: { method: string; path: string; directory: string; data: Record<string, unknown> }[] = [];
-  let copilot = true;
+  let signedIn = true;
   const id = (prefix: string) => `${prefix}_${randomUUID().replaceAll("-", "")}`;
 
   const publish = (directory: string, type: string, data: unknown) => {
@@ -115,14 +115,20 @@ export async function startFixture(project: string) {
       const data = raw ? JSON.parse(raw) as Record<string, unknown> : {};
       const path = url.pathname;
       requests.push({ method: request.method ?? "GET", path, directory, data });
-      const models = [
-        ...copilot ? [{ id: "fixture-model", modelID: "fixture-model", providerID: "github-copilot", name: "Copilot test model", status: "active", enabled: true, settings: { secret: "must-never-reach-browser" } }] : [],
+      const models = signedIn ? [
+        { id: "fixture-model", modelID: "fixture-model", providerID: "github-copilot", name: "Copilot test model", status: "active", enabled: true, settings: { secret: "must-never-reach-browser" } },
         { id: "other", modelID: "other", providerID: "other-provider", name: "Other model", status: "active", enabled: true },
+        { id: "old", modelID: "old", providerID: "other-provider", name: "Retired model", status: "deprecated", enabled: true },
+      ] : [];
+      const providers = [
+        { id: "github-copilot", name: "GitHub Copilot", settings: { baseURL: "https://api.githubcopilot.com" } },
+        { id: "other-provider", name: "Other Provider", settings: { apiKey: "provider-key-must-never-reach-browser" } },
       ];
       if (path === "/api/info") { send(200, { version: "2.2.5-fixture" }); return; }
       if (path === "/api/location") { send(200, { directory, project: { id: "global", directory, canonical: directory } }); return; }
       if (path === "/api/location/reload") { send(204); return; }
       if (path === "/api/model") { send(200, { data: models }); return; }
+      if (path === "/api/provider") { send(200, { data: providers }); return; }
       if (path === "/api/model/default") { send(200, { data: models[0] }); return; }
       if (path === "/api/event") {
         response.writeHead(200, { "Content-Type": "text/event-stream" });
@@ -245,7 +251,7 @@ export async function startFixture(project: string) {
     password, requests, permissions, forms, active, instructions,
     createSession,
     publish,
-    setCopilot: (ready: boolean) => { copilot = ready; },
+    setSignedIn: (ready: boolean) => { signedIn = ready; },
     close: async () => {
       for (const timer of timers) clearTimeout(timer);
       for (const listener of listeners) listener.end();

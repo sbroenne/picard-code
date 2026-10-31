@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { startEngine, projectDirectory } from "../server/process.js";
-import { copilotModels } from "../server/engine.js";
+import { availableModels } from "../server/engine.js";
 
 const temporary = await mkdtemp(resolve(".picard-live-check-"));
 const project = await projectDirectory(temporary);
@@ -29,11 +29,11 @@ try {
   assert.deepEqual(await client.messages(sessionID, project), []);
   await client.permissions(project);
   await client.forms(project);
-  const models = await copilotModels(client, project);
+  const models = await availableModels(client, project);
   console.log(`Real OpenCode ${info.version}: startup, project context, saved conversation, event stream, and approval/question endpoints passed.`);
   console.log(models.models.length
-    ? `OpenCode reports ${models.models.length} connected Copilot models. No paid model request was made.`
-    : "GitHub Copilot is not connected in OpenCode. A real model reply still needs the user's official device sign-in.");
+    ? `OpenCode reports ${models.models.length} models from ${[...new Set(models.models.map((model) => model.provider))].join(", ")}. No paid model request was made.`
+    : "No model provider is signed in to OpenCode. A real model reply still needs a sign-in.");
 } finally {
   controller.abort();
   try {
