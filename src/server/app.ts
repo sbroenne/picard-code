@@ -134,12 +134,12 @@ export interface AppOptions {
   /** Starts speech from saved settings; replaceable in tests so no real service is called. */
   startSpeech?: (settings: Record<string, unknown>) => Promise<SpeechService>;
   localSpeechReady?: (settings: Record<string, unknown> | undefined, listening?: boolean, speaking?: boolean) => Promise<boolean>;
-  setUpLocalSpeech?: (onStep: (step: string) => void) => Promise<void>;
+  setUpLocalSpeech?: (onStep: (step: string) => void, signal?: AbortSignal) => Promise<void>;
   /** Optional folder holding the short sounds downloaded by `npm run setup:sounds`. */
   soundFolder?: string;
   /** Reads Wikipedia for requested tribute questions; tests supply a labelled stand-in. */
   readWikipedia?: (subject: WikipediaArticle["subject"]) => Promise<WikipediaArticle>;
-  prepareCrew?: (directory: string) => Promise<void>;
+  prepareCrew?: (directory: string) => Promise<unknown>;
 }
 
 export async function startApp(options: AppOptions) {
@@ -160,6 +160,9 @@ export async function startApp(options: AppOptions) {
   const readWikipedia = options.readWikipedia ?? wikipediaReader();
   /** The one-time local speech download runs in the background, because it takes minutes. */
   let localSetup: { state: "running" | "done" | "failed"; step: string; error?: string; result?: unknown } | undefined;
+  /** Stops a running speech download on shutdown, so it cannot keep installing or change settings afterwards. */
+  const closing = new AbortController();
+  let localSetupRun: Promise<void> | undefined;
 
   const applySpeech = async (record: Record<string, unknown>) => {
     let next: SpeechService;
@@ -414,9 +417,10 @@ export async function startApp(options: AppOptions) {
             if (!canSetUpLocalSpeech(record)) throw new HttpError(400, "The new speech settings did not work, so nothing was changed. A configured local speech file is missing. Check the paths in the speech settings file.");
             const job: NonNullable<typeof localSetup> = { state: "running", step: "Starting the download" };
             localSetup = job;
-            void (async () => {
+            localSetupRun = (async () => {
               try {
-                await setUpLocal((step) => { job.step = step; });
+                await setUpLocal((step) => { job.step = step; }, closing.signal);
+                closing.signal.throwIfAborted();
                 job.result = await applySpeech(record);
                 job.state = "done";
               } catch (error) {
@@ -607,6 +611,8 @@ export async function startApp(options: AppOptions) {
     origin, token,
     url: `${origin}/#token=${token}`,
     close: async () => {
+      closing.abort();
+      await localSetupRun;
       closeSpeech();
       for (const stream of streams) stream.end();
       try { await speech?.close?.(); }

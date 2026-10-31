@@ -42,10 +42,11 @@ export function canSetUpLocalSpeech(record: Record<string, unknown> | undefined)
   return (Object.keys(LOCAL_PATHS) as (keyof typeof LOCAL_PATHS)[]).every((key) => localPath(record, key) === LOCAL_PATHS[key]);
 }
 
-/** Runs the same steps as npm run setup:speech, reporting each step as it starts. */
-export function setUpLocalSpeech(onStep: (step: string) => void) {
+/** Runs the same steps as npm run setup:speech, reporting each step as it starts. Stopping the signal ends the download and everything it started. */
+export function setUpLocalSpeech(onStep: (step: string) => void, signal?: AbortSignal) {
   return new Promise<void>((done, fail) => {
-    const child = spawn(process.execPath, [resolve(PICARD_FOLDER, "scripts", "setup-speech.mjs")], { cwd: PICARD_FOLDER, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    if (signal?.aborted) { fail(new Error("The local speech setup was stopped because Picard Code is closing.")); return; }
+    const child = spawn(process.execPath, [resolve(PICARD_FOLDER, "scripts", "setup-speech.mjs")], { cwd: PICARD_FOLDER, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32" });
     let last = "";
     const read = (chunk: Buffer) => {
       for (const line of chunk.toString("utf8").split(/[\r\n]+/)) {
@@ -55,10 +56,22 @@ export function setUpLocalSpeech(onStep: (step: string) => void) {
         if (/^(Creating|Installing|Downloading|uv is not installed|That step failed)/.test(text)) onStep(text.replace(/\.+$/, ""));
       }
     };
+    // The setup starts its own programs (uv, pip), so stop the whole group, not just the script.
+    const stop = () => {
+      if (!child.pid) return;
+      if (process.platform === "win32") spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true, stdio: "ignore" }).on("error", () => child.kill());
+      else { try { process.kill(-child.pid, "SIGKILL"); } catch { child.kill("SIGKILL"); } }
+    };
+    signal?.addEventListener("abort", stop, { once: true });
     child.stdout.on("data", read);
     child.stderr.on("data", read);
-    child.on("error", (error) => fail(new Error(`Could not start the local speech setup. ${error.message}`)));
-    child.on("exit", (code) => code === 0 ? done() : fail(new Error(`The local speech setup stopped. ${last}`)));
+    child.on("error", (error) => { signal?.removeEventListener("abort", stop); fail(new Error(`Could not start the local speech setup. ${error.message}`)); });
+    child.on("exit", (code) => {
+      signal?.removeEventListener("abort", stop);
+      if (signal?.aborted) fail(new Error("The local speech setup was stopped because Picard Code is closing."));
+      else if (code === 0) done();
+      else fail(new Error(`The local speech setup stopped. ${last}`));
+    });
   });
 }
 

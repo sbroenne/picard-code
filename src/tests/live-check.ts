@@ -16,6 +16,7 @@ try {
     agents: { build: { permissions: [{ action: "shell", resource: "*", effect: "ask" }, { action: "edit", resource: "*", effect: "deny" }] } },
   }));
   engine = await startEngine(project);
+  assert.equal(engine.crewProblem, undefined, "the crew loads with Picard Code's own OpenCode server");
   const { client } = engine;
   const info = await client.info();
   assert.match(info.version, /^2\./);
@@ -53,9 +54,26 @@ try {
   await engine.prepareCrew(other);
   assert.equal(verifiedCrew(await client.agents(other)), true, "the new project's coding rules apply to every officer");
   await engine.prepareCrew(project);
+  const saved = { config: process.env.OPENCODE_CONFIG, dir: process.env.OPENCODE_CONFIG_DIR };
+  const blockedSettings = resolve(temporary, "blocked-settings");
+  await mkdir(blockedSettings);
+  process.env.OPENCODE_CONFIG = resolve(blockedSettings, "opencode.json");
+  process.env.OPENCODE_CONFIG_DIR = blockedSettings;
+  await writeFile(process.env.OPENCODE_CONFIG, "{}");
+  try {
+    const withoutCrew = await startEngine(project);
+    try {
+      assert.match(withoutCrew.crewProblem ?? "", /OPENCODE_CONFIG and OPENCODE_CONFIG_DIR/, "a crew problem is explained instead of stopping OpenCode");
+      assert.equal((await withoutCrew.client.info()).version, info.version, "the computer stays available without the crew");
+      assert.equal(verifiedCrew(await withoutCrew.client.agents(project)), false);
+    } finally { await withoutCrew.close(); }
+  } finally {
+    if (saved.config === undefined) delete process.env.OPENCODE_CONFIG; else process.env.OPENCODE_CONFIG = saved.config;
+    if (saved.dir === undefined) delete process.env.OPENCODE_CONFIG_DIR; else process.env.OPENCODE_CONFIG_DIR = saved.dir;
+  }
   const models = await availableModels(client, project);
   console.log(`Real OpenCode ${info.version}: startup, project context, saved conversation, event stream, and approval/question endpoints passed.`);
-  console.log("All six crew agents, selection, child ownership, project-specific permission inheritance and setup without project files passed.");
+  console.log("All six crew agents, selection, child ownership, project-specific permission inheritance and setup without project files passed. Without a separate settings location, OpenCode still starts and the crew problem is explained.");
   console.log(models.models.length
     ? `OpenCode reports ${models.models.length} models from ${[...new Set(models.models.map((model) => model.provider))].join(", ")}. No paid model request was made.`
     : "No model provider is signed in to OpenCode. A real model reply still needs a sign-in.");

@@ -52,8 +52,10 @@ export function verifiedCrew(agents: AgentInfo[]) {
   });
 }
 
+export const CREW_UNAVAILABLE = 'The bridge crew is not available with the current OpenCode settings. Start Picard Code with its own OpenCode server, and check for settings that override the "picard-" crew definitions.';
+
 export async function requireCrew(client: OpenCode, directory: string) {
   const agents = await client.agents(directory);
-  if (!verifiedCrew(agents)) throw new Error('The bridge crew is not available with the current OpenCode settings. Start Picard Code with its own OpenCode server, and check for settings that override the "picard-" crew definitions.');
+  if (!verifiedCrew(agents)) throw new Error(CREW_UNAVAILABLE);
   return agents;
 }

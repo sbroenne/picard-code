@@ -607,6 +607,27 @@ test("choosing local speech for the first time downloads it in the background, t
   assert.deepEqual(state.speech, { configured: true, listening: "whisper", speaking: "kokoro" });
 });
 
+test("closing Picard Code stops a running speech download and uses nothing from it", async (t) => {
+  let stopped = false;
+  let started = 0;
+  const context = await setup({
+    localSpeechReady: async () => false,
+    setUpLocalSpeech: (_onStep, signal) => new Promise<void>((resolve) => {
+      // A download that would finish after shutdown if nothing stopped it.
+      signal?.addEventListener("abort", () => { stopped = true; resolve(); }, { once: true });
+    }),
+    startSpeech: async () => { started++; return speechFixture().service; },
+  });
+  let cleaned = false;
+  t.after(async () => { if (!cleaned) await context.cleanup(); });
+  await context.login();
+  assert.equal((await context.request("settings", { listening: "whisper", speaking: "kokoro" })).status, 202);
+  await context.cleanup();
+  cleaned = true;
+  assert.equal(stopped, true, "shutdown stops the download");
+  assert.equal(started, 0, "settings from a download stopped by shutdown are not applied");
+});
+
 test("a failed local speech download is reported and changes nothing", async (t) => {
   const context = await setup({
     localSpeechReady: async () => false,
@@ -640,4 +661,21 @@ test("speech settings live in the user's home folder, and earlier settings are c
   await saveSpeechSettings(join(home, "fresh", "speech.json"), { speaking: "kokoro" });
   assert.deepEqual(JSON.parse(await readFile(join(home, "fresh", "speech.json"), "utf8")), { speaking: "kokoro" });
   assert.deepEqual(EARLIER_SPEECH_SETTINGS, [resolve(fileURLToPath(new URL("../../.picard-speech.json", import.meta.url)))], "settings are never copied from the folder Picard Code was started in");
+});
+
+test("long log entries keep their newest messages", async (t) => {
+  const total = 50 * 200 + 3;
+  const realFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = realFetch; });
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    const offset = Number(url.searchParams.get("cursor") ?? 0);
+    const data = Array.from({ length: Math.min(200, total - offset) }, (_, index) => ({ id: `m${offset + index}`, role: "user", parts: [] }));
+    return new Response(JSON.stringify({ data, cursor: { next: offset + 200 < total ? String(offset + 200) : undefined } }), { headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+  const messages = await makeClient("http://127.0.0.1:1", "secret").messages("ses_long", "/project");
+  assert.equal(messages.length, total);
+  assert.equal(messages.at(-1)?.id, `m${total - 1}`);
+  globalThis.fetch = (async () => new Response(JSON.stringify({ data: Array.from({ length: 200 }, (_, index) => ({ id: `m${index}`, role: "user", parts: [] })), cursor: { next: "same" } }), { headers: { "content-type": "application/json" } })) as typeof fetch;
+  await assert.rejects(makeClient("http://127.0.0.1:1", "secret").messages("ses_loop", "/project"), /same page/);
 });

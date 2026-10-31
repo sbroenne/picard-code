@@ -136,7 +136,8 @@ in `~/.picard-code/speech.json`.
 If both `OPENCODE_CONFIG` and `OPENCODE_CONFIG_DIR` are already set, keep one
 unset so Picard Code can use a separate settings location without replacing
 yours. Settings that override the reserved `picard-` agents are reported rather
-than bypassed. With `--connect`, ordinary computer requests remain available;
+than bypassed. In both cases Picard Code still starts: the terminal explains
+why the crew is unavailable, and the computer answers every request itself. With `--connect`, ordinary computer requests remain available;
 crew requests require the server to have the matching crew definitions and
 permission rules. Naming an officer then reports that the crew is unavailable.
 

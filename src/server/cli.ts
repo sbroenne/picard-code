@@ -68,7 +68,7 @@ and choose your provider.`);
   process.on("SIGHUP", shutdown);
   try {
     let client;
-    let prepareCrew: ((directory: string) => Promise<void>) | undefined;
+    let prepareCrew: ((directory: string) => Promise<unknown>) | undefined;
     if (values.connect) {
       const baseUrl = localServerUrl(values.connect);
       const password = process.env.OPENCODE_SERVER_PASSWORD;
@@ -83,6 +83,7 @@ and choose your provider.`);
       const engine = await startEngine(project, controller.signal);
       client = engine.client;
       prepareCrew = engine.prepareCrew;
+      if (engine.crewProblem) console.error(`${engine.crewProblem}\nThe computer will answer every request itself.`);
       cleanupEngine = engine.close;
       engine.child.once("exit", () => {
         if (!stopping) {

@@ -178,15 +178,17 @@ export class OpenCode {
   async messages(id: string, directory: string) {
     const all: SessionMessage[] = [];
     let cursor: string | undefined;
-    // Pages come oldest first; long conversations take several pages.
-    for (let page = 0; page < 50; page++) {
+    const seen = new Set<string>();
+    // Pages come oldest first; read them all so the newest messages are never left out.
+    for (;;) {
       const query = new URLSearchParams({ order: "asc", limit: "200", ...(cursor ? { cursor } : {}) });
       const result = await this.call<{ data: SessionMessage[]; cursor?: { next?: string } }>("GET", `/api/session/${encodeURIComponent(id)}/message?${query}`, { directory });
       all.push(...result.data);
-      if (result.data.length < 200 || !result.cursor?.next) break;
+      if (result.data.length < 200 || !result.cursor?.next) return all;
+      if (seen.has(result.cursor.next)) throw new Error("OpenCode returned the same page of this log entry twice, so its newest messages could not be read.");
+      seen.add(result.cursor.next);
       cursor = result.cursor.next;
     }
-    return all;
   }
 
   async permissions(directory: string) {
