@@ -347,15 +347,20 @@ prebuilt British `bf_emma` voice by default (`af_heart` and the other Kokoro
 voices can be chosen with `kokoroVoice`). Both run on the CPU. No Azure resource, key, or login
 is needed when both sides are local. A model provider is still needed for coding.
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then
-run one command from the repository folder (uv fetches Python 3.11 if needed):
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/). Then
+choose Whisper or Kokoro in **Speech** settings and **Save and apply**. The
+first time, Picard Code downloads everything in the background, shows each
+step, and switches over when it is ready. No restart is needed. If the download
+fails, the real reason is shown and the working speech stays in place.
+
+The same download from a terminal (safe to run again; uv fetches Python 3.11 if
+needed):
 
 ```sh
 npm run setup:speech
-npm start -- --listening whisper --speaking kokoro
 ```
 
-It is safe to run again. The same steps by hand, on Windows:
+The same steps by hand, on Windows:
 
 ```powershell
 uv venv --python 3.11 .picard-voice

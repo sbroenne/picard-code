@@ -245,6 +245,7 @@ test("speech settings change while the app runs; a failing choice leaves the wor
   let closed = 0;
   const context = await setup({
     speechError: "Speech did not start. Provide a valid deployment in the speech settings.",
+    localSpeechReady: async () => true,
     startSpeech: async (settings) => {
       if (settings.region === "broken") throw new Error("Azure could not be reached.");
       started.push(settings);
@@ -282,4 +283,65 @@ test("speech settings change while the app runs; a failing choice leaves the wor
   assert.equal(closed, 1, "the previous speech service is released after a change");
   state = await (await context.request("state")).json() as AppState;
   assert.equal(state.speech?.speaking, "mai");
+});
+
+test("choosing local speech for the first time downloads it in the background, then uses it without a restart", async (t) => {
+  let ready = false;
+  let finish!: () => void;
+  const started: Record<string, unknown>[] = [];
+  const context = await setup({
+    localSpeechReady: async () => ready,
+    setUpLocalSpeech: async (onStep) => {
+      onStep("Downloading and checking the Whisper and Kokoro models (about 432 MB)...");
+      await new Promise<void>((resolve) => { finish = resolve; });
+      ready = true;
+    },
+    startSpeech: async (settings) => {
+      started.push(settings);
+      return { ...speechFixture().service, selection: { listening: "whisper", speaking: "kokoro" } };
+    },
+  });
+  t.after(context.cleanup);
+  await context.login();
+  assert.equal(((await (await context.request("settings")).json()) as { localReady: boolean }).localReady, false);
+
+  const choice = { listening: "whisper", speaking: "kokoro", kokoroVoice: "bf_emma" };
+  const accepted = await context.request("settings", choice);
+  assert.equal(accepted.status, 202);
+  assert.equal(((await accepted.json()) as { state: string }).state, "running");
+  const running = await (await context.request("speech-setup")).json() as { state: string; step: string };
+  assert.deepEqual(running, { state: "running", step: "Downloading and checking the Whisper and Kokoro models (about 432 MB)..." });
+  assert.equal((await context.request("settings", choice)).status, 409, "a second download is not started");
+  assert.equal(started.length, 0, "nothing is used before the files are there");
+
+  finish();
+  let job: { state: string; result?: { localReady: boolean } } = running;
+  while (job.state === "running") {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    job = await (await context.request("speech-setup")).json() as typeof job;
+  }
+  assert.equal(job.state, "done");
+  assert.equal(job.result?.localReady, true);
+  assert.equal(started.length, 1);
+  const state = await (await context.request("state")).json() as AppState;
+  assert.deepEqual(state.speech, { configured: true, listening: "whisper", speaking: "kokoro" });
+});
+
+test("a failed local speech download is reported and changes nothing", async (t) => {
+  const context = await setup({
+    localSpeechReady: async () => false,
+    setUpLocalSpeech: async () => { throw new Error("uv is not installed."); },
+    startSpeech: async () => { throw new Error("must not start"); },
+  });
+  t.after(context.cleanup);
+  await context.login();
+  assert.equal((await context.request("settings", { listening: "whisper", speaking: "mai" })).status, 202);
+  let job: { state: string; error?: string } = { state: "running" };
+  while (job.state === "running") {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    job = await (await context.request("speech-setup")).json() as typeof job;
+  }
+  assert.deepEqual(job, { state: "failed", step: "Starting the download", error: "uv is not installed." });
+  const state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.speech?.configured, false);
 });

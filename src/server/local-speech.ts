@@ -136,7 +136,7 @@ export async function localSpeech(settings: LocalSettings, listening: boolean, s
   signal?.throwIfAborted();
   for (const path of [settings.python, ...(listening ? [settings.whisperModel] : []), ...(speaking ? [settings.kokoroModel, settings.kokoroVoices] : [])]) {
     try { await realpath(path); }
-    catch { throw new Error("A configured local speech file is missing. Run the local speech setup in the README before selecting Whisper or Kokoro."); }
+    catch { throw new Error("A configured local speech file is missing. Choose Whisper or Kokoro in Speech settings and Save and apply to download it, or run npm run setup:speech."); }
   }
   // A cancelled speaking batch must not delay the next listening request.
   const listenerWorker = listening ? new LocalWorker(settings, true, false) : undefined;
