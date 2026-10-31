@@ -53,7 +53,7 @@ export class VoiceConversation {
   }) {}
 
   private command(data: object) {
-    if (this.socket?.readyState !== WebSocket.OPEN) throw new Error("The voice connection stopped. Click the computer panel to listen again.");
+    if (this.socket?.readyState !== WebSocket.OPEN) throw new Error("The voice connection stopped. Click the microphone button to listen again.");
     this.socket.send(JSON.stringify(data));
   }
   private state(phase: ConsolePhase) {

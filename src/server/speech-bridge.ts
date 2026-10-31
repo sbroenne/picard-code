@@ -107,7 +107,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
           const bytes = Buffer.isBuffer(raw) ? raw : Buffer.concat(Array.isArray(raw) ? raw : [Buffer.from(raw)]);
           if (!bytes.length || bytes.length % 2 || bytes.length > 2560) throw new Error("Microphone audio must contain small, complete 16-bit audio samples.");
           audioBytes += bytes.length;
-          if (audioBytes > 16000 * 2 * 3600) throw new Error("Listening reached the service's one-hour limit. Click the computer panel to listen again.");
+          if (audioBytes > 16000 * 2 * 3600) throw new Error("Listening reached the service's one-hour limit. Click the microphone button to listen again.");
           input.write(bytes);
           return;
         }
@@ -123,7 +123,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
         } else if (data.type === "commit") {
           if (phase !== "listening" || !input || !audioBytes) throw new Error("No spoken audio is waiting.");
           state("thinking");
-          commitTimer = setTimeout(() => fail("The listening service did not finish understanding the request. Click the computer panel to listen again."), 30_000);
+          commitTimer = setTimeout(() => fail("The listening service did not finish understanding the request. Click the microphone button to listen again."), 30_000);
           input.commit();
         } else if (data.type === "stop-speaking") { stop(); state("off"); }
         else if (data.type === "speak" && "text" in data && typeof data.text === "string" && data.text.trim() && data.text.length <= 1000

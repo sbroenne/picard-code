@@ -104,7 +104,7 @@ async function heard(text: string, startedAt: number) {
   for (let waited = 0; (submitting || historyLoading) && waited < 5000; waited += 100) await new Promise((done) => setTimeout(done, 100));
   const blocked = state?.permissions.some((item) => item.sessionID === selected) ? "A decision is needed first. Choose Allow once or Deny on screen."
     : pending() ? "Please answer the question on screen first."
-    : busy() || submitting ? "Work is in progress. Say stop to cancel it." : undefined;
+    : busy() || submitting ? "Work is in progress. Say “Belay that” to cancel it." : undefined;
   // Room speech during a task is not answered aloud while the computer cannot take it; the sound marks it as not sent.
   if (blocked && words === undefined) { notSent = `Not sent: “${text}” ${blocked}`; await voice.notSent(); }
   else if (blocked) voice.speak(blocked);
@@ -135,8 +135,8 @@ function inTask() {
 function freshByVoice() {
   if (state?.permissions.some((item) => item.sessionID === selected)) voice.speak("A decision is needed first. Choose Allow once or Deny on screen.");
   else if (pending()) voice.speak("Please answer the question on screen first.");
-  else if (busy() || submitting) voice.speak("Work is in progress. Say stop to cancel it first.");
-  else { startFresh(); voice.speak("Ready for a new log entry."); }
+  else if (busy() || submitting) voice.speak("Work is in progress. Say “Belay that” to cancel it first.");
+  else { startFresh(); voice.speak("Standing by for a new log entry."); }
 }
 
 async function stopByVoice() {
@@ -197,20 +197,20 @@ function consoleStatus(): [string, string] {
   if (!state.models.length) return ["Setup needed", "Sign in to a model provider: open Provider."];
   if (voice.phase === "speaking") return ["Speaking", "Choose Stop speaking to interrupt."];
   if (voice.speechPending) return ["Preparing reply", ""];
-  if (voice.microphone && voice.waitingForClick) return ["Ready", "Click anywhere to start listening."];
+  if (voice.microphone && voice.waitingForClick) return ["Standing by", "Click anywhere to start listening."];
   if (voice.phase === "listening") return ["Listening", ""];
   if (voice.microphone && voice.phase === "thinking") return ["Understanding", ""];
   const listening = voice.microphone && voice.phase === "standby";
   if (state.permissions.some((item) => item.sessionID === selected)) return ["Decision needed", "Choose Allow once or Deny on screen."];
   if (listening && askedQuestion()) return ["Answer needed", "Say your answer, or choose it on screen."];
   if (pending()) return ["Answer needed", "Answer the question on screen."];
-  const stopHint = !listening ? "Choose Belay that to cancel." : inTask() ? "Say “Stop” to cancel." : "Say “Computer, stop” to cancel.";
+  const stopHint = !listening ? "Choose Belay that to cancel." : inTask() ? "Say “Belay that” to cancel." : "Say “Computer, belay that” to cancel.";
   if (selected && state.statuses[selected]?.type === "retry") return ["Retrying", stopHint];
   if (busy() || submitting) return ["Working", stopHint];
   if (historyLoading) return ["Loading", ""];
   if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New log entry”." : "Say “Computer”, then your request."];
   if (voice.opening) return ["Starting microphone", ""];
-  if (!state.speech?.configured) return ["Ready", ""];
+  if (!state.speech?.configured) return ["Standing by", ""];
   return ["Microphone off", "Click the microphone button or press M to switch it on."];
 }
 
