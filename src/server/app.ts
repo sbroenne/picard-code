@@ -9,6 +9,7 @@ import { projectDirectory } from "./process.js";
 import { COMPUTER_MANNER } from "./instructions.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechService } from "./speech-types.js";
+import { describeSpeechSettings, mergeSpeechSettings, readSpeechSettings, saveSpeechSettings, speechFromSettings, speechSettingsFile } from "./speech.js";
 
 class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -59,6 +60,12 @@ export interface AppOptions {
   webRoot: string;
   port?: number;
   speech?: SpeechService;
+  /** Why speech could not start, shown on the settings page instead of stopping the app. */
+  speechError?: string;
+  /** Where speech settings are read and saved. Defaults to the usual settings file. */
+  speechFile?: string;
+  /** Starts speech from saved settings; replaceable in tests so no real service is called. */
+  startSpeech?: (settings: Record<string, unknown>) => Promise<SpeechService>;
   /** Optional folder holding the short sounds downloaded by `npm run setup:sounds`. */
   soundFolder?: string;
 }
@@ -72,6 +79,10 @@ export async function startApp(options: AppOptions) {
   let mutationBusy = false;
   let origin = "";
   const webRoot = await realpath(options.webRoot);
+  let speech = options.speech;
+  let speechError = options.speechError;
+  const speechFile = options.speechFile ?? await speechSettingsFile();
+  const startSpeech = options.startSpeech ?? ((settings) => speechFromSettings(settings));
 
   const sessions = async (project: string) => {
     const result = await client.session.list({ directory: project, limit: 100 }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
@@ -102,9 +113,10 @@ export async function startApp(options: AppOptions) {
       statuses: Object.fromEntries(Object.entries(statuses.data).filter(([id]) => ids.has(id))),
       permissions: permissions.data.filter((request) => ids.has(request.sessionID)),
       questions: questions.data.filter((request) => ids.has(request.sessionID)),
-      speech: { configured: !!options.speech,
-        listening: options.speech?.selection?.listening ?? "mai",
-        speaking: options.speech?.selection?.speaking ?? "mai" },
+      speech: { configured: !!speech,
+        listening: speech?.selection?.listening ?? "mai",
+        speaking: speech?.selection?.speaking ?? "mai",
+        ...(speechError ? { error: speechError } : {}) },
     };
   };
 
@@ -213,6 +225,33 @@ export async function startApp(options: AppOptions) {
         }
         if (path === "/api/events" && method === "GET") {
           await eventStream(request, response, project);
+          return;
+        }
+        if (path === "/api/settings" && method === "GET") {
+          json(response, 200, { settings: describeSpeechSettings(await readSpeechSettings(speechFile)), file: speechFile });
+          return;
+        }
+        if (path === "/api/settings" && method === "POST") {
+          const data = await body(request);
+          let record: Record<string, unknown>;
+          try { record = mergeSpeechSettings(await readSpeechSettings(speechFile), data); }
+          catch (error) { throw new HttpError(400, errorMessage(error)); }
+          let next: SpeechService;
+          // Start the new services first, so a mistake leaves the working ones in place.
+          try { next = await startSpeech(record); }
+          catch (error) { throw new HttpError(400, `The new speech settings did not work, so nothing was changed. ${errorMessage(error)}`); }
+          try { await saveSpeechSettings(speechFile, record); }
+          catch (error) {
+            await next.close?.();
+            throw new HttpError(500, `Could not save the speech settings. ${errorMessage(error)}`);
+          }
+          const previous = speech;
+          speech = next;
+          speechError = undefined;
+          closeSpeech.disconnect();
+          try { await previous?.close?.(); }
+          catch (error) { console.error(`Could not fully stop the previous speech service: ${errorMessage(error)}`); }
+          json(response, 200, { settings: describeSpeechSettings(record), file: speechFile, speech: { configured: true, listening: next.selection?.listening ?? "mai", speaking: next.selection?.speaking ?? "mai" } });
           return;
         }
         if (path === "/api/refresh" && method === "POST") {
@@ -336,7 +375,9 @@ export async function startApp(options: AppOptions) {
         throw new HttpError(404, "That action is not available.");
       }
       if (method !== "GET" && method !== "HEAD") throw new HttpError(405, "This page only supports viewing.");
-      const relative = decodeURIComponent(path) === "/" ? "index.html" : `.${decodeURIComponent(path)}`;
+      const decoded = decodeURIComponent(path);
+      if (decoded.includes("\\") || decoded.split("/").includes("..")) throw new HttpError(403, "That file is not part of Picard Code.");
+      const relative = decoded === "/" ? "index.html" : `.${decoded}`;
       const file = resolve(webRoot, relative);
       if (!file.startsWith(`${webRoot}${sep}`)) throw new HttpError(403, "That file is not part of Picard Code.");
       let resolved: string;
@@ -356,7 +397,7 @@ export async function startApp(options: AppOptions) {
       if (ownsMutation) mutationBusy = false;
     });
   });
-  const closeSpeech = attachSpeech(server, options.speech, (request) => {
+  const closeSpeech = attachSpeech(server, () => speech, (request) => {
     const cookies = request.headers.cookie?.split(";").map((part) => part.trim()) ?? [];
     return request.headers.host === new URL(origin).host && request.headers.origin === origin
       && (!request.headers["sec-fetch-site"] || request.headers["sec-fetch-site"] === "same-origin")
@@ -376,7 +417,7 @@ export async function startApp(options: AppOptions) {
     close: async () => {
       closeSpeech();
       for (const stream of streams) stream.end();
-      try { await options.speech?.close?.(); }
+      try { await speech?.close?.(); }
       finally {
         await new Promise<void>((resolve, reject) => {
           server.close((error) => error ? reject(error) : resolve());

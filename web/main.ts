@@ -1,6 +1,6 @@
 import "./style.css";
 import type { Event, PermissionRequest, QuestionRequest } from "@opencode-ai/sdk/v2";
-import type { AppState, BrowserEvent, ChatMessage, Conversation, ModelChoice } from "../src/shared/types";
+import type { AppState, BrowserEvent, ChatMessage, Conversation, ModelChoice, SpeechSettings } from "../src/shared/types";
 import { chatPart, errorMessage } from "../src/shared/messages";
 import { replyFailed, spokenReply, spokenSummary } from "../src/shared/speech";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../src/shared/questions";
@@ -91,11 +91,17 @@ function voiceControls() {
     : voice.microphone ? pending() ? "Waiting for your decision" : "Understanding / working"
     : "Microphone off";
   element("voice-partial").textContent = voice.partial;
-  element("voice-setup-hint").hidden = !!state?.speech?.configured;
+  element("voice-setup-hint").hidden = !state || !!state.speech?.configured;
+  element("voice-setup-text").textContent = state?.speech?.error ? "Speech did not start." : "Speech is not set up.";
   const cloudListening = state?.speech?.listening !== "whisper";
   const cloudSpeaking = state?.speech?.speaking !== "kokoro";
   element("speech-services").textContent = `${cloudListening ? "MAI" : "Whisper"} listening / ${cloudSpeaking ? "MAI" : "Kokoro"} voice`;
-  element("voice-disclosure").textContent = `${cloudListening
+  // Short version beside the microphone; the full explanation is on the settings page.
+  element("voice-disclosure").textContent = cloudListening ? "· Audio goes to Azure, possibly outside Europe" : cloudSpeaking ? "· Reply text goes to Azure" : "· Stays on this computer";
+  element("speech-current").textContent = state?.speech?.configured
+    ? `Active: ${cloudListening ? "Azure MAI" : "Whisper"} listening / ${cloudSpeaking ? "Azure MAI" : "Kokoro"} speaking`
+    : state?.speech?.error ?? "Speech is not set up yet";
+  element("privacy-detail").textContent = `${cloudListening
     ? "When on, microphone audio goes to Azure, which may process it outside Europe."
     : "Whisper understands microphone audio on this computer."} ${cloudSpeaking
     ? "Reply text goes to Azure for speaking." : "Kokoro speaks locally."} Understood requests are sent to Copilot automatically. Listening pauses during work and playback, except to hear your answer to a question the computer asks aloud. Approvals always need a button. Stop speaking interrupts playback, not work.`;
@@ -164,8 +170,10 @@ function controls() {
   element("connection-label").textContent = connected ? "Local connection" : "Connecting";
   element("connection-light").classList.toggle("ready", connected);
   element("mode-hint").textContent = agent.value === "plan"
-    ? "Discuss uses OpenCode's planning mode. Review its suggestions before asking for changes."
-    : "OpenCode may change files or run commands. Its permission settings decide which actions ask first.";
+    ? "Discuss: plans only, no changes"
+    : "Make changes: may edit files and run commands. Approvals still ask first";
+  element("copilot-status").textContent = !state ? "Checking" : state.models.length
+    ? `Connected: ${state.models.length} Copilot model${state.models.length === 1 ? "" : "s"} available` : "Not connected";
   if (voice.microphone && voice.phase === "listening" && (!ready || (working || pending()) && !askedQuestion())) voice.resume();
   if (voice.microphone && voice.phase === "off" && ready && !voice.speechPending && !historyLoading
     && (askedQuestion() || !working && !pending() && !voiceTurn)) voice.resume();
@@ -178,7 +186,7 @@ function renderState() {
   element("project-name").textContent = projectName;
   element("project-name").title = state.project;
   if (document.activeElement !== element("project-path")) element<HTMLInputElement>("project-path").value = state.project;
-  element("workspace-caption").textContent = `OpenCode ${state.version} · ${projectName}`;
+  element("workspace-caption").textContent = `OpenCode ${state.version}`;
   element("conversation-title").textContent = state.conversations.find((item) => item.id === selected)?.title ?? "New conversation";
   const currentModel = model.value;
   model.replaceChildren();
@@ -590,8 +598,41 @@ async function boot() {
     history.replaceState(null, "", location.pathname);
   }
   await refreshState();
+  // First run: without Copilot there is nothing to do on the main screen yet.
+  if (state && !state.models.length && !location.hash) location.hash = "settings";
   if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id);
   openEvents();
+}
+
+const speechFields = ["listening", "speaking", "subscription", "resourceGroup", "resourceName", "region", "deployment", "voice", "voiceStyle", "kokoroVoice"] as const;
+function speechInput(name: typeof speechFields[number]) { return element<HTMLInputElement | HTMLSelectElement>(`setting-${name}`); }
+function speechFieldVisibility() {
+  const azure = speechInput("listening").value === "mai" || speechInput("speaking").value === "mai";
+  element("azure-fields").hidden = !azure;
+  document.querySelectorAll<HTMLElement>(".kokoro-field").forEach((node) => { node.hidden = speechInput("speaking").value !== "kokoro"; });
+}
+function showSpeechSettings(result: { settings: SpeechSettings; file: string }) {
+  for (const name of speechFields) speechInput(name).value = result.settings[name];
+  element("settings-file").textContent = `Saved in ${result.file}`;
+  speechFieldVisibility();
+}
+
+let settingsLoaded = false;
+async function route() {
+  const settings = location.hash === "#settings";
+  element("main").hidden = settings;
+  element("settings-view").hidden = !settings;
+  const link = element<HTMLAnchorElement>("nav-settings");
+  link.textContent = settings ? "Main screen" : "Settings";
+  link.href = settings ? "#" : "#settings";
+  closeMenu();
+  if (!settings) return;
+  if (voice.microphone) voice.microphoneOff();
+  if (!settingsLoaded) {
+    settingsLoaded = true;
+    try { showSpeechSettings(await api("settings")); }
+    catch (error) { settingsLoaded = false; throw error; }
+  }
 }
 
 element("composer").addEventListener("submit", (event) => { event.preventDefault(); void perform(() => sendMessage()); });
@@ -600,7 +641,37 @@ prompt.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void perform(() => sendMessage()); }
 });
 agent.addEventListener("change", controls);
-element("new-conversation").addEventListener("click", () => { void perform(async () => { await newConversation(); prompt.focus(); }); });
+element("new-conversation").addEventListener("click", () => { void perform(async () => {
+  if (location.hash === "#settings") location.hash = "";
+  await newConversation();
+  prompt.focus();
+}); });
+window.addEventListener("hashchange", () => { void perform(route); });
+speechInput("listening").addEventListener("change", speechFieldVisibility);
+speechInput("speaking").addEventListener("change", speechFieldVisibility);
+element("speech-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const result = element("speech-result");
+  const save = element<HTMLButtonElement>("save-speech");
+  void perform(async () => {
+    const data = Object.fromEntries(speechFields.map((name) => [name, speechInput(name).value.trim()]));
+    result.textContent = "Starting the selected speech services";
+    save.disabled = true;
+    // Open voice connections use the old services; close them before switching.
+    voice.close();
+    try {
+      const saved = await api<{ settings: SpeechSettings; file: string; speech: AppState["speech"] }>("settings", data);
+      showSpeechSettings(saved);
+      if (state) state.speech = saved.speech;
+      result.textContent = "Speech settings saved and in use";
+      notice();
+      controls();
+    } catch (error) {
+      result.textContent = "Not changed. See the message above";
+      throw error;
+    } finally { save.disabled = false; }
+  });
+});
 element("stop").addEventListener("click", () => {
   void perform(async () => {
     if (!selected) return;
@@ -612,7 +683,7 @@ element("stop").addEventListener("click", () => {
     voice.resume();
   });
 });
-element("retry").addEventListener("click", () => { void perform(boot); });
+element("retry").addEventListener("click", () => { void perform(async () => { await route(); await boot(); await route(); }); });
 element("refresh-provider").addEventListener("click", () => {
   void perform(async () => {
     await api("refresh", {});
@@ -647,7 +718,7 @@ element("project-form").addEventListener("submit", (event) => {
     messages = [];
     prompt.value = "";
     state = next;
-    element<HTMLDetailsElement>("project-details").open = false;
+    location.hash = "";
     renderState();
     renderMessages();
     if (next.conversations[0]) await selectConversation(next.conversations[0].id);
@@ -663,4 +734,4 @@ element("typing").addEventListener("toggle", () => {
   if (element<HTMLDetailsElement>("typing").open) voice.microphoneOff();
 });
 window.addEventListener("beforeunload", () => { events?.close(); voice.close(); });
-void perform(boot);
+void perform(async () => { await route(); await boot(); await route(); });

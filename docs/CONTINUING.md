@@ -28,10 +28,12 @@ yourself with the `sbroenne` account. Do not copy tokens from another computer.
 
 ## 3. Choose speech
 
-**Azure MAI (preferred).** Install Azure CLI and run `az login`. Create
-`.picard-speech.json` in the folder you launch from, with your subscription,
-resource group, resource name, region and live-listening deployment, as shown
-in the README. The default voice is British Emily (`neutral` style). The file
+**Azure MAI (preferred).** Install Azure CLI and run `az login`. Start
+Picard Code, open **Settings**, and fill in the Speech section with your
+subscription, resource group, resource name, region and live-listening
+deployment, then choose **Save and apply**; no restart is needed. This saves
+`.picard-speech.json` (in the Picard Code folder, or the launch folder if a file
+is already there), as described in the README. The default voice is British Emily (`neutral` style). The file
 holds no key; the key is read into memory at startup.
 
 **Local Whisper and Kokoro.** Install `uv` and Python 3.11, then follow the

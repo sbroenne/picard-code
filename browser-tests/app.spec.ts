@@ -32,6 +32,19 @@ test("empty screen, folder controls and long content fit without horizontal over
   await page.screenshot({ path: testInfo.outputPath("empty-screen.png"), fullPage: true });
 });
 
+test("setup lives on its own Settings page, away from the main screen", async ({ page }, testInfo) => {
+  await expect(page.getByRole("heading", { name: "Project folder" })).toBeHidden();
+  if (testInfo.project.name === "phone") await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await expect(page).toHaveURL(/#settings$/);
+  for (const name of ["Copilot connection", "Project folder", "Speech", "Privacy and approvals"]) await expect(page.getByRole("heading", { name })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Turn microphone on" })).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("settings.png"), fullPage: true });
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
+});
+
 test("send, stream, approval, stop and safe code rendering work", async ({ page }, testInfo) => {
   const prompt = page.getByRole("textbox", { name: "Your message" });
   await prompt.fill("Hello computer");

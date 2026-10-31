@@ -3,17 +3,24 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { SpeechService, SpeechInput } from "./speech-types.js";
 import type { SpeechEvent, VoicePhase } from "../shared/speech.js";
 
-export function attachSpeech(server: Server, service: SpeechService | undefined, allowed: (request: IncomingMessage) => boolean) {
+/**
+ * `source` may be a fixed service or a function, so speech settings can change while the app runs.
+ * Each browser connection keeps the service it started with; call `disconnect` after a change.
+ */
+export function attachSpeech(server: Server, source: SpeechService | undefined | (() => SpeechService | undefined), allowed: (request: IncomingMessage) => boolean) {
+  const service = () => typeof source === "function" ? source() : source;
   const sockets = new WebSocketServer({ noServer: true, maxPayload: 4096 });
   server.on("upgrade", (request, socket, head) => {
     if (request.url !== "/api/speech" || !allowed(request)) {
       socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
       return;
     }
-    if (!service) { socket.end("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n"); return; }
+    if (!service()) { socket.end("HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n"); return; }
     sockets.handleUpgrade(request, socket, head, (client) => sockets.emit("connection", client));
   });
   sockets.on("connection", (socket) => {
+    const chosen = service();
+    if (!chosen) { socket.close(1013, "Speech is not set up."); return; }
     let phase: VoicePhase = "off";
     let input: SpeechInput | undefined;
     let operation: AbortController | undefined;
@@ -42,7 +49,7 @@ export function attachSpeech(server: Server, service: SpeechService | undefined,
       operation = new AbortController();
       state("thinking");
       try {
-        const next = await service!.listen({
+        const next = await chosen.listen({
           partial: (text) => { if (epoch === current) send({ type: "partial", text }); },
           final: (text) => {
             if (epoch !== current || phase !== "thinking") return;
@@ -69,7 +76,7 @@ export function attachSpeech(server: Server, service: SpeechService | undefined,
       let started = false;
       let remainder = Buffer.alloc(0);
       try {
-        for await (const bytes of service!.speak(text, operation.signal)) {
+        for await (const bytes of chosen.speak(text, operation.signal)) {
           if (epoch !== current || socket.readyState !== WebSocket.OPEN) return;
           if (socket.bufferedAmount > 1_000_000) throw new Error("Spoken playback fell behind. Speaking was stopped; the written answer remains on screen.");
           const joined = Buffer.concat([remainder, bytes]);
@@ -124,8 +131,9 @@ export function attachSpeech(server: Server, service: SpeechService | undefined,
     socket.on("close", stop);
     socket.on("error", stop);
   });
-  return () => {
+  const disconnect = () => { for (const socket of sockets.clients) socket.close(1012, "Speech settings changed. Turn the microphone on again."); };
+  return Object.assign(() => {
     for (const socket of sockets.clients) socket.terminate();
     sockets.close();
-  };
+  }, { disconnect });
 }

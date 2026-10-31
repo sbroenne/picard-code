@@ -46,7 +46,8 @@ macOS or Linux example:
 npm start -- --project "$HOME/projects/my-project"
 ```
 
-You can also use **Change folder** in the sidebar. Stop running work first.
+You can also change the folder under **Settings** (in the sidebar). Stop
+running work first.
 The folder is passed to OpenCode for every conversation and request.
 
 **`npx picard-code` is not available yet.** This repository is private and the
@@ -66,8 +67,18 @@ If OpenCode is not connected:
 3. Open the official device sign-in address OpenCode shows. Check that GitHub
    is signed in to the account you want, then enter OpenCode's displayed code
    and approve the connection yourself.
-4. Return to Picard Code and choose **Refresh connection**. Pick one of the
-   Copilot models OpenCode reports as available.
+4. Return to Picard Code, open **Settings** and choose **Refresh connection**.
+   Pick one of the Copilot models OpenCode reports as available.
+
+## The main screen and Settings
+
+The main screen is kept for the conversation itself: the microphone, the
+messages, approvals and the mode and model. Everything about setting up lives
+on a separate **Settings** page (sidebar link, or add `#settings` to the
+address): the Copilot connection steps, the project folder, speech, and the
+full privacy and approvals text. If Copilot is not connected when the app
+opens, Settings is shown first. The microphone turns off while Settings is
+open.
 
 For the requested personal setup, use your **sbroenne** GitHub account in the
 official device sign-in. Picard Code does not independently verify the account
@@ -161,13 +172,21 @@ The speaking voice uses the same resource and needs no voice cloning or
 separate model deployment.
 
 **MAI live listening can process audio outside Europe**, even when the
-resource is in Sweden. The interface discloses this before activation.
+resource is in Sweden. A short note beside the microphone says where audio
+goes before you turn it on; the full text is on the Settings page.
 Azure charges and any Visual Studio credit coverage depend on your
 subscription; this app does not change spending limits or promise credits
 cover the service.
 
-Create `.picard-speech.json` in the folder where you launch Picard Code.
-Use your own resource's settings:
+The easiest way is the **Speech** section of the Settings page. Choose the
+listening and speaking services, fill in your resource, and choose **Save and
+apply**. The new speech setup starts right away, with no restart. If it cannot
+start (for example a wrong region), the error is shown, the file is not
+changed, and the speech setup that was working stays in use.
+
+The page saves to `.picard-speech.json`. If that file exists in the folder you
+launch from, that one is used; otherwise it lives in the Picard Code folder.
+You can also write the file yourself, using your own resource's settings:
 
 ```json
 {
@@ -191,7 +210,8 @@ An unsupported voice or style is reported as an Azure error, not replaced.
 This file is ignored by Git and contains **no key**. Install Azure CLI and
 sign in using `az login` in your own terminal. Your Azure account must
 already be allowed to read this resource's keys. Picard Code reads a key
-into the local server's memory on startup using the specified subscription.
+into the local server's memory on startup, and again when you save speech
+settings, using the specified subscription.
 It does not change the CLI's default subscription or create access grants.
 Alternatively, set `PICARD_AZURE_SPEECH_KEY` in the launch process's
 environment using your own secure local setup. Never paste keys into chat,
@@ -271,9 +291,10 @@ For a local default, `.picard-speech.json` can contain just:
 For a mixed setup, keep the Azure resource settings and add `listening` and
 `speaking`. Only MAI listening requires `deployment`. Optional local settings
 are `localPython`, `whisperModel`, `kokoroModel`, `kokoroVoices`, and
-`kokoroVoice`. File paths are resolved from the launch folder. If launching
-outside this repository, use absolute local paths and put the settings file
-in that launch folder.
+`kokoroVoice`. The path settings are kept when you save from the Settings page,
+but can only be changed in the file. File paths are resolved from the launch
+folder; if launching outside this repository, use absolute local paths. Launch
+options apply only until speech settings are saved from the page.
 
 The shared interfaces are in `src/server/speech-types.ts`. A listener accepts
 one channel of signed little-endian 16-bit audio at 16,000 samples per second,
@@ -434,7 +455,8 @@ and repeat the browser checks.
   model, supported region and voice, and service quota. A speech error does
   not mean OpenCode stopped; use **Stop work** separately when needed.
 - **Local speech will not start:** complete the Python setup and model download,
-  check the configured paths, and restart. The reported error is not replaced
+  check the configured paths, and choose **Save and apply** on the Settings
+  page again (no restart needed). The reported error is not replaced
   with Azure or browser speech. Use the typing fallback when speech is unavailable.
 
 ## References

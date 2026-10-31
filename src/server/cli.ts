@@ -6,6 +6,7 @@ import { startApp } from "./app.js";
 import { makeClient, localServerUrl, errorMessage } from "./engine.js";
 import { projectDirectory, startEngine, openBrowser } from "./process.js";
 import { loadSpeech } from "./speech.js";
+import type { SpeechService } from "./speech-types.js";
 
 async function main() {
   const { values } = parseArgs({
@@ -91,15 +92,25 @@ An existing gh sign-in is not a Copilot sign-in.`);
     const path = await client.path.get({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
     controller.signal.throwIfAborted();
     if (resolve(path.data.directory) !== project) throw new Error("OpenCode did not select the requested project folder.");
-    const speech = await loadSpeech({ listening: values.listening, speaking: values.speaking }, controller.signal);
+    // A speech mistake should not stop the app; it is shown on the settings page so it can be fixed there.
+    let speech: SpeechService | undefined;
+    let speechError: string | undefined;
+    try { speech = await loadSpeech({ listening: values.listening, speaking: values.speaking }, controller.signal); }
+    catch (error) {
+      if (error instanceof Error && error.name === "AbortError") throw error;
+      speechError = `Speech did not start. ${errorMessage(error)}`;
+      console.error(speechError);
+    }
     cleanupSpeech = () => speech?.close?.();
     controller.signal.throwIfAborted();
     const app = await startApp({
       client, project, port,
-      speech,
+      speech, speechError,
       webRoot: fileURLToPath(new URL("../../web-dist/", import.meta.url)),
       soundFolder: fileURLToPath(new URL("../../.picard-sounds/", import.meta.url)),
     });
+    // From here the app owns speech, including any service chosen later in settings.
+    cleanupSpeech = undefined;
     cleanupApp = app.close;
     console.log(`\nPicard Code is ready.\nProject: ${project}\n\n${app.url}\n\nKeep this terminal open. Press Ctrl+C to stop.\n`);
     if (!values["no-open"]) {

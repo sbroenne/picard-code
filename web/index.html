@@ -3,121 +3,155 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#080808" />
+    <meta name="theme-color" content="#000000" />
     <title>Picard Code</title>
     <link rel="icon" type="image/svg+xml" href="/mark.svg" />
   </head>
   <body>
-    <!-- THESIS: A useful local coding companion inside an original warm computer display, not a decorative dashboard.
-    OWN-WORLD: Black, peach, orange, lilac; flat, rounded rails surround an uncluttered reading area.
-    STORY: Choose a folder, connect Copilot through OpenCode, discuss work or request changes, review real approvals.
-    FIRST VIEWPORT: Folder and conversations at left; title rail above; quiet conversation and composer at right.
-    FORM: User-pinned computer-display grammar; no random concept selection. -->
+    <!-- An original computer display inspired by the TNG era: black ground, rounded elbows,
+    flat color blocks and short uppercase readouts. Explanations live on the settings page. -->
     <a class="skip-link" href="#microphone">Skip to conversation controls</a>
     <div class="shell">
-      <header class="masthead">
-        <div class="corner" aria-hidden="true"></div>
-        <div class="title-rail">
-          <button id="menu" class="menu-button" aria-controls="sidebar" aria-expanded="false">Menu</button>
-          <span class="rail-fill" aria-hidden="true"></span>
-          <h1>PICARD CODE</h1>
-          <span class="rail-end" aria-hidden="true"></span>
-        </div>
+      <div class="top-rail" aria-hidden="true">
+        <span class="block peach"><i>01</i></span>
+        <span class="block lilac grow"><i>02-1701</i></span>
+      </div>
+      <header class="header">
+        <button id="menu" class="menu-button" aria-controls="sidebar" aria-expanded="false">Menu</button>
+        <h1>Picard Code</h1>
+        <dl class="readouts">
+          <div><dt>Project</dt><dd id="project-name">Connecting</dd></div>
+          <div><dt>Conversation</dt><dd><h2 id="conversation-title">New conversation</h2></dd></div>
+          <div><dt>System</dt><dd id="workspace-caption">Awaiting a task</dd></div>
+          <div><dt>Link</dt><dd><span id="connection-light" class="connection-light" aria-hidden="true"></span><span id="connection-label">Connecting</span></dd></div>
+        </dl>
+        <span id="work-status" class="work-status" role="status">Starting up</span>
       </header>
+      <div class="elbow elbow-top" aria-hidden="true"></div>
+      <div class="bar bar-top" aria-hidden="true"><span class="orange grow"></span><span class="lilac"></span><span class="peach short"></span><span class="blue"></span></div>
+      <div class="elbow elbow-main" aria-hidden="true"></div>
+      <div class="bar bar-main" aria-hidden="true"><span class="orange"></span><span class="peach grow"></span><span class="red short"></span><span class="lilac"></span></div>
+
       <aside id="sidebar" class="sidebar">
-        <div class="project-block">
-          <span class="panel-label">PROJECT FOLDER</span>
-          <strong id="project-name">Connecting...</strong>
-          <details id="project-details">
-            <summary>Change folder</summary>
-            <form id="project-form">
-              <label for="project-path">Full folder path</label>
-              <input id="project-path" name="path" required placeholder="Paste a folder path" />
-              <button class="dark-button" type="submit">Open folder</button>
-            </form>
-          </details>
-        </div>
-        <button id="new-conversation" class="new-button"><span aria-hidden="true">+</span> New conversation</button>
-        <div class="conversation-label">CONVERSATIONS</div>
+        <button id="new-conversation" class="rail-button lilac">New conversation</button>
+        <div class="rail-label">Conversations</div>
         <nav id="conversations" aria-label="Saved conversations"></nav>
-        <div class="sidebar-tail" aria-hidden="true"></div>
-        <div class="connection-block">
-          <span id="connection-light" class="connection-light" aria-hidden="true"></span>
-          <span id="connection-label">Connecting</span>
-          <span class="connection-engine">OPENCode</span>
-        </div>
+        <span class="rail-fill" aria-hidden="true"><i class="peach">03-4471</i><i class="orange">04-2240</i><i class="lilac">05-0927</i></span>
+        <a id="nav-settings" class="rail-button blue" href="#settings">Settings</a>
       </aside>
+
       <main id="main" class="workspace">
-        <div class="workspace-heading">
-          <div>
-            <h2 id="conversation-title">New conversation</h2>
-            <p id="workspace-caption">Awaiting a task.</p>
-          </div>
-          <span id="work-status" class="work-status" role="status">Starting up</span>
-        </div>
         <div id="notice" class="notice" role="alert" hidden>
           <span id="notice-text"></span>
-          <button id="retry" class="text-button">Try again</button>
+          <button id="retry" class="pill outline" type="button">Try again</button>
         </div>
         <div id="reading-area" class="reading-area">
           <section id="setup" class="setup" hidden aria-labelledby="setup-title">
-            <h3 id="setup-title">Connect your Copilot account.</h3>
-            <p>Picard Code uses GitHub Copilot through OpenCode. Sign in using OpenCode's own connection steps.</p>
-            <ol>
-              <li>In another terminal in this repository, run <code>npm run opencode</code>.</li>
-              <li>Type <code>/connect</code> and choose <strong>GitHub Copilot</strong>.</li>
-              <li>Open <a href="https://github.com/login/device" target="_blank" rel="noreferrer">GitHub's device sign-in</a>, check your account, and enter the code OpenCode gives you.</li>
-            </ol>
-            <p class="muted">Your account needs Copilot access. A GitHub command-line sign-in does not connect Copilot. No password or token is entered here.</p>
-            <button id="refresh-provider" class="peach-button">Refresh connection</button>
+            <h3 id="setup-title">Copilot not connected</h3>
+            <a class="pill orange" href="#settings">Open setup</a>
           </section>
           <section id="welcome" class="welcome">
-            <div class="welcome-symbol" aria-hidden="true"><span></span><span></span><span></span></div>
             <h3>Please specify a task.</h3>
-            <p>Turn the microphone on, then ask a question, request an analysis, or describe a change. Follow-up requests stay in this conversation.</p>
             <div class="suggestions" aria-label="Message ideas">
-              <button data-prompt="Explain this project and where I should start.">Understand this project <span aria-hidden="true">&#8599;</span></button>
-              <button data-prompt="Suggest a small, useful improvement to this project. Explain the plan before making changes.">Plan an improvement <span aria-hidden="true">&#8599;</span></button>
-              <button data-prompt="Look for a likely bug in this project. Explain what you find before changing anything.">Look for a bug <span aria-hidden="true">&#8599;</span></button>
+              <button class="pill peach" data-prompt="Explain this project and where I should start.">Understand this project</button>
+              <button class="pill lilac" data-prompt="Suggest a small, useful improvement to this project. Explain the plan before making changes.">Plan an improvement</button>
+              <button class="pill blue" data-prompt="Look for a likely bug in this project. Explain what you find before changing anything.">Look for a bug</button>
             </div>
           </section>
           <div id="messages" class="messages" aria-label="Conversation messages"></div>
           <div id="approvals" class="approvals" aria-live="polite"></div>
         </div>
-        <section id="voice-console" class="voice-console" aria-label="Spoken conversation" data-phase="off">
-          <div class="voice-heading"><span class="voice-mark" aria-hidden="true"><i></i><i></i><i></i></span><span id="voice-status" aria-live="polite">Microphone off</span></div>
-          <p id="speech-services" class="voice-disclosure">MAI listening / MAI voice</p>
-          <p id="voice-partial" class="voice-partial" aria-label="Words being understood"></p>
-          <div class="voice-actions">
-            <button id="microphone" class="peach-button" type="button" aria-pressed="false" disabled>Turn microphone on</button>
-            <button id="stop-speaking" class="stop-button" type="button" hidden>Stop speaking</button>
+
+        <section id="voice-console" class="console" aria-label="Spoken conversation" data-phase="off">
+          <button id="microphone" class="microphone" type="button" aria-pressed="false" disabled>Turn microphone on</button>
+          <div class="voice-readout">
+            <div class="voice-heading"><span class="voice-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span><span id="voice-status" aria-live="polite">Microphone off</span></div>
+            <p id="voice-partial" class="voice-partial" aria-label="Words being understood"></p>
+            <p class="voice-services"><span id="speech-services">MAI listening / MAI voice</span> <span id="voice-disclosure"></span></p>
+            <p id="voice-setup-hint" class="voice-setup-hint" hidden><span id="voice-setup-text">Speech is not set up.</span> <a href="#settings">Open settings</a></p>
           </div>
-          <p id="voice-disclosure" class="voice-disclosure">When on, microphone audio goes to Azure and understood requests are sent automatically. Azure may process audio outside Europe. Listening pauses during work and playback.</p>
-          <p id="voice-setup-hint" class="voice-disclosure">Speech setup is needed. See the README, or use Type instead.</p>
+          <button id="stop-speaking" class="pill red" type="button" hidden>Stop speaking</button>
         </section>
-        <div class="conversation-options">
-          <label class="mode-control">Mode
+        <div class="command-row">
+          <label class="select-pill">Mode
             <select id="agent"><option value="plan">Discuss</option><option value="build">Make changes</option></select>
           </label>
-          <label class="model-control">Model
+          <label class="select-pill wide">Model
             <select id="model" disabled><option>Waiting for Copilot</option></select>
           </label>
-          <button id="stop" class="stop-button" type="button" hidden>Stop work</button>
+          <button id="stop" class="pill red" type="button" hidden>Stop work</button>
+          <p id="mode-hint" class="mode-hint"></p>
         </div>
         <details id="typing" class="typing">
           <summary>Type instead</summary>
           <form id="composer" class="composer">
-          <label class="visually-hidden" for="prompt">Your message</label>
-          <textarea id="prompt" rows="3" maxlength="32000" placeholder="Enter your request..." disabled></textarea>
-          <div class="composer-controls">
-            <button id="send" class="send-button" type="submit" disabled>Send <span aria-hidden="true">&#8599;</span></button>
-          </div>
+            <label class="visually-hidden" for="prompt">Your message</label>
+            <textarea id="prompt" rows="3" maxlength="32000" placeholder="Enter your request" disabled></textarea>
+            <button id="send" class="pill orange" type="submit" disabled>Send</button>
           </form>
         </details>
-        <p id="mode-hint" class="mode-hint">Discuss uses OpenCode's planning mode. Review its suggestions before asking for changes.</p>
-        <footer class="workspace-footer"><span>LOCAL INTERFACE <span aria-hidden="true">/</span> GITHUB COPILOT</span><span>Unofficial. Made with admiration.</span></footer>
       </main>
-      <div class="bottom-rail" aria-hidden="true"><span></span><span></span><span></span></div>
+
+      <section id="settings-view" class="settings" hidden aria-labelledby="settings-title">
+        <h2 id="settings-title" class="visually-hidden">Settings</h2>
+        <section class="panel" aria-labelledby="copilot-title">
+          <h3 id="copilot-title" class="panel-title orange"><span>01</span> Copilot connection</h3>
+          <p id="copilot-status" class="readout-line">Checking</p>
+          <ol>
+            <li>In a terminal in the Picard Code folder, run <code>npm run opencode</code>.</li>
+            <li>Type <code>/connect</code> and choose <strong>GitHub Copilot</strong>.</li>
+            <li>Open <a href="https://github.com/login/device" target="_blank" rel="noreferrer">GitHub's device sign-in</a>, check your account, and enter the code OpenCode gives you.</li>
+          </ol>
+          <p class="muted">Your account needs Copilot access. A GitHub command-line sign-in does not connect Copilot. No password or token is entered here.</p>
+          <button id="refresh-provider" class="pill orange" type="button">Refresh connection</button>
+        </section>
+
+        <section class="panel" aria-labelledby="folder-title">
+          <h3 id="folder-title" class="panel-title peach"><span>02</span> Project folder</h3>
+          <form id="project-form" class="field-grid">
+            <label for="project-path">Full folder path</label>
+            <input id="project-path" name="path" required placeholder="Paste a folder path" />
+            <button class="pill peach" type="submit">Open folder</button>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="speech-title">
+          <h3 id="speech-title" class="panel-title lilac"><span>03</span> Speech</h3>
+          <p id="speech-current" class="readout-line">Checking</p>
+          <form id="speech-form" class="field-grid">
+            <label for="setting-listening">Listening</label>
+            <select id="setting-listening" name="listening"><option value="mai">Azure MAI</option><option value="whisper">Whisper on this computer</option></select>
+            <label for="setting-speaking">Speaking</label>
+            <select id="setting-speaking" name="speaking"><option value="mai">Azure MAI</option><option value="kokoro">Kokoro on this computer</option></select>
+            <fieldset id="azure-fields" class="field-grid nested">
+              <legend>Azure resource</legend>
+              <label for="setting-subscription">Subscription ID</label><input id="setting-subscription" name="subscription" autocomplete="off" />
+              <label for="setting-resourceGroup">Resource group</label><input id="setting-resourceGroup" name="resourceGroup" autocomplete="off" />
+              <label for="setting-resourceName">Resource name</label><input id="setting-resourceName" name="resourceName" autocomplete="off" />
+              <label for="setting-region">Region</label><input id="setting-region" name="region" autocomplete="off" />
+              <label for="setting-deployment">Listening deployment</label><input id="setting-deployment" name="deployment" autocomplete="off" />
+              <label for="setting-voice">Voice</label><input id="setting-voice" name="voice" autocomplete="off" />
+              <label for="setting-voiceStyle">Voice style</label><input id="setting-voiceStyle" name="voiceStyle" autocomplete="off" />
+            </fieldset>
+            <label for="setting-kokoroVoice" class="kokoro-field">Kokoro voice</label>
+            <input id="setting-kokoroVoice" class="kokoro-field" name="kokoroVoice" autocomplete="off" />
+            <p class="muted span">The Azure key is read by the server through your Azure sign-in and never reaches this page. Changes apply right away; no restart is needed.</p>
+            <button id="save-speech" class="pill lilac" type="submit">Save and apply</button>
+            <p id="speech-result" class="readout-line span" aria-live="polite"></p>
+          </form>
+          <p id="settings-file" class="muted"></p>
+        </section>
+
+        <section class="panel" aria-labelledby="privacy-title">
+          <h3 id="privacy-title" class="panel-title blue"><span>04</span> Privacy and approvals</h3>
+          <p id="privacy-detail"></p>
+        </section>
+
+        <section class="panel" aria-labelledby="about-title">
+          <h3 id="about-title" class="panel-title red"><span>05</span> About</h3>
+          <p>Picard Code is an unofficial tribute, made with admiration. It runs on this computer and uses GitHub Copilot through OpenCode.</p>
+        </section>
+      </section>
     </div>
     <script type="module" src="/main.ts"></script>
   </body>

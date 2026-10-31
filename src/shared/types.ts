@@ -35,7 +35,21 @@ export interface AppState {
   statuses: Record<string, { type: string; message?: string }>;
   permissions: PermissionRequest[];
   questions: QuestionRequest[];
-  speech?: { configured: boolean; listening: "mai" | "whisper"; speaking: "mai" | "kokoro" };
+  speech?: { configured: boolean; listening: "mai" | "whisper"; speaking: "mai" | "kokoro"; error?: string };
+}
+
+/** Speech choices the settings page can change. Keys are never included. */
+export interface SpeechSettings {
+  listening: "mai" | "whisper";
+  speaking: "mai" | "kokoro";
+  subscription: string;
+  resourceGroup: string;
+  resourceName: string;
+  region: string;
+  deployment: string;
+  voice: string;
+  voiceStyle: string;
+  kokoroVoice: string;
 }
 
 export type BrowserEvent =

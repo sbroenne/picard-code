@@ -1,14 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm, realpath } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, rm, realpath } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { request as httpRequest } from "node:http";
 import { startFixture } from "./fixture.js";
 import { startApp } from "../server/app.js";
 import { localServerUrl, makeClient } from "../server/engine.js";
-import type { AppState } from "../shared/types.js";
+import type { AppState, SpeechSettings } from "../shared/types.js";
+import type { AppOptions } from "../server/app.js";
+import { speechFixture } from "./speech-fixture.js";
 
-async function setup() {
+async function setup(extra: Partial<AppOptions> = {}) {
   const temporary = await mkdtemp(resolve(".picard-test-"));
   const project = join(temporary, "project");
   const other = join(temporary, "other");
@@ -17,7 +19,7 @@ async function setup() {
   await writeFile(join(webRoot, "index.html"), "<!doctype html><title>Picard Code</title>");
   const directory = await realpath(project);
   const fixture = await startFixture(directory);
-  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot });
+  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot, speechFile: join(temporary, "speech.json"), ...extra });
   let cookie = "";
   const request = (path: string, data?: unknown, headers: Record<string, string> = {}) => fetch(`${app.origin}/api/${path}`, {
     method: data === undefined ? "GET" : "POST",
@@ -37,7 +39,7 @@ async function setup() {
     await fixture.close();
     await rm(temporary, { recursive: true });
   };
-  return { app, fixture, request, login, cleanup, directory, other };
+  return { app, fixture, request, login, cleanup, directory, other, temporary };
 }
 
 test("only explicit local HTTP server addresses are accepted", () => {
@@ -167,4 +169,48 @@ test("missing Copilot authorization is an honest setup state, not a fallback to 
   assert.deepEqual(state.models, []);
   assert.equal(state.defaultModel, undefined);
   assert.equal((await context.request("refresh", {})).status, 200);
+});
+
+test("speech settings change while the app runs; a failing choice leaves the working one in place", async (t) => {
+  const started: Record<string, unknown>[] = [];
+  let closed = 0;
+  const context = await setup({
+    speechError: "Speech did not start. Provide a valid deployment in the speech settings.",
+    startSpeech: async (settings) => {
+      if (settings.region === "broken") throw new Error("Azure could not be reached.");
+      started.push(settings);
+      const fixture = speechFixture();
+      return { ...fixture.service, selection: { listening: settings.listening as "mai", speaking: settings.speaking as "kokoro" }, close: async () => { ++closed; } };
+    },
+  });
+  t.after(context.cleanup);
+  await context.login();
+  let state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.speech?.configured, false);
+  assert.match(state.speech?.error ?? "", /did not start/);
+  const file = join(context.temporary, "speech.json");
+  const empty = await (await context.request("settings")).json() as { settings: SpeechSettings; file: string };
+  assert.equal(empty.file, file);
+  assert.equal(empty.settings.listening, "mai");
+
+  const choice = { listening: "mai", speaking: "kokoro", subscription: "sub-1", resourceGroup: "group", resourceName: "name", region: "swedencentral", deployment: "listen", voice: "", voiceStyle: "", kokoroVoice: "bf_emma" };
+  assert.equal((await context.request("settings", { ...choice, listening: "other" })).status, 400);
+  assert.equal((await context.request("settings", { ...choice, region: "has spaces" })).status, 400);
+  const saved = await context.request("settings", choice);
+  assert.equal(saved.status, 200);
+  assert.equal(started.length, 1);
+  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), { listening: "mai", speaking: "kokoro", subscription: "sub-1", resourceGroup: "group", resourceName: "name", region: "swedencentral", deployment: "listen", kokoroVoice: "bf_emma" });
+  state = await (await context.request("state")).json() as AppState;
+  assert.deepEqual(state.speech, { configured: true, listening: "mai", speaking: "kokoro" });
+
+  const failed = await context.request("settings", { ...choice, region: "broken" });
+  assert.equal(failed.status, 400);
+  assert.match((await failed.json()).error, /nothing was changed\. Azure could not be reached/);
+  assert.equal(JSON.parse(await readFile(file, "utf8")).region, "swedencentral");
+  assert.equal(closed, 0);
+
+  assert.equal((await context.request("settings", { ...choice, speaking: "mai" })).status, 200);
+  assert.equal(closed, 1, "the previous speech service is released after a change");
+  state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.speech?.speaking, "mai");
 });
