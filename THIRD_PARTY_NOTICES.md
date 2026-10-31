@@ -44,8 +44,9 @@ does not grant permission to remove notices or bypass redistribution terms.
 
 `npm run setup:sounds` downloads four short sound files from
 [TrekCore](https://www.trekcore.com/audio/) into the ignored `.picard-sounds`
-folder. The project owner chose these files and confirmed permission to use
-them. They are not covered by this project's license, are not redistributed
+folder. The project owner chose these files for their own setup. This is not
+a license grant from the rights holders: users must confirm their own right
+to download and use them. They are not covered by this project's MIT license, are not redistributed
 in this repository, and no license terms are stated for them here. Picard Code
 works without them.
 

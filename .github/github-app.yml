@@ -1,0 +1,18 @@
+instructions: |
+  Follow AGENTS.md as the single source of project rules.
+  Preserve the voice-only desktop Captain Picard experience and OpenCode 2
+  support for multiple model providers. Use original material and plain TNG terms.
+  Review CONTRIBUTING.md before proposing changes.
+
+scripts:
+  - name: Install development dependencies
+    command: npm ci
+  - name: Build
+    command: npm run build
+  - name: Run project checks
+    command: npm run check && npm run build && npm test && npx playwright test
+
+auto_open_in_browser: false
+automation:
+  auto_issue_session: false
+  remote_control: false

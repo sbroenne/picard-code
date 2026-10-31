@@ -13,6 +13,33 @@ you "Captain". There is no typing: like the captain, you speak to the computer.
 It is unofficial and made with admiration: original artwork in the spirit of
 the ship's displays, no franchise material, and no endorsement.
 
+[Help shape the computer](CONTRIBUTING.md) ·
+[Setup and support](SUPPORT.md) · [MIT license](LICENSE)
+
+The project website is a separate [static showcase](site/index.html), prepared
+for GitHub Pages. It does not run the app or listen to visitors.
+
+## Contributions welcome
+
+The most valuable contributions are **computer character development** and
+**more listening and speaking models**, especially local choices. Help the
+computer stay calm, precise, useful, and recognizably part of this tribute:
+original wording, better follow-ups, pronunciation, and comfortable timing,
+not copied dialogue or cloned performer voices.
+
+We also welcome accessible desktop controls, real microphone and accent
+testing, easier cross-platform setup, and reliability improvements. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) for the project's direction and checks.
+Bring open-ended ideas to [Discussions](https://github.com/sbroenne/picard-code/discussions);
+use the [issue forms](https://github.com/sbroenne/picard-code/issues/new/choose)
+for bugs and proposals.
+
+This is an early source project, not a published npm package. The app is
+voice-only and designed for a computer screen. Automated desktop checks do not
+prove physical audio works. Earlier real-service evidence predates the
+OpenCode 2 migration; current real model, Azure, and local speech paths still
+need fresh checks before those results can be claimed for this version.
+
 ### How it works
 
 A small local browser app. OpenCode does the coding, with any model provider it
@@ -61,8 +88,8 @@ You can also change the folder with the **Project** tile in the side panel.
 Stop running work first.
 The folder is passed to OpenCode for every log entry and request.
 
-**`npx picard-code` is not available yet.** This repository is private and the
-package has not been published. The commands above are the supported launch
+**`npx picard-code` is not available yet.** The npm package has not been
+published. The commands above are the supported launch
 path for this version.
 
 ## Connect a model provider
@@ -234,10 +261,14 @@ The interface runs locally, but OpenCode sends messages and relevant project
 content to the model provider you chose. Because the microphone stays on, **MAI listening
 sends any speech it hears to Azure** to find out whether it starts with
 "Computer", even speech not meant for the computer; quiet room sound is not
-sent. Only requests that start with "Computer" go to the model. MAI speaking
+sent. "Computer" starts a task; once it starts, follow-up speech also goes to
+the model without that prefix until you return to standing by. MAI speaking
 sends reply text to Azure. Whisper and Kokoro process their audio locally.
-With both local speech services and a model on your own computer, nothing
-leaves the computer; with any online provider, coding requests do. Say "stop listening" before conversations you do not want sent to the model, or switch the microphone off with its button so nothing is heard at all;
+With both local speech services, speech is processed on this computer.
+An online model provider still receives coding requests; a local model's
+own tools and network settings determine any other connections.
+Say "stop listening" before conversations you do not want sent to the model,
+or switch the microphone off with its button so nothing is heard at all;
 background speech can be misunderstood.
 
 ## Azure speech setup
@@ -478,7 +509,8 @@ Project data and work controls require that private browser connection. Requests
 from other websites are rejected. Other websites
 cannot use the interface to start work or read conversations. Provider
 configuration and credentials are not sent to the browser. Model output is
-displayed as text, never executed as HTML. These protections are not a barrier
+rendered as Markdown with unsafe HTML removed by DOMPurify, not executed as
+scripts. These protections are not a barrier
 against another program already running on your computer.
 
 ## Checks
@@ -526,8 +558,9 @@ original sample under `.picard-voice/samples`.
 generated microphone audio, OpenCode, a real model from your signed-in provider, saved
 messages, live text updates, and real spoken playback. `--local` checks the
 same path with Whisper and Kokoro. These checks make real model requests;
-the MAI variant also makes chargeable Azure requests. Both passed on the
-Windows development machine. They remove their own check conversations and
+the MAI variant also makes chargeable Azure requests. Earlier versions of both
+passed on the Windows development machine before the OpenCode 2 migration;
+those results do not verify the current version. They remove their own check conversations and
 save screenshots and generated audio in the ignored samples folder.
 
 `test:behavior:live` holds a six-turn conversation with a real model from your signed-in
@@ -600,6 +633,10 @@ does not include file attachments, a full file editor, or package publication.
 
 ## Developing Picard Code
 
+- [CONTRIBUTING.md](CONTRIBUTING.md): welcome areas, proposal guidance, and review.
+- [SUPPORT.md](SUPPORT.md): questions and troubleshooting.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): respectful participation and reporting.
+- [SECURITY.md](SECURITY.md): private security reports and supported versions.
 - [AGENTS.md](AGENTS.md): rules for people and coding agents changing this repository.
 - [Continuing on another computer](docs/CONTINUING.md): setup, checks and open work.
 - [Conversation research](docs/research/conversation-research.md) and
