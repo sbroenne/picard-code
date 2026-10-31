@@ -99,9 +99,11 @@ screen; there is no phone layout.
 
 - **Logs** (`#records`): earlier conversations in the project folder (latest
   100). Choose one to reopen it.
-- **Options** (`#options`): the Copilot model.
-- **Settings** (`#settings`): the Copilot connection steps, the project folder,
-  speech, and the full privacy and approvals text. If Copilot is not connected
+- **Settings** (`#settings`): one page with tabs. **Copilot** has the
+  connection steps and the model, **Project** the folder, **Voice** the
+  listening and speaking services, and **About** the tribute. The tiles in the
+  side panel open the matching tab: Copilot and Model open Copilot, Project
+  opens Project, and Listen · Speak opens Voice. If Copilot is not connected
   when the app opens, Settings is shown first. Listening pauses while
   Settings is open. Speech changes apply without restarting.
 
@@ -117,11 +119,9 @@ than substituting another provider.
 
 ## Use it
 
-- The first time, Settings opens with a short note on where audio goes.
-  Choose **Start listening** there; the browser asks for microphone access.
-  After that, listening starts by itself whenever the app opens, unless you
-  said "Computer, stop listening" (remembered) or Settings is open. Saving
-  speech settings also counts as agreeing to the note. If the browser blocks
+- Listening starts by itself whenever the app opens; the browser asks for
+  microphone access the first time. It stays off if you said "Computer, stop
+  listening" (remembered) and while Settings is open. If the browser blocks
   sound until you interact, the screen says "Click anywhere to start listening."
 - Say **"Computer, stop listening"** to switch the microphone off. Click the
   computer panel (the status and its lights) to listen again.
@@ -232,16 +232,16 @@ Check current model availability and your subscription's eligibility first.
 The speaking voice uses the same resource and needs no voice cloning or
 separate model deployment.
 
-**MAI live listening can process audio outside Europe**, even when the
-resource is in Sweden. A short note in the console says where audio goes
-until you first start listening with those services; the full text is in
-Settings.
+Azure speech always uses **your own** Azure subscription and resource. With
+a GlobalStandard deployment, Azure may process the listening audio outside
+your resource's region, for example outside Europe for a resource in Sweden.
 Azure charges and any Visual Studio credit coverage depend on your
 subscription; this app does not change spending limits or promise credits
 cover the service.
 
-The easiest way is the **Speech** section of the Settings page. Choose the
-listening and speaking services, fill in your resource, and choose **Save and
+The easiest way is the **Voice** tab in Settings. Choose the listening and
+speaking services, fill in your resource (only the fields the chosen services
+need are shown), and choose **Save and
 apply**. The new speech setup starts right away, with no restart. If it cannot
 start (for example a wrong region), the error is shown, the file is not
 changed, and the speech setup that was working stays in use.
@@ -514,7 +514,7 @@ and repeat the browser checks.
 - **Unusual installation:** `PICARD_OPENCODE_PATH` can point to the real
   OpenCode program or its JavaScript starting file, but not a Windows `.cmd` shortcut.
 - **Microphone will not start:** use a current browser at the printed local
-  address, click the computer panel (or **Start listening** in Settings the first time), allow microphone access,
+  address, click the computer panel, allow microphone access,
   and check the input
   device. The selected speech setup and a connected Copilot model are required.
 - **Azure rejects speech:** check resource access, the deployed live listening

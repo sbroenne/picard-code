@@ -73,13 +73,15 @@ try {
       if (typeof payload !== "string") { sentAudio += payload.length; if (speaking) audioWhileSpeaking++; }
     });
   });
+  // Stay not listening until the model is chosen, so the first request uses it.
+  await page.addInitScript(() => { if (!sessionStorage.getItem("picard-check")) { sessionStorage.setItem("picard-check", "1"); localStorage.setItem("picard-muted", "yes"); } });
   await page.goto(app.url);
-  // The first time, Settings opens with the note about where audio goes. Choose the model first, then agree.
-  await expect(page.getByRole("heading", { name: "Before the computer listens" })).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("link", { name: "Close" }).first().click();
+  await expect(page.getByRole("status")).toHaveText("Not listening", { timeout: 30_000 });
+  // Settings pauses listening, so choose the model there first; closing it starts listening.
+  await page.goto(`${new URL(app.url).origin}/#settings/copilot`);
   await page.selectOption("#model", JSON.stringify([choice.providerID, choice.modelID]));
+  await page.getByRole("link", { name: "Close" }).first().click();
   await page.locator("#voice-console").click();
-  await page.getByRole("button", { name: "Start listening" }).click();
   await expect(page.locator(".message[data-role=user]")).toContainText(/connection is ready/i, { timeout: 60_000 });
   await expect(page.locator(".message[data-role=assistant]")).toContainText(/connection is ready/i, { timeout: 90_000 });
   await expect(page.getByRole("status")).toHaveText("Speaking", { timeout: 30_000 });

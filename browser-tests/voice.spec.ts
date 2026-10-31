@@ -69,19 +69,18 @@ async function launch(page: import("@playwright/test").Page, mode?: "approval" |
   });
   page.on("close", () => child.kill());
   await page.goto(url);
-  // The first time, Settings opens to say where audio goes before the computer listens.
-  await expect(page.getByRole("heading", { name: "Before the computer listens" })).toBeVisible({ timeout: 15000 });
+  // No note or agreement step: the main screen opens straight away.
+  await expect(page.locator("#drawer-settings")).toBeHidden();
+  await expect(status(page)).not.toHaveText("Starting up", { timeout: 15000 });
 }
 
 function status(page: import("@playwright/test").Page) {
   return page.getByRole("status");
 }
 
-/** Starts listening the first time, as a person would, and waits until the computer is standing by. */
+/** Listening starts by itself; one click on the computer panel lets the browser play sound. */
 async function startListening(page: import("@playwright/test").Page) {
-  await expect(page.locator("#consent-text")).toContainText("Only requests that start with “Computer” are sent to Copilot.");
-  await page.getByRole("button", { name: "Start listening" }).click();
-  await expect(page.locator("#drawer-settings")).toBeHidden();
+  await page.locator("#voice-console").click();
   await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
 }
 
@@ -101,13 +100,8 @@ test.setTimeout(60000);
 
 test("listening stays on; only requests addressed to the computer are sent; stopping is remembered", async ({ page }, info) => {
   await launch(page);
-  // Closing Settings without agreeing leaves the computer not listening; clicking the panel goes back to Settings.
-  await page.getByRole("link", { name: "Close" }).first().click();
-  await expect(status(page)).toHaveText("Not listening");
-  await expect(page.locator("#status-detail")).toHaveText("Click here to set up listening.");
   await expect(page.getByRole("button", { name: "Start listening" })).toHaveCount(0);
   await expect(page.getByRole("textbox")).toHaveCount(0);
-  await page.locator("#voice-console").click();
   await startListening(page);
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
   await expect(status(page)).toHaveText("Speaking");
