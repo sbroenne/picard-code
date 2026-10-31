@@ -1,14 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm, realpath } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, rm, realpath } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { request as httpRequest } from "node:http";
 import { startFixture } from "./fixture.js";
-import { startApp } from "../server/app.js";
+import { browserEvents, checkAnswer, startApp } from "../server/app.js";
+import { chatMessages, STOPPED } from "../server/history.js";
+import type { SessionMessage } from "../server/opencode.js";
 import { localServerUrl, makeClient } from "../server/engine.js";
-import type { AppState } from "../shared/types.js";
+import type { AppState, FormField, SpeechSettings } from "../shared/types.js";
+import type { AppOptions } from "../server/app.js";
+import { speechFixture } from "./speech-fixture.js";
 
-async function setup() {
+async function setup(extra: Partial<AppOptions> = {}) {
   const temporary = await mkdtemp(resolve(".picard-test-"));
   const project = join(temporary, "project");
   const other = join(temporary, "other");
@@ -17,7 +21,7 @@ async function setup() {
   await writeFile(join(webRoot, "index.html"), "<!doctype html><title>Picard Code</title>");
   const directory = await realpath(project);
   const fixture = await startFixture(directory);
-  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot });
+  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot, speechFile: join(temporary, "speech.json"), ...extra });
   let cookie = "";
   const request = (path: string, data?: unknown, headers: Record<string, string> = {}) => fetch(`${app.origin}/api/${path}`, {
     method: data === undefined ? "GET" : "POST",
@@ -37,7 +41,7 @@ async function setup() {
     await fixture.close();
     await rm(temporary, { recursive: true });
   };
-  return { app, fixture, request, login, cleanup, directory, other };
+  return { app, fixture, request, login, cleanup, directory, other, temporary };
 }
 
 test("only explicit local HTTP server addresses are accepted", () => {
@@ -70,16 +74,17 @@ test("local browser access needs the launch token; unrelated sites and hosts are
   assert.equal((await context.request("conversations", {}, { "Content-Type": "text/plain" })).status, 415);
   const stateResponse = await context.request("state");
   const text = await stateResponse.text();
-  assert.doesNotMatch(text, /must-never-reach-browser|fixture-password|other-provider/);
+  assert.doesNotMatch(text, /must-never-reach-browser|fixture-password|Retired model/);
   const state = JSON.parse(text) as AppState;
-  assert.equal(state.models[0]?.providerID, "github-copilot");
+  // Every provider OpenCode can use is offered, by its display name only.
+  assert.deepEqual(state.models.map((model) => [model.provider, model.name]), [["GitHub Copilot", "Copilot test model"], ["Other Provider", "Other model"]]);
   const page = await fetch(context.app.origin);
   assert.match(page.headers.get("content-security-policy")!, /frame-ancestors 'none'/);
   assert.doesNotMatch(await page.text(), new RegExp(context.app.token));
   assert.equal((await fetch(`${context.app.origin}/%2e%2e%5cpackage.json`)).status, 403);
 });
 
-test("saved conversations and project context use the actual SDK; other folders cannot be controlled", async (t) => {
+test("saved conversations and project context go through OpenCode; other folders cannot be controlled", async (t) => {
   const context = await setup();
   t.after(context.cleanup);
   await context.login();
@@ -91,7 +96,7 @@ test("saved conversations and project context use the actual SDK; other folders 
   assert.equal((await context.request(`conversations/${session.id}/messages`)).status, 200);
   const foreign = context.fixture.createSession(context.other, "Other folder");
   assert.equal((await context.request(`conversations/${foreign.id}/stop`, {})).status, 403);
-  assert.equal((await context.request(`conversations/${session.id}/send`, { text: "Hello", providerID: "other-provider", modelID: "other", agent: "build" })).status, 400);
+  assert.equal((await context.request(`conversations/${session.id}/send`, { text: "Hello", providerID: "other-provider", modelID: "old" })).status, 400);
   assert.equal((await context.request("project", { path: join(context.other, "missing") })).status, 400);
   const switched = await context.request("project", { path: context.other });
   assert.equal(switched.status, 200);
@@ -101,7 +106,7 @@ test("saved conversations and project context use the actual SDK; other folders 
   assert.equal((await context.request(`conversations/${session.id}/stop`, {})).status, 403);
 });
 
-test("prompt_async produces actual streamed deltas and a saved reply through the SDK", async (t) => {
+test("a request streams live text and a saved reply, with Picard's manner sent per conversation", async (t) => {
   const context = await setup();
   t.after(context.cleanup);
   await context.login();
@@ -111,25 +116,29 @@ test("prompt_async produces actual streamed deltas and a saved reply through the
   t.after(() => reader.cancel());
   const first = await reader.read();
   assert.match(new TextDecoder().decode(first.value), /connected/);
-  const accepted = await context.request(`conversations/${session.id}/send`, { text: "Hello computer", providerID: "github-copilot", modelID: "fixture-model", agent: "plan" });
+  const accepted = await context.request(`conversations/${session.id}/send`, { text: "Hello computer", providerID: "github-copilot", modelID: "fixture-model" });
   assert.equal(accepted.status, 202);
   let observed = "";
   const deadline = Date.now() + 5000;
-  while (!observed.includes("session.idle") && Date.now() < deadline) {
+  const finished = () => observed.includes('"delta"') && observed.lastIndexOf('"state"') > observed.lastIndexOf('"delta"');
+  while (!finished() && Date.now() < deadline) {
     const chunk = await reader.read();
     observed += new TextDecoder().decode(chunk.value);
   }
-  assert.match(observed, /message\.part\.delta/);
-  assert.match(observed, /session\.idle/);
+  assert.match(observed, /"type":"delta"/);
+  assert.match(observed, /"type":"changed"/);
   const messages = await (await context.request(`conversations/${session.id}/messages`)).json();
   assert.equal(messages[1].parts[0].text, "A genuinely streamed reply from the test fixture.");
-  const prompt = context.fixture.requests.find((request) => request.path.endsWith("/prompt_async"))!;
+  const prompt = context.fixture.requests.find((request) => request.path.endsWith("/prompt"))!;
   assert.equal(prompt.directory, context.directory);
-  assert.equal(prompt.data.agent, "plan");
-  assert.equal(prompt.data.tools, undefined);
-  assert.equal(prompt.data.permission, undefined);
-  assert.match(String(prompt.data.system), /brief, precise, neutral/i);
-  assert.match(String(prompt.data.system), /Never invent completion/);
+  assert.deepEqual(prompt.data, { text: "Hello computer" }, "only the user's own words are sent, unchanged");
+  const manner = context.fixture.instructions.get(session.id)?.["picard-manner"] ?? "";
+  assert.match(manner, /brief, precise, neutral/i);
+  assert.match(manner, /Never invent completion/);
+  const prepared = context.fixture.requests.filter((request) => request.method !== "GET" && /\/session\/.+\/(model|instructions\/entries\/picard-manner)$/.test(request.path));
+  assert.equal(prepared.length, 2);
+  assert.ok(prepared.every((request) => context.fixture.requests.indexOf(request) < context.fixture.requests.indexOf(prompt)));
+  assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/reply")), false);
 });
 
 test("approvals and questions stay pending until the user answers; no automatic approval", async (t) => {
@@ -137,34 +146,138 @@ test("approvals and questions stay pending until the user answers; no automatic 
   t.after(context.cleanup);
   await context.login();
   const session = await (await context.request("conversations", {})).json();
-  const send = (text: string) => context.request(`conversations/${session.id}/send`, { text, providerID: "github-copilot", modelID: "fixture-model", agent: "build" });
+  const send = (text: string) => context.request(`conversations/${session.id}/send`, { text, providerID: "github-copilot", modelID: "fixture-model" });
   assert.equal((await send("Request an approval")).status, 202);
+  await new Promise((resolve) => setTimeout(resolve, 100));
   let state = await (await context.request("state")).json() as AppState;
   assert.equal(state.permissions.length, 1);
-  assert.equal(context.fixture.requests.filter((request) => request.path.includes("/permission/")).length, 0);
+  assert.equal(state.statuses[session.id]?.type, "busy");
+  assert.equal(context.fixture.requests.filter((request) => request.path.endsWith("/reply")).length, 0);
   assert.equal((await context.request("refresh", {})).status, 409);
   assert.equal((await context.request("project", { path: context.other })).status, 409);
   assert.equal((await send("Another message")).status, 409);
   const permission = state.permissions[0]!;
   assert.equal((await context.request(`permissions/${permission.id}`, { reply: "always" })).status, 400);
-  assert.equal((await context.request(`permissions/${permission.id}`, { reply: "once" })).status, 200);
+  assert.equal((await context.request(`permissions/${permission.id}`, { reply: "reject" })).status, 200);
+  assert.equal(context.fixture.requests.at(-1)?.data.decision, "reject");
   assert.equal((await context.request(`permissions/${permission.id}`, { reply: "once" })).status, 409);
-  await context.request(`conversations/${session.id}/stop`, {});
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  const denied = await (await context.request(`conversations/${session.id}/messages`)).json();
+  assert.match(JSON.stringify(denied.at(-1)), /declined this tool call/);
+
   assert.equal((await send("Ask a question")).status, 202);
+  await new Promise((resolve) => setTimeout(resolve, 100));
   state = await (await context.request("state")).json() as AppState;
   const question = state.questions[0]!;
-  assert.equal((await context.request(`questions/${question.id}`, { answers: [] })).status, 400);
-  assert.equal((await context.request(`questions/${question.id}`, { answers: [["Explain first"]] })).status, 200);
-  assert.equal(context.fixture.requests.at(-1)?.data.answers instanceof Array, true);
+  assert.equal((await context.request(`questions/${question.id}`, { answer: {} })).status, 400);
+  assert.equal((await context.request(`questions/${question.id}`, { answer: { other: "x" } })).status, 400);
+  assert.equal((await context.request(`questions/${question.id}`, { answer: { q0: "Explain first" } })).status, 200);
+  assert.deepEqual(context.fixture.requests.at(-1)?.data, { answer: { q0: "Explain first" } });
+
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  assert.equal((await send("Ask a question")).status, 202);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  state = await (await context.request("state")).json() as AppState;
+  assert.equal((await context.request(`questions/${state.questions[0]!.id}`, { skip: true })).status, 200);
+  assert.equal(context.fixture.requests.at(-1)?.method, "DELETE");
 });
 
-test("missing Copilot authorization is an honest setup state, not a fallback to another provider", async (t) => {
+test("answers are checked against the question before they reach OpenCode", () => {
+  const fields: FormField[] = [
+    { key: "pick", type: "string", title: "Pick", options: [{ value: "a", label: "A" }], custom: false },
+    { key: "free", type: "string", title: "Free" },
+    { key: "many", type: "multiselect", title: "Many", options: [{ value: "x", label: "X" }, { value: "y", label: "Y" }] },
+    { key: "ok", type: "boolean", title: "Okay" },
+    { key: "count", type: "integer", title: "Count" },
+    { key: "page", type: "external", title: "Page", url: "https://example.com" },
+  ];
+  assert.deepEqual(checkAnswer(fields, { pick: "a", free: "anything", many: ["x"], ok: true, count: 3 }), { pick: "a", free: "anything", many: ["x"], ok: true, count: 3 });
+  for (const bad of [undefined, [], {}, { pick: "b" }, { free: " " }, { many: ["z"] }, { ok: "yes" }, { count: 1.5 }, { page: "x" }, { unknown: "x" }]) {
+    assert.throws(() => checkAnswer(fields, bad), /./, JSON.stringify(bad));
+  }
+});
+
+test("OpenCode events become the few browser updates the screen needs", () => {
+  const event = (type: string, data: Record<string, unknown>) => ({ type, data });
+  assert.deepEqual(browserEvents(event("session.text.delta", { sessionID: "s", assistantMessageID: "m", ordinal: 0, delta: "Hi" })),
+    [{ type: "delta", sessionID: "s", messageID: "m", partID: "m:text:0", partType: "text", delta: "Hi" }]);
+  assert.deepEqual(browserEvents(event("session.tool.failed", { sessionID: "s" })), [{ type: "changed", sessionID: "s" }]);
+  assert.deepEqual(browserEvents(event("session.execution.failed", { sessionID: "s", error: { message: "No route." } })),
+    [{ type: "state" }, { type: "changed", sessionID: "s" }, { type: "error", sessionID: "s", message: "No route." }]);
+  assert.deepEqual(browserEvents(event("permission.asked", { sessionID: "s" })), [{ type: "state" }]);
+  assert.deepEqual(browserEvents(event("session.text.started", { sessionID: "s" })), []);
+});
+
+test("saved history keeps real errors and explains stopped work", () => {
+  const at = { created: 1 };
+  const history = [
+    { id: "u1", type: "user", text: "Run it", time: at },
+    { id: "a1", type: "assistant", content: [{ type: "tool", id: "c", name: "shell", state: { status: "error", input: {}, error: { type: "aborted", message: "The user declined this tool call" } } }], error: { type: "aborted", message: "Step interrupted" }, time: at },
+    { id: "u2", type: "user", text: "Again", time: at },
+    { id: "a2", type: "assistant", content: [{ type: "text", text: "Starting" }], error: { type: "aborted", message: "Step interrupted" }, time: at },
+    { id: "u3", type: "user", text: "Once more", time: at },
+    { id: "i3", type: "idle", outcome: "failed", error: { type: "provider", message: "The model cannot be reached." }, time: at },
+  ] as unknown as SessionMessage[];
+  const chat = chatMessages(history);
+  assert.equal(chat.length, 6);
+  assert.equal(chat[1]!.error, undefined, "a declined action already explains itself");
+  assert.match(chat[1]!.parts[0]!.text, /^shell/);
+  assert.equal(chat[3]!.error, STOPPED);
+  assert.equal(chat[5]!.role, "assistant");
+  assert.equal(chat[5]!.error, "The model cannot be reached.");
+});
+
+test("with no provider signed in, setup is needed and nothing is invented", async (t) => {
   const context = await setup();
   t.after(context.cleanup);
   await context.login();
-  context.fixture.setCopilot(false);
+  context.fixture.setSignedIn(false);
   const state = await (await context.request("state")).json() as AppState;
   assert.deepEqual(state.models, []);
   assert.equal(state.defaultModel, undefined);
   assert.equal((await context.request("refresh", {})).status, 200);
+});
+
+test("speech settings change while the app runs; a failing choice leaves the working one in place", async (t) => {
+  const started: Record<string, unknown>[] = [];
+  let closed = 0;
+  const context = await setup({
+    speechError: "Speech did not start. Provide a valid deployment in the speech settings.",
+    startSpeech: async (settings) => {
+      if (settings.region === "broken") throw new Error("Azure could not be reached.");
+      started.push(settings);
+      const fixture = speechFixture();
+      return { ...fixture.service, selection: { listening: settings.listening as "mai", speaking: settings.speaking as "kokoro" }, close: async () => { ++closed; } };
+    },
+  });
+  t.after(context.cleanup);
+  await context.login();
+  let state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.speech?.configured, false);
+  assert.match(state.speech?.error ?? "", /did not start/);
+  const file = join(context.temporary, "speech.json");
+  const empty = await (await context.request("settings")).json() as { settings: SpeechSettings; file: string };
+  assert.equal(empty.file, file);
+  assert.equal(empty.settings.listening, "mai");
+
+  const choice = { listening: "mai", speaking: "kokoro", subscription: "sub-1", resourceGroup: "group", resourceName: "name", region: "swedencentral", deployment: "listen", voice: "", voiceStyle: "", kokoroVoice: "bf_emma" };
+  assert.equal((await context.request("settings", { ...choice, listening: "other" })).status, 400);
+  assert.equal((await context.request("settings", { ...choice, region: "has spaces" })).status, 400);
+  const saved = await context.request("settings", choice);
+  assert.equal(saved.status, 200);
+  assert.equal(started.length, 1);
+  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), { listening: "mai", speaking: "kokoro", subscription: "sub-1", resourceGroup: "group", resourceName: "name", region: "swedencentral", deployment: "listen", kokoroVoice: "bf_emma" });
+  state = await (await context.request("state")).json() as AppState;
+  assert.deepEqual(state.speech, { configured: true, listening: "mai", speaking: "kokoro" });
+
+  const failed = await context.request("settings", { ...choice, region: "broken" });
+  assert.equal(failed.status, 400);
+  assert.match((await failed.json()).error, /nothing was changed\. Azure could not be reached/);
+  assert.equal(JSON.parse(await readFile(file, "utf8")).region, "swedencentral");
+  assert.equal(closed, 0);
+
+  assert.equal((await context.request("settings", { ...choice, speaking: "mai" })).status, 200);
+  assert.equal(closed, 1, "the previous speech service is released after a change");
+  state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.speech?.speaking, "mai");
 });

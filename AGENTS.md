@@ -6,11 +6,11 @@ Rules for people and coding agents who change this repository. Read
 
 ## What this is
 
-A small local browser app. Spoken conversation is the main experience; typing
-is a fallback. OpenCode does the coding through the user's own GitHub Copilot
-sign-in. Azure MAI is the preferred listening and speaking service; local
+A small local browser app. Spoken conversation is the only way to make
+requests; there is no typing. OpenCode does the coding with any model provider it
+supports, using the user's own sign-in. Azure MAI is the preferred listening and speaking service; local
 Whisper listening and Kokoro speaking can be chosen instead, each side on its
-own. It is an unofficial tribute to Patrick Stewart's Jean-Luc Picard with an
+own. It is an unofficial tribute to Sir Patrick Stewart's Jean-Luc Picard with an
 original TNG-inspired look.
 
 - `src/server/`: local server, OpenCode connection, speech services, launcher.
@@ -24,9 +24,27 @@ original TNG-inspired look.
 
 - **Plain English** in everything users or the owner read: interface text,
   errors, docs, issues and pull requests. Avoid jargon.
-- **Never weaken approvals.** OpenCode's own permission rules decide what asks
-  first. Do not add automatic approval, "always allow", voice approval, or
-  remove deny rules. Approvals need a button.
+- **Star Trek: The Next Generation terms** in everything the user sees or
+  hears, as long as they stay plain and clear. Use these names, not generic
+  app words:
+
+  | Say | Not |
+  | --- | --- |
+  | Captain’s log | history, logs, records |
+  | log entry | conversation, chat, session, task |
+  | New log entry | New task, New chat |
+  | Current log entry (the main screen) | Conversation, Home |
+  | Stardate | date (the ordinary date may go in a tooltip) |
+  | Standing by | Idle, Ready |
+  | “Computer” | wake word, assistant |
+
+  Code names (such as `conversations` in the API) may stay as they are. Error
+  messages stay exact and plain; never trade clarity for flavour. Spoken
+  phrases like "new task" may still be understood as alternatives.
+- **Never weaken approvals.** OpenCode's own permission rules decide what
+  asks first; Picard Code adds no rules and answers no approval itself. Do not
+  add automatic approval, "always allow", voice approval, OpenCode's `--auto`
+  option, or remove deny rules. Approvals need a button (Allow once or Deny).
 - **Truthful results.** Never claim work succeeded, ran, or was heard before the
   real result arrives. Never replace a real error with a vague or themed message.
   No silent fallback from one speech service to another.
@@ -57,7 +75,9 @@ and `src/shared/speech.ts` (what is spoken aloud). Keep replies brief, precise
 and neutral; acknowledge only when true; say clearly when information is not
 available. Spoken answers are complete short sentences, with detail on screen.
 Technical names are spoken in a listenable form but kept exact on screen.
-Avoid repeated catchphrases such as "Working". The research in
+Avoid repeated catchphrases such as "Working". The user is always
+Captain Jean-Luc Picard: their lines are labelled "Picard" on screen, and the
+computer says "Captain" now and then, never in every reply. The research in
 `docs/research/` explains why, including which evidence is weak; do not cite
 it as stronger than it is.
 
@@ -66,7 +86,7 @@ never instead of the written or spoken explanation:
 
 | Sound | When |
 | --- | --- |
-| `request-accepted` | A spoken request was accepted by OpenCode. |
+| `request-accepted` | A spoken request was accepted by OpenCode, "Computer" was said on its own and the computer is waiting for the request, or "stop listening" was acknowledged. |
 | `processing` | Work is still running about 2.5 s later, with no answer, question or approval yet. |
 | `input-failed` | Speech was not understood or could not be sent. |
 | `request-failed` | An accepted request finally failed or was denied, just before the spoken result. |
@@ -87,7 +107,7 @@ microphone and silent stand-in sounds. They do not prove real services work.
 When you change OpenCode, speech or conversation behavior, also run the
 matching real check from the README (`test:live`, `test:speech:live`,
 `test:speech:local`, `test:conversation:live`, `test:behavior:live`). Most of
-these make real Copilot requests and some make small Azure charges. Report
+these make real model requests and some make small Azure charges. Report
 plainly which real checks ran and which could not.
 
 Still not checked anywhere: a physical microphone and speakers (room noise,

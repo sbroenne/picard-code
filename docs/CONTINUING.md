@@ -17,21 +17,28 @@ npm run build
 npm test
 ```
 
-If npm asks to approve OpenCode's setup script, review it, then run
-`npm install-scripts approve opencode-ai` and `npm rebuild opencode-ai`.
+Picard Code uses OpenCode 2 (the `@opencode/cli` package); `npm install`
+brings the tested copy. If npm asks to approve OpenCode's setup script, review
+it, then run `npm install-scripts approve @opencode/cli` and
+`npm rebuild @opencode/cli`.
 
-## 2. Connect GitHub Copilot through OpenCode
+## 2. Sign in to a model provider through OpenCode
 
-Each computer needs its own sign-in. Run `npm run opencode`, type `/connect`,
-choose **GitHub Copilot**, and approve the official GitHub device sign-in
-yourself with the `sbroenne` account. Do not copy tokens from another computer.
+Picard Code works with any provider OpenCode supports. Each computer needs its
+own sign-in. Run `npm run opencode -- auth login` and choose your provider. For
+GitHub Copilot, approve the official GitHub device sign-in yourself with the
+`sbroenne` account. Do not copy tokens from another computer.
+`npm run opencode -- auth list` shows which providers are signed in. A sign-in made
+with OpenCode 1 does not carry over; sign in again.
 
 ## 3. Choose speech
 
-**Azure MAI (preferred).** Install Azure CLI and run `az login`. Create
-`.picard-speech.json` in the folder you launch from, with your subscription,
-resource group, resource name, region and live-listening deployment, as shown
-in the README. The default voice is British Emily (`neutral` style). The file
+**Azure MAI (preferred).** Install Azure CLI and run `az login`. Start
+Picard Code, open **Settings**, and fill in the Speech section with your
+subscription, resource group, resource name, region and live-listening
+deployment, then choose **Save and apply**; no restart is needed. This saves
+`.picard-speech.json` (in the Picard Code folder, or the launch folder if a file
+is already there), as described in the README. The default voice is British Emily (`neutral` style). The file
 holds no key; the key is read into memory at startup.
 
 **Local Whisper and Kokoro.** Install `uv` and Python 3.11, then follow the
@@ -58,7 +65,7 @@ npm start
 ```
 
 Then run the checks. The first four use test stand-ins; the rest use real
-services, and most make real Copilot requests (MAI checks also make small
+services, and most make real model requests (MAI checks also make small
 Azure charges):
 
 ```sh

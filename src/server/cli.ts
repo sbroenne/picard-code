@@ -3,9 +3,10 @@ import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startApp } from "./app.js";
-import { makeClient, localServerUrl, errorMessage } from "./engine.js";
+import { checkVersion, makeClient, localServerUrl, errorMessage } from "./engine.js";
 import { projectDirectory, startEngine, openBrowser } from "./process.js";
 import { loadSpeech } from "./speech.js";
+import type { SpeechService } from "./speech-types.js";
 
 async function main() {
   const { values } = parseArgs({
@@ -32,9 +33,9 @@ async function main() {
   --speaking      mai (Azure, preferred) or kokoro (local)
   --help, -h      Show these instructions
 
-First connect GitHub Copilot in OpenCode: run "npm run opencode", type /connect,
-choose GitHub Copilot, and approve the device sign-in using your account.
-An existing gh sign-in is not a Copilot sign-in.`);
+Picard Code works with any model provider OpenCode supports, such as GitHub
+Copilot, Anthropic or OpenAI. To sign in, run "npm run opencode -- auth login"
+and choose your provider.`);
     return;
   }
   const port = values.port === undefined ? 0 : Number(values.port);
@@ -61,9 +62,10 @@ An existing gh sign-in is not a Copilot sign-in.`);
       process.exitCode = 1;
     });
   };
-  process.once("SIGINT", shutdown);
-  process.once("SIGTERM", shutdown);
-  process.once("SIGHUP", shutdown);
+  // npm passes Ctrl+C on as well, so the same signal can arrive twice; keep handling it until OpenCode has stopped.
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+  process.on("SIGHUP", shutdown);
   try {
     let client;
     if (values.connect) {
@@ -71,10 +73,9 @@ An existing gh sign-in is not a Copilot sign-in.`);
       const password = process.env.OPENCODE_SERVER_PASSWORD;
       if (!password) throw new Error("To reuse OpenCode, set OPENCODE_SERVER_PASSWORD to that server's password in this terminal. Never put it in a browser address.");
       client = makeClient(baseUrl, password, process.env.OPENCODE_SERVER_USERNAME ?? "opencode");
-      const health = await client.global.health({ throwOnError: true, signal: AbortSignal.timeout(5000) });
-      if (!health.data.healthy) throw new Error("The existing OpenCode server is not healthy.");
+      await client.info();
       // Make sure unauthenticated callers cannot use the reused server.
-      const unauthenticated = await fetch(`${baseUrl}/global/health`, { redirect: "error", signal: AbortSignal.timeout(5000) });
+      const unauthenticated = await fetch(`${baseUrl}/api/info`, { redirect: "error", signal: AbortSignal.timeout(5000) });
       if (unauthenticated.status !== 401) throw new Error("The existing OpenCode server is not password-protected. Restart it with OPENCODE_SERVER_PASSWORD.");
     } else {
       console.log("Starting OpenCode on this computer...");
@@ -88,18 +89,29 @@ An existing gh sign-in is not a Copilot sign-in.`);
         }
       });
     }
-    const path = await client.path.get({ directory: project }, { throwOnError: true, signal: AbortSignal.timeout(15_000) });
+    await checkVersion(client);
+    const path = await client.location(project);
     controller.signal.throwIfAborted();
-    if (resolve(path.data.directory) !== project) throw new Error("OpenCode did not select the requested project folder.");
-    const speech = await loadSpeech({ listening: values.listening, speaking: values.speaking }, controller.signal);
+    if (resolve(path.directory) !== project) throw new Error("OpenCode did not select the requested project folder.");
+    // A speech mistake should not stop the app; it is shown on the settings page so it can be fixed there.
+    let speech: SpeechService | undefined;
+    let speechError: string | undefined;
+    try { speech = await loadSpeech({ listening: values.listening, speaking: values.speaking }, controller.signal); }
+    catch (error) {
+      if (error instanceof Error && error.name === "AbortError") throw error;
+      speechError = `Speech did not start. ${errorMessage(error)}`;
+      console.error(speechError);
+    }
     cleanupSpeech = () => speech?.close?.();
     controller.signal.throwIfAborted();
     const app = await startApp({
       client, project, port,
-      speech,
+      speech, speechError,
       webRoot: fileURLToPath(new URL("../../web-dist/", import.meta.url)),
       soundFolder: fileURLToPath(new URL("../../.picard-sounds/", import.meta.url)),
     });
+    // From here the app owns speech, including any service chosen later in settings.
+    cleanupSpeech = undefined;
     cleanupApp = app.close;
     console.log(`\nPicard Code is ready.\nProject: ${project}\n\n${app.url}\n\nKeep this terminal open. Press Ctrl+C to stop.\n`);
     if (!values["no-open"]) {

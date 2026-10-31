@@ -1,8 +1,7 @@
-import { createOpencodeClient, type OpencodeClient } from "@opencode-ai/sdk/v2";
+import { OpenCode } from "./opencode.js";
 import type { ModelChoice } from "../shared/types.js";
-export { errorMessage, chatMessage } from "../shared/messages.js";
-
-export const COPILOT_PROVIDERS = new Set(["github-copilot", "github-copilot-enterprise"]);
+export { errorMessage } from "../shared/messages.js";
+export { chatMessages } from "./history.js";
 
 export function localServerUrl(input: string): string {
   const url = new URL(input);
@@ -18,29 +17,30 @@ export function localServerUrl(input: string): string {
   return url.origin;
 }
 
-export function makeClient(baseUrl: string, password: string, username = "opencode"): OpencodeClient {
-  return createOpencodeClient({
-    baseUrl: localServerUrl(baseUrl),
-    headers: { Authorization: `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}` },
-    throwOnError: true,
-    fetch: (request) => {
-      // SDK requests carry their own signals, including the long-lived event stream.
-      return fetch(request, { redirect: "error" });
-    },
-  });
+export function makeClient(baseUrl: string, password: string, username = "opencode") {
+  return new OpenCode(localServerUrl(baseUrl), password, username);
 }
 
-export async function copilotModels(client: OpencodeClient, directory: string) {
-  const result = await client.provider.list({ directory }, { signal: AbortSignal.timeout(15_000), throwOnError: true });
-  const models: ModelChoice[] = [];
-  for (const provider of result.data.all) {
-    if (!COPILOT_PROVIDERS.has(provider.id) || !result.data.connected.includes(provider.id)) continue;
-    for (const model of Object.values(provider.models)) {
-      if (model.status === "deprecated") continue;
-      models.push({ providerID: provider.id, modelID: model.id, name: model.name });
-    }
-  }
-  models.sort((a, b) => a.name.localeCompare(b.name));
-  const defaultModel = models.find((model) => result.data.default[model.providerID] === model.modelID) ?? models[0];
+/** Picard Code speaks OpenCode 2's interface; older servers answer differently. */
+export async function checkVersion(client: OpenCode) {
+  const { version } = await client.info();
+  if (!/^2\./.test(version)) throw new Error(`Picard Code needs OpenCode 2, but this OpenCode is version ${version}. Run npm install in the Picard Code folder, or update OpenCode.`);
+  return version;
+}
+
+/** Every model OpenCode can use right now, from any provider. OpenCode lists only providers it can reach. */
+export async function availableModels(client: OpenCode, directory: string) {
+  const [all, preferred, providers] = await Promise.all([
+    client.models(directory),
+    client.defaultModel(directory).catch(() => null),
+    client.providers(directory).catch(() => []),
+  ]);
+  // Only provider names are kept: OpenCode's provider settings can hold keys.
+  const providerName = new Map(providers.map((provider) => [provider.id, provider.name]));
+  const models: ModelChoice[] = all
+    .filter((model) => model.enabled !== false && model.status !== "deprecated")
+    .map((model) => ({ providerID: model.providerID, provider: providerName.get(model.providerID) ?? model.providerID, modelID: model.id, name: model.name }));
+  models.sort((a, b) => a.provider.localeCompare(b.provider) || a.name.localeCompare(b.name));
+  const defaultModel = models.find((model) => model.providerID === preferred?.providerID && model.modelID === preferred.id) ?? models[0];
   return { models, defaultModel };
 }

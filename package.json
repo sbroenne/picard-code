@@ -25,18 +25,19 @@
     "setup:sounds": "node scripts/setup-sounds.mjs"
   },
   "dependencies": {
-    "@opencode-ai/sdk": "1.19.5",
+    "dompurify": "^3.4.17",
+    "marked": "^18.1.2",
     "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@opencode/cli": "2.2.5",
     "@playwright/test": "^1.58.0",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.18.1",
-    "opencode-ai": "1.19.5",
     "typescript": "^5.9.3",
     "vite": "^8.0.0"
   },
   "allowScripts": {
-    "opencode-ai@1.19.5": true
+    "@opencode/cli@2.2.5": true
   }
 }

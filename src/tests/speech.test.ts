@@ -3,23 +3,54 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { WebSocket } from "ws";
 import { setTimeout as wait } from "node:timers/promises";
-import { EndOfSpeech, replyFailed, speakable, spokenReply, spokenSummary, type SpeechEvent } from "../shared/speech.js";
+import { Utterance, replyFailed, speakable, spokenReply, spokenSummary, type SpeechEvent } from "../shared/speech.js";
+import { addressed, voiceCommand } from "../shared/wake.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
+import type { FormField, FormRequest } from "../shared/types.js";
 import { speakingDocument } from "../server/azure-speech.js";
 import { DEFAULT_MAI_VOICE } from "../server/speech.js";
 import { attachSpeech } from "../server/speech-bridge.js";
 import { speechFixture } from "./speech-fixture.js";
 
-test("end of speech needs voice followed by a real pause, not silence or a click", () => {
-  const detector = new EndOfSpeech();
-  for (let index = 0; index < 100; index++) assert.equal(detector.update(0, 20), false);
-  assert.equal(detector.update(0.1, 20), false);
-  assert.equal(detector.update(0, 1000), false);
-  detector.reset();
-  assert.equal(detector.update(0.02, 120), false);
-  assert.equal(detector.update(0, 880), false);
-  assert.equal(detector.update(0, 20), true);
-  assert.equal(detector.update(0, 1000), false);
+test("an utterance starts with a short run of voice, ends after a real pause, and a click is dropped", () => {
+  const detector = new Utterance();
+  for (let index = 0; index < 100; index++) assert.equal(detector.update(0, 20), undefined);
+  assert.equal(detector.update(0.1, 20), undefined);
+  assert.equal(detector.update(0, 20), undefined, "A single loud frame is not speech.");
+  assert.equal(detector.update(0.1, 20), undefined);
+  assert.equal(detector.update(0.1, 20), undefined);
+  assert.equal(detector.update(0.1, 20), "start");
+  assert.equal(detector.update(0, 880), undefined);
+  assert.equal(detector.update(0, 20), "drop", "Voice too short to be words is dropped.");
+  assert.equal(detector.active, false);
+  assert.equal(detector.update(0.02, 60), "start");
+  assert.equal(detector.update(0.02, 200), undefined);
+  assert.equal(detector.update(0, 400), undefined);
+  assert.equal(detector.update(0.02, 100), undefined, "A short breath does not end the utterance.");
+  assert.equal(detector.update(0, 899), undefined);
+  assert.equal(detector.update(0, 1), "end");
+  assert.equal(detector.update(0, 1000), undefined);
+  assert.equal(detector.update(0.02, 60), "start");
+  for (let index = 0; index < 2996; index++) assert.equal(detector.update(0.02, 20), undefined);
+  assert.equal(detector.update(0.02, 20), "end", "Endless sound is ended after a minute.");
+});
+
+test("only speech that starts with Computer is addressed; stop commands are whole short phrases", () => {
+  assert.equal(addressed("Computer, explain this project."), "explain this project.");
+  assert.equal(addressed("computer what files are here"), "what files are here");
+  assert.equal(addressed("Okay, computer. Run the tests"), "Run the tests");
+  assert.equal(addressed("Computer."), "");
+  assert.equal(addressed("Computer — stop!"), "stop!");
+  assert.equal(addressed("Is the computer on?"), undefined);
+  assert.equal(addressed("Computers are fast."), undefined);
+  assert.equal(addressed("Computer's fan is loud."), undefined);
+  assert.equal(addressed("Hello computer"), undefined);
+  for (const words of ["stop", "Stop.", "Cancel that, please.", "belay that", "Never mind", "abort", "stop work"]) assert.equal(voiceCommand(words), "stop", words);
+  for (const words of ["stop the server from crashing", "don't stop", "cancel the subscription code", "", "explain the stop button"]) assert.equal(voiceCommand(words), undefined, words);
+  for (const words of ["New log entry.", "Begin a new log entry", "New task.", "start over", "Start a new conversation, please", "clear"]) assert.equal(voiceCommand(words), "new", words);
+  for (const words of ["Stop listening.", "stand by", "go to sleep, please", "That will be all."]) assert.equal(voiceCommand(words), "standby", words);
+  for (const words of ["mute", "Microphone off."]) assert.equal(voiceCommand(words), "mute", words);
+  for (const words of ["add a new task to the list", "write a new log entry function", "stop listening to the socket", "mute the test output", "clear the cache", "start over the build"]) assert.equal(voiceCommand(words), undefined, words);
 });
 
 test("microphone off preserves pending speech; stopped speech cannot send late audio into a new reply", async (t) => {
@@ -135,25 +166,29 @@ test("only a final error or an unexplained failed action counts as a failed requ
 });
 
 test("spoken question answers match only clear, offered choices and keep the user's own words", () => {
-  const question = { header: "Direction", question: "Which approach should I use?", options: [{ label: "Small change", description: "" }, { label: "Explain first", description: "" }] };
+  const question = { key: "q0", type: "string" as const, title: "Direction", description: "Which approach should I use?", options: [{ value: "small", label: "Small change" }, { value: "explain", label: "Explain first" }], custom: true };
   const closed = { ...question, custom: false };
-  assert.equal(spokenQuestion(question), "Which approach should I use? The options are Small change or Explain first. You may also give a different answer.");
-  assert.equal(spokenQuestion(closed), "Which approach should I use? The options are Small change or Explain first.");
-  assert.deepEqual(matchSpokenAnswer(question, "Explain first."), { answer: "Explain first" });
-  assert.deepEqual(matchSpokenAnswer(question, "the second one"), { answer: "Explain first" });
-  assert.deepEqual(matchSpokenAnswer(question, "Option 1"), { answer: "Small change" });
-  assert.deepEqual(matchSpokenAnswer(question, "Let's go with the small change please"), { answer: "Small change" });
+  const form = (...fields: FormField[]): FormRequest => ({ id: "frm", sessionID: "ses", title: "Questions", fields });
+  assert.equal(spokenQuestion(form(question)), "Which approach should I use? The options are Small change or Explain first. You may also give a different answer.");
+  assert.equal(spokenQuestion(form(closed)), "Which approach should I use? The options are Small change or Explain first.");
+  assert.equal(spokenQuestion(form({ key: "name", type: "string", title: "Branch name" })), "Branch name");
+  assert.deepEqual(matchSpokenAnswer(question, "Explain first."), { answer: "explain" }, "the offered value is sent, not the label");
+  assert.deepEqual(matchSpokenAnswer(question, "the second one"), { answer: "explain" });
+  assert.deepEqual(matchSpokenAnswer(question, "Option 1"), { answer: "small" });
+  assert.deepEqual(matchSpokenAnswer(question, "Let's go with the small change please"), { answer: "small" });
   assert.deepEqual(matchSpokenAnswer(question, "Not the small change."), { answer: "Not the small change." }, "A negated reply must never become that choice.");
   assert.deepEqual(matchSpokenAnswer(closed, "Not the small change."), { retry: "Please choose Small change or Explain first." });
   assert.deepEqual(matchSpokenAnswer(closed, "small change or explain first"), { retry: "Please choose Small change or Explain first." });
   assert.deepEqual(matchSpokenAnswer(closed, "Something else entirely"), { retry: "Please choose Small change or Explain first." });
   const skip = matchSpokenAnswer(question, "Skip");
   assert.match("retry" in skip ? skip.retry : "", /Skip question on screen/);
-  const negativeLabel = { ...closed, options: [{ label: "Do not change files", description: "" }, { label: "Change files", description: "" }] };
-  assert.deepEqual(matchSpokenAnswer(negativeLabel, "do not change files"), { answer: "Do not change files" });
-  assert.equal(canAskAloud([question]), true);
-  assert.equal(canAskAloud([{ ...question, multiple: true }]), false);
-  assert.equal(canAskAloud([question, question]), false);
+  const negativeLabel = { ...closed, options: [{ value: "keep", label: "Do not change files" }, { value: "change", label: "Change files" }] };
+  assert.deepEqual(matchSpokenAnswer(negativeLabel, "do not change files"), { answer: "keep" });
+  assert.equal(canAskAloud(form(question)), true);
+  assert.equal(canAskAloud(form({ key: "many", type: "multiselect", options: question.options })), false);
+  assert.equal(canAskAloud(form(question, { ...question, key: "q1" })), false);
+  assert.equal(canAskAloud(form({ ...question, when: [{ key: "x", op: "eq", value: "y" }] } as FormField)), false);
+  assert.equal(canAskAloud(form(question, { ...question, key: "q1", hidden: true })), true);
 });
 
 test("MAI speaking uses the British default voice with its neutral style unless configured otherwise", () => {
@@ -201,8 +236,9 @@ test("voice transport rejects other websites, pauses recognition during speech, 
   };
   await new Promise<void>((resolve, reject) => { socket.once("open", resolve); socket.once("error", reject); });
   t.after(() => socket.terminate());
-  socket.send(JSON.stringify({ type: "listen" }));
-  await next("state", "listening");
+  socket.send(JSON.stringify({ type: "listen", id: 7 }));
+  const opened = await next("state", "listening");
+  assert.equal(opened.type === "state" && opened.id, 7, "The open listening state names the request it belongs to.");
   socket.send(Buffer.alloc(640));
   socket.send(JSON.stringify({ type: "commit" }));
   const transcript = await next("transcript");

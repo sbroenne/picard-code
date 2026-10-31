@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { chromium, expect } from "@playwright/test";
 import { startEngine, projectDirectory } from "../server/process.js";
 import { startApp } from "../server/app.js";
-import { copilotModels } from "../server/engine.js";
+import { availableModels } from "../server/engine.js";
 import { loadSpeech } from "../server/speech.js";
 import type { SpeechService } from "../server/speech-types.js";
 
@@ -27,8 +27,9 @@ try {
   speech = await loadSpeech(local ? { listening: "whisper", speaking: "kokoro" } : { listening: "mai", speaking: "mai" });
   assert.ok(speech);
   const chunks: Uint8Array[] = [];
-  for await (const chunk of speech.speak("Please reply with just the words, the connection is ready.", AbortSignal.timeout(60_000))) chunks.push(chunk);
-  const audio = Buffer.concat([Buffer.alloc(24000), ...chunks, Buffer.alloc(48000)]);
+  for await (const chunk of speech.speak("Computer, please reply with just the words, the connection is ready.", AbortSignal.timeout(60_000))) chunks.push(chunk);
+  // Long silence afterwards, so the looping test microphone does not repeat the request during the check.
+  const audio = Buffer.concat([Buffer.alloc(24000), ...chunks, Buffer.alloc(48000 * 180)]);
   const header = Buffer.alloc(44);
   header.write("RIFF"); header.writeUInt32LE(audio.length + 36, 4); header.write("WAVEfmt ", 8);
   header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(1, 22);
@@ -37,16 +38,16 @@ try {
   const recording = resolve(directory, `${name}-test-request.wav`);
   await writeFile(recording, Buffer.concat([header, audio]));
   engine = await startEngine(project);
-  const models = await copilotModels(engine.client, project);
+  const models = await availableModels(engine.client, project);
   const choice = models.models.find((model) => model.modelID === "gpt-4.1")
     ?? models.models.find((model) => model.modelID === "gpt-5-mini")
     ?? models.defaultModel;
-  assert.ok(choice, "Complete OpenCode's official Copilot sign-in before this real conversation check.");
-  const subscription = await engine.client.event.subscribe({ directory: project }, { signal: controller.signal, sseMaxRetryAttempts: 0 });
+  assert.ok(choice, "Sign in to a model provider in OpenCode before this real conversation check.");
+  const events = engine.client.events(controller.signal);
   observation = (async () => {
-    for await (const event of subscription.stream) {
-      if (event.type === "message.part.delta" && event.properties.field === "text") {
-        const id = event.properties.sessionID;
+    for await (const event of events) {
+      if (event.type === "session.text.delta" && typeof event.data.sessionID === "string") {
+        const id = event.data.sessionID;
         deltas.set(id, (deltas.get(id) ?? 0) + 1);
       }
     }
@@ -72,40 +73,49 @@ try {
       if (typeof payload !== "string") { sentAudio += payload.length; if (speaking) audioWhileSpeaking++; }
     });
   });
+  // The app opens with the microphone on. Hold this test browser's microphone back until the model is chosen,
+  // so the first request uses it.
+  await page.addInitScript(() => {
+    const devices = navigator.mediaDevices;
+    const original = devices.getUserMedia.bind(devices);
+    let release!: () => void;
+    const ready = new Promise<void>((done) => { release = done; });
+    (window as unknown as { startTestMicrophone: () => void }).startTestMicrophone = release;
+    devices.getUserMedia = async (constraints) => { await ready; return original(constraints); };
+  });
   await page.goto(app.url);
-  await expect(page.locator("#work-status")).toHaveText("Ready", { timeout: 30_000 });
+  await expect(page.getByRole("status")).not.toHaveText("Starting up", { timeout: 30_000 });
+  await page.evaluate(() => { location.hash = "settings/model"; });
   await page.selectOption("#model", JSON.stringify([choice.providerID, choice.modelID]));
-  await page.getByRole("button", { name: "Turn microphone on" }).click();
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => (window as unknown as { startTestMicrophone: () => void }).startTestMicrophone());
+  await expect.poll(async () => `${await page.getByRole("status").textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 30_000 })
+    .toMatch(/Standing by|Listening|Understanding|Click anywhere/);
+  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#messages").click();
   await expect(page.locator(".message[data-role=user]")).toContainText(/connection is ready/i, { timeout: 60_000 });
   await expect(page.locator(".message[data-role=assistant]")).toContainText(/connection is ready/i, { timeout: 90_000 });
-  await expect(page.locator("#voice-status")).toHaveText("Computer speaking", { timeout: 30_000 });
-  await page.getByRole("button", { name: "Microphone off", exact: true }).click();
-  await expect(page.locator("#voice-status")).toHaveText("Microphone off", { timeout: 30_000 });
+  await expect(page.getByRole("status")).toHaveText("Speaking", { timeout: 30_000 });
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await expect(page.getByRole("status")).toHaveText("Microphone off", { timeout: 30_000 });
   assert.ok(sentAudio > 16000, "Actual browser microphone audio must reach the chosen listener.");
   assert.ok(receivedAudio > 16000, "Actual chosen speaking service must return audible-length audio.");
   assert.equal(audioWhileSpeaking, 0, "Playback must not be transcribed as another user request.");
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
-  const conversations = await engine.client.session.list({ directory: project }, { throwOnError: true });
-  sessionID = conversations.data[0]?.id;
+  sessionID = (await engine.client.sessions(project))[0]?.id;
   assert.ok(sessionID);
-  const saved = await engine.client.session.messages({ directory: project, sessionID }, { throwOnError: true });
-  assert.ok(saved.data.some((message) => message.info.role === "assistant" && message.parts.some((part) => part.type === "text" && /connection is ready/i.test(part.text))));
+  const saved = await engine.client.messages(sessionID, project);
+  assert.ok(saved.some((message) => message.type === "assistant" && "content" in message && message.content.some((item) => item.type === "text" && /connection is ready/i.test(item.text))));
   if (observationError) throw observationError;
-  assert.ok((deltas.get(sessionID) ?? 0) > 0, "The real Copilot answer must produce live text updates, not only a saved final reply.");
+  assert.ok((deltas.get(sessionID) ?? 0) > 0, "The real model answer must produce live text updates, not only a saved final reply.");
   await page.screenshot({ path: resolve(directory, `${name}-conversation.png`), fullPage: true });
-  console.log(`Real ${name} browser conversation passed: synthesized test microphone, automatic turn submission, OpenCode + Copilot ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, microphone off and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
+  console.log(`Real ${name} browser conversation passed: synthesized test microphone, automatic turn submission, OpenCode + ${choice.provider} ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, mute and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
 } finally {
   controller.abort();
   await observation;
   await browser?.close();
   try {
     if (engine) {
-      const conversations = await engine.client.session.list({ directory: project }, { throwOnError: true });
-      for (const conversation of conversations.data) {
-        if (resolve(conversation.directory) === project) {
-          await engine.client.session.delete({ directory: project, sessionID: conversation.id }, { throwOnError: true });
-        }
-      }
+      for (const conversation of await engine.client.sessions(project)) await engine.client.deleteSession(conversation.id, project);
     }
   } finally {
     try { await app?.close(); }

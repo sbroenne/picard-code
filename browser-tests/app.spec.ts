@@ -17,57 +17,84 @@ test.beforeEach(async ({ page }) => {
   });
   await page.goto(url);
   await expect(page.getByRole("status")).toHaveText("Ready");
-  await page.getByText("Type instead", { exact: true }).click();
   page.on("close", () => child.kill());
 });
 
-test("empty screen, folder controls and long content fit without horizontal overflow", async ({ page }, testInfo) => {
-  await expect(page.getByRole("heading", { name: "Please specify a task." })).toBeVisible();
+test("empty screen fits without horizontal overflow and has no typing box", async ({ page }, testInfo) => {
+  await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
+  await expect(page.locator("#tribute")).toBeVisible();
+  await expect(page.locator("#tribute")).toHaveText("With deepest respect and gratitude: Sir Patrick Stewart 1940 – 2026");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  if (testInfo.project.name === "phone") await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await expect(page.getByRole("button", { name: "New conversation" })).toBeVisible();
-  if (testInfo.project.name === "phone") await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await page.getByRole("button", { name: "Understand this project" }).click();
-  await expect(page.getByRole("textbox", { name: "Your message" })).toHaveValue("Explain this project and where I should start.");
+  await expect(page.getByRole("button", { name: "New log entry" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Captain’s log" })).toBeVisible();
+  await expect(page.locator("#readout-stardate")).toHaveText(/^-\d{6}\.\d$/);
+  // Like the ship's computer: no typing, no conversation name and no mode on the main screen.
+  await expect(page.getByRole("textbox")).toHaveCount(0);
+  await expect(page.getByText("Type instead")).toHaveCount(0);
+  await expect(page.getByText("Discuss", { exact: true })).toHaveCount(0);
+  // The side panel shows live readouts, not decorative numbers.
+  await expect(page.locator("#readout-provider")).toHaveText("Connected");
+  await expect(page.locator("#readout-model")).not.toHaveText(/^(—|None)$/);
+  await expect(page.locator("#readout-project")).not.toHaveText("—");
+  await expect(page.locator("#readout-speech")).toHaveText("Not set up");
   await page.screenshot({ path: testInfo.outputPath("empty-screen.png"), fullPage: true });
 });
 
-test("send, stream, approval, stop and safe code rendering work", async ({ page }, testInfo) => {
-  const prompt = page.getByRole("textbox", { name: "Your message" });
-  await prompt.fill("Hello computer");
-  await page.getByRole("button", { name: "Send", exact: false }).click();
-  await expect(page.locator(".message[data-role=assistant]")).toContainText("A genuinely streamed reply");
+test("the main screen shows only the conversation; the side panel tiles open their own settings", async ({ page }, testInfo) => {
+  // Without speech set up, the console says so and points to Settings.
   await expect(page.getByRole("status")).toHaveText("Ready");
-  await prompt.fill("Request an approval");
-  await page.getByRole("button", { name: "Send", exact: false }).click();
-  await expect(page.getByRole("heading", { name: "Approval required." })).toBeVisible();
-  await expect(page.getByText("OpenCode wants to run a command. Review the requested action before allowing it.")).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath("approval-screen.png"), fullPage: true });
-  await page.getByRole("button", { name: "Allow once" }).click();
-  await expect(page.getByRole("status")).toHaveText("Ready");
-  await prompt.fill("Stop this reply");
-  await page.getByRole("button", { name: "Send", exact: false }).click();
-  await page.getByRole("button", { name: "Stop work" }).click();
-  await expect(page.getByRole("status")).toHaveText("Ready");
-  await prompt.fill("unsafe output");
-  await page.getByRole("button", { name: "Send", exact: false }).click();
-  await expect(page.locator("#messages")).toContainText("<img src=x onerror=alert('unsafe')>");
-  await expect(page.locator("#messages img")).toHaveCount(0);
-  await expect(page.locator("#messages pre")).toContainText("const safe = true;");
-  await expect(page.getByRole("status")).toHaveText("Ready");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-});
+  await expect(page.locator("#voice-setup-hint")).toBeVisible();
+  await expect(page.locator("#listen-toggle")).toBeHidden();
+  for (const name of ["Project folder", "Provider sign-in"]) await expect(page.getByRole("heading", { name })).toBeHidden();
+  await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
+  await expect(page.locator("#conversations")).toBeHidden();
 
-test("questions receive real answers and conversations reopen after reload", async ({ page }, testInfo) => {
-  await page.getByRole("textbox", { name: "Your message" }).fill("Ask a question");
-  await page.getByRole("button", { name: "Send", exact: false }).click();
-  await expect(page.getByRole("heading", { name: "Additional information required." })).toBeVisible();
-  await page.getByRole("radio", { name: "Explain first" }).check();
-  await page.getByRole("button", { name: "Send answer" }).click();
-  await expect(page.locator("#messages")).toContainText('Your test answer was received: [["Explain first"]].');
-  await expect(page.getByRole("status")).toHaveText("Ready");
-  await page.reload();
-  await expect(page.locator("#messages")).toContainText('Your test answer was received: [["Explain first"]].');
-  await expect(page.getByRole("status")).toHaveText("Ready");
-  await page.screenshot({ path: testInfo.outputPath("conversation-screen.png"), fullPage: true });
+  // There is no Settings or Options button: each side panel tile opens its own part.
+  await expect(page.getByRole("link", { name: "Options" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Settings", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  const conversation = page.getByRole("link", { name: "Current log entry", exact: true });
+  await expect(conversation).toHaveAttribute("aria-current", "page");
+  await page.getByRole("link", { name: /^Model/ }).click();
+  await expect(conversation).not.toHaveAttribute("aria-current", "page");
+  await expect(page).toHaveURL(/#settings\/model$/);
+  await expect(page.getByRole("heading", { name: "Model" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Model" })).toBeVisible();
+  await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeHidden();
+  await expect(page.getByLabel("Mode", { exact: true })).toHaveCount(0);
+  // Choosing the same tile again closes it; so do the Conversation tile and a click on the conversation.
+  await page.getByRole("link", { name: /^Model/ }).click();
+  await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
+  await page.getByRole("link", { name: /^Model/ }).click();
+  await conversation.click();
+  await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
+  await expect(conversation).toHaveAttribute("aria-current", "page");
+  await page.getByRole("link", { name: /^Model/ }).click();
+  await page.mouse.click(700, 500);
+  await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
+
+  await page.getByRole("link", { name: /^Provider/ }).click();
+  await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeVisible();
+  await page.getByRole("link", { name: /^Project/ }).click();
+  await expect(page.getByRole("heading", { name: "Project folder" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeHidden();
+  await page.getByRole("link", { name: /Sir Patrick Stewart/ }).click();
+  await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
+  await page.getByRole("link", { name: /^Listen/ }).click();
+  await expect(page.getByRole("heading", { name: "Speech" })).toBeVisible();
+  // Only the fields for the chosen services show.
+  await page.getByLabel("Listening", { exact: true }).selectOption("whisper");
+  await page.getByLabel("Speaking", { exact: true }).selectOption("kokoro");
+  await expect(page.getByLabel("Subscription ID")).toBeHidden();
+  await expect(page.getByLabel("Kokoro voice")).toBeVisible();
+  await page.getByLabel("Speaking", { exact: true }).selectOption("mai");
+  await expect(page.getByLabel("Subscription ID")).toBeVisible();
+  await expect(page.getByLabel("Listening deployment")).toBeHidden();
+  await expect(page.getByLabel("Voice", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("settings.png"), fullPage: true });
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("heading", { name: "Speech" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
 });

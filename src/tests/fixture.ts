@@ -1,199 +1,252 @@
 import { createServer, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
-import type { PermissionRequest, QuestionRequest } from "@opencode-ai/sdk/v2";
+import type { FormRequest, PermissionRequest } from "../shared/types.js";
+import type { ContentItem, SessionInfo, SessionMessage } from "../server/opencode.js";
 
-interface FixtureSession {
-  id: string;
-  title: string;
-  directory: string;
-  time: { created: number; updated: number };
-}
-interface FixtureMessage {
-  info: { id: string; sessionID: string; role: "user" | "assistant"; time: { created: number } };
-  parts: { id: string; messageID: string; sessionID: string; type: "text"; text: string }[];
-}
-
-/** A local OpenCode-protocol fixture; it does not call a model or execute tools. */
+/**
+ * A local stand-in for OpenCode 2's server, shaped after real OpenCode 2.2.5 behaviour.
+ * It does not call a model or run tools.
+ */
 export async function startFixture(project: string) {
   const password = "fixture-password-not-a-real-credential";
   const authorization = `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`;
-  const sessions = new Map<string, FixtureSession>();
-  const messages = new Map<string, FixtureMessage[]>();
-  const statuses: Record<string, { type: string }> = {};
+  const sessions = new Map<string, SessionInfo>();
+  const messages = new Map<string, SessionMessage[]>();
+  const active = new Set<string>();
+  const instructions = new Map<string, Record<string, string>>();
   const permissions: PermissionRequest[] = [];
-  const questions: QuestionRequest[] = [];
-  const listeners = new Set<{ directory: string; response: ServerResponse }>();
+  const forms: FormRequest[] = [];
+  const listeners = new Set<ServerResponse>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
   const pending = new Map<string, (data: Record<string, unknown>) => void>();
   const generations = new Map<string, number>();
   const requests: { method: string; path: string; directory: string; data: Record<string, unknown> }[] = [];
-  let copilot = true;
+  let signedIn = true;
+  const id = (prefix: string) => `${prefix}_${randomUUID().replaceAll("-", "")}`;
 
-  const publish = (directory: string, type: string, properties: unknown) => {
-    for (const listener of listeners) {
-      if (listener.directory === directory) listener.response.write(`data: ${JSON.stringify({ id: randomUUID(), type, properties })}\n\n`);
-    }
+  const publish = (directory: string, type: string, data: unknown) => {
+    for (const listener of listeners) listener.write(`data: ${JSON.stringify({ id: id("evt"), created: Date.now(), type, location: { directory }, data })}\n\n`);
   };
   const later = (action: () => void, delay: number) => {
     const timer = setTimeout(() => { timers.delete(timer); action(); }, delay);
     timers.add(timer);
   };
-  const setStatus = (id: string, type: string) => {
-    statuses[id] = { type };
-    const session = sessions.get(id)!;
-    publish(session.directory, "session.status", { sessionID: id, status: { type } });
-    if (type === "idle") publish(session.directory, "session.idle", { sessionID: id });
+  const current = (sessionID: string, generation?: number) => active.has(sessionID) && generations.get(sessionID) === generation;
+  // Like real OpenCode 2.2.5: Stop work saves an "interrupted" entry; a declined action or skipped question saves none.
+  const finish = (sessionID: string, outcome: "succeeded" | "failed" | "interrupted", error?: { type: string; message: string }, reason: "user" | "shutdown" = "user") => {
+    const directory = sessions.get(sessionID)!.location.directory;
+    active.delete(sessionID);
+    if (reason === "user") messages.get(sessionID)!.push({ id: id("msg"), type: "idle", outcome, ...(error ? { error } : {}), time: { created: Date.now() } } as SessionMessage);
+    publish(directory, `session.execution.${outcome}`, { sessionID, ...(error ? { error } : {}), ...(outcome === "interrupted" ? { reason } : {}) });
+  };
+  const assistant = (sessionID: string, content: ContentItem[], error?: { type: string; message: string }) => {
+    const message = { id: id("msg"), type: "assistant" as const, content, ...(error ? { error } : {}), time: { created: Date.now() } };
+    messages.get(sessionID)!.push(message);
+    return message;
   };
   const createSession = (directory = project, title = "New conversation") => {
-    const session = { id: `ses_${randomUUID()}`, title, directory, time: { created: Date.now(), updated: Date.now() } };
+    const session: SessionInfo = { id: id("ses"), title, agent: "build", location: { directory }, time: { created: Date.now(), updated: Date.now() } };
     sessions.set(session.id, session);
     messages.set(session.id, []);
-    publish(directory, "session.created", { sessionID: session.id, info: session });
+    publish(directory, "session.created", { sessionID: session.id, title, location: { directory } });
     return session;
   };
-  const reply = (id: string, text = "A genuinely streamed reply from the test fixture.", generation = generations.get(id)) => {
-    if (generations.get(id) !== generation || statuses[id]?.type === "idle") return;
-    const session = sessions.get(id)!;
-    const messageID = `msg_${randomUUID()}`;
-    const part = { id: `prt_${randomUUID()}`, messageID, sessionID: id, type: "text" as const, text: "" };
-    const message: FixtureMessage = { info: { id: messageID, sessionID: id, role: "assistant", time: { created: Date.now() } }, parts: [part] };
-    messages.get(id)!.push(message);
-    publish(session.directory, "message.updated", { sessionID: id, info: message.info });
-    publish(session.directory, "message.part.updated", { sessionID: id, part, time: Date.now() });
+  // Like OpenCode 2, live text is numbered within its reply and stored only once the piece ends.
+  const reply = (sessionID: string, text = "A genuinely streamed reply from the test fixture.", generation = generations.get(sessionID)) => {
+    if (!current(sessionID, generation)) return;
+    const directory = sessions.get(sessionID)!.location.directory;
+    const item = { type: "text" as const, text: "" };
+    const message = assistant(sessionID, [item]);
+    const base = { sessionID, assistantMessageID: message.id, ordinal: 0 };
+    publish(directory, "session.step.started", { sessionID, assistantMessageID: message.id });
+    publish(directory, "session.text.started", base);
     const words = text.split(/(?<=\s)/);
     words.forEach((word, index) => {
       later(() => {
-        if (statuses[id]?.type === "idle" || generations.get(id) !== generation) return;
-        part.text += word;
-        publish(session.directory, "message.part.delta", { sessionID: id, messageID, partID: part.id, field: "text", delta: word });
+        if (!current(sessionID, generation)) return;
+        publish(directory, "session.text.delta", { ...base, delta: word });
         if (index === words.length - 1) {
-          publish(session.directory, "message.part.updated", { sessionID: id, part, time: Date.now() });
-          setStatus(id, "idle");
+          item.text = text;
+          publish(directory, "session.text.ended", { ...base, text });
+          publish(directory, "session.step.ended", { sessionID, assistantMessageID: message.id });
+          finish(sessionID, "succeeded");
         }
       }, 80 * (index + 1));
     });
   };
-  // Like real OpenCode, a denied action ends the turn with a failed tool and no written reply.
-  const refuse = (id: string, generation = generations.get(id)) => {
-    if (generations.get(id) !== generation || statuses[id]?.type === "idle") return;
-    const session = sessions.get(id)!;
-    const messageID = `msg_${randomUUID()}`;
-    const part = { id: `prt_${randomUUID()}`, messageID, sessionID: id, type: "tool" as const, callID: "call_test", tool: "bash",
-      state: { status: "error" as const, input: { command: "echo hello" }, error: "The user rejected permission to use this specific tool call.", time: { start: Date.now(), end: Date.now() } } };
-    const message = { info: { id: messageID, sessionID: id, role: "assistant", time: { created: Date.now() } }, parts: [part] } as unknown as FixtureMessage;
-    messages.get(id)!.push(message);
-    publish(session.directory, "message.updated", { sessionID: id, info: message.info });
-    publish(session.directory, "message.part.updated", { sessionID: id, part, time: Date.now() });
-    setStatus(id, "idle");
+  // Once allowed or answered, the waiting action finishes before the next step replies.
+  const completeTool = (sessionID: string, tool: string, output: string) => {
+    for (const message of messages.get(sessionID)!) {
+      if (message.type !== "assistant" || !("content" in message)) continue;
+      for (const item of message.content) {
+        if (item.type === "tool" && item.name === tool && item.state.status === "running") item.state = { status: "completed", input: item.state.input, content: [{ type: "text", text: output }] };
+      }
+    }
+    publish(sessions.get(sessionID)!.location.directory, "session.tool.success", { sessionID, id: "call_test" });
   };
+  // Like OpenCode 2, a denied action or a skipped question fails the action and stops the work.
+  const stopWithFailedTool = (sessionID: string, tool: string, input: unknown, reason: string, generation = generations.get(sessionID)) => {
+    if (!current(sessionID, generation)) return;
+    const directory = sessions.get(sessionID)!.location.directory;
+    const message = messages.get(sessionID)!.findLast((item) => item.type === "assistant");
+    const content = message && "content" in message ? message.content : [];
+    const existing = content.find((item) => item.type === "tool" && item.name === tool);
+    const failed = { status: "error", input, error: { type: "aborted", message: reason } };
+    if (existing && existing.type === "tool") existing.state = failed;
+    else content.push({ type: "tool", id: "call_test", name: tool, state: failed });
+    if (message && message.type === "assistant") Object.assign(message, { error: { type: "aborted", message: "Step interrupted" } });
+    publish(directory, "session.tool.failed", { sessionID, id: "call_test", error: failed.error });
+    publish(directory, "session.step.failed", { sessionID });
+    finish(sessionID, "interrupted", undefined, "shutdown");
+  };
+
   const server = createServer((request, response) => {
     void (async () => {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
-      const directory = url.searchParams.get("directory") ?? project;
+      const header = request.headers["x-opencode-directory"];
+      const directory = typeof header === "string" ? decodeURIComponent(header) : url.searchParams.get("directory") ?? project;
       const send = (status: number, value?: unknown) => {
-        response.writeHead(status, { "Content-Type": "application/json" });
+        response.writeHead(status, value === undefined ? {} : { "Content-Type": "application/json" });
         response.end(value === undefined ? undefined : JSON.stringify(value));
       };
-      if (request.headers.authorization !== authorization) { send(401, { error: "Password required" }); return; }
+      if (request.headers.authorization !== authorization) { send(401, { message: "Password required" }); return; }
       let raw = "";
       for await (const chunk of request) raw += chunk.toString();
       const data = raw ? JSON.parse(raw) as Record<string, unknown> : {};
-      requests.push({ method: request.method ?? "GET", path: url.pathname, directory, data });
-      if (url.pathname === "/global/health") { send(200, { healthy: true, version: "1.19.5-fixture" }); return; }
-      if (url.pathname === "/path") { send(200, { directory, worktree: directory }); return; }
-      if (url.pathname === "/provider") {
-        send(200, {
-          all: [
-            { id: "github-copilot", name: "GitHub Copilot", models: { "fixture-model": { id: "fixture-model", name: "Copilot test model", status: "active" } }, options: { secret: "must-never-reach-browser" } },
-            { id: "other-provider", name: "Other", models: { other: { id: "other", name: "Other model" } } },
-          ],
-          connected: copilot ? ["github-copilot", "other-provider"] : ["other-provider"],
-          default: { "github-copilot": "fixture-model" },
-        });
-        return;
-      }
-      if (url.pathname === "/event") {
+      const path = url.pathname;
+      requests.push({ method: request.method ?? "GET", path, directory, data });
+      const models = signedIn ? [
+        { id: "fixture-model", modelID: "fixture-model", providerID: "github-copilot", name: "Copilot test model", status: "active", enabled: true, settings: { secret: "must-never-reach-browser" } },
+        { id: "other", modelID: "other", providerID: "other-provider", name: "Other model", status: "active", enabled: true },
+        { id: "old", modelID: "old", providerID: "other-provider", name: "Retired model", status: "deprecated", enabled: true },
+      ] : [];
+      const providers = [
+        { id: "github-copilot", name: "GitHub Copilot", settings: { baseURL: "https://api.githubcopilot.com" } },
+        { id: "other-provider", name: "Other Provider", settings: { apiKey: "provider-key-must-never-reach-browser" } },
+      ];
+      if (path === "/api/info") { send(200, { version: "2.2.5-fixture" }); return; }
+      if (path === "/api/location") { send(200, { directory, project: { id: "global", directory, canonical: directory } }); return; }
+      if (path === "/api/location/reload") { send(204); return; }
+      if (path === "/api/model") { send(200, { data: models }); return; }
+      if (path === "/api/provider") { send(200, { data: providers }); return; }
+      if (path === "/api/model/default") { send(200, { data: models[0] }); return; }
+      if (path === "/api/event") {
         response.writeHead(200, { "Content-Type": "text/event-stream" });
-        response.write(`data: ${JSON.stringify({ type: "server.connected", properties: {} })}\n\n`);
-        const listener = { directory, response };
-        listeners.add(listener);
-        response.on("close", () => listeners.delete(listener));
+        response.write(`data: ${JSON.stringify({ id: id("evt"), created: Date.now(), type: "server.connected", data: {} })}\n\n`);
+        listeners.add(response);
+        response.on("close", () => listeners.delete(response));
         return;
       }
-      if (url.pathname === "/session/status") { send(200, statuses); return; }
-      if (url.pathname === "/permission") { send(200, permissions); return; }
-      if (url.pathname === "/question") { send(200, questions); return; }
-      if (url.pathname === "/instance/dispose") { send(200, true); return; }
-      if (url.pathname === "/session") {
-        if (request.method === "POST") send(200, createSession(directory, typeof data.title === "string" ? data.title : undefined));
-        else send(200, Array.from(sessions.values()).reverse());
-        return;
-      }
-      const match = /^\/session\/([^/]+)(?:\/(message|prompt_async|abort))?$/.exec(url.pathname);
-      if (match) {
-        const id = match[1]!;
-        const session = sessions.get(id);
-        if (!session) { send(404, { message: "Conversation not found" }); return; }
-        if (!match[2]) {
-          if (request.method === "PATCH" && typeof data.title === "string") session.title = data.title;
-          send(200, session);
-        } else if (match[2] === "message") {
-          const snapshot = structuredClone(messages.get(id));
-          await new Promise<void>((resolve) => later(resolve, 150));
-          send(200, snapshot);
-        }
-        else if (match[2] === "abort") {
-          generations.set(id, (generations.get(id) ?? 0) + 1);
-          pending.delete(id);
-          for (let index = permissions.length - 1; index >= 0; index--) if (permissions[index]?.sessionID === id) permissions.splice(index, 1);
-          for (let index = questions.length - 1; index >= 0; index--) if (questions[index]?.sessionID === id) questions.splice(index, 1);
-          setStatus(id, "idle");
-          send(200, true);
+      if (path === "/api/session/active") { send(200, { data: Object.fromEntries([...active].map((item) => [item, { type: "running" }])) }); return; }
+      if (path === "/api/permission/request") { send(200, { data: permissions }); return; }
+      if (path === "/api/form") { send(200, { data: forms }); return; }
+      if (path === "/api/session") {
+        if (request.method === "POST") {
+          const location = data.location as { directory: string };
+          send(200, { data: createSession(location.directory, typeof data.title === "string" ? data.title : undefined) });
         } else {
-          const generation = (generations.get(id) ?? 0) + 1;
-          generations.set(id, generation);
-          const parts = data.parts as { text: string }[];
-          const text = parts[0]?.text ?? "";
-          const messageID = `msg_${randomUUID()}`;
-          const part = { id: `prt_${randomUUID()}`, messageID, sessionID: id, type: "text" as const, text };
-          const message: FixtureMessage = { info: { id: messageID, sessionID: id, role: "user", time: { created: Date.now() } }, parts: [part] };
-          messages.get(id)!.push(message);
-          setStatus(id, "busy");
-          publish(directory, "message.updated", { sessionID: id, info: message.info });
-          publish(directory, "message.part.updated", { sessionID: id, part, time: Date.now() });
+          const wanted = url.searchParams.get("directory");
+          send(200, { data: [...sessions.values()].reverse().filter((session) => !wanted || session.location.directory === wanted) });
+        }
+        return;
+      }
+      const entry = /^\/api\/experimental\/session\/([^/]+)\/instructions\/entries\/([^/]+)$/.exec(path);
+      if (entry && request.method === "PUT") {
+        instructions.set(entry[1]!, { ...instructions.get(entry[1]!), [decodeURIComponent(entry[2]!)]: String(data.value) });
+        send(204);
+        return;
+      }
+      const match = /^\/api\/session\/([^/]+)(?:\/(message|prompt|interrupt|model|permission|form)(?:\/([^/]+)(?:\/(reply))?)?)?$/.exec(path);
+      if (match) {
+        const sessionID = match[1]!;
+        const session = sessions.get(sessionID);
+        if (!session) { send(404, { message: "Conversation not found" }); return; }
+        const action = match[2];
+        if (!action) {
+          if (request.method === "PATCH" && typeof data.title === "string") { session.title = data.title; send(204); }
+          else if (request.method === "DELETE") {
+            sessions.delete(sessionID);
+            messages.delete(sessionID);
+            publish(directory, "session.deleted", { sessionID });
+            send(204);
+          }
+          else send(200, { data: session });
+        } else if (action === "model") {
+          session.model = data.model as SessionInfo["model"];
           send(204);
+        } else if (action === "message") {
+          const snapshot = structuredClone(messages.get(sessionID)!);
+          await new Promise<void>((resolve) => later(resolve, 150));
+          send(200, { data: url.searchParams.get("order") === "asc" ? snapshot : snapshot.reverse(), cursor: {} });
+        } else if (action === "interrupt") {
+          generations.set(sessionID, (generations.get(sessionID) ?? 0) + 1);
+          pending.delete(sessionID);
+          for (let index = permissions.length - 1; index >= 0; index--) if (permissions[index]?.sessionID === sessionID) permissions.splice(index, 1);
+          for (let index = forms.length - 1; index >= 0; index--) if (forms[index]?.sessionID === sessionID) forms.splice(index, 1);
+          if (active.has(sessionID)) finish(sessionID, "interrupted");
+          send(200, {});
+        } else if (action === "permission" && match[4] === "reply") {
+          const index = permissions.findIndex((item) => item.id === match[3] && item.sessionID === sessionID);
+          if (index < 0) { send(404, { message: "No pending request" }); return; }
+          const item = permissions.splice(index, 1)[0]!;
+          publish(directory, "permission.replied", { sessionID, requestID: item.id, reply: data.decision });
+          send(204);
+          const continuation = pending.get(sessionID);
+          pending.delete(sessionID);
+          later(() => continuation?.(data), 20);
+        } else if (action === "form" && match[3]) {
+          const index = forms.findIndex((item) => item.id === match[3] && item.sessionID === sessionID);
+          if (index < 0) { send(404, { message: "No pending form" }); return; }
+          const item = forms.splice(index, 1)[0]!;
+          if (request.method === "DELETE") publish(directory, "form.cancelled", { id: item.id, sessionID });
+          else publish(directory, "form.replied", { id: item.id, sessionID, answer: data.answer });
+          send(204);
+          const continuation = pending.get(sessionID);
+          pending.delete(sessionID);
+          later(() => continuation?.(request.method === "DELETE" ? { skip: true } : data), 20);
+        } else if (action === "prompt") {
+          if (active.has(sessionID)) { send(409, { message: "The conversation is busy." }); return; }
+          const generation = (generations.get(sessionID) ?? 0) + 1;
+          generations.set(sessionID, generation);
+          const text = String(data.text ?? "");
+          messages.get(sessionID)!.push({ id: id("msg"), type: "user", text, time: { created: Date.now() } });
+          active.add(sessionID);
+          publish(directory, "session.execution.started", { sessionID });
+          send(200, {});
           if (text.includes("approval")) {
-            const permission = { id: `per_${randomUUID()}`, sessionID: id, permission: "bash", patterns: ["echo hello"], metadata: { command: "echo hello" }, always: ["echo *"] };
+            const input = { command: "echo hello" };
+            assistant(sessionID, [{ type: "tool", id: "call_test", name: "shell", state: { status: "running", input } }]);
+            const permission: PermissionRequest = { id: id("per"), sessionID, action: "shell", resources: ["echo hello"], metadata: input };
             permissions.push(permission);
-            pending.set(id, (answer) => answer.reply === "reject" ? refuse(id, generation)
-              : reply(id, "The test approval was answered. No command was executed.", generation));
+            pending.set(sessionID, (answer) => answer.decision === "reject"
+              ? stopWithFailedTool(sessionID, "shell", input, "The user declined this tool call", generation)
+              : (completeTool(sessionID, "shell", "Test stand-in: no command was run."), reply(sessionID, "The test approval was answered. No command was executed.", generation)));
             later(() => publish(directory, "permission.asked", permission), 50);
           } else if (text.includes("question")) {
-            const question = { id: `que_${randomUUID()}`, sessionID: id, questions: [{ header: "Direction", question: "Which approach should I use?", options: [{ label: "Small change", description: "Keep the scope focused." }, { label: "Explain first", description: "Discuss before changing files." }], custom: !text.includes("choose") }] };
-            questions.push(question);
-            pending.set(id, (answer) => reply(id, `Your test answer was received: ${JSON.stringify(answer.answers ?? "skipped")}.`, generation));
-            later(() => publish(directory, "question.asked", question), 50);
+            const input = { questions: [{ header: "Direction", question: "Which approach should I use?" }] };
+            assistant(sessionID, [{ type: "tool", id: "call_test", name: "question", state: { status: "running", input } }]);
+            const form: FormRequest = { id: id("frm"), sessionID, title: "Questions", fields: [{
+              key: "q0", type: "string", title: "Direction", description: "Which approach should I use?",
+              options: [{ value: "Small change", label: "Small change", description: "Keep the scope focused." }, { value: "Explain first", label: "Explain first", description: "Discuss before changing files." }],
+              custom: !text.includes("choose"),
+            }] };
+            forms.push(form);
+            pending.set(sessionID, (answer) => answer.skip
+              ? stopWithFailedTool(sessionID, "question", input, "The user dismissed this question", generation)
+              : (completeTool(sessionID, "question", String((answer.answer as Record<string, unknown>).q0)), reply(sessionID, `Your test answer was received: ${JSON.stringify([[(answer.answer as Record<string, unknown>).q0]])}.`, generation)));
+            later(() => publish(directory, "form.created", { form }), 50);
+          } else if (text.includes("broken")) {
+            later(() => {
+              if (!current(sessionID, generation)) return;
+              finish(sessionID, "failed", { type: "provider.no-route", message: "The test model cannot be reached." });
+            }, 100);
           } else {
-            later(() => reply(id, text.includes("unsafe") ? "<img src=x onerror=alert('unsafe')>\n```js\nconst safe = true;\n```" : undefined, generation), text.includes("slow") ? 5000 : 100);
+            later(() => reply(sessionID, text.includes("unsafe") ? "<img src=x onerror=alert('unsafe')>\n```js\nconst safe = true;\n```\n\n## Result\n\nThis is **bold**, *emphasis* and `code`.\n\n- first\n- second\n\n| Name | Value |\n| --- | --- |\n| a | 1 |\n\n[Docs](https://example.com) [Bad](javascript:alert(1)) ![Picture](https://example.com/p.png)" : undefined, generation), text.includes("very") ? 20_000 : text.includes("slow") ? 5000 : 100);
           }
-        }
+        } else send(404, { message: `Unimplemented fixture path ${path}` });
         return;
       }
-      const approval = /^\/(permission|question)\/([^/]+)\/(reply|reject)$/.exec(url.pathname);
-      if (approval) {
-        const items = approval[1] === "permission" ? permissions : questions;
-        const index = items.findIndex((item) => item.id === approval[2]);
-        if (index < 0) { send(404, { message: "No pending request" }); return; }
-        const item = items[index]!;
-        items.splice(index, 1);
-        publish(directory, `${approval[1]}.replied`, { requestID: item.id, sessionID: item.sessionID });
-        send(200, true);
-        const continuation = pending.get(item.sessionID);
-        pending.delete(item.sessionID);
-        later(() => continuation?.(data), 20);
-        return;
-      }
-      send(404, { message: `Unimplemented fixture path ${url.pathname}` });
+      send(404, { message: `Unimplemented fixture path ${path}` });
     })().catch((error) => { response.writeHead(500); response.end(String(error)); });
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -201,13 +254,13 @@ export async function startFixture(project: string) {
   if (!address || typeof address === "string") throw new Error("Fixture server did not start.");
   return {
     url: `http://127.0.0.1:${address.port}`,
-    password, requests, permissions, questions, statuses,
+    password, requests, permissions, forms, active, instructions,
     createSession,
     publish,
-    setCopilot: (ready: boolean) => { copilot = ready; },
+    setSignedIn: (ready: boolean) => { signedIn = ready; },
     close: async () => {
       for (const timer of timers) clearTimeout(timer);
-      for (const listener of listeners) listener.response.end();
+      for (const listener of listeners) listener.end();
       await new Promise<void>((resolve) => { server.close(() => resolve()); server.closeAllConnections(); });
     },
   };

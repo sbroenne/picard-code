@@ -4,7 +4,7 @@ import { loadSpeech } from "../server/speech.js";
 
 const service = await loadSpeech({ listening: "mai", speaking: "mai" });
 if (!service) throw new Error("Set up .picard-speech.json before checking real Azure speech.");
-const phrase = "The listening connection is ready. Please specify a task.";
+const phrase = "The listening connection is ready. Please specify your request.";
 const chunks: Uint8Array[] = [];
 for await (const chunk of service.speak(phrase, AbortSignal.timeout(60_000))) chunks.push(chunk);
 const audio = Buffer.concat(chunks);
@@ -45,7 +45,7 @@ try {
   assert.match(understood, /listening connection is ready/i);
   assert.match(understood, /specify a task/i);
   assert.ok(partials > 0, "Listening must provide live intermediate words.");
-  console.log(`Real Azure speaking and MAI live listening passed. ${partials} live word updates; the original test phrase was understood. No microphone or Copilot was used.`);
+  console.log(`Real Azure speaking and MAI live listening passed. ${partials} live word updates; the original test phrase was understood. No microphone or model was used.`);
 } finally {
   clearTimeout(deadline);
   controller.abort();

@@ -1,10 +1,12 @@
 import "./style.css";
-import type { Event, PermissionRequest, QuestionRequest } from "@opencode-ai/sdk/v2";
-import type { AppState, BrowserEvent, ChatMessage, Conversation, ModelChoice } from "../src/shared/types";
-import { chatPart, errorMessage } from "../src/shared/messages";
+import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings } from "../src/shared/types";
+import { errorMessage } from "../src/shared/messages";
 import { replyFailed, spokenReply, spokenSummary } from "../src/shared/speech";
-import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../src/shared/questions";
+import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../src/shared/questions";
+import { addressed, voiceCommand } from "../src/shared/wake";
 import { VoiceConversation } from "./voice";
+import { renderMarkdown } from "./markdown";
+import { formatStardate } from "../src/shared/stardate";
 
 function element<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -24,9 +26,7 @@ function button(text: string, className: string, action: () => Promise<void> | v
   return node;
 }
 
-const prompt = element<HTMLTextAreaElement>("prompt");
 const model = element<HTMLSelectElement>("model");
-const agent = element<HTMLSelectElement>("agent");
 const readingArea = element("reading-area");
 let state: AppState | undefined;
 let selected: string | undefined;
@@ -38,38 +38,120 @@ let historyLoading = false;
 let selectionRevision = 0;
 let historyRevision = 0;
 let historyTimer: ReturnType<typeof setTimeout> | undefined;
+// A reload was asked for while one was running, or is waiting to start.
+let historyAgain = false;
+let historyDue = false;
 let approvalKey = "";
 let renderScheduled = false;
-const drafts = new Map<string, string>();
-const historyEvents: Event[] = [];
+/** Reply text that is still being written, shown until the stored conversation catches up. */
+const live = new Map<string, { sessionID: string; messageID: string; partType: "text" | "reasoning"; text: string }>();
 let voiceTurn: { session: string; known: Set<string> } | undefined;
 let spokenDecision = "";
 let spokenQuestionID: string | undefined;
 let answering = false;
+// After "Computer" alone, the next words are taken as the request.
+const GO_AHEAD = 8000;
+let goAheadUntil = 0;
+// "Computer" starts a task; after that every request in the task counts, until "new log entry" or "stop listening".
+let engagedWith: string | undefined;
+let notSent = "";
+/** The log entry waiting for the captain to confirm its deletion. */
+let confirmingDelete: string | undefined;
 const voice = new VoiceConversation({
   changed: voiceControls,
   error: notice,
-  transcript: (text) => askedQuestion() ? answerAloud(text) : sendMessage(text),
-  canListen: () => !!state?.models.length && connected && !submitting && !historyLoading
-    && (!!askedQuestion() || !busy() && !pending() && !voiceTurn),
+  transcript: heard,
+  canListen: () => !!state?.models.length && connected,
 });
+
+/**
+ * Handles one utterance heard while listening. Like the computer on the show, a task starts with
+ * "Computer"; within the task, follow-ups need no "Computer". The words are sent unchanged.
+ * Approvals are never given by voice.
+ */
+async function heard(text: string, startedAt: number) {
+  if (!text) return;
+  const words = addressed(text);
+  if (voiceCommand(words ?? text) === "standby") { await standBy(); return; }
+  const question = askedQuestion();
+  if (words === undefined && !question && !inTask() && startedAt > goAheadUntil) {
+    notSent = `Not sent: “${text}” Start with “Computer”.`;
+    return;
+  }
+  goAheadUntil = 0;
+  const request = words ?? text;
+  const command = voiceCommand(request);
+  if (command === "stop") { await stopByVoice(); return; }
+  if (command === "new") { freshByVoice(); return; }
+  if (command === "mute") { muteMicrophone(); voice.speak("Microphone off. Click the microphone button or press M to switch it on."); return; }
+  if (question) { await answerAloud(request); return; }
+  if (!request) {
+    goAheadUntil = Date.now() + GO_AHEAD;
+    setTimeout(voiceControls, GO_AHEAD + 50);
+    voice.chime();
+    return;
+  }
+  // A finished reply is still being collected; wait briefly rather than refuse.
+  for (let waited = 0; (submitting || historyLoading) && waited < 5000; waited += 100) await new Promise((done) => setTimeout(done, 100));
+  const blocked = state?.permissions.some((item) => item.sessionID === selected) ? "A decision is needed first. Choose Allow once or Deny on screen."
+    : pending() ? "Please answer the question on screen first."
+    : busy() || submitting ? "Work is in progress. Say stop to cancel it." : undefined;
+  // Room speech during a task is not answered aloud while the computer cannot take it.
+  if (blocked && words === undefined) notSent = `Not sent: “${text}” ${blocked}`;
+  else if (blocked) voice.speak(blocked);
+  else {
+    await sendMessage(text);
+    engagedWith = selected;
+  }
+}
+
+/** "Stop listening": ends the task and waits for "Computer" again. Any work under way carries on. */
+async function standBy() {
+  engagedWith = undefined;
+  goAheadUntil = 0;
+  controls();
+  await voice.chime();
+  voice.speak("Standing by.");
+}
+
+/** Whether a task started with "Computer" is under way, so follow-ups need no "Computer". */
+function inTask() {
+  return !!selected && engagedWith === selected;
+}
+
+function freshByVoice() {
+  if (state?.permissions.some((item) => item.sessionID === selected)) voice.speak("A decision is needed first. Choose Allow once or Deny on screen.");
+  else if (pending()) voice.speak("Please answer the question on screen first.");
+  else if (busy() || submitting) voice.speak("Work is in progress. Say stop to cancel it first.");
+  else { startFresh(); voice.speak("Ready for a new log entry."); }
+}
+
+async function stopByVoice() {
+  if (!selected || !busy()) { voice.speak("No work is running."); return; }
+  voiceTurn = undefined;
+  await api(`conversations/${encodeURIComponent(selected)}/stop`, {});
+  await refreshState();
+  await loadHistory();
+  voice.speak(busy() ? "Stop requested. The work is still finishing." : "Work stopped, Captain.");
+}
 
 /** The single OpenCode question that was asked aloud and may be answered by voice. */
 function askedQuestion() {
   if (!spokenQuestionID || answering || state?.permissions.some((item) => item.sessionID === selected)) return undefined;
   const waiting = state?.questions.filter((item) => item.sessionID === selected) ?? [];
   const request = waiting.length === 1 && waiting[0]!.id === spokenQuestionID ? waiting[0] : undefined;
-  return request && canAskAloud(request.questions) ? request : undefined;
+  return request && canAskAloud(request) ? request : undefined;
 }
 
 async function answerAloud(text: string) {
   const request = askedQuestion();
-  if (!request) throw new Error("The question is no longer waiting. Check the conversation on screen.");
-  const result = matchSpokenAnswer(request.questions[0]!, text);
+  if (!request) throw new Error("The question is no longer waiting. Check the log entry on screen.");
+  const field = spokenField(request)!;
+  const result = matchSpokenAnswer(field, text);
   if ("retry" in result) { voice.speak(result.retry); return; }
   answering = true;
   try {
-    await api(`questions/${encodeURIComponent(request.id)}`, { answers: [[result.answer]] });
+    await api(`questions/${encodeURIComponent(request.id)}`, { answer: { [field.key]: result.answer } });
     spokenQuestionID = undefined;
     await refreshState();
   } finally {
@@ -78,32 +160,73 @@ async function answerAloud(text: string) {
   }
 }
 
+// The app always opens with the microphone on; switching it off lasts until it is switched on or the page reloads.
+let microphoneSwitchedOff = false;
+function muted() {
+  return microphoneSwitchedOff;
+}
+function setMuted(value: boolean) {
+  microphoneSwitchedOff = value;
+}
+
+/** The microphone is simply on, unless muted or changing settings. */
+function autoListen() {
+  if (voice.microphone || voice.opening || voice.failed || !state?.speech?.configured || !state.models.length || !connected
+    || muted() || openDrawer() === "settings") return;
+  void perform(() => voice.activate());
+}
+
+/** One status for the whole screen, with a short line saying what to do next. */
+function consoleStatus(): [string, string] {
+  if (!state) return ["Starting up", ""];
+  if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open."];
+  if (!state.models.length) return ["Setup needed", "Sign in to a model provider: open Provider."];
+  if (voice.phase === "speaking") return ["Speaking", "Choose Stop speaking to interrupt."];
+  if (voice.speechPending) return ["Preparing reply", ""];
+  if (voice.microphone && voice.waitingForClick) return ["Ready", "Click anywhere to start listening."];
+  if (voice.phase === "listening") return ["Listening", ""];
+  if (voice.microphone && voice.phase === "thinking") return ["Understanding", ""];
+  const listening = voice.microphone && voice.phase === "standby";
+  if (state.permissions.some((item) => item.sessionID === selected)) return ["Decision needed", "Choose Allow once or Deny on screen."];
+  if (listening && askedQuestion()) return ["Answer needed", "Say your answer, or choose it on screen."];
+  if (pending()) return ["Answer needed", "Answer the question on screen."];
+  const stopHint = !listening ? "Choose Stop work to cancel." : inTask() ? "Say “Stop” to cancel." : "Say “Computer, stop” to cancel.";
+  if (selected && state.statuses[selected]?.type === "retry") return ["Retrying", stopHint];
+  if (busy() || submitting) return ["Working", stopHint];
+  if (historyLoading) return ["Loading", ""];
+  if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New log entry”." : "Say “Computer”, then your request."];
+  if (voice.opening) return ["Starting microphone", ""];
+  if (!state.speech?.configured) return ["Ready", ""];
+  return ["Microphone off", "Click the microphone button or press M to switch it on."];
+}
+
 function voiceControls() {
   const ready = !!state?.speech?.configured && !!state.models.length && connected;
-  const microphone = element<HTMLButtonElement>("microphone");
-  microphone.textContent = voice.microphone ? "Microphone off" : "Turn microphone on";
-  microphone.disabled = !voice.microphone && (!ready || busy() || submitting);
-  microphone.setAttribute("aria-pressed", String(voice.microphone));
-  element("voice-console").dataset.phase = voice.phase;
-  element("voice-status").textContent = voice.phase === "speaking" ? voice.microphone ? "Computer speaking" : "Microphone off / computer speaking"
-    : voice.speechPending ? voice.microphone ? "Preparing the spoken reply" : "Microphone off / preparing the spoken reply"
-    : voice.microphone && voice.phase === "listening" ? askedQuestion() ? "Listening for your answer" : "Listening"
-    : voice.microphone ? pending() ? "Waiting for your decision" : "Understanding / working"
-    : "Microphone off";
-  element("voice-partial").textContent = voice.partial;
-  element("voice-setup-hint").hidden = !!state?.speech?.configured;
+  const [status, detail] = consoleStatus();
+  element("status").textContent = status;
+  element("status-detail").textContent = detail;
+  const toggle = element<HTMLButtonElement>("listen-toggle");
+  toggle.hidden = !state?.speech?.configured;
+  toggle.setAttribute("aria-label", voice.microphone ? "Switch microphone off" : "Switch microphone on");
+  toggle.title = `${voice.microphone ? "Switch microphone off" : "Switch microphone on"} (M)`;
+  toggle.toggleAttribute("data-on", voice.microphone);
+  toggle.disabled = voice.opening || !voice.microphone && !ready;
+  element("voice-console").dataset.phase = voice.microphone || voice.phase === "speaking" ? voice.phase : "off";
+  if (voice.phase === "listening") notSent = "";
+  element("voice-partial").textContent = voice.phase === "listening" || voice.phase === "thinking" ? voice.partial : notSent;
+  element("voice-partial").classList.toggle("not-sent", voice.phase !== "listening" && voice.phase !== "thinking" && !!notSent);
+  element("voice-setup-hint").hidden = !state || !!state.speech?.configured;
+  element("voice-setup-text").textContent = state?.speech?.error ? "Speech did not start." : "Speech is not set up.";
   const cloudListening = state?.speech?.listening !== "whisper";
   const cloudSpeaking = state?.speech?.speaking !== "kokoro";
-  element("speech-services").textContent = `${cloudListening ? "MAI" : "Whisper"} listening / ${cloudSpeaking ? "MAI" : "Kokoro"} voice`;
-  element("voice-disclosure").textContent = `${cloudListening
-    ? "When on, microphone audio goes to Azure, which may process it outside Europe."
-    : "Whisper understands microphone audio on this computer."} ${cloudSpeaking
-    ? "Reply text goes to Azure for speaking." : "Kokoro speaks locally."} Understood requests are sent to Copilot automatically. Listening pauses during work and playback, except to hear your answer to a question the computer asks aloud. Approvals always need a button. Stop speaking interrupts playback, not work.`;
+  element("speech-current").textContent = state?.speech?.configured
+    ? `In use: ${cloudListening ? "Azure" : "this computer"} listens, ${cloudSpeaking ? "Azure" : "this computer"} speaks`
+    : state?.speech?.error ?? "Speech is not set up yet";
   element("stop-speaking").hidden = !voice.speechPending;
 }
 
 function completeVoiceReply() {
-  if (!voiceTurn || voiceTurn.session !== selected || busy() || pending() || submitting || historyLoading) return;
+  if (!voiceTurn || voiceTurn.session !== selected || busy() || pending() || submitting || historyLoading || historyDue) return;
   const reply = messages.findLast((message) => message.role === "assistant" && !voiceTurn!.known.has(message.id));
   if (!reply) return;
   voiceTurn = undefined;
@@ -139,71 +262,109 @@ async function perform(action: () => Promise<void> | void) {
 
 function modelValue(choice: ModelChoice) { return JSON.stringify([choice.providerID, choice.modelID]); }
 function busy() {
-  return !!selected && !!state?.statuses[selected] && state.statuses[selected]?.type !== "idle";
+  return !!selected && !!state?.statuses[selected];
 }
 function pending() {
   return !!selected && (state?.permissions.some((item) => item.sessionID === selected) || state?.questions.some((item) => item.sessionID === selected));
 }
 
+function readout(name: string, value: string) {
+  const node = element(`readout-${name}`);
+  node.textContent = value;
+  node.title = value;
+}
+
+/** The side panel's readouts show what the computer is connected to right now. */
+function readouts() {
+  readout("provider", !state ? "Checking" : !connected ? "Reconnecting" : state.models.length ? "Connected" : "Not connected");
+  readout("project", state ? state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project : "—");
+  readout("model", state?.models.length ? model.selectedOptions[0]?.textContent ?? "—" : "None");
+  const speech = state?.speech;
+  readout("speech", !speech?.configured ? "Not set up"
+    : `${speech.listening === "whisper" ? "Whisper" : "Azure MAI"} · ${speech.speaking === "kokoro" ? "Kokoro" : "Azure MAI"}`);
+}
+
 function controls() {
   const working = busy() || submitting;
   const ready = !!state?.models.length && connected && !historyLoading;
-  prompt.disabled = !ready;
   model.disabled = !ready || working;
-  agent.disabled = !ready || working;
-  element<HTMLButtonElement>("send").disabled = !ready || working || !prompt.value.trim();
-  element("send").hidden = !!working;
   element("stop").hidden = !busy();
   element<HTMLButtonElement>("stop").disabled = submitting;
   element<HTMLButtonElement>("new-conversation").disabled = !state || submitting;
   element("setup").hidden = !state || !!state.models.length;
   element("welcome").hidden = !!messages.length || !!selected && historyLoading || !!state && !state.models.length;
-  const retrying = !!selected && state?.statuses[selected]?.type === "retry";
-  const status = !state ? "Starting up" : !connected ? "Reconnecting" : !state.models.length ? "Setup needed" : pending() ? "Needs your reply" : retrying ? "Retrying" : working ? "Working" : historyLoading ? "Loading" : "Ready";
-  element("work-status").textContent = status;
-  element("connection-label").textContent = connected ? "Local connection" : "Connecting";
-  element("connection-light").classList.toggle("ready", connected);
-  element("mode-hint").textContent = agent.value === "plan"
-    ? "Discuss uses OpenCode's planning mode. Review its suggestions before asking for changes."
-    : "OpenCode may change files or run commands. Its permission settings decide which actions ask first.";
-  if (voice.microphone && voice.phase === "listening" && (!ready || (working || pending()) && !askedQuestion())) voice.resume();
-  if (voice.microphone && voice.phase === "off" && ready && !voice.speechPending && !historyLoading
-    && (askedQuestion() || !working && !pending() && !voiceTurn)) voice.resume();
+  element("provider-status").textContent = !state ? "Checking" : state.models.length
+    ? `Connected: ${[...new Set(state.models.map((choice) => choice.provider))].join(", ")}. ${state.models.length} model${state.models.length === 1 ? "" : "s"} available.` : "Not connected";
+  readouts();
+  voice.sync();
+  autoListen();
   voiceControls();
 }
 
 function renderState() {
   if (!state) { controls(); return; }
-  const projectName = state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project;
-  element("project-name").textContent = projectName;
-  element("project-name").title = state.project;
   if (document.activeElement !== element("project-path")) element<HTMLInputElement>("project-path").value = state.project;
-  element("workspace-caption").textContent = `OpenCode ${state.version} · ${projectName}`;
-  element("conversation-title").textContent = state.conversations.find((item) => item.id === selected)?.title ?? "New conversation";
+  element("workspace-caption").textContent = `OpenCode ${state.version} · ${state.project}`;
   const currentModel = model.value;
   model.replaceChildren();
+  const groups = new Map<string, HTMLOptGroupElement>();
   for (const choice of state.models) {
+    let group = groups.get(choice.provider);
+    if (!group) {
+      group = make("optgroup");
+      group.label = choice.provider;
+      groups.set(choice.provider, group);
+      model.append(group);
+    }
     const option = make("option", undefined, choice.name);
     option.value = modelValue(choice);
-    model.append(option);
+    group.append(option);
   }
-  if (!state.models.length) model.append(make("option", undefined, "Connect GitHub Copilot"));
+  if (!state.models.length) model.append(make("option", undefined, "Sign in to a model provider"));
   else if (state.models.some((choice) => modelValue(choice) === currentModel)) model.value = currentModel;
   else if (state.defaultModel) model.value = modelValue(state.defaultModel);
   const list = element("conversations");
   list.replaceChildren();
+  if (confirmingDelete && !state.conversations.some((item) => item.id === confirmingDelete)) confirmingDelete = undefined;
   for (const item of state.conversations) {
-    const node = button(item.title, "conversation-button", () => selectConversation(item.id));
+    const row = make("div", "conversation-row");
+    if (confirmingDelete === item.id) {
+      row.classList.add("confirming");
+      const question = make("p", "delete-question", `Delete “${item.title}” permanently? This cannot be undone.`);
+      const yes = button("Delete", "delete-confirm", () => deleteConversation(item.id));
+      const no = button("Keep", "delete-cancel", () => { confirmingDelete = undefined; renderState(); });
+      row.append(question, yes, no);
+      list.append(row);
+      continue;
+    }
+    const node = button("", "conversation-button", () => selectConversation(item.id));
+    // Like a captain's log, each entry carries the stardate it was started.
+    const started = new Date(item.created);
+    const known = Number.isFinite(started.getTime());
+    const when = known ? `, stardate ${formatStardate(started)}` : "";
+    if (known) {
+      const date = make("span", "log-stardate", `Stardate ${formatStardate(started)}`);
+      date.title = started.toLocaleString(undefined, { dateStyle: "full", timeStyle: "short" });
+      node.append(date);
+    }
+    node.append(make("span", "log-title", item.title));
+    node.setAttribute("aria-label", `${item.title}${when}`);
     if (item.id === selected) node.setAttribute("aria-current", "page");
     if (state.permissions.some((request) => request.sessionID === item.id) || state.questions.some((request) => request.sessionID === item.id)) {
       const dot = make("span", "pending-dot");
       dot.setAttribute("aria-hidden", "true");
       node.prepend(dot);
-      node.setAttribute("aria-label", `${item.title}, needs your reply`);
+      node.setAttribute("aria-label", `${item.title}${when}, needs your reply`);
     }
-    list.append(node);
+    const remove = button("✕", "delete-button", () => { confirmingDelete = item.id; renderState(); });
+    const working = !!state.statuses[item.id];
+    remove.disabled = working;
+    remove.setAttribute("aria-label", `Delete ${item.title}`);
+    remove.title = working ? "Still working. Stop it before deleting." : "Delete this log entry";
+    row.append(node, remove);
+    list.append(row);
   }
-  if (!state.conversations.length) list.append(make("p", "empty-list", "Your conversations will appear here."));
+  if (!state.conversations.length) list.append(make("p", "muted", "Your log entries will appear here."));
   renderApprovals();
   const decision = state.permissions.find((item) => item.sessionID === selected)?.id
     ?? state.questions.find((item) => item.sessionID === selected)?.id;
@@ -212,10 +373,10 @@ function renderState() {
     const question = state.questions.find((item) => item.id === decision);
     const waiting = state.questions.filter((item) => item.sessionID === selected).length;
     if (!question) {
-      voice.speak("Approval required. Review the requested action on screen, then choose Allow once or Deny.");
-    } else if (waiting === 1 && canAskAloud(question.questions)) {
+      voice.speak("Captain, approval is required. Review the requested action on screen, then choose Allow once or Deny.");
+    } else if (waiting === 1 && canAskAloud(question)) {
       spokenQuestionID = question.id;
-      voice.speak(spokenQuestion(question.questions[0]!));
+      voice.speak(spokenQuestion(question));
     } else {
       voice.speak("Additional information is required. Please answer the questions on screen.");
     }
@@ -224,14 +385,12 @@ function renderState() {
   controls();
 }
 
-function renderText(container: HTMLElement, text: string) {
-  // Treat model output as text, never as trusted HTML. Keep fenced code readable.
-  const pieces = text.split(/```(?:[^\n`]*)\n([\s\S]*?)(?:```|$)/g);
-  pieces.forEach((piece, index) => {
-    if (!piece) return;
-    const node = make(index % 2 ? "pre" : "p", index % 2 ? undefined : "message-text", piece);
-    container.append(node);
-  });
+function renderText(container: HTMLElement, text: string, role: ChatMessage["role"]) {
+  // The captain's own words stay exactly as heard; replies are Markdown, rendered safely.
+  if (role === "user") { container.append(make("p", "message-text", text)); return; }
+  const node = make("div", "message-text markdown");
+  node.append(renderMarkdown(text));
+  container.append(node);
 }
 
 function renderMessages() {
@@ -239,11 +398,14 @@ function renderMessages() {
   const openDetails = new Set(Array.from(element("messages").querySelectorAll<HTMLDetailsElement>("details[open]")).map((node) => node.dataset.part));
   const container = element("messages");
   container.replaceChildren();
-  for (const message of messages) {
-    const article = make("article", "message");
+  // The latest request and its reply fill the screen; earlier ones stay small above.
+  const list = shown();
+  const latest = list.findLastIndex((message) => message.role === "user");
+  list.forEach((message, index) => {
+    const article = make("article", `message ${index >= latest ? "current" : "earlier"}`);
     article.dataset.role = message.role;
     const header = make("div", "message-header");
-    header.append(make("strong", undefined, message.role === "user" ? "You" : "Computer"));
+    header.append(make("strong", undefined, message.role === "user" ? "Picard" : "Computer"));
     const copy = button("Copy", "copy-button", async () => {
       await navigator.clipboard.writeText(message.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n"));
       copy.textContent = "Copied";
@@ -251,7 +413,7 @@ function renderMessages() {
     header.append(copy);
     article.append(header);
     for (const part of message.parts) {
-      if (part.type === "text") renderText(article, part.text);
+      if (part.type === "text") renderText(article, part.text, message.role);
       else {
         const detail = make("details", part.type === "tool" ? "tool" : "reasoning");
         detail.dataset.part = part.id;
@@ -264,7 +426,7 @@ function renderMessages() {
     }
     if (message.error) article.append(make("p", "message-error", message.error));
     container.append(article);
-  }
+  });
   controls();
   if (nearBottom && window.matchMedia("(min-width: 701px)").matches) readingArea.scrollTop = readingArea.scrollHeight;
 }
@@ -290,19 +452,23 @@ function permissionPanel(request: PermissionRequest) {
   const panel = make("section", "approval");
   panel.append(make("h3", undefined, "Approval required."));
   const actions: Record<string, string> = {
-    bash: "run a command",
+    shell: "run a command",
     edit: "change a file",
-    read: "read files",
+    read: "read a file",
     glob: "find files",
     grep: "search file contents",
-    external_directory: "access files outside this project",
+    external_directory: "use files outside this project",
     webfetch: "open a web page",
     websearch: "search the web",
-    task: "start a helper",
+    subagent: "start a helper",
+    skill: "use a skill",
+    question: "ask a question",
   };
-  const action = actions[request.permission] ?? `use the "${request.permission}" tool`;
+  const action = actions[request.action] ?? `use the "${request.action}" tool`;
   panel.append(make("p", undefined, `OpenCode wants to ${action}. Review the requested action before allowing it.`));
-  panel.append(make("pre", undefined, `${request.patterns.join("\n")}\n\n${JSON.stringify(request.metadata, null, 2)}`));
+  if (request.message) panel.append(make("p", undefined, request.message));
+  const metadata = request.metadata && Object.keys(request.metadata).length ? `\n\n${JSON.stringify(request.metadata, null, 2)}` : "";
+  panel.append(make("pre", undefined, `${request.resources.join("\n")}${metadata}`.trim()));
   const buttons = make("div", "approval-actions");
   buttons.append(
     button("Allow once", "peach-button", () => answerRequest(panel, `permissions/${encodeURIComponent(request.id)}`, { reply: "once" })),
@@ -312,51 +478,101 @@ function permissionPanel(request: PermissionRequest) {
   return panel;
 }
 
-function questionPanel(request: QuestionRequest) {
+/** One question in an OpenCode form, with a way to read its current answer. */
+function formField(request: FormRequest, field: FormField, index: number) {
+  const box = make("fieldset", "question-field");
+  box.append(make("legend", undefined, field.description?.trim() || field.title?.trim() || request.title));
+  if (field.description && field.title) box.prepend(make("p", "question-title", field.title));
+  const name = `question-${request.id}-${index}`;
+  const choice = (type: "radio" | "checkbox", value: string, label: string, detail?: string, checked = false) => {
+    const node = make("label", "question-option");
+    const input = make("input");
+    input.type = type;
+    input.name = name;
+    input.value = value;
+    input.checked = checked;
+    node.append(input, document.createTextNode(label));
+    if (detail) node.append(make("small", undefined, detail));
+    box.append(node);
+    return input;
+  };
+  const writeIn = (label: string) => {
+    const node = make("label", "question-option", label);
+    const input = make("input", "custom-answer");
+    input.type = "text";
+    input.maxLength = 4096;
+    node.append(input);
+    box.append(node);
+    return input;
+  };
+  let read: () => FormValue | undefined = () => undefined;
+  if (field.type === "string") {
+    const options = field.options ?? [];
+    const inputs = options.map((option) => choice("radio", option.value, option.label, option.description, option.value === field.default));
+    const custom = !options.length || field.custom === true ? writeIn(options.length ? "Or write your answer" : "Your answer") : undefined;
+    if (custom && !options.length && field.default) custom.value = field.default;
+    if (custom && field.maxLength) custom.maxLength = Math.min(field.maxLength, 4096);
+    read = () => custom?.value.trim() || inputs.find((input) => input.checked)?.value;
+  } else if (field.type === "multiselect") {
+    const inputs = field.options.map((option) => choice("checkbox", option.value, option.label, option.description, field.default?.includes(option.value)));
+    const custom = field.custom === true ? writeIn("Or add your own answer") : undefined;
+    read = () => {
+      const values = inputs.filter((input) => input.checked).map((input) => input.value);
+      if (custom?.value.trim()) values.push(custom.value.trim());
+      return values.length ? values : undefined;
+    };
+  } else if (field.type === "boolean") {
+    const yes = choice("radio", "yes", "Yes", undefined, field.default === true);
+    const no = choice("radio", "no", "No", undefined, field.default === false);
+    read = () => yes.checked ? true : no.checked ? false : undefined;
+  } else if (field.type === "number" || field.type === "integer") {
+    const node = make("label", "question-option", "Your answer");
+    const input = make("input", "custom-answer");
+    input.type = "number";
+    input.step = field.type === "integer" ? "1" : "any";
+    if (field.minimum !== undefined) input.min = String(field.minimum);
+    if (field.maximum !== undefined) input.max = String(field.maximum);
+    if (field.default !== undefined) input.value = String(field.default);
+    node.append(input);
+    box.append(node);
+    read = () => input.value.trim() === "" ? undefined : Number(input.value);
+  } else if (field.type === "external") {
+    // A page OpenCode wants opened, such as a sign-in. Only web addresses are linked.
+    const safe = /^https?:\/\//i.test(field.url);
+    const link = make(safe ? "a" : "span", "question-link", safe ? "Open the page" : field.url);
+    if (link instanceof HTMLAnchorElement) { link.href = field.url; link.target = "_blank"; link.rel = "noopener noreferrer"; }
+    box.append(link, make("small", undefined, field.url));
+  }
+  return { field, box, read };
+}
+
+function questionPanel(request: FormRequest) {
   const form = make("form", "approval");
   form.append(make("h3", undefined, "Additional information required."));
-  const answers: (() => string[])[] = [];
-  request.questions.forEach((question, index) => {
-    const field = make("fieldset", "question-field");
-    field.append(make("legend", undefined, question.question));
-    const inputs: HTMLInputElement[] = [];
-    question.options.forEach((option) => {
-      const label = make("label", "question-option");
-      const input = make("input");
-      input.type = question.multiple ? "checkbox" : "radio";
-      input.name = `question-${request.id}-${index}`;
-      input.value = option.label;
-      inputs.push(input);
-      label.append(input, document.createTextNode(option.label), make("small", undefined, option.description));
-      field.append(label);
-    });
-    let custom: HTMLInputElement | undefined;
-    if (question.custom !== false) {
-      const label = make("label", "question-option", "Or write your answer");
-      custom = make("input", "custom-answer");
-      custom.type = "text";
-      custom.maxLength = 4096;
-      label.append(custom);
-      field.append(label);
-    }
-    answers.push(() => {
-      const choices = inputs.filter((input) => input.checked).map((input) => input.value);
-      if (custom?.value.trim()) return question.multiple ? [...choices, custom.value.trim()] : [custom.value.trim()];
-      return choices;
-    });
-    form.append(field);
-  });
+  const fields = request.fields.filter((field) => !field.hidden).map((field, index) => formField(request, field, index));
+  const value = (key: string) => fields.find((item) => item.field.key === key)?.read();
+  const visible = (field: FormField) => (field.when ?? []).every((rule) => rule.op === "eq" ? value(rule.key) === rule.value : value(rule.key) !== rule.value);
+  const update = () => { for (const item of fields) item.box.hidden = !visible(item.field); };
+  for (const item of fields) form.append(item.box);
+  form.addEventListener("input", update);
+  form.addEventListener("change", update);
+  update();
   const actions = make("div", "approval-actions");
   const submit = make("button", "peach-button", "Send answer");
   submit.type = "submit";
-  actions.append(submit, button("Skip question", "deny-button", () => answerRequest(form, `questions/${encodeURIComponent(request.id)}`, { reject: true })));
+  actions.append(submit, button("Skip question", "deny-button", () => answerRequest(form, `questions/${encodeURIComponent(request.id)}`, { skip: true })));
   form.append(actions);
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     void perform(async () => {
-      const values = answers.map((answer) => answer());
-      if (values.some((value) => !value.length)) throw new Error("Choose or write an answer to each question.");
-      await answerRequest(form, `questions/${encodeURIComponent(request.id)}`, { answers: values });
+      const answer: Record<string, FormValue> = {};
+      for (const item of fields) {
+        if (item.field.type === "external" || !visible(item.field)) continue;
+        const given = item.read();
+        if (given !== undefined) answer[item.field.key] = given;
+        else if (item.field.required || fields.length === 1) throw new Error("Choose or write an answer to each question.");
+      }
+      await answerRequest(form, `questions/${encodeURIComponent(request.id)}`, { answer });
     });
   });
   return form;
@@ -379,114 +595,97 @@ function renderApprovals() {
   }
 }
 
-function applyMessageEvent(event: Event) {
-  if (event.type === "message.updated" && event.properties.info.sessionID === selected) {
-    const info = event.properties.info;
-    let message = messages.find((item) => item.id === info.id);
-    if (!message) { message = { id: info.id, role: info.role, parts: [] }; messages.push(message); }
-    message.role = info.role;
-    if (info.role === "assistant" && info.error) message.error = errorMessage(info.error);
-    scheduleRender();
-  } else if (event.type === "message.part.updated" && event.properties.part.sessionID === selected) {
-    const part = event.properties.part;
-    const converted = chatPart(part);
-    if (!converted) return;
-    let message = messages.find((item) => item.id === part.messageID);
-    if (!message) { message = { id: part.messageID, role: "assistant", parts: [] }; messages.push(message); }
-    const index = message.parts.findIndex((item) => item.id === part.id);
-    if (index < 0) message.parts.push(converted);
-    else message.parts[index] = converted;
-    scheduleRender();
-  } else if (event.type === "message.part.delta" && event.properties.sessionID === selected) {
-    const { messageID, partID, field, delta } = event.properties;
-    const part = messages.find((item) => item.id === messageID)?.parts.find((item) => item.id === partID);
-    if (part && field === "text") { part.text += delta; scheduleRender(); }
-    else {
-      clearTimeout(historyTimer);
-      historyTimer = setTimeout(() => { void perform(loadHistory); }, 200);
-    }
-  } else if (event.type === "message.removed" && event.properties.sessionID === selected) {
-    messages = messages.filter((message) => message.id !== event.properties.messageID);
-    scheduleRender();
-  } else if (event.type === "message.part.removed" && event.properties.sessionID === selected) {
-    const message = messages.find((item) => item.id === event.properties.messageID);
-    if (message) message.parts = message.parts.filter((part) => part.id !== event.properties.partID);
-    scheduleRender();
+/** The stored conversation with any reply text that is still being written. */
+function shown(): ChatMessage[] {
+  const pieces = [...live].filter(([, piece]) => piece.sessionID === selected);
+  if (!pieces.length) return messages;
+  const result = structuredClone(messages);
+  for (const [id, piece] of pieces) {
+    let message = result.find((item) => item.id === piece.messageID);
+    if (!message) { message = { id: piece.messageID, role: "assistant", parts: [] }; result.push(message); }
+    const part = message.parts.find((item) => item.id === id);
+    if (!part) message.parts.push({ id, type: piece.partType, text: piece.text });
+    else if (part.text.length < piece.text.length) part.text = piece.text;
+  }
+  return result;
+}
+
+/** Drops live text once the stored conversation holds all of it. */
+function pruneLive() {
+  for (const [id, piece] of live) {
+    const stored = messages.find((item) => item.id === piece.messageID)?.parts.find((item) => item.id === id);
+    if (piece.sessionID !== selected || stored && stored.text.length >= piece.text.length) live.delete(id);
   }
 }
 
-function handleEvent(event: Event) {
-  if (!state) return;
-  if (event.type.startsWith("message.")) {
-    if (historyLoading) historyEvents.push(event);
-    else applyMessageEvent(event);
-  }
-  if (event.type === "session.status") {
-    state.statuses[event.properties.sessionID] = event.properties.status;
-    if (event.properties.sessionID === selected && event.properties.status.type === "retry") {
-      notice(`OpenCode is retrying. ${event.properties.status.message}`);
-    }
-    controls();
-    if (event.properties.sessionID === selected && event.properties.status.type === "idle") void perform(loadHistory);
-  } else if (event.type === "session.idle") {
-    state.statuses[event.properties.sessionID] = { type: "idle" };
-    controls();
-    if (event.properties.sessionID === selected) void perform(loadHistory);
-  } else if (event.type === "session.error") {
-    if (!event.properties.sessionID || event.properties.sessionID === selected) {
-      const message = errorMessage(event.properties.error);
-      notice(message);
-      if (voiceTurn) { voiceTurn = undefined; voice.speak(spokenSummary(message), event.properties.error?.name !== "MessageAbortedError"); }
-    }
-  } else if (event.type.startsWith("permission.") || event.type.startsWith("question.") || ["session.created", "session.updated", "session.deleted"].includes(event.type)) {
+function scheduleHistory() {
+  historyDue = true;
+  clearTimeout(historyTimer);
+  historyTimer = setTimeout(() => { void perform(loadHistory); }, 200);
+}
+
+function handleEvent(event: BrowserEvent) {
+  if (!state || event.type === "connection") return;
+  if (event.type === "delta") {
+    if (event.sessionID !== selected) return;
+    const piece = live.get(event.partID) ?? { sessionID: event.sessionID, messageID: event.messageID, partType: event.partType, text: "" };
+    piece.text += event.delta;
+    live.set(event.partID, piece);
+    scheduleRender();
+  } else if (event.type === "changed") {
+    if (event.sessionID === selected) scheduleHistory();
+  } else if (event.type === "state") {
+    statusEvents++;
     void perform(refreshState);
+  } else if (event.type === "retry") {
+    statusEvents++;
+    state.statuses[event.sessionID] = { type: "retry", message: event.message };
+    if (event.sessionID === selected) notice(`OpenCode is retrying. ${event.message}`);
+    controls();
+  } else if (event.type === "error" && event.sessionID === selected) {
+    notice(event.message);
+    if (voiceTurn) { voiceTurn = undefined; voice.speak(spokenSummary(event.message), true); }
   }
 }
 
+let statusEvents = 0;
 async function refreshState() {
   const revision = selectionRevision;
-  const next = await api<AppState>("state");
+  let next: AppState;
+  // A status change that arrives while the copy is on its way is newer than the copy, so fetch again.
+  for (let attempt = 0; ; attempt++) {
+    const seen = statusEvents;
+    next = await api<AppState>("state");
+    if (seen === statusEvents || attempt === 2) break;
+  }
   if (revision !== selectionRevision && state?.project !== next.project) return;
   state = next;
   renderState();
+  completeVoiceReply();
 }
 
 async function loadHistory() {
-  if (!selected || historyLoading) return;
+  if (!selected) return;
+  if (historyLoading) { historyAgain = true; return; }
+  historyDue = false;
+  clearTimeout(historyTimer);
   const id = selected;
   const revision = ++historyRevision;
-  const baseline = structuredClone(messages);
   historyLoading = true;
-  historyEvents.length = 0;
   controls();
   try {
     const loaded = await api<ChatMessage[]>(`conversations/${encodeURIComponent(id)}/messages`);
     if (selected !== id || revision !== historyRevision) return;
-    const buffered = historyEvents.splice(0);
-    // Replay against the pre-request state, not the snapshot: the snapshot can
-    // already contain some of these deltas. Appending them again duplicates words.
-    messages = baseline;
-    for (const event of buffered) applyMessageEvent(event);
-    const replayed = messages;
     messages = loaded;
-    for (const candidate of replayed) {
-      const snapshot = messages.find((item) => item.id === candidate.id);
-      if (!snapshot) {
-        if (buffered.some((event) => event.type === "message.updated" && event.properties.info.id === candidate.id)) messages.push(candidate);
-        continue;
-      }
-      for (const part of candidate.parts) {
-        const current = snapshot.parts.find((item) => item.id === part.id);
-        if (!current) snapshot.parts.push(part);
-        else if ((part.type === "text" || part.type === "reasoning") && part.text.startsWith(current.text)) current.text = part.text;
-      }
-    }
-    for (const event of buffered) {
-      if (event.type === "message.removed" || event.type === "message.part.removed") applyMessageEvent(event);
-    }
+    pruneLive();
     renderMessages();
   } finally {
-    if (selected === id && revision === historyRevision) { historyLoading = false; controls(); completeVoiceReply(); }
+    if (selected === id && revision === historyRevision) {
+      historyLoading = false;
+      controls();
+      if (historyAgain) { historyAgain = false; void perform(loadHistory); }
+      else completeVoiceReply();
+    }
   }
 }
 
@@ -506,7 +705,7 @@ function openEvents() {
           await loadHistory();
         }
         controls();
-      } else handleEvent(data.event);
+      } else handleEvent(data);
     });
   });
   events.addEventListener("error", () => {
@@ -516,65 +715,81 @@ function openEvents() {
   });
 }
 
-function closeMenu() {
-  element("sidebar").classList.remove("open");
-  element("menu").setAttribute("aria-expanded", "false");
-}
-
 async function selectConversation(id: string) {
   if (selected && id !== selected) { voiceTurn = undefined; spokenQuestionID = undefined; voice.close(); }
-  drafts.set(selected ?? "new", prompt.value);
   selected = id;
   selectionRevision++;
   historyRevision++;
   historyLoading = false;
+  historyAgain = false;
+  historyDue = false;
   clearTimeout(historyTimer);
+  live.clear();
   messages = [];
-  prompt.value = drafts.get(id) ?? "";
   notice();
-  closeMenu();
+  if (openDrawer() === "records") closeDrawer();
   renderState();
   renderMessages();
   await loadHistory();
 }
 
-async function newConversation(title = "New conversation") {
+/** Clears the screen for a new task. The next request starts a new log, named after that request. */
+function startFresh() {
+  voiceTurn = undefined;
+  spokenQuestionID = undefined;
+  voice.stopSpeaking();
+  selected = undefined;
+  selectionRevision++;
+  historyRevision++;
+  historyLoading = false;
+  historyAgain = false;
+  historyDue = false;
+  clearTimeout(historyTimer);
+  live.clear();
+  messages = [];
+  notice();
+  renderState();
+  renderMessages();
+}
+
+/** Permanently deletes a log entry after the captain confirmed it. */
+async function deleteConversation(id: string) {
+  confirmingDelete = undefined;
+  await api(`conversations/${encodeURIComponent(id)}/delete`, {});
+  if (engagedWith === id) engagedWith = undefined;
+  if (state) state.conversations = state.conversations.filter((item) => item.id !== id);
+  if (selected === id) startFresh();
+  else renderState();
+}
+
+async function newConversation(title = "New log entry") {
   const conversation = await api<Conversation>("conversations", { title });
   if (state) state.conversations.unshift(conversation);
   await selectConversation(conversation.id);
   return conversation;
 }
 
-async function sendMessage(spokenText?: string) {
-  if (submitting || busy() || !state || !connected || historyLoading) {
-    if (spokenText) throw new Error("The spoken request was not sent. Wait for the current work or connection to finish.");
-    return;
-  }
-  const text = (spokenText ?? prompt.value).trim();
+async function sendMessage(spoken: string) {
+  if (submitting || busy() || !state || !connected || historyLoading) throw new Error("The spoken request was not sent. Wait for the current work or connection to finish.");
+  const text = spoken.trim();
   if (!text) return;
   const choice = state.models.find((choice) => modelValue(choice) === model.value);
-  if (!choice) throw new Error("Connect GitHub Copilot and choose a model first.");
-  const mode = agent.value;
+  if (!choice) throw new Error("Sign in to a model provider and choose a model first.");
   submitting = true;
   controls();
   notice();
   try {
-    if (!selected) {
-      await newConversation(text.slice(0, 60));
-      prompt.value = text;
-    }
+    // A request that starts a task begins its own log entry; only follow-ups within the task join it.
+    if (selected && engagedWith !== selected) startFresh();
+    if (!selected) await newConversation((addressed(text) || text).slice(0, 60));
     const id = selected!;
-    if (spokenText) voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)) };
-    // Keep the draft until OpenCode confirms it accepted the message.
-    drafts.set(id, text);
-    await api(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, agent: mode });
-    if (spokenText) voice.acknowledge(() => !!voiceTurn && busy() && !pending());
-    drafts.delete(id);
-    prompt.value = "";
+    voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)) };
+    await api(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice });
+    voice.acknowledge(() => !!voiceTurn && busy() && !pending());
     await refreshState();
     await loadHistory();
   } catch (error) {
-    if (spokenText) { voiceTurn = undefined; prompt.value = text; }
+    voiceTurn = undefined;
     throw error;
   } finally {
     submitting = false;
@@ -590,17 +805,129 @@ async function boot() {
     history.replaceState(null, "", location.pathname);
   }
   await refreshState();
+  // First run: without a model there is nothing to do on the main screen yet.
+  if (state && !state.models.length && !location.hash) location.hash = "settings/provider";
   if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id);
   openEvents();
 }
 
-element("composer").addEventListener("submit", (event) => { event.preventDefault(); void perform(() => sendMessage()); });
-prompt.addEventListener("input", () => { drafts.set(selected ?? "new", prompt.value); controls(); });
-prompt.addEventListener("keydown", (event) => {
-  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void perform(() => sendMessage()); }
+const speechFields = ["listening", "speaking", "subscription", "resourceGroup", "resourceName", "region", "deployment", "voice", "voiceStyle", "kokoroVoice"] as const;
+function speechInput(name: typeof speechFields[number]) { return element<HTMLInputElement | HTMLSelectElement>(`setting-${name}`); }
+function speechFieldVisibility() {
+  const azureListening = speechInput("listening").value === "mai";
+  const azureSpeaking = speechInput("speaking").value === "mai";
+  element("azure-fields").hidden = !azureListening && !azureSpeaking;
+  element("local-note").hidden = azureListening && azureSpeaking;
+  const show = (selector: string, visible: boolean) => document.querySelectorAll<HTMLElement>(selector).forEach((node) => { node.hidden = !visible; });
+  show(".kokoro-field", !azureSpeaking);
+  show(".azure-listening", azureListening);
+  show(".azure-speaking", azureSpeaking);
+}
+function showSpeechSettings(result: { settings: SpeechSettings; file: string }) {
+  for (const name of speechFields) speechInput(name).value = result.settings[name];
+  element("settings-file").textContent = `Saved in ${result.file}`;
+  speechFieldVisibility();
+}
+
+const drawers = ["records", "settings"] as const;
+type Drawer = typeof drawers[number];
+function openDrawer(): Drawer | undefined {
+  const name = location.hash.slice(1).split("/")[0] ?? "";
+  return (drawers as readonly string[]).includes(name) ? name as Drawer : undefined;
+}
+function closeDrawer() {
+  if (openDrawer()) location.hash = "";
+}
+
+const settingsParts = { provider: ["Provider sign-in", "orange"], model: ["Model", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
+type SettingsPart = keyof typeof settingsParts;
+/** Each side panel tile opens its own part, for example #settings/voice. Without one, open what still needs doing. */
+function showSettingsPart(requested?: string) {
+  const part = requested && requested in settingsParts ? requested as SettingsPart
+    : state && !state.models.length ? "provider" : "voice";
+  for (const name of Object.keys(settingsParts) as SettingsPart[]) element(`settings-${name}`).hidden = name !== part;
+  const [title, colour] = settingsParts[part];
+  element("settings-title").textContent = title;
+  element("settings-bar").className = `drawer-bar ${colour}`;
+}
+
+let settingsLoaded = false;
+async function route() {
+  const open = openDrawer();
+  for (const name of drawers) element(`drawer-${name}`).hidden = name !== open;
+  element("shell").dataset.drawer = open ?? "";
+  // The conversation stays visible behind a slide-out but cannot be used until it closes.
+  element("main").inert = !!open;
+  document.querySelectorAll<HTMLAnchorElement>("[data-drawer-link]").forEach((link) => {
+    const current = link.dataset.drawerLink === open;
+    link.href = current ? "#" : `#${link.dataset.drawerLink}`;
+    if (current) link.setAttribute("aria-current", "true");
+    else link.removeAttribute("aria-current");
+  });
+  // The Conversation tile is lit while the conversation is in front, and brings it back from any panel.
+  if (open) element("nav-conversation").removeAttribute("aria-current");
+  else element("nav-conversation").setAttribute("aria-current", "page");
+  // A tile shows its part; choosing it again closes the panel.
+  document.querySelectorAll<HTMLAnchorElement>("a.readout, #tribute").forEach((tile) => {
+    tile.dataset.part ??= tile.getAttribute("href") ?? "";
+    const current = open === "settings" && tile.dataset.part === location.hash;
+    tile.setAttribute("href", current ? "#" : tile.dataset.part);
+    if (current) tile.setAttribute("aria-current", "true");
+    else tile.removeAttribute("aria-current");
+  });
+  if (open) element(`drawer-${open}`).focus();
+  // Listening pauses while settings change, and starts again when Settings closes.
+  if (open === "settings" && voice.microphone) voice.microphoneOff();
+  controls();
+  if (open !== "settings") return;
+  showSettingsPart(location.hash.split("/")[1]);
+  if (!settingsLoaded) {
+    settingsLoaded = true;
+    try { showSpeechSettings(await api("settings")); }
+    catch (error) { settingsLoaded = false; throw error; }
+  }
+}
+
+model.addEventListener("change", readouts);
+element("new-conversation").addEventListener("click", () => { void perform(async () => {
+  closeDrawer();
+  startFresh();
+}); });
+window.addEventListener("hashchange", () => { void perform(route); });
+// Clicking the conversation behind an open panel closes the panel.
+document.addEventListener("click", (event) => {
+  const target = event.target as Element | null;
+  // A button that redrew its own panel is no longer on the page; that click was still inside the panel.
+  if (openDrawer() && target?.isConnected && !target.closest(".drawer, #sidebar, .header")) closeDrawer();
 });
-agent.addEventListener("change", controls);
-element("new-conversation").addEventListener("click", () => { void perform(async () => { await newConversation(); prompt.focus(); }); });
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && openDrawer()) { event.preventDefault(); closeDrawer(); }
+});
+speechInput("listening").addEventListener("change", speechFieldVisibility);
+speechInput("speaking").addEventListener("change", speechFieldVisibility);
+element("speech-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const result = element("speech-result");
+  const save = element<HTMLButtonElement>("save-speech");
+  void perform(async () => {
+    const data = Object.fromEntries(speechFields.map((name) => [name, speechInput(name).value.trim()]));
+    result.textContent = "Starting the selected speech services";
+    save.disabled = true;
+    // Open voice connections use the old services; close them before switching.
+    voice.close();
+    try {
+      const saved = await api<{ settings: SpeechSettings; file: string; speech: AppState["speech"] }>("settings", data);
+      showSpeechSettings(saved);
+      if (state) state.speech = saved.speech;
+      result.textContent = "Speech settings saved and in use";
+      notice();
+      controls();
+    } catch (error) {
+      result.textContent = "Not changed. See the message above";
+      throw error;
+    } finally { save.disabled = false; }
+  });
+});
 element("stop").addEventListener("click", () => {
   void perform(async () => {
     if (!selected) return;
@@ -612,25 +939,12 @@ element("stop").addEventListener("click", () => {
     voice.resume();
   });
 });
-element("retry").addEventListener("click", () => { void perform(boot); });
+element("retry").addEventListener("click", () => { void perform(async () => { await route(); await boot(); await route(); }); });
 element("refresh-provider").addEventListener("click", () => {
   void perform(async () => {
     await api("refresh", {});
     await refreshState();
     openEvents();
-  });
-});
-element("menu").addEventListener("click", () => {
-  const open = element("sidebar").classList.toggle("open");
-  element("menu").setAttribute("aria-expanded", String(open));
-});
-document.querySelectorAll<HTMLButtonElement>("[data-prompt]").forEach((button) => {
-  button.addEventListener("click", () => {
-    element<HTMLDetailsElement>("typing").open = true;
-    prompt.value = button.dataset.prompt ?? "";
-    drafts.set(selected ?? "new", prompt.value);
-    controls();
-    prompt.focus();
   });
 });
 element("project-form").addEventListener("submit", (event) => {
@@ -644,23 +958,52 @@ element("project-form").addEventListener("submit", (event) => {
     selected = undefined;
     selectionRevision++;
     historyRevision++;
+    live.clear();
     messages = [];
-    prompt.value = "";
     state = next;
-    element<HTMLDetailsElement>("project-details").open = false;
+    location.hash = "";
     renderState();
     renderMessages();
     if (next.conversations[0]) await selectConversation(next.conversations[0].id);
     openEvents();
   });
 });
-element("microphone").addEventListener("click", () => { void perform(async () => {
-  if (voice.microphone) voice.microphoneOff();
-  else await voice.activate();
-}); });
-element("stop-speaking").addEventListener("click", () => voice.stopSpeaking());
-element("typing").addEventListener("toggle", () => {
-  if (element<HTMLDetailsElement>("typing").open) voice.microphoneOff();
+function muteMicrophone() {
+  engagedWith = undefined;
+  setMuted(true);
+  voice.microphoneOff();
+  controls();
+}
+async function startListening() {
+  if (!state?.speech?.configured || !state.models.length || !connected) return;
+  setMuted(false);
+  await voice.activate();
+  controls();
+}
+/** The last side panel tile shows the current stardate; the ordinary date and time are in its tooltip. */
+function showStardate() {
+  const now = new Date();
+  element("readout-stardate").textContent = formatStardate(now);
+  element("rail-end").title = `Stardate ${formatStardate(now)} · ${now.toLocaleString(undefined, { dateStyle: "full", timeStyle: "short" })}`;
+}
+showStardate();
+setInterval(showStardate, 60_000);
+// Only the microphone button (or the M key) switches the microphone, so a stray click never starts listening.
+function toggleMicrophone() {
+  const toggle = element<HTMLButtonElement>("listen-toggle");
+  if (toggle.hidden || toggle.disabled) return;
+  if (voice.microphone) muteMicrophone();
+  else if (!voice.opening) void perform(startListening);
+}
+element("listen-toggle").addEventListener("click", toggleMicrophone);
+document.addEventListener("keydown", (event) => {
+  if (event.key.toLowerCase() !== "m" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+  const target = event.target as HTMLElement | null;
+  if (openDrawer() || target?.closest("input, textarea, select, [contenteditable]")) return;
+  event.preventDefault();
+  toggleMicrophone();
 });
+element("stop-speaking").addEventListener("click", () => voice.stopSpeaking());
+for (const name of ["pointerdown", "keydown"] as const) document.addEventListener(name, () => voice.unlock(), true);
 window.addEventListener("beforeunload", () => { events?.close(); voice.close(); });
-void perform(boot);
+void perform(async () => { await route(); await boot(); await route(); });

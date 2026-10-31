@@ -10,7 +10,7 @@ const startup = Date.now() - loaded;
 try {
   const started = Date.now();
   const chunks: Uint8Array[] = [];
-  for await (const chunk of speech.speak("The local listening connection is ready. Please specify a task.", AbortSignal.timeout(30_000))) chunks.push(chunk);
+  for await (const chunk of speech.speak("The local listening connection is ready. Please specify your request.", AbortSignal.timeout(30_000))) chunks.push(chunk);
   const speaking = Date.now() - started;
   console.log(`Kokoro produced real audio in ${speaking} ms. Checking Whisper.`);
   const audio = Buffer.concat(chunks);
