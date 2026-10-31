@@ -292,7 +292,8 @@ still does not interrupt it; approvals still need an on-screen button.
   controls.
 - **Optional computer sounds:** run `npm run setup:sounds` once to download three
   short TrekCore sounds (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
-  then restart Picard Code. During spoken conversation they play quietly, once
+  then restart Picard Code. Download them only if you have the right to use
+  them; they are not part of this project. During spoken conversation they play quietly, once
   each: a beep when a spoken request is accepted, when you say "Computer"
   on its own, or when you say "stop listening"; an input-failed sound when speech was not understood,
   could not be sent, or was "Not sent"; and a deny beep just before the spoken result when an

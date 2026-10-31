@@ -32,10 +32,11 @@ earlier messages are smaller. The console shows the current state and next
 step, listening lights, a microphone button, and stopping controls when needed.
 There is no typing box or phone layout.
 
-Each side-panel tile opens its own setting or Captain's log in a slide-out.
+Captain's log and the Project, Model, and Listen · Speak tiles open in a
+slide-out, as do Provider in the top bar and About from the header dedication.
 Choosing it again, Current log entry, Escape, or the log entry beside it closes
-the slide-out. Provider, Model, Project, Listen · Speak, and About have separate
-tiles. Stardate shows the fan-formula date, with the ordinary date on hover.
+the slide-out. The Tribute tile is an On/Off switch, not a slide-out. Stardate
+shows the fan-formula date, with the ordinary date on hover.
 
 ## States and access
 

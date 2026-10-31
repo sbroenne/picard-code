@@ -152,3 +152,9 @@ echo), macOS and Linux, and the owner's subjective review of voice and timing.
 
 Commit to the working branch with a clear plain-English message. Do not force
 push. Do not publish the npm package.
+
+Maintainers and coding agents: before opening a pull request, review the
+complete branch diff with the Ponytail review skill in
+`.github/skills/ponytail-review`. Fix what it finds, or say in the pull request
+why a finding does not apply. Outside contributors may run it too; it is not
+required of them, because Copilot code review on GitHub can use the same skill.

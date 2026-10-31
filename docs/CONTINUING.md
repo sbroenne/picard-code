@@ -11,7 +11,7 @@ You need Node.js **22.12 or newer**, Git, and the source repository.
 ```sh
 git clone https://github.com/sbroenne/picard-code.git
 cd picard-code
-npm ci
+npm install
 npm run build
 npm test
 ```

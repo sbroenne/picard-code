@@ -1,41 +1,17 @@
 import { test, expect } from "@playwright/test";
-import { createServer, type Server } from "node:http";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 
-let server: Server;
-let address: string;
-const files: Record<string, { path: string; mime: string }> = {
-  "/picard-code/": { path: "index.html", mime: "text/html" },
-  "/picard-code/style.css": { path: "style.css", mime: "text/css" },
-  "/picard-code/assets/mark.svg": { path: "assets/mark.svg", mime: "image/svg+xml" },
-  "/picard-code/assets/console.png": { path: "assets/console.png", mime: "image/png" },
-};
+// Every file in site/ is served under the GitHub Pages project path, without a real server.
+const address = "http://127.0.0.1/picard-code/";
+const site = resolve("site");
 
-test.beforeAll(async () => {
-  server = createServer((request, response) => {
-    const path = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
-    const file = files[path];
-    if (!file) { response.writeHead(404); response.end(); return; }
-    void readFile(resolve("site", file.path)).then((content) => {
-      response.writeHead(200, { "Content-Type": file.mime });
-      response.end(content);
-    }, (error: unknown) => {
-      console.error(`Could not serve website test file ${file.path}:`, error);
-      response.writeHead(500); response.end("The website test file could not be read.");
-    });
+test.beforeEach(async ({ page }) => {
+  await page.route((url) => url.href.startsWith(address), (route) => {
+    const file = resolve(site, new URL(route.request().url()).pathname.slice("/picard-code/".length) || "index.html");
+    return file.startsWith(site + sep) && existsSync(file) ? route.fulfill({ path: file }) : route.fulfill({ status: 404 });
   });
-  await new Promise<void>((done, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", done);
-  });
-  const bound = server.address();
-  if (!bound || typeof bound === "string") throw new Error("The website test server has no port.");
-  address = `http://127.0.0.1:${bound.port}/picard-code/`;
-});
-
-test.afterAll(async () => {
-  await new Promise<void>((done, reject) => server.close((error) => error ? reject(error) : done()));
 });
 
 for (const width of [1440, 390]) {

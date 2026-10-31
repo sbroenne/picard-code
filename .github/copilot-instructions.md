@@ -8,5 +8,6 @@ repository. In short:
 - Never weaken OpenCode approvals, invent success, or hide real errors.
 - Keep secrets out of the repository, logs and browser; services stay on `127.0.0.1`.
 - Do not write files into the user's project; Picard Code sends its own instructions per request.
-- Do not commit show recordings, models or local settings (`.picard-sounds`, `.picard-voice`, `.picard-speech.json`).
+- Do not commit show recordings, models or local settings (`.picard-sounds`, `.picard-voice`; speech settings live in `~/.picard-code/speech.json`).
 - Before committing, run `npm run check`, `npm run build`, `npm test` and `npx playwright test`.
+- Maintainers and coding agents: before opening a pull request, review the complete branch diff with the `ponytail-review` skill.

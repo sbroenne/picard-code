@@ -56,6 +56,14 @@ works without them.
 | Speech was not understood or could not be sent | https://www.trekcore.com/audio/computer/input_failed_clean.mp3 |
 | An accepted request finally failed or was denied | https://www.trekcore.com/audio/computer/denybeep1.mp3 |
 
+## Development tools
+
+`.github/skills/ponytail-review` is the review skill from
+[Ponytail](https://github.com/DietrichGebert/ponytail) v5.3.3 (commit
+`7801d061243d7b753bad0e0b3c057cd250b11755`), copied unchanged under the MIT
+license; copyright 2026 DietrichGebert. Its license is kept beside it. It is
+used only to review changes to this repository, not by the app.
+
 ## Hosted services
 
 OpenCode performs coding through the model provider the user chooses, under

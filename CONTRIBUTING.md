@@ -67,7 +67,7 @@ sensitive security reports.
 
 Fork the repository, create a branch, and follow the source setup in
 [README.md](README.md). Use your own OpenCode sign-in and speech resources.
-OpenCode 2 is required; the tested copy is installed with `npm ci`.
+OpenCode 2 is required; `npm install` brings the tested copy.
 
 Before each commit, run:
 
@@ -97,6 +97,12 @@ data-flow, setup, error, and cancellation documentation.
 Copilot and other coding tools are welcome. Read their changes yourself and
 take responsibility for correctness, licenses, and honest evidence. Copilot
 review helps find problems; it does not replace maintainer judgment.
+
+The maintainer reviews pull requests with the [Ponytail](https://github.com/DietrichGebert/ponytail)
+review skill in `.github/skills/ponytail-review`. It checks that a change is
+correct, safe, tested, and no bigger than it needs to be. Copilot code review
+on GitHub can use it. If your coding tool reads skills, ask it for a
+`ponytail-review` of your branch before opening the pull request.
 The maintainer decides what fits the project and merges manually.
 
 ## Project website
