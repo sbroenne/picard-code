@@ -84,7 +84,9 @@ live in `src/shared/crew.ts` and `src/server/instructions.ts`; see
 `docs/research/bridge-crew-voices.md`. "Make it so" carries out only what was
 just proposed, asks when that is unclear, and never answers an approval. The
 officers do not invent results, copy television dialogue, mention famous
-scenes or imitate actors. Work that needs several officers is a briefing: the
+scenes or imitate actors. Each officer speaks with a fixed ready-made voice
+measured to sound closer to the actor (`src/shared/crew-voices.ts`); never clone
+a voice or train on show recordings. Work that needs several officers is a briefing: the
 computer calls each officer itself, and officers never hand work to each
 other. Riker is not a coordinator. The computer stays neutral.
 Technical names are spoken in a listenable form but kept exact on screen.

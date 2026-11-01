@@ -104,10 +104,24 @@ async function startListening(page: import("@playwright/test").Page) {
   await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
 }
 
+type Spoken = { text: string; speaker?: string }[];
+/** Each spoken answer, as the parts sent for speaking; a plain answer is one part in the computer's voice. */
+function spokenParts(page: import("@playwright/test").Page) {
+  const spoken: Spoken[] = [];
+  page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
+    if (typeof payload !== "string") return;
+    const data = JSON.parse(payload);
+    if (data.type === "speak") spoken.push(data.parts ?? [{ text: data.text }]);
+  }));
+  return spoken;
+}
+
 function spokenText(page: import("@playwright/test").Page) {
   const spoken: string[] = [];
   page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
-    if (typeof payload === "string" && JSON.parse(payload).type === "speak") spoken.push(JSON.parse(payload).text);
+    if (typeof payload !== "string") return;
+    const data = JSON.parse(payload);
+    if (data.type === "speak") spoken.push(data.text ?? data.parts.map((part: { text: string }) => part.text).join(" "));
   }));
   return spoken;
 }
@@ -118,8 +132,9 @@ function sounds(page: import("@playwright/test").Page) {
 
 test.setTimeout(60000);
 
-test("briefing reports stay in one log entry; officer approvals require a button and only the computer's summary is spoken", async ({ page }) => {
+test("briefing reports stay in one log entry; officer approvals require a button and findings are spoken only when the briefing ends", async ({ page }) => {
   const spoken = spokenText(page);
+  const parts = spokenParts(page);
   await launch(page, "crew");
   await startListening(page);
   await expect(page.getByRole("heading", { name: "Approval required." })).toBeVisible({ timeout: 20000 });
@@ -130,20 +145,36 @@ test("briefing reports stay in one log entry; officer approvals require a button
   await expect(page.locator(".message.current[data-role=assistant]:not(.crew-report)")).toContainText("Geordi's action was denied", { timeout: 15000 });
   await expect.poll(() => spoken.filter((text) => text.includes("Geordi's action was denied")).length).toBe(1);
   await expect(page.locator(".message.current[data-role=assistant]:not(.crew-report) .message-header strong")).toHaveText("Computer");
-  expect(spoken.some((text) => text.includes("Data supplied"))).toBe(false);
+  expect(parts.at(-1)).toEqual([
+    { text: expect.stringContaining("Data supplied an investigation report."), speaker: "picard-data" },
+    { text: expect.stringContaining("Geordi's action was denied") },
+  ]);
   await expect(page.locator("#approvals")).toBeEmpty();
 });
 
-test("a request for one officer is handed to that officer, who answers in the conversation; the answer is spoken once", async ({ page }) => {
-  const spoken = spokenText(page);
+test("a request for one officer is handed to that officer, who answers in the conversation; the answer is spoken once in that officer's voice", async ({ page }) => {
+  const spoken = spokenParts(page);
   await launch(page, "officer");
   await startListening(page);
   const answer = page.locator(".message.current[data-role=assistant]");
   await expect(answer).toContainText("Test stand-in: Captain, the cache is stale.", { timeout: 20000 });
   await expect(answer).toHaveCount(1);
   await expect(answer.locator(".message-header strong")).toHaveText("Data");
-  await expect.poll(() => spoken.filter((text) => text.includes("the cache is stale")).length, { timeout: 15000 }).toBe(1);
+  await expect.poll(() => spoken.filter((answer) => answer.some((part) => part.text.includes("the cache is stale"))).length, { timeout: 15000 }).toBe(1);
+  expect(spoken.find((answer) => answer.some((part) => part.text.includes("the cache is stale")))).toEqual([expect.objectContaining({ speaker: "picard-data" })]);
   await expect(page.locator(".crew-report")).toHaveCount(0);
+});
+
+test("after a briefing, each officer's finding is spoken in their own voice, then the computer closes", async ({ page }) => {
+  const spoken = spokenParts(page);
+  await launch(page, "crew");
+  await startListening(page);
+  await expect(page.getByRole("heading", { name: "Approval required." })).toBeVisible({ timeout: 20000 });
+  await page.getByRole("button", { name: "Allow once", exact: true }).click();
+  await expect.poll(() => spoken.find((answer) => answer.some((part) => part.text.includes("reports are collected"))), { timeout: 15000 }).toEqual([
+    { text: "Test stand-in: Data supplied an investigation report.", speaker: "picard-data" },
+    { text: expect.stringContaining("the briefing reports are collected") },
+  ]);
 });
 
 test("while work runs, the conversation says who is working and what they are doing; a step that failed on the way is folded away", async ({ page }) => {
@@ -526,7 +557,7 @@ test("a fact cue follows actual playback once, without listening or speaking the
   page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
     if (typeof payload === "string") {
       const data = JSON.parse(payload);
-      if (data.type === "speak") sent.push({ text: data.text, at: Date.now() });
+      if (data.type === "speak") sent.push({ text: data.text ?? data.parts.map((part: { text: string }) => part.text).join(" "), at: Date.now() });
     }
   }));
   await launch(page, "tribute");

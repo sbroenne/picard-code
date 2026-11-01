@@ -108,7 +108,10 @@ could not; never submit credentials to CI.
 Keep changes focused and update related documentation. In a pull request,
 explain the user-facing difference and the checks you ran.
 Screenshots of stand-ins must be labeled. New speech services need license,
-data-flow, setup, error, and cancellation documentation.
+data-flow, setup, error, and cancellation documentation. To change an
+officer's voice, or add voices from a new speech service, measure them with
+`tools/voice-match` as described in
+[docs/research/bridge-crew-voices.md](docs/research/bridge-crew-voices.md#speaking-voices).
 
 ### Release notes
 

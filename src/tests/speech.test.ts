@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { WebSocket } from "ws";
 import { setTimeout as wait } from "node:timers/promises";
-import { Utterance, replyFailed, speakable, spokenReply, spokenSummary, type SpeechEvent } from "../shared/speech.js";
+import { Utterance, firstSentence, replyFailed, speakable, spokenReply, spokenSummary, type SpeechEvent } from "../shared/speech.js";
 import { addressed, interruptsSpeech, voiceCommand } from "../shared/wake.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
 import type { FormField, FormRequest } from "../shared/types.js";
@@ -203,6 +203,10 @@ test("technical names are spoken understandably while the written text keeps exa
 
 test("a finished reply is described truthfully even when it has no text", () => {
   assert.equal(spokenReply({ parts: [{ type: "text", text: "Analysis complete." }] }), "Analysis complete.");
+  assert.equal(firstSentence("Mr. Data's finding holds. I recommend the fix."), "Mr. Data's finding holds.");
+  assert.equal(firstSentence("Dr. Crusher, e.g. the logs, agree. More follows."), "Dr. Crusher, e.g. the logs, agree.");
+  assert.equal(firstSentence("Version 2.1 is stable! Next."), "Version 2.1 is stable!");
+  assert.equal(firstSentence("No ending"), "No ending");
   assert.equal(spokenReply({ error: "Copilot is not connected.", parts: [] }), "Copilot is not connected.");
   assert.equal(spokenReply({ parts: [{ type: "tool", status: "error", text: "bash\nThe user rejected permission to use this specific tool call." }] }),
     "Request denied. The action was not carried out.");

@@ -1,10 +1,10 @@
 import "./style.css";
 import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings } from "../src/shared/types";
 import { errorMessage } from "../src/shared/messages";
-import { replyFailed, spokenReply } from "../src/shared/speech";
+import { firstSentence, replyFailed, spokenReply } from "../src/shared/speech";
 import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../src/shared/questions";
 import { addressed, voiceCommand } from "../src/shared/wake";
-import { VoiceConversation, type FollowOn } from "./voice";
+import { VoiceConversation, type FollowOn, type SpokenPart } from "./voice";
 import { renderMarkdown } from "./markdown";
 import { formatStardate } from "../src/shared/stardate";
 import { TRIBUTE_ENTRIES, type TributeEntry } from "../src/shared/tribute-data";
@@ -292,8 +292,23 @@ function completeVoiceReply() {
     tributeDisplay.set(key, display);
     renderMessages();
   }
-  // When one officer's report is the answer, it is spoken instead of silence or the computer's word-for-word copy.
-  voice.speak(spokenReply(answer), replyFailed(reply), tail);
+  voice.speak(spokenParts(reply, answer, successful && !repeated ? reports : []), replyFailed(reply), tail);
+}
+
+/**
+ * What is said aloud for a finished reply. When one officer's report is the answer, it is spoken in that
+ * officer's voice instead of silence or the computer's word-for-word copy. After a successful briefing, each
+ * officer gives the first sentence of their own report in their own voice, Riker last, and the computer closes.
+ */
+function spokenParts(reply: ChatMessage, answer: ChatMessage, reports: ChatMessage[]): SpokenPart[] {
+  if (answer !== reply) return [{ text: spokenReply(answer), speaker: answer.speaker }];
+  const ordered = [...reports.filter((report) => report.speaker !== "picard-riker"), ...reports.filter((report) => report.speaker === "picard-riker")];
+  const findings = ordered
+    .map((report) => ({ text: firstSentence(spokenReply(report)), speaker: report.speaker }))
+    .filter((part) => !/^aye,? sir[.!]?$/i.test(part.text))
+    // The speech service takes at most eight parts; the computer's close is always the last.
+    .slice(-7);
+  return [...findings, { text: spokenReply(reply), speaker: reply.speaker }];
 }
 
 function cancelTributeSpeech() {
@@ -493,7 +508,7 @@ function renderState() {
       voice.speak("Captain, approval is required. Review the requested action on screen, then choose Allow once or Deny.");
     } else if (!state.permissions.some((item) => logEntryID(item) === selected) && waiting === 1 && canAskAloud(question)) {
       spokenQuestionID = question.id;
-      voice.speak(spokenQuestion(question));
+      voice.speak([{ text: spokenQuestion(question), speaker: question.officer }]);
     } else {
       voice.speak("Additional information is required. Please answer the questions on screen.");
     }

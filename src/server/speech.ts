@@ -7,6 +7,7 @@ import { loadAzureSpeech } from "./azure-speech.js";
 import { localSpeech } from "./local-speech.js";
 import type { SpeechService, SpeechSelection } from "./speech-types.js";
 import type { SpeechSettings } from "../shared/types.js";
+import { crewVoice } from "../shared/crew-voices.js";
 
 /** British prebuilt MAI voice chosen by the user after listening to the comparison. */
 export const DEFAULT_MAI_VOICE = "en-GB-Emily:MAI-Voice-2.1-Flash";
@@ -183,5 +184,6 @@ export async function speechFromSettings(record: Record<string, unknown>, overri
   }, listening === "whisper", speaking === "kokoro", signal) : undefined;
   const listener = listening === "mai" ? azure! : local!.listener;
   const speaker = speaking === "mai" ? azure! : local!.speaker;
-  return { selection, listen: listener.listen, speak: speaker.speak, close: local?.close };
+  const computer = { voice: speaking === "mai" ? name("voice", DEFAULT_MAI_VOICE) : DEFAULT_MAI_VOICE, kokoroVoice: speaking === "kokoro" ? name("kokoroVoice", "bf_emma") : "bf_emma" };
+  return { selection, listen: listener.listen, speak: speaker.speak, officerVoice: (officer) => crewVoice(officer, speaking, computer), close: local?.close };
 }

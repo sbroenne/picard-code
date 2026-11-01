@@ -2,6 +2,25 @@ import type { IncomingMessage, Server } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { SpeechService, SpeechInput } from "./speech-types.js";
 import type { SpeechEvent, VoicePhase } from "../shared/speech.js";
+import { crewMember, type CrewID } from "../shared/crew.js";
+
+interface SpokenPart { text: string; speaker?: CrewID }
+// A short pause when the next part has a different speaker: 0.3 seconds of 24 kHz 16-bit silence.
+const HANDOVER = Buffer.alloc(14_400);
+
+/** A spoken reply is either one text for the computer or up to eight parts, each spoken by the computer or an officer. */
+function spokenParts(data: object): SpokenPart[] | undefined {
+  if ("text" in data && !("parts" in data)) return typeof data.text === "string" && data.text.trim() && data.text.length <= 1000 ? [{ text: data.text.trim() }] : undefined;
+  if (!("parts" in data) || !Array.isArray(data.parts) || !data.parts.length || data.parts.length > 8) return undefined;
+  const parts: SpokenPart[] = [];
+  for (const part of data.parts as unknown[]) {
+    if (!part || typeof part !== "object" || !("text" in part) || typeof part.text !== "string" || !part.text.trim() || part.text.length > 1000) return undefined;
+    const speaker = "speaker" in part ? part.speaker : undefined;
+    if (speaker !== undefined && (typeof speaker !== "string" || !crewMember(speaker))) return undefined;
+    parts.push({ text: part.text.trim(), ...speaker === undefined ? {} : { speaker: speaker as CrewID } });
+  }
+  return parts;
+}
 
 /**
  * `source` may be a fixed service or a function, so speech settings can change while the app runs.
@@ -9,7 +28,7 @@ import type { SpeechEvent, VoicePhase } from "../shared/speech.js";
  */
 export function attachSpeech(server: Server, source: SpeechService | undefined | (() => SpeechService | undefined), allowed: (request: IncomingMessage) => boolean) {
   const service = () => typeof source === "function" ? source() : source;
-  const sockets = new WebSocketServer({ noServer: true, maxPayload: 4096 });
+  const sockets = new WebSocketServer({ noServer: true, maxPayload: 65_536 });
   server.on("upgrade", (request, socket, head) => {
     if (request.url !== "/api/speech" || !allowed(request)) {
       socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
@@ -69,36 +88,50 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
         if (epoch === current) fail(error instanceof Error ? error.message : "Could not start the selected listening service.");
       }
     };
-    const speak = async (text: string, id: number) => {
+    const speak = async (parts: SpokenPart[], id: number) => {
       stopSpeaking();
       const current = speechEpoch;
       speaking = new AbortController();
+      const signal = speaking.signal;
       send({ type: "state", phase: "thinking" });
       let started = false;
-      let remainder = Buffer.alloc(0);
-      try {
-        for await (const bytes of chosen.speak(text, speaking.signal)) {
-          if (speechEpoch !== current || socket.readyState !== WebSocket.OPEN) return;
-          if (socket.bufferedAmount > 1_000_000) throw new Error("Spoken playback fell behind. Speaking was stopped; the written answer remains on screen.");
-          const joined = Buffer.concat([remainder, bytes]);
-          const end = joined.length - joined.length % 2;
-          if (end) {
-            if (!started) {
-              started = true;
-              send({ type: "state", phase: "speaking" });
-              send({ type: "audio-start", rate: 24000, id });
-            }
-            socket.send(joined.subarray(0, end), { binary: true });
-          }
-          remainder = Buffer.from(joined.subarray(end));
+      const play = (bytes: Uint8Array) => {
+        if (socket.bufferedAmount > 1_000_000) throw new Error("Spoken playback fell behind. Speaking was stopped; the written answer remains on screen.");
+        if (!started) {
+          started = true;
+          send({ type: "state", phase: "speaking" });
+          send({ type: "audio-start", rate: 24000, id });
         }
-        if (speechEpoch !== current) return;
-        if (remainder.length) throw new Error("The speaking service returned incomplete audio. The written answer remains on screen.");
-        if (!started) throw new Error("No spoken audio was produced. The written answer remains on screen.");
+        socket.send(bytes, { binary: true });
+      };
+      let previous: SpokenPart | undefined;
+      let part: SpokenPart | undefined;
+      try {
+        for (part of parts) {
+          // The voice is chosen before any audio, so a missing officer voice never sounds like the computer.
+          const voice = part.speaker ? chosen.officerVoice?.(part.speaker) : undefined;
+          if (part.speaker && !voice) throw new Error("This speaking service has no officer voices.");
+          if (previous && previous.speaker !== part.speaker) play(HANDOVER);
+          previous = part;
+          let remainder = Buffer.alloc(0);
+          let produced = false;
+          for await (const bytes of chosen.speak(part.text, signal, voice)) {
+            if (speechEpoch !== current || socket.readyState !== WebSocket.OPEN) return;
+            const joined = Buffer.concat([remainder, bytes]);
+            const end = joined.length - joined.length % 2;
+            if (end) { produced = true; play(joined.subarray(0, end)); }
+            remainder = Buffer.from(joined.subarray(end));
+          }
+          if (speechEpoch !== current) return;
+          if (remainder.length) throw new Error("The speaking service returned incomplete audio. The written answer remains on screen.");
+          if (!produced) throw new Error("No spoken audio was produced. The written answer remains on screen.");
+        }
         send({ type: "audio-end", id });
         // Remain paused until the browser finishes playing its queued audio.
       } catch (error) {
-        if (speechEpoch === current) fail(error instanceof Error ? error.message : "Could not speak the answer. Read it on screen.");
+        if (speechEpoch !== current) return;
+        const message = error instanceof Error ? error.message : "Could not speak the answer. Read it on screen.";
+        fail(part?.speaker ? `${crewMember(part.speaker)!.name}'s voice could not be spoken. ${message}` : message);
       }
     };
     socket.on("message", (raw, binary) => {
@@ -129,9 +162,10 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
           commitTimer = setTimeout(() => fail("The listening service did not finish understanding the request. Click the microphone button to listen again."), 30_000);
           input.commit();
         } else if (data.type === "stop-speaking") { stopSpeaking(); send({ type: "state", phase: "off" }); }
-        else if (data.type === "speak" && "text" in data && typeof data.text === "string" && data.text.trim() && data.text.length <= 1000
-          && "id" in data && typeof data.id === "number" && Number.isSafeInteger(data.id) && data.id > 0) {
-          void speak(data.text.trim(), data.id);
+        else if (data.type === "speak" && "id" in data && typeof data.id === "number" && Number.isSafeInteger(data.id) && data.id > 0) {
+          const parts = spokenParts(data);
+          if (!parts) throw new Error("That voice request is not available.");
+          void speak(parts, data.id);
         } else throw new Error("That voice request is not available.");
       } catch (error) { fail(error instanceof Error ? error.message : "The voice request failed."); }
     });

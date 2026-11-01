@@ -172,7 +172,7 @@ and never uses contractions, Geordi is friendly and practical, Worf uses few,
 grave words, Troi is calm and asks gentle questions, and Crusher is direct and
 may call you "Jean-Luc" when she disagrees. They say "Captain" or "sir", and
 "Aye, sir." only when actually carrying out an order. There is no copied
-dialogue, no famous scenes or running jokes, and no actor voice imitation. They
+dialogue, no famous scenes or running jokes, and no cloned voices. They
 can contribute to non-code work too; the computer keeps its restrained, neutral
 manner. [docs/research/bridge-crew-voices.md](docs/research/bridge-crew-voices.md)
 explains the choices.
@@ -254,10 +254,12 @@ in an officer's log entry. Work already running continues until it finishes or
 you say **Belay that**. If the crew cannot be loaded (see below), the computer
 also answers everything itself, and naming an officer reports why.
 
-Everyone uses the selected model and the existing speech service and voice.
-Only the answering officer's final answer or the computer's brief briefing
-summary is spoken; background reports stay on screen. There are no actor imitations,
-lasting shared crew memory or automatic issue watching.
+Everyone uses the selected model and speech service. Each officer has their
+own ready-made Kokoro and Azure MAI voice, measured to sound closer to the
+actor; nothing is cloned. An officer's answer is spoken in their voice. After a
+briefing, each officer says their main finding in one sentence, Riker last, and
+the computer closes; full reports stay on screen. There is no lasting shared
+crew memory or automatic issue watching.
 
 When Picard Code starts its own OpenCode server, it loads the crew from a
 temporary settings folder outside your project and removes that folder on
