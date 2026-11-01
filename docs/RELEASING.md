@@ -52,8 +52,10 @@ coding agents never do.
       contributors), and removes the used notes. It starts **Project checks**
       and **Dependency review** directly on the release branch, so you do not
       need to approve workflow runs after each update. GitHub may still show
-      held copies of the pull-request workflows; the directly started checks
-      test the same release commit and satisfy the merge checks. When those
+      held copies of the pull-request workflows. The directly started checks
+      report their real results on GitHub's test-merge commit only after
+      confirming its files exactly match the tested release commit; a changed
+      branch or different files stop reporting. These satisfy the merge checks. When those
       checks pass, read the notes, approve the pull request if GitHub requires
       it for automated changes, and merge it when you want to release.
       The workflows use GitHub's own token, not a stored personal token.
