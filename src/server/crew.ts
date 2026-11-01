@@ -1,0 +1,54 @@
+import { BRIDGE_CREW } from "../shared/crew.js";
+import { officerManner } from "./instructions.js";
+import type { AgentInfo, PermissionRule, OpenCode } from "./opencode.js";
+
+export function crewInstructions(officer: typeof BRIDGE_CREW[number]) {
+  return `${officerManner(officer)}
+
+${officer.role}
+Handle non-code work as well as software work. Apply your expertise to the
+actual subject; do not turn every request into a coding task.
+Do not hand work to other officers: the computer calls each officer the
+Captain needs. When another officer's expertise is needed, name that officer
+and say why in your report. The computer is a separate interface; never invent
+dialogue or pretend another officer performed work.
+Keep the Captain's exact request, negations, scope and approval boundaries.
+Use the selected session model; do not choose another provider or model.
+Report one concise answer, with supporting detail later. Do not write team
+configuration, instructions, skills or memory into the Captain's project.
+Approvals must be answered by the Captain on screen.
+
+The bridge officers are:
+${BRIDGE_CREW.map((member) => `${member.id}: ${member.name} - ${member.duty}`).join("\n")}`;
+}
+
+// Officers do not hand work on, so OpenCode's own limit of one helper level is kept.
+export function crewConfiguration(permissions?: PermissionRule[]) {
+  return { agents: Object.fromEntries(BRIDGE_CREW.map((officer) => [officer.id, {
+    mode: "all",
+    description: `${officer.name}: ${officer.duty}`,
+    system: crewInstructions(officer),
+    ...(permissions ? { permissions } : {}),
+  }])) };
+}
+
+function normalizedPermissions(rules: PermissionRule[]) {
+  return rules.filter((rule, index) => !rules.slice(index + 1).some((later) => later.action === rule.action && later.resource === rule.resource));
+}
+
+export function verifiedCrew(agents: AgentInfo[]) {
+  const build = agents.find((agent) => agent.id === "build");
+  return !!build && BRIDGE_CREW.every((officer) => {
+    const agent = agents.find((item) => item.id === officer.id);
+    return agent?.system === crewInstructions(officer) && agent.mode === "all" && !agent.model
+      && JSON.stringify(normalizedPermissions(agent.permissions)) === JSON.stringify(normalizedPermissions(build.permissions));
+  });
+}
+
+export const CREW_UNAVAILABLE = 'The bridge crew is not available with the current OpenCode settings. Start Picard Code with its own OpenCode server, and check for settings that override the "picard-" crew definitions.';
+
+export async function requireCrew(client: OpenCode, directory: string) {
+  const agents = await client.agents(directory);
+  if (!verifiedCrew(agents)) throw new Error(CREW_UNAVAILABLE);
+  return agents;
+}

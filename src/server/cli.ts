@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { parseArgs } from "node:util";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startApp } from "./app.js";
 import { checkVersion, makeClient, localServerUrl, errorMessage } from "./engine.js";
 import { projectDirectory, startEngine, openBrowser, openCodeCommand } from "./process.js";
 import { loadSpeech, PICARD_HOME } from "./speech.js";
 import type { SpeechService } from "./speech-types.js";
+import { setupSounds, soundFolder } from "../../scripts/setup-sounds.mjs";
 
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
@@ -21,8 +22,8 @@ async function main() {
     });
     return;
   }
-  if (command === "setup-speech" || command === "setup-sounds") {
-    await import(new URL(`../../scripts/${command}.mjs`, import.meta.url).href);
+  if (command === "setup-speech") {
+    await import(new URL("../../scripts/setup-speech.mjs", import.meta.url).href);
     return;
   }
   const { values } = parseArgs({
@@ -50,7 +51,6 @@ async function main() {
   --help, -h      Show these instructions
 
   npx picard-code setup-speech       Download local Whisper and Kokoro speech
-  npx picard-code setup-sounds       Download the three optional computer sounds
   npx picard-code opencode <args>    Run the included OpenCode
 
 Picard Code works with any model provider OpenCode supports, such as GitHub
@@ -87,7 +87,10 @@ and choose your provider. Downloads and settings are kept in ${PICARD_HOME}.`);
   process.on("SIGTERM", shutdown);
   process.on("SIGHUP", shutdown);
   try {
+    console.log("Checking computer sounds...");
+    await setupSounds(soundFolder, controller.signal);
     let client;
+    let prepareCrew: ((directory: string) => Promise<unknown>) | undefined;
     if (values.connect) {
       const baseUrl = localServerUrl(values.connect);
       const password = process.env.OPENCODE_SERVER_PASSWORD;
@@ -101,6 +104,8 @@ and choose your provider. Downloads and settings are kept in ${PICARD_HOME}.`);
       console.log("Starting OpenCode on this computer...");
       const engine = await startEngine(project, controller.signal);
       client = engine.client;
+      prepareCrew = engine.prepareCrew;
+      if (engine.crewProblem) console.error(`${engine.crewProblem}\nThe computer will answer every request itself.`);
       cleanupEngine = engine.close;
       engine.child.once("exit", () => {
         if (!stopping) {
@@ -125,10 +130,10 @@ and choose your provider. Downloads and settings are kept in ${PICARD_HOME}.`);
     cleanupSpeech = () => speech?.close?.();
     controller.signal.throwIfAborted();
     const app = await startApp({
-      client, project, port,
+      client, project, port, prepareCrew,
       speech, speechError,
       webRoot: fileURLToPath(new URL("../../web-dist/", import.meta.url)),
-      soundFolder: join(PICARD_HOME, "sounds"),
+      soundFolder,
     });
     // From here the app owns speech, including any service chosen later in settings.
     cleanupSpeech = undefined;

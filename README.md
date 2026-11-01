@@ -13,6 +13,10 @@ you "Captain". There is no typing: like the captain, you speak to the computer.
 It is unofficial and made with admiration: original artwork in the spirit of
 the ship's displays, no franchise material, and no endorsement.
 
+The computer handles general questions, writing, research and planning as well
+as code. A project folder is context for project work, not a limit on what you
+can ask.
+
 [Help shape the computer](CONTRIBUTING.md) ·
 [Setup and support](SUPPORT.md) · [MIT license](LICENSE)
 
@@ -118,7 +122,7 @@ Everything Picard Code downloads or saves is kept in one folder,
 
 - `speech.json`: your speech settings (no keys or passwords);
 - `voice`, `python` and `uv`: local speech, its Python and the uv tool that set it up;
-- `sounds`: the optional computer sounds.
+- `sounds`: the computer sounds, downloaded at the first start.
 
 Nothing is written into your project. To remove everything, delete that
 folder. OpenCode keeps its own sign-ins and log entries; see
@@ -142,8 +146,135 @@ These use the same `.picard-code` folder. In PowerShell, use `npm.cmd` for
 commands with `--` options, for example
 `npm.cmd start -- --project "C:\Users\you\source\my-project"`; some npm
 PowerShell wrappers otherwise drop the `--`. `npm run opencode -- auth login`
-and `npm run setup:sounds` do the same as the `npx picard-code` commands below.
+does the same as `npx picard-code opencode auth login` below.
 See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes.
+
+## Bridge crew
+
+You remain Captain Picard. Six OpenCode officers bring different expertise:
+Riker weighs options and recommends, Data investigates, Geordi builds and
+repairs, Worf reviews risks, Troi reviews clarity and usability, and Crusher
+checks software health and recovery. The computer remains a separate interface.
+
+Each officer speaks in their own TNG voice, as a Starfleet officer reporting to
+the Captain: Riker is confident and gives firm recommendations, Data is exact
+and never uses contractions, Geordi is friendly and practical, Worf uses few,
+grave words, Troi is calm and asks gentle questions, and Crusher is direct and
+may call you "Jean-Luc" when she disagrees. They say "Captain" or "sir", and
+"Aye, sir." only when actually carrying out an order. There is no copied
+dialogue, no famous scenes or running jokes, and no actor voice imitation. They
+can contribute to non-code work too; the computer keeps its restrained, neutral
+manner. [docs/research/bridge-crew-voices.md](docs/research/bridge-crew-voices.md)
+explains the choices and their evidence limits.
+
+Start with **Computer**, as before. Officers answer to their bridge names:
+"Number One" or "Will", "Mr. Data", "Mr. La Forge" or "Geordi", "Mr. Worf",
+"Counselor" or "Deanna", "Doctor" or "Beverly". For example:
+
+- "Computer, Data, explain this project."
+- "Computer, ask Geordi to investigate this failure. Do not change any files."
+- "Computer, Number One, should we split this change in two?"
+- "Computer, Worf and Data, review this change."
+- "Computer, Counselor, review this invitation for clarity."
+- "Computer, help me plan a visit to a museum."
+
+The computer and the officers also understand the Captain's orders:
+
+- **"Make it so"** (or "proceed") carries out exactly what was just proposed in
+  that log entry, and nothing more. After an officer's proposal, it goes back to
+  that officer. If nothing was proposed, or it is unclear which proposal you
+  mean, you are asked one short question.
+- **"Engage"** starts the agreed work now.
+- **"Report"** gives what is done, under way and failed; **"Options"** gives two
+  or three choices with a recommendation first; **"On screen"** shows it on screen.
+
+When a question from OpenCode is waiting with exactly one plain yes answer
+(such as "Yes" or "Proceed"), saying "Make it so" or "Engage" chooses it.
+Approvals are never answered by voice, including by these orders.
+
+You do not have to name an officer. When you don't, Picard Code first asks the
+selected model, in a quick separate check, who should handle the request, and
+then hands it over itself. This check adds nothing to the log entry, usually
+takes a second or two, and makes one small extra model request. If it fails,
+the request is not sent and the real error is shown. Each officer has an area,
+and everyday work outside code belongs to it too:
+
+- Riker: plans, decisions, options and recommendations.
+- Data: research, news, history, science and explanations.
+- Geordi: building, fixing, setting things up and investigating failures.
+- Worf: security, safety, privacy and risks.
+- Troi: writing, clarity and usability, and questions about people and feelings.
+- Crusher: health, wellbeing, reliability and recovery.
+
+The computer keeps only quick facts it can give in a sentence, small talk,
+questions about Picard Code itself, and questions about the Captain or Sir
+Patrick Stewart. A request in one officer's area goes to that officer, who
+answers you directly in the log entry, just as if you had named them. A request
+that needs several officers becomes a briefing, run by the computer. The check
+also recognises common mishearings, such as "Rika" for Riker or "Walt" for
+Worf, and sends a follow-up such as "Make it so" back to the officer who just
+answered.
+
+An explicit officer address at the start always selects that officer directly,
+without the check; mentioning Data or saying "do not ask Data" does not.
+
+A briefing works as it does on the bridge. The computer calls each officer the
+work needs, usually two or three, never the whole crew by default. Each officer
+reports to you directly, and at most one of them may change files. If you want
+a recommendation, Riker weighs their findings and recommends one course. The
+computer then gives each officer's main finding in a sentence, followed by
+Riker's recommendation, and you decide; "Make it so" carries out that
+recommendation. Each officer's full report stays on screen; if the computer
+only copies a report word for word, the copy is not shown and the report itself
+is spoken. Officers do not hand work to each other. When one needs a
+colleague, they name the officer and you can call them. Each officer called
+makes an extra model request and can increase cost.
+
+Reports are labelled by officer inside the same Current log entry; there is no
+separate crew display. Related approvals and questions appear there too, naming
+the officer. Approvals still require
+**Allow once** or **Deny** on screen. **Belay that** asks OpenCode to stop both
+the main entry and its related crew work. Running crew work also prevents
+deleting that entry or changing projects.
+
+The **Bridge crew** switch in the left navigation brings the officers on or off
+duty, and is remembered in this browser. When it is off, the computer answers
+every request itself, including requests that name an officer and follow-ups
+in an officer's log entry. Work already running continues until it finishes or
+you say **Belay that**. If the crew cannot be loaded (see below), the computer
+also answers everything itself, and naming an officer reports why.
+
+Everyone uses the selected model and the existing speech service and voice.
+Only the answering officer's final answer or the computer's brief briefing
+summary is spoken; background reports stay on screen. There are no actor imitations,
+lasting shared crew memory or automatic issue watching.
+
+When Picard Code starts its own OpenCode server, it loads the crew from a
+temporary settings folder outside your project and removes that folder on
+normal shutdown. Each officer receives the current coding agent's effective
+permission rules unchanged, including project-specific rules. Changing projects
+or refreshing the connection refreshes those rules. No crew settings, agent
+files or team memory are added to your project or global settings.
+These temporary crew definitions are separate from your saved speech settings
+in `~/.picard-code/speech.json`.
+
+If both `OPENCODE_CONFIG` and `OPENCODE_CONFIG_DIR` are already set, keep one
+unset so Picard Code can use a separate settings location without replacing
+yours. Settings that override the reserved `picard-` agents are reported rather
+than bypassed. In both cases Picard Code still starts: the terminal explains
+why the crew is unavailable, and the computer answers every request itself. With `--connect`, ordinary computer requests remain available;
+crew requests require the server to have the matching crew definitions and
+permission rules. Naming an officer then reports that the crew is unavailable.
+
+`npm run test:crew:live` checks real officer replies and a few measurable voice
+habits (no exclamation marks, Data without contractions, Worf brief), "Make it
+so" carrying out an officer's own proposal, an unclear "Make it so" answered
+with a question, a quick fact kept by the computer, requests handed to the
+right officer without naming them (including misheard names, an explanation to
+Data and writing to Troi) and real briefings in which the computer calls each
+officer itself. It cannot judge whether an officer sounds right; that needs
+you. It makes model requests, may incur provider charges, and never
+answers an approval itself. It does not check a physical microphone or speakers.
 
 ## Connect a model provider
 
@@ -174,8 +305,15 @@ question or approval waiting for you, and the computer console with one large
 status (for example Standing by, Listening, Understanding, Working, Speaking
 or Decision needed) and a line saying what to do next. The console also holds
 **Stop speaking** and **Belay that** when they apply, and the microphone
-button; the row of lights beside it shows listening. The latest request and reply are shown
-large; earlier messages are smaller. The header shows only the name and the
+button; the row of lights beside it shows listening, and turns blue and moves
+while work runs. While the request runs, a line at the end of the conversation
+also says so and who is on it, such as "Data is working on it.", with what is
+happening now when OpenCode reports it, such as "Searching the web.". It shows
+only while OpenCode reports the work as running. If a step fails along the way
+but the request carries on, such as a web page that refuses access, it is
+folded into a small "1 step did not work" note; open it to read the exact
+error. A reply that ends without an answer still shows its errors in full.
+The latest request and reply are shown large; earlier messages are smaller. The header shows only the name and the
 tribute badge. Like the ship's computer, there are no entry names or
 modes on the main screen.
 
@@ -281,8 +419,9 @@ Wikipedia requests.
 
 Optional speech follows the answer only after playback finishes. **Stop
 speaking**, microphone off, switching log entries or projects, Settings,
-errors and disconnection discard pending extras. Speaking over the computer
-still does not interrupt it; approvals still need an on-screen button.
+errors and disconnection discard pending extras. Saying "Computer" during an
+answer stops spoken playback and pending extras; approvals still need an
+on-screen button.
 
 ### Spoken requests
 
@@ -313,8 +452,8 @@ still does not interrupt it; approvals still need an on-screen button.
   understood, with or without "Computer". The computer beeps, says "Standing
   by.", ends the task and waits for "Computer" again. Work already running
   carries on, and the microphone stays on.
-- **"Stop"** (or "cancel that", "belay that", "never mind"; with "Computer"
-  before a task) cancels the current work, the same as **Belay that**.
+- **"Belay that"** (or "stop", "cancel that", "never mind"; with "Computer"
+  before a task) cancels the current work, the same as the **Belay that** button.
 - There is one current log entry. **"Computer, new log entry"** (or "new
   task", "start over") clears the screen, the same as the **New log entry**
   button. Every request that starts a task with "Computer" begins a new log
@@ -328,9 +467,18 @@ still does not interrupt it; approvals still need an on-screen button.
   and dates are spoken in a listenable form ("src slash app dot ts, line 3")
   while the screen keeps the exact text. Follow-ups, corrections and
   "show me" stay in the same log entry.
-- Listening pauses while the computer speaks or plays a sound, so it cannot
-  take its own voice as a new request. **Stop speaking** interrupts playback.
-  Speaking over the computer does not interrupt it.
+- **Say "Computer" to interrupt an answer**, then give your request, or say
+  "Computer" and the request together. Other room speech during an answer is
+  ignored, even within a log entry. This stops spoken playback and pending
+  tribute extras, not running work. Your words are kept unchanged.
+  **Stop speaking**, or clicking the computer panel, also interrupts playback
+  without switching the microphone on or off.
+  Listening uses the browser's echo cancellation and ignores recognized words
+  repeated from the current spoken answer. If that also blocks your interruption,
+  click the panel or **Stop speaking**. Physical microphone and speaker echo
+  still needs checking on your computer. Whisper recognizes the interruption
+  after you pause; services with live words can stop playback sooner.
+  Listening still pauses for computer sounds.
 - When OpenCode asks a single question, the computer reads it aloud with its
   choices and listens for your answer; no "Computer" is needed for the answer.
   Say the option's name or, for example,
@@ -342,18 +490,23 @@ still does not interrupt it; approvals still need an on-screen button.
 - "Stop listening" and switching the microphone off do not cancel OpenCode's work.
   **Belay that** cancels the current OpenCode request. These are separate
   controls.
-- **Optional computer sounds:** run `npx picard-code setup-sounds` once to download three
-  short TrekCore sounds (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
-  then restart Picard Code. Download them only if you have the right to use
-  them; they are not part of this project. During spoken conversation they play quietly, once
+- **Computer sounds:** Picard Code downloads four short TrekCore sounds
+  automatically on first startup (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+  Later starts use the checked local copies; missing or changed files are downloaded
+  again. If a download fails, startup reports the error rather than silently
+  leaving sounds out. They are kept in `.picard-code/sounds` in your home folder.
+  The TNG-era ship-wide call welcomes the Captain once when the app opens,
+  after a click if the browser requires one, even before speech is set up. It does not play
+  for new log entries or when the microphone is switched back on.
+  During spoken conversation the other sounds play quietly, once
   each: a beep when a spoken request is accepted, when you say "Computer"
   on its own, or when you say "stop listening"; an input-failed sound when speech was not understood,
   could not be sent, or was "Not sent"; and a deny beep just before the spoken result when an
-  accepted request finally fails or is denied. Answers to questions, **Belay that**, "Computer, stop" and switching the microphone off play no sound.
+  accepted request finally fails or is denied. Answers to questions, **Belay that**, "Computer, belay that" and switching the microphone off play no sound.
   Listening is paused while a sound plays, and listening, speech,
-  **Stop speaking** or stopping listening stop it. Each sound only accompanies the visible and
-  spoken explanation; it never replaces it. Without the files, there are no
-  sounds and nothing else changes.
+  **Stop speaking** or stopping listening stop it. Request sounds only accompany the visible and
+  spoken explanation; it never replaces it. A missing or unreadable sound is
+  reported on screen.
 - Replies update live. Only the written answer is shown, without the model's
   thinking or tool steps; when an action fails or is refused with no written
   answer, its error is shown instead. Code blocks remain readable. **Copy** copies the reply text.
@@ -521,7 +674,9 @@ The page saves to `speech.json` in a `.picard-code` folder in your home folder:
 `~/.picard-code/speech.json` on macOS and Linux,
 `C:\Users\<you>\.picard-code\speech.json` on Windows. It is never saved in
 the Picard Code folder or your project. Settings from an older
-`.picard-speech.json` are copied there once. You can also write the file yourself, using your own resource's settings:
+`.picard-speech.json` in the Picard Code folder are copied there once. A
+`.picard-speech.json` in your project is never read, because a project you do
+not trust could use it to name a program to run. You can also write the file yourself, using your own resource's settings:
 
 ```json
 {
@@ -769,6 +924,5 @@ does not include file attachments or a full file editor.
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): respectful participation and reporting.
 - [SECURITY.md](SECURITY.md): private security reports and supported versions.
 - [AGENTS.md](AGENTS.md): rules for people and coding agents changing this repository.
-- [Continuing on another computer](docs/CONTINUING.md): setup, checks and open work.
 - [Conversation research](docs/research/conversation-research.md) and
   [voice and conversation direction](docs/research/voice-and-conversation-direction.md).

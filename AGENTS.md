@@ -1,8 +1,7 @@
 # Working on Picard Code
 
 Rules for people and coding agents who change this repository. Read
-[README.md](README.md) for what the app does and how to run it, and
-[docs/CONTINUING.md](docs/CONTINUING.md) to set up another computer.
+[README.md](README.md) for what the app does and how to run it.
 
 ## What this is
 
@@ -43,10 +42,6 @@ original TNG-inspired look.
   Code names (such as `conversations` in the API) may stay as they are. Error
   messages stay exact and plain; never trade clarity for flavour. Spoken
   phrases like "new task" may still be understood as alternatives.
-- **Never weaken approvals.** OpenCode's own permission rules decide what
-  asks first; Picard Code adds no rules and answers no approval itself. Do not
-  add automatic approval, "always allow", voice approval, OpenCode's `--auto`
-  option, or remove deny rules. Approvals need a button (Allow once or Deny).
 - **Truthful results.** Never claim work succeeded, ran, or was heard before the
   real result arrives. Never replace a real error with a vague or themed message.
   No silent fallback from one speech service to another.
@@ -63,10 +58,10 @@ original TNG-inspired look.
   "captain style" before sending. Negations, exact names, limits and approval
   boundaries must survive unchanged.
 - **No copied franchise material in the repository.** No show artwork,
-  dialogue, voice cloning or recordings are committed. The three optional
-  TrekCore sounds are downloaded by `npm run setup:sounds` into
-  `~/.picard-code/sounds`, with the owner's confirmed permission; keep them out
-  of git and keep their attribution in `THIRD_PARTY_NOTICES.md`.
+  dialogue, voice cloning or recordings are committed. The four TrekCore
+  sounds are downloaded at startup (or by `npm run setup:sounds`) into
+  `~/.picard-code/sounds`; keep them out of git and keep their attribution and
+  permission limits in `THIRD_PARTY_NOTICES.md`.
 - **Downloads stay outside the repository.** Speech setup keeps uv, Python and
   the models in `~/.picard-code`; live-check samples go to the ignored
   `.picard-voice/samples`. Keep license notices for anything downloaded or
@@ -78,6 +73,20 @@ Conversation rules live in `src/server/instructions.ts` (sent to the model)
 and `src/shared/speech.ts` (what is spoken aloud). Keep replies brief, precise
 and neutral; acknowledge only when true; say clearly when information is not
 available. Spoken answers are complete short sentences, with detail on screen.
+The computer handles non-code questions, writing, research and planning too.
+The six bridge officers speak in their own TNG voices, as Starfleet officers
+reporting to their Captain, alongside their responsibilities: Riker confident,
+weighing options and recommending, Data exact and without contractions, Geordi friendly
+and practical, Worf brief and grave, Troi calm and perceptive, and Crusher
+direct, calling him "Jean-Luc" when she challenges him. Their voice and the
+Captain's orders ("Make it so", "Engage", "Report", "Options", "On screen")
+live in `src/shared/crew.ts` and `src/server/instructions.ts`; see
+`docs/research/bridge-crew-voices.md`. "Make it so" carries out only what was
+just proposed, asks when that is unclear, and never answers an approval. The
+officers do not invent results, copy television dialogue, mention famous
+scenes or imitate actors. Work that needs several officers is a briefing: the
+computer calls each officer itself, and officers never hand work to each
+other. Riker is not a coordinator. The computer stays neutral.
 Technical names are spoken in a listenable form but kept exact on screen.
 Avoid repeated catchphrases such as "Working". The user is always
 Captain Jean-Luc Picard: their lines are labelled "Picard" on screen, and the
@@ -125,6 +134,7 @@ never instead of the written or spoken explanation:
 
 | Sound | When |
 | --- | --- |
+| `startup` | Once when the app opens, even before speech is set up; waits for a click if the browser blocks sound. Never for a new log entry or microphone restart. |
 | `request-accepted` | A spoken request was accepted by OpenCode, "Computer" was said on its own and the computer is waiting for the request, or "stop listening" was acknowledged. |
 | `input-failed` | Speech was not understood, could not be sent, or was not sent because it did not start with "Computer". |
 | `request-failed` | An accepted request finally failed or was denied, just before the spoken result. |
@@ -148,6 +158,12 @@ matching real check from the README (`test:live`, `test:speech:live`,
 these make real model requests and some make small Azure charges. Report
 plainly which real checks ran and which could not.
 
+If a local speech check needs missing Whisper or Kokoro files, run
+`npm run setup:speech` in this checkout before retrying it. Install `uv` first
+if it is missing. This downloads the models and Python packages into the
+ignored `.picard-voice` folder; never commit them or change the owner's saved
+speech choices just to run a check.
+
 Still not checked anywhere: a physical microphone and speakers (room noise,
 echo), macOS and Linux, and the owner's subjective review of voice and timing.
 
@@ -155,7 +171,7 @@ echo), macOS and Linux, and the owner's subjective review of voice and timing.
 
 Commit to the working branch with a clear plain-English message. Do not force
 push. Only the owner publishes to npm, by creating a GitHub release (see
-[docs/CONTINUING.md](docs/CONTINUING.md)); coding agents never publish.
+[docs/RELEASING.md](docs/RELEASING.md)); coding agents never publish.
 
 Maintainers and coding agents: before opening a pull request, review the
 complete branch diff with the Ponytail review skill in

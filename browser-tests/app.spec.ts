@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
     child.once("exit", (code) => { if (code) reject(new Error(`Browser fixture failed: ${code}`)); });
   });
   await page.goto(url);
-  await expect(page.getByRole("status")).toHaveText("Ready");
+  await expect(page.getByRole("status")).toHaveText("Standing by");
   page.on("close", () => child.kill());
 });
 
@@ -30,6 +30,7 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
   await expect(page.locator("#readout-stardate")).toHaveText(/^-\d{6}\.\d$/);
   // Like the ship's computer: no typing, no conversation name and no mode on the main screen.
   await expect(page.getByRole("textbox")).toHaveCount(0);
+  await expect(page.locator(".crew-member")).toHaveCount(0);
   await expect(page.getByText("Type instead")).toHaveCount(0);
   await expect(page.getByText("Discuss", { exact: true })).toHaveCount(0);
   // The side panel shows live readouts, not decorative numbers.
@@ -42,7 +43,7 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
 
 test("the main screen shows only the conversation; the side panel tiles open their own settings", async ({ page }, testInfo) => {
   // Without speech set up, the console says so and points to Settings.
-  await expect(page.getByRole("status")).toHaveText("Ready");
+  await expect(page.getByRole("status")).toHaveText("Standing by");
   await expect(page.locator("#voice-setup-hint")).toBeVisible();
   await expect(page.locator("#listen-toggle")).toBeHidden();
   for (const name of ["Project folder", "Provider sign-in"]) await expect(page.getByRole("heading", { name })).toBeHidden();
@@ -102,7 +103,7 @@ test("the main screen shows only the conversation; the side panel tiles open the
 test("the only Tribute toggle is a navigation tile; About retains the secondary speech preference", async ({ page }, testInfo) => {
   const toggle = page.getByRole("switch", { name: "Tribute", exact: true });
   await expect(toggle).toBeChecked();
-  await expect(page.locator("#sidebar").getByRole("switch")).toHaveCount(1);
+  await expect(page.locator("#sidebar").getByRole("switch")).toHaveCount(2);
   await expect(page.locator("#main").getByRole("switch")).toHaveCount(0);
   await expect(toggle).toHaveCSS("opacity", "0");
   const tile = page.locator(".tribute-switch");
@@ -134,6 +135,22 @@ test("the only Tribute toggle is a navigation tile; About retains the secondary 
   await expect(spoken).toBeDisabled();
   await toggle.check();
   await expect(spoken).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("the Bridge crew switch is announced and remembered", async ({ page }) => {
+  const toggle = page.getByRole("switch", { name: "Bridge crew", exact: true });
+  await expect(toggle).toBeChecked();
+  const height = (await page.locator("#new-conversation").boundingBox())!.height;
+  expect((await page.locator(".bridge-switch").boundingBox())!.height).toBe(height);
+  await page.locator(".bridge-switch").click();
+  await expect(toggle).not.toBeChecked();
+  await expect(page.locator("#bridge-toggle-state")).toHaveText("Off");
+  await expect(page.locator("#bridge-status")).toHaveText("The Bridge crew is off. The computer answers every request.");
+  await expect(page.getByRole("switch", { name: "Tribute", exact: true })).toBeChecked();
+  await page.reload();
+  await expect(toggle).not.toBeChecked();
+  await toggle.check();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 

@@ -46,10 +46,11 @@ export function canSetUpLocalSpeech(record: Record<string, unknown> | undefined)
   return (Object.keys(LOCAL_PATHS) as (keyof typeof LOCAL_PATHS)[]).every((key) => localPath(record, key) === LOCAL_PATHS[key]);
 }
 
-/** Runs the same steps as npx picard-code setup-speech, reporting each step as it starts. */
-export function setUpLocalSpeech(onStep: (step: string) => void) {
+/** Runs the same steps as npx picard-code setup-speech, reporting each step as it starts. Stopping the signal ends the download and everything it started. */
+export function setUpLocalSpeech(onStep: (step: string) => void, signal?: AbortSignal) {
   return new Promise<void>((done, fail) => {
-    const child = spawn(process.execPath, [resolve(PICARD_FOLDER, "scripts", "setup-speech.mjs")], { cwd: PICARD_FOLDER, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    if (signal?.aborted) { fail(new Error("The local speech setup was stopped because Picard Code is closing.")); return; }
+    const child = spawn(process.execPath, [resolve(PICARD_FOLDER, "scripts", "setup-speech.mjs")], { cwd: PICARD_FOLDER, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32" });
     let last = "";
     const read = (chunk: Buffer) => {
       for (const line of chunk.toString("utf8").split(/[\r\n]+/)) {
@@ -59,19 +60,35 @@ export function setUpLocalSpeech(onStep: (step: string) => void) {
         if (/^(Creating|Installing|Downloading|That step failed)/.test(text)) onStep(text.replace(/\.+$/, ""));
       }
     };
+    // The setup starts its own programs (uv, pip), so stop the whole group, not just the script.
+    const stop = () => {
+      if (!child.pid) return;
+      if (process.platform === "win32") spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], { windowsHide: true, stdio: "ignore" }).on("error", () => child.kill());
+      else { try { process.kill(-child.pid, "SIGKILL"); } catch { child.kill("SIGKILL"); } }
+    };
+    signal?.addEventListener("abort", stop, { once: true });
     child.stdout.on("data", read);
     child.stderr.on("data", read);
-    child.on("error", (error) => fail(new Error(`Could not start the local speech setup. ${error.message}`)));
-    child.on("exit", (code) => code === 0 ? done() : fail(new Error(`The local speech setup stopped. ${last}`)));
+    child.on("error", (error) => { signal?.removeEventListener("abort", stop); fail(new Error(`Could not start the local speech setup. ${error.message}`)); });
+    child.on("exit", (code) => {
+      signal?.removeEventListener("abort", stop);
+      if (signal?.aborted) fail(new Error("The local speech setup was stopped because Picard Code is closing."));
+      else if (code === 0) done();
+      else fail(new Error(`The local speech setup stopped. ${last}`));
+    });
   });
 }
 
 /**
  * Speech settings belong to the user, in .picard-code/speech.json in their home folder
  * (for example C:\Users\name on Windows), never in the Picard Code or project folder.
- * Settings that earlier versions kept in .picard-speech.json are copied over once; the old file is left alone.
+ * Settings that earlier versions kept in .picard-speech.json in the Picard Code folder are copied over once;
+ * the old file is left alone. A copy in the folder Picard Code was started from is never read: that folder may
+ * be an untrusted project, and the settings can name a program to run.
  */
-export async function speechSettingsFile(home = homedir(), earlier = [fileURLToPath(new URL("../../.picard-speech.json", import.meta.url)), resolve(".picard-speech.json")]) {
+export const EARLIER_SPEECH_SETTINGS = [fileURLToPath(new URL("../../.picard-speech.json", import.meta.url))];
+
+export async function speechSettingsFile(home = homedir(), earlier = EARLIER_SPEECH_SETTINGS) {
   const file = join(home, ".picard-code", "speech.json");
   try { await access(file); return file; }
   catch { /* not there yet */ }

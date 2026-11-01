@@ -1,5 +1,6 @@
 import type { ContentItem, OpenCodeError, SessionMessage } from "./opencode.js";
 import type { ChatMessage, ChatPart } from "../shared/types.js";
+import { crewMember } from "../shared/crew.js";
 
 export const STOPPED = "Work stopped before it finished.";
 
@@ -39,13 +40,16 @@ function describe(error: OpenCodeError | undefined, message: ChatMessage) {
 }
 
 /** Turns OpenCode 2's stored conversation, oldest first, into what Picard Code shows and speaks. */
-export function chatMessages(history: SessionMessage[]): ChatMessage[] {
+export function chatMessages(history: SessionMessage[], agent?: string): ChatMessage[] {
   const result: ChatMessage[] = [];
   for (const entry of history) {
     if (entry.type === "user" && "text" in entry) {
-      result.push({ id: entry.id, role: "user", parts: [{ id: partID(entry.id, "text", 0), type: "text", text: entry.text }] });
+      result.push({ id: entry.id, role: "user", parts: [{ id: partID(entry.id, "text", 0), type: "text", text: entry.text }], created: entry.time.created });
     } else if (entry.type === "assistant" && "content" in entry) {
       const message: ChatMessage = { id: entry.id, role: "assistant", parts: parts(entry.id, entry.content) };
+      message.created = entry.time.created;
+      const officer = crewMember(entry.agent);
+      if (officer) message.speaker = officer.id;
       const error = describe(entry.error, message);
       if (error) message.error = error;
       if (entry.error) message.outcome = entry.error.type === "aborted" ? "interrupted" : "failed";
@@ -62,7 +66,7 @@ export function chatMessages(history: SessionMessage[]): ChatMessage[] {
         last.outcome = entry.outcome;
         if (!last.error && !failedTool(last)) last.error = error;
       } else {
-        result.push({ id: entry.id, role: "assistant", parts: [], error, outcome: entry.outcome });
+        result.push({ id: entry.id, role: "assistant", parts: [], error, created: entry.time.created, outcome: entry.outcome, speaker: crewMember(agent)?.id });
       }
     }
   }

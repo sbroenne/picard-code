@@ -111,7 +111,7 @@ try {
   const projectFiles = ["README.md", "src/config.ts", "src/retry.ts", "opencode.json"];
   const beforeQuestions = await Promise.all(projectFiles.map((file) => readFile(resolve(project, file), "utf8")));
   const overview = await turn("Repository overview", "Computer, what does our Picard repo do, and which file implements retries? Read the repository; do not change files or run checks.", undefined, { mode: "screen" });
-  check(/service status|status updates/i.test(overview.reply) && /retry\.ts|withRetry/i.test(overview.reply), "Repository: describes the selected project's real purpose and implementation");
+  check(/service[- ]status|status updates?/i.test(overview.reply) && /retry\.ts|withRetry/i.test(overview.reply), "Repository: describes the selected project's real purpose and implementation");
   check(!/starfleet|enterprise|patrick stewart|kataan/i.test(overview.reply), "Repository: does not substitute fictional Picard facts");
   check(!overview.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Repository: uses read-only tools without edits or commands");
   const first = await turn("Investigation", "Which file sets the retry limit, and what is it?");

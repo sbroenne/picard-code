@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { WebSocket } from "ws";
 import { setTimeout as wait } from "node:timers/promises";
 import { Utterance, replyFailed, speakable, spokenReply, spokenSummary, type SpeechEvent } from "../shared/speech.js";
-import { addressed, voiceCommand } from "../shared/wake.js";
+import { addressed, interruptsSpeech, voiceCommand } from "../shared/wake.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
 import type { FormField, FormRequest } from "../shared/types.js";
 import { speakingDocument } from "../server/azure-speech.js";
@@ -51,6 +51,61 @@ test("only speech that starts with Computer is addressed; stop commands are whol
   for (const words of ["Stop listening.", "stand by", "go to sleep, please", "That will be all."]) assert.equal(voiceCommand(words), "standby", words);
   for (const words of ["mute", "Microphone off."]) assert.equal(voiceCommand(words), "mute", words);
   for (const words of ["add a new task to the list", "write a new log entry function", "stop listening to the socket", "mute the test output", "clear the cache", "start over the build"]) assert.equal(voiceCommand(words), undefined, words);
+});
+
+test("interruptions need Computer and reject words repeated from the spoken answer", () => {
+  assert.equal(interruptsSpeech("Computer", "The result is on screen."), true);
+  assert.equal(interruptsSpeech("Computer, do not change src/main.ts.", "The result is on screen."), true);
+  assert.equal(interruptsSpeech("Hello again", "The result is on screen."), false);
+  assert.equal(interruptsSpeech("Computer", "Say Computer to continue."), false);
+  assert.equal(interruptsSpeech("Computer, stop!", "You can say “Computer, stop” to cancel work."), false);
+  assert.equal(interruptsSpeech("", "The result is on screen."), false);
+});
+
+test("listening can run during speech and stopping playback preserves the captured request", async (t) => {
+  let speechSignal: AbortSignal | undefined;
+  const fixture = speechFixture("Computer, do not change files.");
+  const service = {
+    ...fixture.service,
+    async *speak(_text: string, signal: AbortSignal) {
+      speechSignal = signal;
+      yield Buffer.alloc(4800);
+      await wait(60_000, undefined, { signal });
+    },
+  };
+  const server = createServer();
+  const closeSpeech = attachSpeech(server, service, () => true);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const socket = new WebSocket(`ws://127.0.0.1:${address.port}/api/speech`);
+  t.after(async () => { socket.terminate(); closeSpeech(); await new Promise<void>((resolve) => server.close(() => resolve())); });
+  const events: SpeechEvent[] = [];
+  socket.on("message", (data, binary) => { if (!binary) events.push(JSON.parse(data.toString())); });
+  await new Promise<void>((resolve, reject) => { socket.once("open", resolve); socket.once("error", reject); });
+  const next = async (type: SpeechEvent["type"], phase?: string) => {
+    const deadline = AbortSignal.timeout(3000);
+    while (true) {
+      const index = events.findIndex((event) => event.type === type && (!phase || event.type === "state" && event.phase === phase));
+      if (index >= 0) return events.splice(index, 1)[0]!;
+      await wait(5, undefined, { signal: deadline });
+    }
+  };
+  socket.send(JSON.stringify({ type: "speak", text: "The answer is still playing.", id: 1 }));
+  await next("audio-start");
+  socket.send(JSON.stringify({ type: "listen", id: 1 }));
+  await next("state", "listening");
+  assert.equal(speechSignal?.aborted, false, "Opening listening must not stop speech.");
+  socket.send(Buffer.alloc(640));
+  await next("partial");
+  socket.send(JSON.stringify({ type: "stop-speaking" }));
+  await next("state", "off");
+  assert.equal(speechSignal?.aborted, true);
+  socket.send(Buffer.alloc(640));
+  socket.send(JSON.stringify({ type: "commit" }));
+  const transcript = await next("transcript");
+  assert.equal(transcript.type === "transcript" && transcript.text, "Computer, do not change files.");
+  assert.equal(fixture.audioWrites, 2, "Stopping playback must not lose the rest of the utterance.");
 });
 
 test("microphone off preserves pending speech; stopped speech cannot send late audio into a new reply", async (t) => {
@@ -184,6 +239,11 @@ test("spoken question answers match only clear, offered choices and keep the use
   assert.match("retry" in skip ? skip.retry : "", /Skip question on screen/);
   const negativeLabel = { ...closed, options: [{ value: "keep", label: "Do not change files" }, { value: "change", label: "Change files" }] };
   assert.deepEqual(matchSpokenAnswer(negativeLabel, "do not change files"), { answer: "keep" });
+  const proceed = { ...closed, options: [{ value: "y", label: "Yes, apply the fix" }, { value: "n", label: "No" }] };
+  for (const words of ["Make it so.", "Make it so, Number One.", "Engage!", "make it so, Mr. La Forge"]) assert.deepEqual(matchSpokenAnswer(proceed, words), { answer: "y" }, words);
+  assert.deepEqual(matchSpokenAnswer(closed, "Make it so."), { retry: "Please choose Small change or Explain first." }, "with no plain yes on offer, the order to proceed chooses nothing");
+  assert.deepEqual(matchSpokenAnswer({ ...proceed, options: [...proceed.options, { value: "both", label: "Yes, and add a test" }] }, "Make it so."), { retry: "Please choose Yes, apply the fix, No, or Yes, and add a test." });
+  assert.deepEqual(matchSpokenAnswer(proceed, "Don't make it so."), { retry: "Please choose Yes, apply the fix or No." });
   assert.equal(canAskAloud(form(question)), true);
   assert.equal(canAskAloud(form({ key: "many", type: "multiselect", options: question.options })), false);
   assert.equal(canAskAloud(form(question, { ...question, key: "q1" })), false);
@@ -204,7 +264,7 @@ test("MAI speaking uses the British default voice with its neutral style unless 
   assert.doesNotMatch(speakingDocument({ voice: "en-US-Harper:MAI-Voice-2.1-Flash", voiceStyle: "none" }, "Ready."), /express-as/);
 });
 
-test("voice transport rejects other websites, pauses recognition during speech, and stops speaking without starting work", async (t) => {
+test("voice transport rejects other websites, requires a listening request, and stops speaking without starting work", async (t) => {
   const fixture = speechFixture();
   const server = createServer((_request, response) => response.end());
   let origin = "";
@@ -254,7 +314,7 @@ test("voice transport rejects other websites, pauses recognition during speech, 
   await next("state", "speaking");
   socket.send(Buffer.alloc(640));
   await next("audio-end");
-  assert.equal(fixture.audioWrites, 1, "The computer's own audio cannot become a new request.");
+  assert.equal(fixture.audioWrites, 1, "Audio is ignored without an open listening request.");
   assert.ok(fixture.closes > 0);
   assert.equal(fixture.spoken, "The written result is available.");
   socket.send(JSON.stringify({ type: "stop-speaking" }));
