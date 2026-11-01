@@ -10,9 +10,12 @@ Some GitHub features only work on a public repository. After making it public:
    **Publish project website** once from the **Actions** tab. Set the
    repository's website address to `https://sbroenne.github.io/picard-code/`.
 2. In **Settings → Code security**, turn on private vulnerability reporting,
-   Dependabot alerts and security updates. The CodeQL and dependency review
-   checks start running by themselves.
-3. Protect `main` with a rule that requires the **Project checks** to pass.
+   Dependabot alerts and security updates. Under **Code scanning**, choose
+   **CodeQL analysis → Set up → Default**. The dependency review check starts
+   running by itself.
+3. Protect `main` with a rule that requires these **Project checks** to pass:
+   **Types and browser checks** and the three **Server and package** checks
+   (ubuntu-latest, windows-latest, macos-latest).
 4. Turn on automatic Copilot code review, so the Ponytail skill reviews each
    pull request.
 

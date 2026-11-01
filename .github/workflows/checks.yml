@@ -14,15 +14,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checks:
-    name: Checks (${{ matrix.os }}, Node ${{ matrix.node }})
+  # Things that can differ between computers: OpenCode packages, paths and starting programs.
+  # Each system tests one Node version, so the oldest and newest supported versions are both covered.
+  systems:
+    name: Server and package (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        node: ["24", "26"]
+        include:
+          - os: ubuntu-latest
+            node: "24"
+          - os: windows-latest
+            node: "24"
+          - os: macos-latest
+            node: lts/*
     defaults:
       run:
         shell: bash
@@ -38,10 +45,6 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
-      - name: Install the test browser
-        run: npx playwright install --with-deps chromium
-      - name: Check types
-        run: npm run check
       - name: Build
         run: npm run build
       - name: Run server tests
@@ -55,13 +58,37 @@ jobs:
           grep -qx "package/web-dist/index.html" files.txt
           if grep -q "^package/dist/tests/" files.txt; then echo "Test files must not be in the package."; exit 1; fi
           npx --yes "./$file" opencode --version
+
+  # The browser checks use a test stand-in for OpenCode, so they run once.
+  browser:
+    name: Types and browser checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Get the source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install the test browser
+        run: npx playwright install --with-deps chromium
+      - name: Check types
+        run: npm run check
+      - name: Build
+        run: npm run build
       - name: Check the desktop app and project website
         run: npx playwright test
       - name: Keep browser failure evidence
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: browser-failures-${{ matrix.os }}-${{ matrix.node }}
+          name: browser-failures
           path: test-results/
           retention-days: 7
           if-no-files-found: ignore
