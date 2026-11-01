@@ -24,9 +24,10 @@ Other useful contributions:
 
 - Accessible desktop controls: keyboard use, screen readers, readable text,
   reduced motion, and clear listening states.
-- Real microphone testing: accents, quiet speech, echo, headphones, room noise,
-  pauses, "Computer", follow-ups, and returning to standing by.
-- Easier Windows, macOS, and Linux installation and troubleshooting.
+- Real microphone testing beyond the owner's own Windows and macOS setups:
+  other accents, quiet speech, echo, headphones, room noise, pauses,
+  "Computer", follow-ups, and returning to standing by.
+- Linux installation and troubleshooting; Windows and macOS are in regular use.
 - Reliable startup, shutdown, reconnection, and listening/playback transitions.
 - Measured improvements in response time and local resource use.
 

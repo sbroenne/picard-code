@@ -97,5 +97,6 @@ with saved replies and actual spoken playback. A real six-turn conversation
 check covers follow-ups, a correction, "show me", OpenCode's real question
 and a refused command. Those real-service checks predate OpenCode 2; the
 migration passed automated stand-in checks but did not rerun real model or
-Azure checks. Fresh OpenCode 2 real-service checks, physical microphone/speaker,
-subjective voice and timing review, and real macOS/Linux use remain unverified.
+Azure checks. The owner uses it with a real microphone and speakers on Windows
+and macOS. Fresh scripted OpenCode 2 real-service checks, Linux, other accents,
+and other rooms and audio equipment remain unverified.

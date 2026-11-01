@@ -169,8 +169,9 @@ plainly which real checks ran and which could not.
 
 Never change the owner's saved speech choices just to run a check.
 
-Still not checked anywhere: a physical microphone and speakers (room noise,
-echo), macOS and Linux, and the owner's subjective review of voice and timing.
+The owner uses Picard Code with a real microphone and speakers on Windows and
+macOS. Still not checked: Linux, other accents, and other rooms, microphones,
+speakers and headphones (room noise, echo).
 
 ## Git
 

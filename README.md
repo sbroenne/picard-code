@@ -36,8 +36,8 @@ computer stay calm, precise, useful, and recognizably part of this tribute:
 original wording, better follow-ups, pronunciation, and comfortable timing,
 not copied dialogue or cloned performer voices.
 
-We also welcome accessible desktop controls, real microphone and accent
-testing, easier cross-platform setup, and reliability improvements. Read
+We also welcome accessible desktop controls, testing with other accents,
+rooms and microphones, Linux setup, and reliability improvements. Read
 [CONTRIBUTING.md](CONTRIBUTING.md) for the project's direction and checks.
 Bring open-ended ideas to [Discussions](https://github.com/sbroenne/picard-code/discussions);
 use the [issue forms](https://github.com/sbroenne/picard-code/issues/new/choose)
@@ -949,8 +949,8 @@ services to install newer versions.
 - [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
 - [Kokoro ONNX](https://github.com/thewh1teagle/kokoro-onnx)
 
-Windows is checked on the development machine. App startup and shutdown are
-implemented for macOS and Linux but still need checks on those systems. This first version
+The owner uses Picard Code on Windows and macOS. Startup and shutdown are
+implemented for Linux but still need a check there. This first version
 does not include file attachments or a full file editor.
 
 ## Developing Picard Code
