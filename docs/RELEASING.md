@@ -38,15 +38,18 @@ agents never do.
    change dist-tags. In GitHub **Settings → Environments**, create the `npm`
    environment and, under **Deployment branches and tags**, allow only the
    tag rule `v*`. No npm token is stored anywhere.
-3. **Each later version.** In a pull request, raise `version` in
-   `package.json` (for example `npm version 0.2.0 --no-git-tag-version`) and
-   merge it. Then create a GitHub release with the tag `v0.2.0`. The
+3. **Each later version.** Version numbers follow the Enterprise-D's
+   registry, NCC-1701-D: `1701.4.x`, where 4 stands for D. Raise only the last
+   number for each release (`1701.4.0`, `1701.4.1`, …). Keep `1701.5.0`, the
+   Enterprise-E, for a major redesign. In a pull request, raise `version` in
+   `package.json` (for example `npm version 1701.4.1 --no-git-tag-version`) and
+   merge it. Then create a GitHub release with the tag `v1701.4.1`. The
    **Publish to npm** workflow checks that the tag matches, runs the checks,
    and stages the version on npm with provenance (a public record that GitHub
    built it from this repository). Staged versions are not public yet. Approve
    it on npmjs.com, or run `npm stage list` and then
    `npm stage approve <id>`; npm asks for your second sign-in step. Then
-   check from an empty folder that `npx picard-code@0.2.0 --help` works.
+   check from an empty folder that `npx picard-code@1701.4.1 --help` works.
 
 ## The launch video and YouTube channel
 

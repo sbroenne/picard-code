@@ -1,6 +1,6 @@
 name: Publish to npm
 
-# Runs when the owner publishes a GitHub release tagged v<version>, for example v0.2.0.
+# Runs when the owner publishes a GitHub release tagged v<version>, for example v1701.4.1.
 # npm accepts it through trusted publishing, so no npm token is stored in GitHub.
 # The version is only staged; it goes public when the owner approves it on npm.
 on:
