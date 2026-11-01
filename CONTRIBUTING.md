@@ -124,8 +124,7 @@ Review the image before committing it. It shows the real interface with a
 staged example from the labeled test stand-in, not a real model, project, or
 speech result, and the website caption must say so.
 
-Pages deploys only `site/` from `main` after public launch. Deployment is
-deliberately disabled while the repository is private.
+Pages deploys only `site/`, after each change to it reaches `main`.
 
 GitHub checks run without personal model or Azure credentials. Copilot's cloud
 setup installs development tools, not speech models. The optional Copilot app
