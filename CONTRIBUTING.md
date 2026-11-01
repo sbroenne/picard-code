@@ -24,9 +24,10 @@ Other useful contributions:
 
 - Accessible desktop controls: keyboard use, screen readers, readable text,
   reduced motion, and clear listening states.
-- Real microphone testing: accents, quiet speech, echo, headphones, room noise,
-  pauses, "Computer", follow-ups, and returning to standing by.
-- Easier Windows, macOS, and Linux installation and troubleshooting.
+- Real microphone testing beyond the owner's own Windows and macOS setups:
+  other accents, quiet speech, echo, headphones, room noise, pauses,
+  "Computer", follow-ups, and returning to standing by.
+- Linux installation and troubleshooting; Windows and macOS are in regular use.
 - Reliable startup, shutdown, reconnection, and listening/playback transitions.
 - Measured improvements in response time and local resource use.
 
@@ -81,14 +82,14 @@ npx playwright test
 If Chromium is missing, run `npx playwright install chromium`. Windows users
 should use `npm.cmd` for commands with `--` arguments.
 
-These checks use labeled stand-ins and generated audio. They do not prove real
-models, speech services, or physical audio work. When changing those behaviors,
-also run the matching real checks in README. They can require your own sign-in,
+These checks use a test stand-in for OpenCode and generated audio. When changing
+models, speech, or conversation behavior, also run the matching real checks in
+README. They can require your own sign-in,
 model downloads, or paid Azure/model requests. Report exactly what ran and what
 could not; never submit credentials to CI.
 
 Keep changes focused and update related documentation. In a pull request,
-explain the user-facing difference, checks, and remaining evidence gaps.
+explain the user-facing difference and the checks you ran.
 Screenshots of stand-ins must be labeled. New speech services need license,
 data-flow, setup, error, and cancellation documentation.
 
@@ -120,12 +121,9 @@ On Windows, set `$env:PICARD_SITE_CAPTURE = "1"` in PowerShell and run
 `npx.cmd playwright test browser-tests/voice.spec.ts --grep "everyday answer"`,
 then remove the environment variable with
 `Remove-Item Env:PICARD_SITE_CAPTURE`.
-Review the image before committing it. It shows the real interface with a
-staged example from the labeled test stand-in, not a real model, project, or
-speech result, and the website caption must say so.
+Review the image before committing it.
 
-Pages deploys only `site/` from `main` after public launch. Deployment is
-deliberately disabled while the repository is private.
+Pages deploys only `site/`, after each change to it reaches `main`.
 
 GitHub checks run without personal model or Azure credentials. Copilot's cloud
 setup installs development tools, not speech models. The optional Copilot app

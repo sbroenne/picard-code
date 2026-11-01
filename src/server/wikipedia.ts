@@ -31,7 +31,7 @@ export function wikipediaReader(fetcher: typeof fetch = fetch, now = Date.now) {
     try {
       const response = await fetcher(url, {
         redirect: "error", signal: AbortSignal.timeout(15_000),
-        headers: { Accept: "application/json", "User-Agent": "PicardCode/0.1.0 (local tribute app)" },
+        headers: { Accept: "application/json", "User-Agent": "PicardCode (https://github.com/sbroenne/picard-code)" },
       });
       if (!response.ok) throw new Error(`Wikipedia returned HTTP ${response.status}.`);
       if (!response.body) throw new Error("Wikipedia returned no article.");

@@ -160,17 +160,13 @@ npx playwright test
 ```
 
 The browser checks use a labeled test stand-in for OpenCode, a fake
-microphone and silent stand-in sounds. They do not prove real services work.
-When you change OpenCode, speech or conversation behavior, also run the
+microphone and silent stand-in sounds. When you change OpenCode, speech or conversation behavior, also run the
 matching real check from the README (`test:live`, `test:speech:live`,
 `test:speech:local`, `test:conversation:live`, `test:behavior:live`). Most of
 these make real model requests and some make small Azure charges. Report
 plainly which real checks ran and which could not.
 
 Never change the owner's saved speech choices just to run a check.
-
-Still not checked anywhere: a physical microphone and speakers (room noise,
-echo), macOS and Linux, and the owner's subjective review of voice and timing.
 
 ## Git
 

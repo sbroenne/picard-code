@@ -1,29 +1,28 @@
-# Making Picard Code public and publishing it
+# Publishing Picard Code
 
 Steps only the owner can take. Coding agents never publish.
 
-## Making the repository public
+## Repository settings
 
-Some GitHub features only work on a public repository. After making it public:
+The repository is public. These settings are in place; keep them when
+changing others:
 
-1. In **Settings → Pages**, choose **GitHub Actions** as the source, then run
-   **Publish project website** once from the **Actions** tab. Set the
-   repository's website address to `https://sbroenne.github.io/picard-code/`.
-2. In **Settings → Code security**, turn on private vulnerability reporting,
-   Dependabot alerts and security updates. Under **Code scanning**, choose
-   **CodeQL analysis → Set up → Default**. The dependency review check starts
-   running by itself.
-3. Protect `main` with a rule that requires these **Project checks** to pass:
-   **Types and browser checks** and the three **Server and package** checks
-   (ubuntu-latest, windows-latest, macos-latest).
-4. Turn on automatic Copilot code review, so the Ponytail skill reviews each
-   pull request.
+- **Pages** builds from GitHub Actions and publishes `site/` to
+  <https://sbroenne.github.io/picard-code/>, also set as the website address.
+- **Code security:** private vulnerability reporting, Dependabot alerts and
+  security updates, secret scanning with push protection, and CodeQL default
+  setup.
+- **Protect main** (Settings → Rules): changes need a pull request, squash
+  merges only, no force pushes or deletion. These **Project checks** must
+  pass: **Types and browser checks** and the three **Server and package**
+  checks (ubuntu-latest, windows-latest, macos-latest). Copilot reviews each
+  pull request once it is ready, using the Ponytail skill.
+- **Actions** may only use GitHub's own actions, pinned to exact versions.
 
 ## Publishing to npm
 
-The README tells people to run `npx picard-code`, so publish the first
-version as soon as the repository is public. Only the owner publishes; coding
-agents never do.
+The README tells people to run `npx picard-code`. Only the owner publishes;
+coding agents never do.
 
 1. **First version, by hand.** npm only lets GitHub publish a package that
    already exists. On an up-to-date `main`, run `npm login`, then
@@ -54,9 +53,7 @@ agents never do.
 ## The launch video and YouTube channel
 
 The short video is on the [Picard Code channel](https://www.youtube.com/@PicardCode)
-at <https://youtu.be/_OKnpwS9dOI>, linked from the website and README. It is
-**unlisted** until this work reaches `main`; then set it to **Public** in
-YouTube Studio.
+at <https://youtu.be/_OKnpwS9dOI>, linked from the website and README.
 
 The video is never committed: it contains the TrekCore startup call. Its
 source is `video/index.html`, a [HyperFrames](https://github.com/heygen-com/hyperframes)

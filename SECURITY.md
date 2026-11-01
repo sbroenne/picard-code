@@ -37,5 +37,3 @@ only the article titles are sent, never your words or project content.
 Read README's data-flow explanation before use.
 
 The GitHub Pages website is a static introduction, not a running app.
-Automated checks and scanning reduce risk but do not prove that no security
-problem exists.
