@@ -163,9 +163,8 @@ test("repository questions stay grounded in the selected project, even when it i
 });
 
 test("request options are allowlisted and instructions preserve identity in every mode", () => {
-  assert.equal(tributeMode(true, false), "screen");
-  assert.equal(tributeMode(true, true), "spoken");
-  assert.equal(tributeMode(false, true), "off");
+  assert.equal(tributeMode(true), "screen");
+  assert.equal(tributeMode(false), "off");
   const story = TRIBUTE_ENTRIES.find((entry) => entry.story)!;
   assert.deepEqual(checkTributeRequest({ mode: "off", storyID: story.id }), { mode: "off", storyID: story.id });
   for (const value of [null, [], "on", {}, { mode: "on" }, { mode: "screen", story: "invented" }, { mode: "screen", storyID: "unknown" }, { mode: "screen", storyID: TRIBUTE_ENTRIES[0]!.id }]) {

@@ -57,7 +57,7 @@ original TNG-inspired look.
   "captain style" before sending. Negations, exact names, limits and approval
   boundaries must survive unchanged.
 - **No copied franchise material in the repository.** No show artwork,
-  dialogue, voice cloning or recordings are committed. The four TrekCore
+  dialogue, voice cloning or recordings are committed. The five TrekCore
   sounds are downloaded at startup (or by `npm run setup:sounds`) into the
   ignored `.picard-sounds` folder; keep them out of git and keep their
   attribution and permission limits in `THIRD_PARTY_NOTICES.md`.
@@ -99,8 +99,9 @@ spoken Picard and Patrick Stewart story offers. Offers match the person
 being discussed; both subjects use the same acceptance and source-link flow.
 Keep Picard's fictional adventures separate from Stewart's real career.
 Off removes those extras, not Picard's
-identity or explicitly requested stories. About only holds the secondary
-automatic-speech preference. Never put switches inside answers.
+identity or explicitly requested stories. Automatic facts are screen-only;
+About explains their quiet tricorder cue and has no automatic-speech
+preference. Never put switches inside answers.
 The navigation control is a full LCARS-style tile with an On/Off state,
 not a visible browser checkbox; preserve keyboard and screen-reader access.
 
@@ -125,6 +126,13 @@ waits for clear acceptance and uses reviewed, attributed material. Do not
 invent anecdotes, quote scripts, promise exhaustive knowledge, or make
 unrequested background research requests. Follow-on speech must await actual playback
 completion and cancel without cutting off the useful answer.
+Automatic fact records use “Personnel file” / “Jean-Luc Picard” or
+“All the world’s a stage” / “Sir Patrick Stewart”. Each has a real Stardate
+captured when it first appears, not an invented date in the subject's life.
+Keep that readout stable when the screen redraws.
+Render automatic facts as standalone records below their replies, outside
+the reply frame, with no Computer label or Copy button. Keep their text
+readable independently of earlier replies dimming.
 
 Computer sounds play once per real event, quietly, never while listening, and
 never instead of the written or spoken explanation:
@@ -135,6 +143,7 @@ never instead of the written or spoken explanation:
 | `request-accepted` | A spoken request was accepted by OpenCode, "Computer" was said on its own and the computer is waiting for the request, or "stop listening" was acknowledged. |
 | `input-failed` | Speech was not understood, could not be sent, or was not sent because it did not start with "Computer". |
 | `request-failed` | An accepted request finally failed or was denied, just before the spoken result. |
+| `tribute-fact` | A new automatic fact, after the main answer finishes playing and before listening resumes. Never on redraw or reopening a log entry. Cancel pending cues when Tribute is off or the turn is interrupted. |
 
 ## Checks
 

@@ -382,7 +382,7 @@ export async function startApp(options: AppOptions) {
           json(response, 200, await state(project));
           return;
         }
-        const soundName = /^\/api\/sounds\/(startup|request-accepted|input-failed|request-failed)$/.exec(path)?.[1];
+        const soundName = /^\/api\/sounds\/(startup|request-accepted|input-failed|request-failed|tribute-fact)$/.exec(path)?.[1];
         if (soundName && method === "GET") {
           let sound: Buffer;
           try {

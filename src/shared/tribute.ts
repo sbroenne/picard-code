@@ -9,8 +9,8 @@ export function storyInvitation(subject: TributeEntry["subject"]) {
   return `I can tell you a short story about ${subject === "Picard" ? "Captain Jean-Luc Picard" : "Sir Patrick Stewart"}.`;
 }
 
-export function tributeMode(enabled: boolean, spoken: boolean): TributeMode {
-  return !enabled ? "off" : spoken ? "spoken" : "screen";
+export function tributeMode(enabled: boolean): TributeMode {
+  return enabled ? "screen" : "off";
 }
 
 function words(text: string) {

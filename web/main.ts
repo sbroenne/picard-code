@@ -4,7 +4,7 @@ import { errorMessage } from "../src/shared/messages";
 import { replyFailed, spokenReply, spokenSummary } from "../src/shared/speech";
 import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../src/shared/questions";
 import { addressed, voiceCommand } from "../src/shared/wake";
-import { VoiceConversation } from "./voice";
+import { VoiceConversation, type FollowOn } from "./voice";
 import { renderMarkdown } from "./markdown";
 import { formatStardate } from "../src/shared/stardate";
 import { TRIBUTE_ENTRIES, type TributeEntry } from "../src/shared/tribute-data";
@@ -50,12 +50,11 @@ let renderScheduled = false;
 const live = new Map<string, { sessionID: string; messageID: string; partType: "text" | "reasoning"; text: string; speaker?: CrewID; background?: boolean }>();
 let voiceTurn: { session: string; known: Set<string>; request: string; storyID?: string; outcome?: ExecutionOutcome; reference?: TributeEntry["source"] } | undefined;
 let tributeEnabled = true;
-let tributeSpoken = false;
 let bridgeEnabled = true;
 let tributeCycle: TributeCycle;
 let pendingStory: { session: string; storyID: string } | undefined;
 let lastStoryID: string | undefined;
-const tributeDisplay = new Map<string, { fact?: TributeEntry; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] }>();
+const tributeDisplay = new Map<string, { fact?: TributeEntry; factShownAt?: Date; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] }>();
 let spokenDecision = "";
 let spokenQuestionID: string | undefined;
 let answering = false;
@@ -202,6 +201,7 @@ function consoleStatus(): [string, string] {
   if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open."];
   if (!state.models.length) return ["Setup needed", "Sign in to a model provider: open Provider."];
   if (voice.phase === "speaking") return ["Speaking", voice.microphone ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."];
+  if (voice.phase === "cue") return ["Standing by", "A new tribute fact is on screen."];
   if (voice.speechPending) return ["Preparing reply", ""];
   if (voice.microphone && voice.waitingForClick) return ["Standing by", "Click anywhere to start listening."];
   if (voice.phase === "listening") return ["Listening", ""];
@@ -242,7 +242,7 @@ function voiceControls() {
   element("speech-current").textContent = state?.speech?.configured
     ? `In use: ${cloudListening ? "Azure" : "this computer"} listens, ${cloudSpeaking ? "Azure" : "this computer"} speaks`
     : state?.speech?.error ?? "Speech is not set up yet";
-  element("stop-speaking").hidden = !voice.speechPending;
+  element("stop-speaking").hidden = !voice.speechPending || voice.phase === "cue";
 }
 
 function completeVoiceReply() {
@@ -255,11 +255,17 @@ function completeVoiceReply() {
   const turn = voiceTurn;
   voiceTurn = undefined;
   const successful = outcome === "succeeded" && !replyFailed(reply) && !declinedReply(reply);
-  const key = `${turn.session}:${reply.id}`;
-  const display: { fact?: TributeEntry; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] } = {};
+  const at = messages.indexOf(reply);
+  const reports = reply.background ? [] : reportsAround(messages, at).filter((message) => !turn.known.has(message.id));
+  const repeated = repeatsOfficer(messages, at);
+  const reportCopy = repeated ? reports.find((report) => repeatsReport(written(reply), written(report), crewMember(report.speaker)!.name)) : undefined;
+  // Keep tribute records with the visible answer when the computer's repeated report is hidden.
+  const answer = !replyFailed(reply) && reports.length === 1 && (!written(reply).trim() || repeated) ? reports[0]! : reply;
+  const key = `${turn.session}:${(reportCopy ?? answer).id}`;
+  const display: { fact?: TributeEntry; factShownAt?: Date; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] } = {};
   if (successful && turn.reference) display.reference = turn.reference;
   if (successful && turn.storyID) display.story = TRIBUTE_ENTRIES.find((entry) => entry.id === turn.storyID);
-  let tail: { text: string; valid(): boolean; started?(): void } | undefined;
+  let tail: FollowOn | undefined;
   const stillCurrent = () => tributeEnabled && selected === turn.session && !busy() && !pending()
     && !submitting && connected && !muted() && !openDrawer() && !voice.failed;
   if (successful && tributeEnabled && !turn.storyID && storyOfferAllowed(turn.request)) {
@@ -278,17 +284,15 @@ function completeVoiceReply() {
   const fact = tributeCycle.completed({ id: key, outcome, reply, blocked: !!pending(), explicit: !!turn.storyID || tributeQuestion(turn.request) });
   if (fact) {
     display.fact = fact;
+    display.factShownAt = new Date();
     saveTributeValue("picard-tribute-seen", JSON.stringify(tributeCycle.seenIDs));
-    if (tributeSpoken) tail = { text: `${fact.subject} fact. ${fact.text}`, valid: () => stillCurrent() && tributeSpoken };
+    tail = { cue: "tribute-fact", valid: stillCurrent };
   }
   if (display.fact || display.invitation || display.story || display.reference) {
     tributeDisplay.set(key, display);
     renderMessages();
   }
   // When one officer's report is the answer, it is spoken instead of silence or the computer's word-for-word copy.
-  const at = messages.indexOf(reply);
-  const reports = reply.background ? [] : reportsAround(messages, at).filter((message) => !turn.known.has(message.id));
-  const answer = !replyFailed(reply) && reports.length === 1 && (!written(reply).trim() || repeatsOfficer(messages, at)) ? reports[0]! : reply;
   voice.speak(spokenReply(answer), replyFailed(reply), tail);
 }
 
@@ -320,11 +324,6 @@ function readTributeBoolean(key: string, fallback: boolean) {
 function tributeControls() {
   element<HTMLInputElement>("tribute-toggle").checked = tributeEnabled;
   element("tribute-toggle-state").textContent = tributeEnabled ? "On" : "Off";
-  const spoken = element<HTMLInputElement>("tribute-spoken");
-  spoken.checked = tributeSpoken;
-  spoken.disabled = !tributeEnabled;
-  element("tribute-speech-hint").textContent = !tributeEnabled ? "Turn Tribute on in the left navigation to change automatic speech."
-    : "Automatic facts appear on screen. Requested answers and story invitations are still spoken.";
 }
 function bridgeControls() {
   element<HTMLInputElement>("bridge-toggle").checked = bridgeEnabled;
@@ -332,7 +331,6 @@ function bridgeControls() {
 }
 function loadTribute() {
   tributeEnabled = readTributeBoolean("picard-tribute-enabled", true);
-  tributeSpoken = readTributeBoolean("picard-tribute-spoken", false);
   bridgeEnabled = readTributeBoolean("picard-bridge-enabled", true);
   bridgeControls();
   let seen: string[] = [];
@@ -550,11 +548,6 @@ function renderMessages() {
     for (const part of failures) article.append(make("p", "message-error", part.text));
     if (message.error) article.append(make("p", "message-error", message.error));
     const extra = tributeDisplay.get(`${selected}:${message.id}`);
-    if (extra?.fact) {
-      const fact = make("aside", "tribute-fact");
-      fact.append(make("strong", undefined, `${extra.fact.subject} fact`), make("p", undefined, extra.fact.text), tributeSource(extra.fact));
-      article.append(fact);
-    }
     if (extra?.invitation && tributeEnabled) article.append(make("p", "tribute-invitation", extra.invitation));
     if (extra?.story) {
       const source = make("p", "tribute-source");
@@ -567,6 +560,26 @@ function renderMessages() {
       article.append(source);
     }
     container.append(article);
+    if (extra?.fact) {
+      const fact = make("aside", "tribute-fact");
+      const picard = extra.fact.subject === "Picard";
+      fact.dataset.subject = picard ? "picard" : "stewart";
+      const heading = make("div", "tribute-record-header");
+      const title = make("div", "tribute-record-title");
+      title.append(make("small", undefined, picard ? "Personnel file" : "All the world’s a stage"));
+      const name = picard ? "Jean-Luc Picard" : "Sir Patrick Stewart";
+      title.append(make("h3", undefined, name));
+      fact.setAttribute("aria-label", name);
+      heading.append(title);
+      if (extra.factShownAt) heading.append(make("small", "tribute-stardate", `Stardate ${formatStardate(extra.factShownAt)}`));
+      const bars = make("div", "tribute-record-bars");
+      bars.setAttribute("aria-hidden", "true");
+      bars.append(make("span"), make("span"), make("span"));
+      const body = make("div", "tribute-record-body");
+      body.append(make("p", undefined, extra.fact.text), tributeSource(extra.fact));
+      fact.append(heading, bars, body);
+      container.append(fact);
+    }
   });
   controls();
   if (nearBottom && window.matchMedia("(min-width: 701px)").matches) readingArea.scrollTop = readingArea.scrollHeight;
@@ -1031,7 +1044,7 @@ async function sendMessage(spoken: string, requestedStoryID?: string) {
     if (!requestedStoryID && subject && !stories.length) throw new Error(`No reviewed ${subject} stories are available.`);
     const storyID = requestedStoryID ?? (subject ? stories[randomIndex(stories.length, Math.random)]!.id : undefined);
     voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)), request: text, storyID };
-    const accepted = await api<{ accepted: boolean; reference?: TributeEntry["source"] }>(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, bridge: bridgeEnabled, tribute: { mode: tributeMode(tributeEnabled, tributeSpoken), ...(storyID ? { storyID } : {}) } });
+    const accepted = await api<{ accepted: boolean; reference?: TributeEntry["source"] }>(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, bridge: bridgeEnabled, tribute: { mode: tributeMode(tributeEnabled), ...(storyID ? { storyID } : {}) } });
     if (voiceTurn) voiceTurn.reference = accepted.reference;
     voice.acknowledge();
     await refreshState();
@@ -1288,12 +1301,6 @@ element("bridge-toggle").addEventListener("change", () => {
   saveTributeValue("picard-bridge-enabled", String(bridgeEnabled));
   bridgeControls();
   element("bridge-status").textContent = bridgeEnabled ? "The Bridge crew is on." : "The Bridge crew is off. The computer answers every request.";
-});
-element("tribute-spoken").addEventListener("change", () => {
-  tributeSpoken = element<HTMLInputElement>("tribute-spoken").checked;
-  saveTributeValue("picard-tribute-spoken", String(tributeSpoken));
-  if (!tributeSpoken) voice.cancelFollowOn();
-  tributeControls();
 });
 for (const name of ["pointerdown", "keydown"] as const) document.addEventListener(name, () => voice.unlock(), true);
 window.addEventListener("beforeunload", () => { events?.close(); voice.close(); });
