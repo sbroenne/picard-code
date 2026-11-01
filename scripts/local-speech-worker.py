@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--whisper-model")
 parser.add_argument("--kokoro-model")
 parser.add_argument("--kokoro-voices")
-parser.add_argument("--kokoro-voice", default="bf_emma")
+parser.add_argument("--kokoro-voice", default="af_alloy")
 args = parser.parse_args()
 def phonemizer_for(voice):
     # Kokoro's voice names start with "b" for British English voices.

@@ -65,7 +65,7 @@ The bridge uses rank and surname, or a familiar name. Picard Code recognises the
 
 ## Speaking voices
 
-Each officer speaks with a ready-made voice that sounds closer to the actor than the computer's voice does. Nothing is cloned, trained or built from show recordings: the voices are the standard Kokoro and Azure MAI voices that anyone can choose. The chosen voices are fixed in `src/shared/crew-voices.ts`. An officer never shares the computer's voice: if the computer uses an officer's first choice, that officer uses a second choice.
+Each officer speaks with a ready-made voice chosen from the measured comparison. Nothing is cloned, trained or built from show recordings: these are standard Kokoro and Azure MAI voices. The computer and crew voices are fixed in `src/shared/crew-voices.ts`, and every speaker has a different voice. There is no voice selection, but the listening and speaking services can still be chosen independently.
 
 ### How the voices were chosen
 
@@ -74,7 +74,7 @@ The owner supplied short clips of each actor from his own collection. They stay 
 1. It spoke six original sentences with every candidate voice: 35 Kokoro voices (all English voices, plus the French, Hindi and Italian ones that can speak English) and all 12 English MAI-Voice-2.1 voices in the owner's Azure region.
 2. It cut the candidates' sound to the same narrow range as the clips (up to about 4,000 Hz), so the old recordings' quality would not decide the result.
 3. Six speaker-recognition models, each trained to tell people apart by their voice, compared every candidate with every actor. Before they were trusted, each model had to recognise the actors themselves from held-back clips. All six recognised all 47 test segments correctly.
-4. Scores were made comparable per actor and averaged across the models. Only voices of the same gender and of at least grade D in Kokoro's own quality list were allowed. Each officer was given a different voice, so that the total similarity was as high as possible.
+4. Scores were made comparable per actor and averaged across the models. Only voices of the same gender and of at least grade D in Kokoro's own quality list were allowed. After the owner ruled out French and Indian accents, assignments were recalculated from the existing scores using only American, British and Australian English candidates, with Alloy and Iris reserved for the computer. Each officer was given a different voice, so that the total similarity was as high as possible.
 
 The measured results, without clip names, are in [audition-data/crew-voice-match.json](audition-data/crew-voice-match.json). The models were used only to measure. None of them is shipped with Picard Code.
 
@@ -91,18 +91,18 @@ w2v-BERT 2.0 was considered but not used: a speaker-recognition version needs a 
 
 ### Results
 
-| Officer | Kokoro (second choice) | Azure MAI (second choice) |
+| Officer | Kokoro | Azure MAI |
 | --- | --- | --- |
-| Riker | `am_michael` (`am_onyx`) | `en-US-Ethan` (`en-GB-Harry`) |
-| Data | `am_liam` (`am_eric`) | `en-US-Sage` (`en-US-Grant`) |
-| Geordi | `am_echo` (`am_fenrir`) | `en-US-Jasper` (`en-US-Grant`) |
-| Worf | `bm_lewis` (`im_nicola`) | `en-IN-Dhruv` (`en-GB-Harry`) |
-| Troi | `bf_alice` (`if_sara`) | `en-GB-Emily` (`en-US-Iris`) |
-| Crusher | `ff_siwis` (`hf_beta`) | `en-IN-Priya` (`en-AU-Isla`) |
+| Riker | `am_michael` | `en-US-Ethan` |
+| Data | `am_liam` | `en-US-Sage` |
+| Geordi | `am_echo` | `en-US-Jasper` |
+| Worf | `bm_lewis` | `en-GB-Harry` |
+| Troi | `bf_alice` | `en-GB-Emily` |
+| Crusher | `af_nova` | `en-AU-Isla` |
 
-Second choices are the next best measured voice that no other officer uses first. Because the default MAI computer voice is Emily, Troi speaks with Iris unless the computer's voice is changed.
+There are no second choices or automatic substitutes. An unavailable voice is reported as a real speech error.
 
-The same measurement was run for the computer, against Majel Barrett's clips. The closest voices were `af_alloy` for Kokoro and `en-US-Iris` for MAI (all six models agreed on Iris). The computer's voice was not changed: that stays the owner's choice by ear, and Iris can be chosen in the speech settings.
+The same measurement was run for the computer, against Majel Barrett's clips. The closest voices were `af_alloy` for Kokoro and `en-US-Iris` for MAI (all six models agreed on Iris). These are now the fixed computer voices, replacing British Emma and Emily. They ranked higher for similarity, but that is not proof of a better delivery. All MAI speakers use MAI-Voice-2.1-Flash with the neutral style.
 
 ### Running it again
 
@@ -112,11 +112,11 @@ npm run voices:samples -- --kokoro --mai
 npm run voices:match -- --clips /path/to/clips
 ```
 
-`voices:samples` reads the speech settings but never changes them. MAI samples make a small Azure charge (about 6,000 characters). `voices:match` needs [uv](https://docs.astral.sh/uv/) and downloads about 2.5 GB of tools and models into `~/.picard-code/voice-match`. Clip names must start with the prefixes in `tools/voice-match/roles.example.json`. It writes the report above and a listening page, `~/.picard-code/voice-match/listen.html`, with the three closest voices per role, so the picks can be checked by ear. Delete `~/.picard-code/voice-match` afterwards to free the space.
+`voices:samples` reads the speech settings but never changes them. MAI samples make a small Azure charge (about 6,000 characters). `voices:match` needs [uv](https://docs.astral.sh/uv/) and downloads about 2.5 GB of tools and models into `~/.picard-code/voice-match`. Clip names must start with the prefixes in `tools/voice-match/roles.example.json`. It writes the report above and a listening page, `~/.picard-code/voice-match/listen.html`, with the chosen officer voice followed by the closest allowed alternatives. Control roles retain the raw rankings. Delete `~/.picard-code/voice-match` afterwards to free the space.
 
 ### Limits
 
-- Speaker-recognition models measure who a voice sounds like, mostly its timbre. They do not judge accent, delivery or acting. Some picks have accents the actors do not have: Crusher's Kokoro voice is French and Worf's and Crusher's MAI voices are Indian English.
+- Speaker-recognition models measure who a voice sounds like, mostly its timbre. They do not judge accent, delivery or acting. The raw rankings retain the excluded candidates as evidence, but the selected voices exclude French and Indian accents. Crusher's MAI voice is Australian English.
 - Several Kokoro picks have low grades (D or D+) in Kokoro's own quality list.
 - There were few clips for some officers: about 11 to 23 seconds for Riker, Geordi, Troi and Crusher. Their results are less certain.
 - No ready-made voice sounds like the actors. These are the closest available, not a likeness. Whether they feel right is the owner's judgement.

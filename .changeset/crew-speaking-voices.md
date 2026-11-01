@@ -2,4 +2,4 @@
 "picard-code": patch
 ---
 
-Each bridge officer now speaks with their own ready-made voice in both Kokoro and Azure MAI, chosen by measuring which voices sound closest to the actor; nothing is cloned. After a briefing, each officer says their main finding in their own voice before the computer closes.
+The computer and each bridge officer now have fixed ready-made voices in both Kokoro and Azure MAI, chosen by comparison with the actors; nothing is cloned, and French and Indian accents are excluded. The computer uses Alloy locally and Iris on Azure; after a briefing, each officer says their main finding before the computer closes.

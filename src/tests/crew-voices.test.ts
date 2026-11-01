@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { WebSocket } from "ws";
 import { setTimeout as wait } from "node:timers/promises";
 import { BRIDGE_CREW, type CrewID } from "../shared/crew.js";
-import { CREW_VOICES, crewVoice } from "../shared/crew-voices.js";
+import { COMPUTER_VOICES, CREW_VOICES, crewVoice } from "../shared/crew-voices.js";
 import type { SpeechEvent } from "../shared/speech.js";
 import { azureSpeech } from "../server/azure-speech.js";
 import { attachSpeech } from "../server/speech-bridge.js";
@@ -13,34 +13,35 @@ import { speechFixture } from "./speech-fixture.js";
 
 const FEMALE: CrewID[] = ["picard-troi", "picard-crusher"];
 const FEMALE_MAI = new Set(["en-GB-Emily", "en-US-Harper", "en-US-Iris", "en-US-Olivia", "en-AU-Isla", "en-IN-Priya"]);
-const COMPUTER = { voice: "en-GB-Emily:MAI-Voice-2.1-Flash", kokoroVoice: "bf_emma" };
 
 test("each officer has a distinct ready-made voice of the right gender on both services", () => {
   assert.deepEqual(Object.keys(CREW_VOICES).sort(), BRIDGE_CREW.map((officer) => officer.id).sort());
   for (const speaking of ["kokoro", "mai"] as const) {
-    const chosen = BRIDGE_CREW.map((officer) => crewVoice(officer.id, speaking, COMPUTER).name);
+    const chosen = BRIDGE_CREW.map((officer) => crewVoice(officer.id, speaking).name);
     assert.equal(new Set(chosen).size, chosen.length, `${speaking} officers must not share a voice`);
     for (const officer of BRIDGE_CREW) {
       const female = FEMALE.includes(officer.id);
-      for (const choice of CREW_VOICES[officer.id][speaking]) {
-        if (speaking === "kokoro") assert.equal(choice.voice[1], female ? "f" : "m", `${officer.name}: ${choice.voice}`);
-        else assert.equal(FEMALE_MAI.has(choice.voice), female, `${officer.name}: ${choice.voice}`);
+      const voice = CREW_VOICES[officer.id][speaking];
+      if (speaking === "kokoro") {
+        assert.equal(voice[1], female ? "f" : "m", `${officer.name}: ${voice}`);
+        assert.match(voice, /^[ab][fm]_/, "Only American and British Kokoro voices are allowed.");
+      } else {
+        assert.equal(FEMALE_MAI.has(voice), female, `${officer.name}: ${voice}`);
+        assert.match(voice, /^en-(US|GB|AU)-/, "French and Indian accents are not allowed.");
       }
-      assert.notEqual(crewVoice(officer.id, speaking, COMPUTER).name.split(":")[0], speaking === "kokoro" ? COMPUTER.kokoroVoice : "en-GB-Emily");
+      assert.notEqual(crewVoice(officer.id, speaking).name.split(":")[0], COMPUTER_VOICES[speaking].split(":")[0]);
     }
   }
 });
 
-test("an officer never speaks with the computer's own voice, and MAI officers follow the computer's model", () => {
+test("the computer and officers have fixed voices and use the same MAI model", () => {
+  assert.deepEqual(COMPUTER_VOICES, { kokoro: "af_alloy", mai: "en-US-Iris:MAI-Voice-2.1-Flash" });
   for (const officer of BRIDGE_CREW) {
-    const [first, second] = CREW_VOICES[officer.id].kokoro;
-    assert.equal(crewVoice(officer.id, "kokoro", { ...COMPUTER, kokoroVoice: first.voice }).name, second.voice);
-    const [maiFirst, maiSecond] = CREW_VOICES[officer.id].mai;
-    const voice = crewVoice(officer.id, "mai", { ...COMPUTER, voice: `${maiFirst.voice}:MAI-Voice-2.1` });
-    assert.equal(voice.name, `${maiSecond.voice}:MAI-Voice-2.1`);
-    assert.ok(voice.style);
+    assert.equal(crewVoice(officer.id, "kokoro").name, CREW_VOICES[officer.id].kokoro);
+    const voice = crewVoice(officer.id, "mai");
+    assert.equal(voice.name, `${CREW_VOICES[officer.id].mai}:MAI-Voice-2.1-Flash`);
+    assert.equal(voice.style, "neutral");
   }
-  assert.match(crewVoice("picard-data", "mai", { ...COMPUTER, voice: "en-GB-Emily" }).name, /:MAI-Voice-2\.1-Flash$/);
 });
 
 async function connect(t: { after(fn: () => unknown): void }, service: SpeechService) {

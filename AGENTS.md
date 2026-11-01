@@ -85,7 +85,11 @@ live in `src/shared/crew.ts` and `src/server/instructions.ts`; see
 just proposed, asks when that is unclear, and never answers an approval. The
 officers do not invent results, copy television dialogue, mention famous
 scenes or imitate actors. Each officer speaks with a fixed ready-made voice
-measured to sound closer to the actor (`src/shared/crew-voices.ts`); never clone
+measured to sound closer to the actor (`src/shared/crew-voices.ts`). The computer
+also has fixed voices: Alloy for Kokoro and Iris for MAI. Do not add voice
+selection; listening and speaking service choices stay independent. Use only
+American, British or Australian English voices, never French or Indian
+accents. Never clone
 a voice or train on show recordings. Work that needs several officers is a briefing: the
 computer calls each officer itself, and officers never hand work to each
 other. Riker is not a coordinator. The computer stays neutral.

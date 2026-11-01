@@ -94,11 +94,13 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await page.getByLabel("Listening", { exact: true }).selectOption("whisper");
   await page.getByLabel("Speaking", { exact: true }).selectOption("kokoro");
   await expect(page.getByLabel("Subscription ID")).toBeHidden();
-  await expect(page.getByLabel("Kokoro voice")).toBeVisible();
+  await expect(page.getByLabel("Kokoro voice")).toHaveCount(0);
+  await expect(page.getByText("The computer and each bridge officer have fixed voices.", { exact: false })).toBeVisible();
   await page.getByLabel("Speaking", { exact: true }).selectOption("mai");
   await expect(page.getByLabel("Subscription ID")).toBeVisible();
   await expect(page.getByLabel("Listening deployment")).toBeHidden();
-  await expect(page.getByLabel("Voice", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Voice", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Voice style", { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("settings.png"), fullPage: true });
   await page.keyboard.press("Escape");

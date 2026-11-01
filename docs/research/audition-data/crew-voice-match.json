@@ -1,5 +1,5 @@
 {
-  "method": "Speaker-recognition embeddings from several models, z-normalised per role and averaged; same-gender voices only; officers assigned distinct voices per service.",
+  "method": "Speaker-recognition embeddings from several models, z-normalised per role and averaged. Rankings include all measured same-gender candidates of at least grade D. Officer assignments exclude French, Hindi, Italian and Indian English voices and reserve Alloy and Iris for the computer.",
   "bandwidthHz": 3973,
   "roles": {
     "picard-riker": {
@@ -162,7 +162,7 @@
         "picard-geordi": "am_echo",
         "picard-worf": "bm_lewis",
         "picard-troi": "bf_alice",
-        "picard-crusher": "ff_siwis"
+        "picard-crusher": "af_nova"
       },
       "ranking": {
         "picard-riker": [
@@ -622,9 +622,9 @@
         "picard-riker": "en-US-Ethan__neutral",
         "picard-data": "en-US-Sage__neutral",
         "picard-geordi": "en-US-Jasper__neutral",
-        "picard-worf": "en-IN-Dhruv__neutral",
+        "picard-worf": "en-GB-Harry__neutral",
         "picard-troi": "en-GB-Emily__neutral",
-        "picard-crusher": "en-IN-Priya__neutral"
+        "picard-crusher": "en-AU-Isla__neutral"
       },
       "ranking": {
         "picard-riker": [

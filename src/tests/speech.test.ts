@@ -8,7 +8,7 @@ import { addressed, interruptsSpeech, voiceCommand } from "../shared/wake.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
 import type { FormField, FormRequest } from "../shared/types.js";
 import { speakingDocument } from "../server/azure-speech.js";
-import { DEFAULT_MAI_VOICE, speechFromSettings } from "../server/speech.js";
+import { DEFAULT_MAI_VOICE, describeSpeechSettings, mergeSpeechSettings, speechFromSettings } from "../server/speech.js";
 import { attachSpeech } from "../server/speech-bridge.js";
 import { speechFixture } from "./speech-fixture.js";
 
@@ -261,11 +261,23 @@ test("speech runs on this computer unless Azure is chosen", async () => {
   await assert.rejects(speechFromSettings({ ...missing, listening: "mai", speaking: "mai" }), /valid subscription/);
 });
 
-test("MAI speaking uses the British default voice with its neutral style unless configured otherwise", () => {
-  assert.equal(DEFAULT_MAI_VOICE, "en-GB-Emily:MAI-Voice-2.1-Flash");
-  const british = speakingDocument({ voice: DEFAULT_MAI_VOICE, voiceStyle: "neutral" }, "Ready & <waiting>.");
-  assert.match(british, /xml:lang="en-GB"><voice name="en-GB-Emily:MAI-Voice-2\.1-Flash"><mstts:express-as style="neutral">Ready &amp; &lt;waiting&gt;\.<\/mstts:express-as>/);
+test("MAI computer speaking uses Iris with its neutral style", () => {
+  assert.equal(DEFAULT_MAI_VOICE, "en-US-Iris:MAI-Voice-2.1-Flash");
+  const document = speakingDocument({ voice: DEFAULT_MAI_VOICE, voiceStyle: "neutral" }, "Ready & <waiting>.");
+  assert.match(document, /xml:lang="en-US"><voice name="en-US-Iris:MAI-Voice-2\.1-Flash"><mstts:express-as style="neutral">Ready &amp; &lt;waiting&gt;\.<\/mstts:express-as>/);
   assert.doesNotMatch(speakingDocument({ voice: "en-US-Harper:MAI-Voice-2.1-Flash", voiceStyle: "none" }, "Ready."), /express-as/);
+});
+
+test("retired voice settings are not exposed and are removed only when services are saved", () => {
+  const legacy = { voice: "old", voiceStyle: "old", kokoroVoice: "old", localPython: "/custom/python" };
+  const choice = { listening: "whisper", speaking: "kokoro" };
+  const described = describeSpeechSettings(legacy);
+  for (const key of ["voice", "voiceStyle", "kokoroVoice"]) {
+    assert.equal(key in described, false);
+    assert.throws(() => mergeSpeechSettings(legacy, { ...choice, [key]: "custom" }), /voices are fixed/);
+  }
+  assert.deepEqual(mergeSpeechSettings(legacy, choice), { ...choice, localPython: "/custom/python" });
+  assert.equal(legacy.voice, "old", "Reading and merging must not rewrite the original record.");
 });
 
 test("voice transport rejects other websites, requires a listening request, and stops speaking without starting work", async (t) => {

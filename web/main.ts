@@ -1091,7 +1091,7 @@ async function boot() {
   openEvents();
 }
 
-const speechFields = ["listening", "speaking", "subscription", "resourceGroup", "resourceName", "region", "deployment", "voice", "voiceStyle", "kokoroVoice"] as const;
+const speechFields = ["listening", "speaking", "subscription", "resourceGroup", "resourceName", "region", "deployment"] as const;
 function speechInput(name: typeof speechFields[number]) { return element<HTMLInputElement | HTMLSelectElement>(`setting-${name}`); }
 /** Whether the local Whisper and Kokoro files are already on this computer. */
 let localSpeechReady = false;
@@ -1101,9 +1101,7 @@ function speechFieldVisibility() {
   element("azure-fields").hidden = !azureListening && !azureSpeaking;
   element("local-note").hidden = (azureListening && azureSpeaking) || localSpeechReady;
   const show = (selector: string, visible: boolean) => document.querySelectorAll<HTMLElement>(selector).forEach((node) => { node.hidden = !visible; });
-  show(".kokoro-field", !azureSpeaking);
   show(".azure-listening", azureListening);
-  show(".azure-speaking", azureSpeaking);
 }
 type SavedSpeech = { settings: SpeechSettings; file: string; localReady: boolean; speech: AppState["speech"] };
 type SpeechSetup = { state: "running" | "done" | "failed"; step: string; error?: string; result?: SavedSpeech };

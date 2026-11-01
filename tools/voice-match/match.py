@@ -302,7 +302,7 @@ def main() -> int:
     candidate_segments = {s: {n: segments(a) or [a] for n, a in items.items()} for s, items in candidate_audio.items()}
 
     report: dict = {
-        "method": "Speaker-recognition embeddings from several models, z-normalised per role and averaged; same-gender voices only; officers assigned distinct voices per service.",
+        "method": "Speaker-recognition embeddings from several models, z-normalised per role and averaged. Rankings include all measured same-gender candidates of at least grade D. Officer assignments exclude French, Hindi, Italian and Indian English voices and reserve Alloy and Iris for the computer.",
         "bandwidthHz": round(top),
         "roles": {r: {"segments": len(s), "seconds": round(sum(len(c) for c in cast[r]) / RATE)} for r, s in cast_segments.items()},
         "models": {},
@@ -376,14 +376,7 @@ def main() -> int:
             ranking[role] = [{"voice": n[1], "score": round(combined[n][role], 3),
                               "agreement": sum(per_model_best[k][service][role] == n[1] for k in scores),
                               **{k: round(v, 3) for k, v in candidate_features[n].items()}} for n in ranked[:6]]
-        # distinct voices per officer: Hungarian assignment on the combined scores
-        pool = sorted({n for n in names if any(base_name(n[1]) == base_name(item["voice"]) for role in officers for item in ranking[role])})
-        cost = np.full((len(officers), len(pool)), 1e6)
-        for i, role in enumerate(officers):
-            for item in ranking[role]:
-                cost[i, pool.index((service, item["voice"]))] = -item["score"]
-        rows, cols = linear_sum_assignment(cost)
-        assigned = {officers[i]: pool[j][1] for i, j in zip(rows, cols) if cost[i, j] < 1e5}
+        assigned = assign_voices(service, ranking, officers)
         picks[service] = {"assigned": assigned, "ranking": ranking}
 
     report["castPitchAndPace"] = {r: {k: round(v, 3) for k, v in f.items()} for r, f in features.items()}
@@ -404,18 +397,44 @@ def base_name(sample: str) -> str:
     return sample.split("__")[0]
 
 
+def eligible_officer_voice(service: str, sample: str) -> bool:
+    name = base_name(sample)
+    if service == "kokoro":
+        return name.startswith(("af_", "am_", "bf_", "bm_")) and name != "af_alloy"
+    return name.startswith(("en-US-", "en-GB-", "en-AU-")) and name != "en-US-Iris"
+
+
+def assign_voices(service: str, ranking: dict, officers: list[str]) -> dict[str, str]:
+    pool = sorted({item["voice"] for role in officers for item in ranking[role]
+                   if eligible_officer_voice(service, item["voice"])})
+    cost = np.full((len(officers), len(pool)), 1e6)
+    for i, role in enumerate(officers):
+        for item in ranking[role]:
+            if item["voice"] in pool:
+                cost[i, pool.index(item["voice"])] = -item["score"]
+    rows, cols = linear_sum_assignment(cost)
+    assigned = {officers[i]: pool[j] for i, j in zip(rows, cols) if cost[i, j] < 1e5}
+    if len(assigned) != len(officers):
+        raise ValueError(f"Not enough distinct {service} voices meet the accent and computer-voice limits.")
+    return assigned
+
+
 def write_page(page: Path, samples: Path, picks: dict, roles: dict) -> None:
     rows = []
     for service, result in picks.items():
         for role in roles:
+            ranked = result["ranking"][role]
+            if roles[role].get("officer"):
+                ranked = [item for item in ranked if eligible_officer_voice(service, item["voice"])]
+            chosen = result["assigned"].get(role, "")
+            audition = sorted(ranked, key=lambda item: item["voice"] != chosen)[:3]
             cells = "".join(
                 f"<td>{html.escape(item['voice'])} ({item['score']:+.2f})<br><audio controls preload=none src=\"samples/{service}/{html.escape(item['voice'])}.wav\"></audio></td>"
-                for item in result["ranking"][role][:3])
-            chosen = result["assigned"].get(role, "")
+                for item in audition)
             rows.append(f"<tr><th>{service}</th><th>{html.escape(role)}<br><small>chosen: {html.escape(chosen)}</small></th>{cells}</tr>")
     page.parent.mkdir(parents=True, exist_ok=True)
     page.write_text("<!doctype html><meta charset=utf-8><title>Crew voice match</title><style>body{font:15px system-ui;background:#000;color:#fc9;padding:1em}td,th{border:1px solid #534;padding:.5em;vertical-align:top}</style>"
-                    "<h1>Crew voice match</h1><p>Top three ready-made voices per role, closest first. Compare them with your own clips.</p><table>" + "".join(rows) + "</table>\n")
+                    "<h1>Crew voice match</h1><p>The chosen officer voice comes first, then the closest allowed alternatives. French and Indian-accented officer voices are excluded. Control roles show raw rankings. Compare them with your own clips.</p><table>" + "".join(rows) + "</table>\n")
 
 
 if __name__ == "__main__":
