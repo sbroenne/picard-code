@@ -1,0 +1,59 @@
+name: Prepare release
+
+# While release notes wait in .changeset/, this keeps the pull request "Release <version>" up
+# to date: it raises the version and moves the notes into CHANGELOG.md. Merging it starts
+# Create release. Pull requests opened by a workflow do not start other workflows, so this
+# starts Project checks on it itself.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: true
+
+jobs:
+  version:
+    if: github.repository == 'sbroenne/picard-code'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Get the source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Update the release pull request
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if ! find .changeset -name '*.md' ! -name README.md | grep -q .; then echo "No release notes are waiting."; exit 0; fi
+          # No install scripts: this job can push, so no package code runs besides Changesets.
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run release:version
+          version="$(node -p "require('./package.json').version")"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C release
+          git commit -aqm "Release $version"
+          # The release branch is rebuilt from main every time, so it is replaced.
+          git push --force origin release
+          notes="$(awk -v v="## $version" '$0==v{f=1;next} /^## /{f=0} f' CHANGELOG.md)"
+          body="Approve and merge this to release $version. Merging creates the GitHub release v$version and stages it on npm, where you approve it.
+          $notes"
+          if [ "$(gh pr view release --json state --jq .state 2>/dev/null)" = OPEN ]; then
+            gh pr edit release --title "Release $version" --body "$body"
+          else
+            gh pr create --base main --head release --title "Release $version" --body "$body"
+          fi
+          gh workflow run checks.yml --ref release

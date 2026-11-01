@@ -1,0 +1,37 @@
+name: Create release
+
+# When a merged pull request raises the version in package.json, this creates the
+# GitHub release v<version> with its notes from CHANGELOG.md and starts Publish to npm.
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    if: github.repository == 'sbroenne/picard-code'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Get the source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Create the release and start Publish to npm
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then echo "$tag is already released."; exit 0; fi
+          notes="$(awk -v v="## $version" '$0==v{f=1;next} /^## /{f=0} f' CHANGELOG.md)"
+          if [ -z "$notes" ]; then echo "CHANGELOG.md has no release notes for $version."; exit 1; fi
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes "$notes"
+          gh workflow run release.yml --ref "$tag"
