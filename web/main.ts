@@ -1,7 +1,7 @@
 import "./style.css";
 import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings } from "../src/shared/types";
 import { errorMessage } from "../src/shared/messages";
-import { replyFailed, spokenReply, spokenSummary } from "../src/shared/speech";
+import { replyFailed, spokenReply } from "../src/shared/speech";
 import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../src/shared/questions";
 import { addressed, voiceCommand } from "../src/shared/wake";
 import { VoiceConversation, type FollowOn } from "./voice";

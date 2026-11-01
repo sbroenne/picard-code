@@ -845,6 +845,9 @@ npm.cmd run test:conversation:live -- --local
 npm run test:behavior:live
 ```
 
+`check` finds likely mistakes and unused code with oxlint, then checks the
+types of the server and browser code.
+
 The server and browser tests use a clearly labeled local test server that follows
 OpenCode 2's connection format, through Picard Code's own OpenCode client. They cover live replies, saved
 conversations, approvals, questions, folder boundaries, browser request
