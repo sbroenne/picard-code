@@ -134,6 +134,11 @@ export function replyFailed(message: ReplyMessage) {
   return !!message.error || (!replyText(message).trim() && failedTools(message).length > 0);
 }
 
+/** The first sentence of spoken text; titles such as "Mr." and "Dr." do not end it. */
+export function firstSentence(text: string) {
+  return text.match(/^.+?(?<!\b(?:Mr|Mrs|Ms|Dr|St|e\.g|i\.e|vs|etc))[.!?](?=\s|$)/i)?.[0] ?? text;
+}
+
 export function spokenReply(message: ReplyMessage) {
   if (message.error) return spokenSummary(message.error);
   const text = replyText(message);

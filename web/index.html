@@ -124,8 +124,7 @@
             <label for="setting-speaking">Speaking</label>
             <select id="setting-speaking" name="speaking"><option value="kokoro">On this computer (Kokoro)</option><option value="mai">Azure, your own resource</option></select>
             <p id="local-note" class="muted span" hidden>Speech on this computer needs a one-time download, about 750 MB on disk. Save and apply starts it; it can take a few minutes.</p>
-            <label for="setting-kokoroVoice" class="kokoro-field">Kokoro voice</label>
-            <input id="setting-kokoroVoice" class="kokoro-field" name="kokoroVoice" autocomplete="off" />
+            <p class="muted span">The computer and each bridge officer have fixed voices. The computer speaks with Alloy on this computer or Iris on Azure.</p>
             <fieldset id="azure-fields" class="field-grid nested">
               <legend>Your Azure resource</legend>
               <p class="muted span">Uses your own Azure subscription and its charges. Sign in with <code>az login</code>; the server reads the key from there, and it never reaches this page. New to this? Follow <a href="https://github.com/sbroenne/picard-code#azure-setup-step-by-step" target="_blank" rel="noreferrer">the step-by-step Azure setup</a>.</p>
@@ -134,8 +133,6 @@
               <label for="setting-resourceName">Resource name</label><input id="setting-resourceName" name="resourceName" autocomplete="off" />
               <label for="setting-region">Region</label><input id="setting-region" name="region" autocomplete="off" />
               <label for="setting-deployment" class="azure-listening">Listening deployment</label><input id="setting-deployment" class="azure-listening" name="deployment" autocomplete="off" />
-              <label for="setting-voice" class="azure-speaking">Voice</label><input id="setting-voice" class="azure-speaking" name="voice" autocomplete="off" />
-              <label for="setting-voiceStyle" class="azure-speaking">Voice style</label><input id="setting-voiceStyle" class="azure-speaking" name="voiceStyle" autocomplete="off" />
             </fieldset>
             <button id="save-speech" class="pill lilac" type="submit">Save and apply</button>
             <p id="speech-result" class="readout-line span" aria-live="polite"></p>

@@ -144,15 +144,17 @@ export function azureSpeech(settings: AzureSettings, key: string): SpeechService
         }
       });
     }),
-    async *speak(text, signal) {
+    async *speak(text, signal, voice) {
       const response = await fetch(`https://${settings.region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
         method: "POST", signal: AbortSignal.any([signal, AbortSignal.timeout(60_000)]),
         headers: { "Ocp-Apim-Subscription-Key": key, "Content-Type": "application/ssml+xml",
           "X-Microsoft-OutputFormat": "raw-24khz-16bit-mono-pcm" },
-        body: speakingDocument(settings, text),
+        body: speakingDocument(voice ? { voice: voice.name, voiceStyle: voice.style } : settings, text),
       });
       if (!response.ok) {
-        throw new Error(`Azure rejected the speaking request (HTTP ${response.status}). Check the configured voice, voice style, region, resource access and quota.`);
+        throw new Error(voice
+          ? `Azure rejected the voice ${voice.name}${voice.style ? ` with style ${voice.style}` : ""} (HTTP ${response.status}). Check the region, resource access and quota.`
+          : `Azure rejected the speaking request (HTTP ${response.status}). Check the configured voice, voice style, region, resource access and quota.`);
       }
       if (!response.body) throw new Error("Azure returned no spoken audio.");
       let total = 0;

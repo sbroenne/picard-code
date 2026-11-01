@@ -593,13 +593,18 @@ test("speech settings change while the app runs; a failing choice leaves the wor
   assert.equal(empty.settings.listening, "whisper");
   assert.equal(empty.settings.speaking, "kokoro");
 
-  const choice = { listening: "mai", speaking: "kokoro", subscription: "sub-1", resourceGroup: "group", resourceName: "name", region: "swedencentral", deployment: "listen", voice: "", voiceStyle: "", kokoroVoice: "bf_emma" };
+  const choice = { listening: "mai", speaking: "kokoro", subscription: "sub-1", resourceGroup: "group", resourceName: "name", region: "swedencentral", deployment: "listen" };
+  for (const key of ["voice", "voiceStyle", "kokoroVoice"]) {
+    const rejected = await context.request("settings", { ...choice, [key]: "custom" });
+    assert.equal(rejected.status, 400);
+    assert.match((await rejected.json()).error, /voices are fixed/);
+  }
   assert.equal((await context.request("settings", { ...choice, listening: "other" })).status, 400);
   assert.equal((await context.request("settings", { ...choice, region: "has spaces" })).status, 400);
   const saved = await context.request("settings", choice);
   assert.equal(saved.status, 200);
   assert.equal(started.length, 1);
-  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), { listening: "mai", speaking: "kokoro", subscription: "sub-1", resourceGroup: "group", resourceName: "name", region: "swedencentral", deployment: "listen", kokoroVoice: "bf_emma" });
+  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), choice);
   state = await (await context.request("state")).json() as AppState;
   assert.deepEqual(state.speech, { configured: true, listening: "mai", speaking: "kokoro" });
 
@@ -635,7 +640,7 @@ test("choosing local speech for the first time downloads it in the background, t
   await context.login();
   assert.equal(((await (await context.request("settings")).json()) as { localReady: boolean }).localReady, false);
 
-  const choice = { listening: "whisper", speaking: "kokoro", kokoroVoice: "bf_emma" };
+  const choice = { listening: "whisper", speaking: "kokoro" };
   const accepted = await context.request("settings", choice);
   assert.equal(accepted.status, 202);
   assert.equal(((await accepted.json()) as { state: string }).state, "running");

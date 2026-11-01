@@ -1,5 +1,9 @@
 import { Utterance, type SpeechEvent } from "../src/shared/speech";
 import { interruptsSpeech } from "../src/shared/wake";
+import type { CrewID } from "../src/shared/crew";
+
+/** One stretch of a spoken reply; an officer's part is spoken in that officer's own voice. */
+export interface SpokenPart { text: string; speaker?: CrewID }
 
 type Cue = "startup" | "request-accepted" | "input-failed" | "request-failed" | "tribute-fact";
 // The downloaded recordings differ in loudness; these keep each one quiet.
@@ -457,7 +461,9 @@ export class VoiceConversation {
     this.hooks.changed();
   }
   /** Speaks a reply. A final failure or denial is preceded by the failure sound, never overlapping the speech. */
-  speak(text: string, failed = false, followOn?: FollowOn) {
+  speak(reply: string | SpokenPart[], failed = false, followOn?: FollowOn) {
+    const parts = typeof reply === "string" ? [{ text: reply }] : reply.filter((part) => part.text.trim());
+    const text = parts.map((part) => part.text).join(" ");
     this.followOn = undefined;
     this.optionalSpeech = false;
     this.optionalCue = false;
@@ -477,7 +483,7 @@ export class VoiceConversation {
     const id = ++this.speechRevision;
     this.state("thinking");
     const say = () => {
-      if (this.speechPending && id === this.speechRevision && this.socket?.readyState === WebSocket.OPEN) this.command({ type: "speak", text, id });
+      if (this.speechPending && id === this.speechRevision && this.socket?.readyState === WebSocket.OPEN) this.command(parts.length === 1 && !parts[0]!.speaker ? { type: "speak", text, id } : { type: "speak", parts, id });
     };
     if (failed) void this.sound("request-failed").then(say);
     else say();

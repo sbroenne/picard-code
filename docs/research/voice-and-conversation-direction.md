@@ -1,6 +1,6 @@
 # Picard Code: conversation and voice direction
 
-> **Status.** The first sections describe the app **before** the conversation fixes, and the voice comparison that followed. The final section, *What was implemented and checked*, describes the current build. Audio samples are not stored in this repository; the measurement files are in [audition-data](audition-data/).
+> **Status.** These notes describe the earlier conversation fixes and listening comparison. The voice selection described here has since been replaced by fixed computer and crew voices; see [bridge-crew-voices.md](bridge-crew-voices.md#speaking-voices). Audio samples are not stored in this repository; the measurement files are in [audition-data](audition-data/).
 
 ## Why the current version does not yet achieve the tribute
 
@@ -173,7 +173,7 @@ The real app capture also confirmed functional problems: a list introduction was
 
 The user should judge both conversation wording and audible delivery. Record which option feels closest to the intended original tribute and what still feels wrong.
 
-The user's listening judgment was: "the british computer voices are better." The resulting implementation direction is British MAI Emily with neutral style as the preferred voice, with British Kokoro `bf_emma` available as a local alternative. Other voices remain selectable, and explicitly saved voice choices should be preserved. This is a preference for British delivery, not a claim of TNG authenticity.
+The recorded listening judgment at that time was: "the british computer voices are better." That earlier implementation used British MAI Emily with neutral style and British Kokoro `bf_emma`, with other voices selectable. This was a preference for British delivery, not a claim of TNG authenticity. It has since been replaced by fixed Alloy and Iris computer voices after the actor comparison and the owner's decision to remove voice selection.
 
 The demonstrated spoken-answer and clarification problems still require fixes; changing the voice cannot repair them.
 
@@ -193,7 +193,7 @@ These changes follow the objective findings above. They do not settle whether th
 | A question from OpenCode produced only a generic notice. | A single question is spoken with its offered choices, and listening resumes for the answer. A clear choice ("the second one", or the option's name) is sent through OpenCode's real question mechanism. A reply that contains a negation is never taken as a choice. If only offered answers are allowed, anything else is asked again. Several questions at once are shown on screen. |
 | A refused action could end with no reply at all. | The computer says "Request denied. The action was not carried out." A failed action is reported as failed. |
 | Short follow-ups, corrections and "show me" lacked guidance. | The instructions cover all three, plus specific reasons for unavailable information, truthful completion reports and no stock catchphrases. |
-| Voice choice. | British MAI Emily (`en-GB-Emily:MAI-Voice-2.1-Flash`) with the neutral style is the default, following the user's listening preference. Kokoro defaults to the British `bf_emma`. Harper, `af_heart` and the other voices remain selectable. |
+| Voice choice at that time. | British MAI Emily with neutral style and Kokoro `bf_emma`, with other voices selectable. This has since been replaced by fixed Alloy and Iris voices; see [the later comparison](bridge-crew-voices.md#speaking-voices). |
 
 Spoken interruption now accepts "Computer" during an answer and stops playback,
 not running work. Requests keep their original words. Browser echo cancellation

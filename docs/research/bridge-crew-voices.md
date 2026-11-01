@@ -1,6 +1,6 @@
 # Picard Code: the bridge officers' voices and the Captain's orders
 
-Research and design notes, written when the bridge officers were given distinct voices.
+Research and design notes, written when the bridge officers were given distinct manners and, later, their own speaking voices.
 
 > **Status.** These notes shaped the officers' instructions in `src/shared/crew.ts`, the shared officer rules and the Captain's orders in `src/server/instructions.ts`, and the "Make it so" answer in `src/shared/questions.ts`. Whether the officers really sound like themselves is the owner's judgement; no check can prove it.
 
@@ -41,7 +41,7 @@ Picard Code now follows that pattern:
 - The computer calls each officer the work needs, separately and at the same time. Officers never hand work to each other.
 - At most one officer may change files; the others only review.
 - When the Captain wants a recommendation, Riker receives the other officers' actual findings and recommends one course.
-- The computer gives each officer's main finding in one sentence, then Riker's recommendation, and stops so the Captain can decide. "Make it so" then carries out that recommendation.
+- When the briefing ends, each officer speaks the first sentence of their own report in their own voice, Riker last, and the computer closes in one or two sentences. Full reports stay on screen. The computer then stops so the Captain can decide. "Make it so" carries out the recommendation.
 
 Because officers no longer hand work on, Picard Code keeps OpenCode's own limit of one level of helpers instead of raising it.
 
@@ -63,6 +63,64 @@ When a yes or no question from OpenCode is waiting on screen and exactly one ans
 
 The bridge uses rank and surname, or a familiar name. Picard Code recognises these at the start of a request: "Number One" and "Will" (Riker), "Mr. Data", "Mr. La Forge" or "Geordi", "Mr. Worf", "Counselor" or "Deanna", "Doctor" or "Beverly". "Commander" on its own is not matched, because Riker, Data, Geordi and Troi all hold that rank. Ordinary phrases such as "will the build pass?" or "number one priority:" are not taken as an address.
 
+## Speaking voices
+
+Each officer speaks with a ready-made voice chosen from the measured comparison. Nothing is cloned, trained or built from show recordings: these are standard Kokoro and Azure MAI voices. The computer and crew voices are fixed in `src/shared/crew-voices.ts`, and every speaker has a different voice. There is no voice selection, but the listening and speaking services can still be chosen independently.
+
+### How the voices were chosen
+
+The owner supplied short clips of each actor from his own collection. They stay on his computer and are not in the repository. The tool in `tools/voice-match/` did the rest:
+
+1. It spoke six original sentences with every candidate voice: 35 Kokoro voices (all English voices, plus the French, Hindi and Italian ones that can speak English) and all 12 English MAI-Voice-2.1 voices in the owner's Azure region.
+2. It cut the candidates' sound to the same narrow range as the clips (up to about 4,000 Hz), so the old recordings' quality would not decide the result.
+3. Six speaker-recognition models, each trained to tell people apart by their voice, compared every candidate with every actor. Before they were trusted, each model had to recognise the actors themselves from held-back clips. All six recognised all 47 test segments correctly.
+4. Scores were made comparable per actor and averaged across the models. Only voices of the same gender and of at least grade D in Kokoro's own quality list were allowed. After the owner ruled out French and Indian accents, assignments were recalculated from the existing scores using only American, British and Australian English candidates, with Alloy and Iris reserved for the computer. Each officer was given a different voice, so that the total similarity was as high as possible.
+
+The measured results, without clip names, are in [audition-data/crew-voice-match.json](audition-data/crew-voice-match.json). The models were used only to measure. None of them is shipped with Picard Code.
+
+| Model | Licence | Note |
+| --- | --- | --- |
+| ReDimNet2 b6 (PalabraAI) | MIT | |
+| ReDimNet b6 (ID R&D) | MIT | |
+| WeSpeaker ResNet293-LM | CC BY 4.0 | |
+| SpeechBrain ECAPA-TDNN | Apache 2.0 | |
+| ECAPA2 (Jenthe Thienpondt) | CC BY-NC 4.0 | Non-commercial; used only to measure. |
+| WavLM Base Plus SV (Microsoft) | MIT | Stands in for WavLM-Large, whose weights need a separate download. |
+
+w2v-BERT 2.0 was considered but not used: a speaker-recognition version needs a modified library, and its licence for this use was unclear.
+
+### Results
+
+| Officer | Kokoro | Azure MAI |
+| --- | --- | --- |
+| Riker | `am_michael` | `en-US-Ethan` |
+| Data | `am_liam` | `en-US-Sage` |
+| Geordi | `am_echo` | `en-US-Jasper` |
+| Worf | `bm_lewis` | `en-GB-Harry` |
+| Troi | `bf_alice` | `en-GB-Emily` |
+| Crusher | `af_nova` | `en-AU-Isla` |
+
+There are no second choices or automatic substitutes. An unavailable voice is reported as a real speech error.
+
+The same measurement was run for the computer, against Majel Barrett's clips. The closest voices were `af_alloy` for Kokoro and `en-US-Iris` for MAI (all six models agreed on Iris). These are now the fixed computer voices, replacing British Emma and Emily. They ranked higher for similarity, but that is not proof of a better delivery. All MAI speakers use MAI-Voice-2.1-Flash with the neutral style.
+
+### Running it again
+
+```sh
+npm run build
+npm run voices:samples -- --kokoro --mai
+npm run voices:match -- --clips /path/to/clips
+```
+
+`voices:samples` reads the speech settings but never changes them. MAI samples make a small Azure charge (about 6,000 characters). `voices:match` needs [uv](https://docs.astral.sh/uv/) and downloads about 2.5 GB of tools and models into `~/.picard-code/voice-match`. Clip names must start with the prefixes in `tools/voice-match/roles.example.json`. It writes the report above and a listening page, `~/.picard-code/voice-match/listen.html`, with the chosen officer voice followed by the closest allowed alternatives. Control roles retain the raw rankings. Delete `~/.picard-code/voice-match` afterwards to free the space.
+
+### Limits
+
+- Speaker-recognition models measure who a voice sounds like, mostly its timbre. They do not judge accent, delivery or acting. The raw rankings retain the excluded candidates as evidence, but the selected voices exclude French and Indian accents. Crusher's MAI voice is Australian English.
+- Several Kokoro picks have low grades (D or D+) in Kokoro's own quality list.
+- There were few clips for some officers: about 11 to 23 seconds for Riker, Geordi, Troi and Crusher. Their results are less certain.
+- No ready-made voice sounds like the actors. These are the closest available, not a likeness. Whether they feel right is the owner's judgement.
+
 ## Sources
 
 - StarTrek.com: [The Radical Empathy of Deanna Troi](https://www.startrek.com/news/the-radical-empathy-of-deanna-troi), [The Wisdom of Worf](https://www.startrek.com/news/wisdom-of-worf), [Picard Still Making It So](https://www.startrek.com/news/picard-still-making-it-so).
@@ -73,5 +131,5 @@ The bridge uses rank and surname, or a familiar name. Picard Code recognises the
 ## Evidence limits
 
 - These are secondary sources and fan analyses, not a study of episode transcripts or audio. They describe well-known traits; they do not measure how often each officer speaks in a certain way.
-- The officers speak with the selected speech service's voice. Nothing here imitates an actor's voice, and no show dialogue is copied into instructions.
+- Each officer speaks with a ready-made voice chosen because it measures closer to the actor (see Speaking voices). No voice is cloned, and no show dialogue is copied into instructions.
 - The model follows the instructions imperfectly. The real crew check (`npm run test:crew:live`) checks a few measurable habits: no exclamation marks, Data without contractions, Worf's brevity, "Make it so" carrying out an officer's own proposal and an unclear "Make it so" answered with a question. It cannot judge whether an officer feels right. That needs the owner listening to them.

@@ -1,0 +1,11 @@
+{
+  "picard-riker": { "prefix": "Voice-William_Riker-", "gender": "male", "officer": true },
+  "picard-data": { "prefix": "Voice-Data-", "gender": "male", "officer": true },
+  "picard-geordi": { "prefix": "Voice-Geordi_La_Forge-", "gender": "male", "officer": true },
+  "picard-worf": { "prefix": "Voice-Worf-", "gender": "male", "officer": true },
+  "picard-troi": { "prefix": "Voice-Deanna_Troi-", "gender": "female", "officer": true },
+  "picard-crusher": { "prefix": "Voice-Beverly_Crusher-", "gender": "female", "officer": true },
+  "computer": { "prefix": "Voice-Computer-", "gender": "female" },
+  "picard": { "prefix": "Voice-Jean_Luc_Picard-", "gender": "male" },
+  "q": { "prefix": "Voice-Q-", "gender": "male" }
+}

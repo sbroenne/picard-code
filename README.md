@@ -172,7 +172,7 @@ and never uses contractions, Geordi is friendly and practical, Worf uses few,
 grave words, Troi is calm and asks gentle questions, and Crusher is direct and
 may call you "Jean-Luc" when she disagrees. They say "Captain" or "sir", and
 "Aye, sir." only when actually carrying out an order. There is no copied
-dialogue, no famous scenes or running jokes, and no actor voice imitation. They
+dialogue, no famous scenes or running jokes, and no cloned voices. They
 can contribute to non-code work too; the computer keeps its restrained, neutral
 manner. [docs/research/bridge-crew-voices.md](docs/research/bridge-crew-voices.md)
 explains the choices.
@@ -254,10 +254,12 @@ in an officer's log entry. Work already running continues until it finishes or
 you say **Belay that**. If the crew cannot be loaded (see below), the computer
 also answers everything itself, and naming an officer reports why.
 
-Everyone uses the selected model and the existing speech service and voice.
-Only the answering officer's final answer or the computer's brief briefing
-summary is spoken; background reports stay on screen. There are no actor imitations,
-lasting shared crew memory or automatic issue watching.
+Everyone uses the selected model and speech service. Each officer has their
+own ready-made Kokoro and Azure MAI voice, measured to sound closer to the
+actor; nothing is cloned. An officer's answer is spoken in their voice. After a
+briefing, each officer says their main finding in one sentence, Riker last, and
+the computer closes; full reports stay on screen. There is no lasting shared
+crew memory or automatic issue watching.
 
 When Picard Code starts its own OpenCode server, it loads the crew from a
 temporary settings folder outside your project and removes that folder on
@@ -575,8 +577,8 @@ speech on this computer.
 
 Local listening uses **faster-whisper** with the English `tiny.en` model.
 Local speaking uses **kokoro-onnx**, the standard Kokoro model, and its original
-prebuilt British `bf_emma` voice by default (`af_heart` and the other Kokoro
-voices can be chosen with `kokoroVoice`). Both run on the CPU. No Azure resource, key, or login
+prebuilt American English `af_alloy` voice for the computer. The computer and
+crew voices are fixed, with no voice selection. Both run on the CPU. No Azure resource, key, or login
 is needed when both sides are local. A model provider is still needed for coding.
 
 Start Picard Code, choose the **Listen · Speak** tile, keep
@@ -648,9 +650,9 @@ Azure speech is optional. Choose it for either side if you have your own Azure
 resource; unlike Whisper, MAI listening shows your words live while you speak.
 
 This version uses **MAI-Transcribe-2-Streaming** for live listening and the
-prebuilt British **Emily / MAI-Voice-2.1-Flash** voice with its **neutral**
-style for speaking. The user chose British voices after a listening
-comparison; this is a preference, not a recreation of the show's voice. Both
+prebuilt American English **Iris / MAI-Voice-2.1-Flash** voice with its **neutral**
+style for the computer. It ranked closest to Majel Barrett in the measured
+comparison; it is a ready-made voice, not a clone. Both
 are preview services. It does not create a second AI assistant in Azure: coding stays
 with OpenCode and your chosen model.
 
@@ -721,20 +723,17 @@ not trust could use it to name a program to run. You can also write the file you
   "resourceGroup": "your-resource-group",
   "resourceName": "your-ai-resource",
   "region": "swedencentral",
-  "deployment": "your-live-listening-deployment",
-  "voice": "en-GB-Emily:MAI-Voice-2.1-Flash",
-  "voiceStyle": "neutral"
+  "deployment": "your-live-listening-deployment"
 }
 ```
 
 `listening` and `speaking` must say `mai` to use Azure; without them, that side
-runs on this computer. `voice` and `voiceStyle` are optional; the values above
-are the defaults.
-Other prebuilt voices work too, for example
-`en-US-Harper:MAI-Voice-2.1-Flash` or `en-GB-Harry:MAI-Voice-2.1-Flash`. A
-saved `voice` is always used as written. Styles that worked in testing are
-`neutral`, `agent`, `narrator` and `softvoice`; use `none` to send no style.
-An unsupported voice or style is reported as an Azure error, not replaced.
+runs on this computer. The computer and crew voices are fixed by Picard Code.
+Earlier `voice`, `voiceStyle` and `kokoroVoice` settings no longer control
+speaking. They are left untouched on disk until you save service settings,
+which removes those retired fields. The listening and speaking service
+choices remain independent. An unavailable fixed voice produces a real
+speech error; it is never replaced silently.
 
 This file is ignored by Git and contains **no key**. Install Azure CLI and
 sign in using `az login` in your own terminal. Your Azure account must
@@ -765,8 +764,8 @@ npx picard-code --listening whisper --speaking mai
 
 For a mixed setup, keep the Azure resource settings and set `listening` and
 `speaking`. Only MAI listening requires `deployment`. Optional local settings
-are `localPython`, `whisperModel`, `kokoroModel`, `kokoroVoices`, and
-`kokoroVoice`. The path settings are kept when you save from the **Listen · Speak** setting,
+are `localPython`, `whisperModel`, `kokoroModel`, and `kokoroVoices`.
+The path settings are kept when you save from the **Listen · Speak** setting,
 but can only be changed in the file. File paths are resolved from the launch
 folder; if launching outside this repository, use absolute local paths. Launch
 options apply only until speech settings are saved from the page.

@@ -62,17 +62,21 @@ subagent tool, at the same time${riker ? ", except picard-riker" : ""}:
 ${called.filter((officer) => !riker || officer.id !== "picard-riker").map((officer) => `- ${officer.id}: ${officer.name}, ${officer.duty.toLowerCase()}`).join("\n")}
 Do not read files, search or answer the request yourself first. Each assignment
 carries the Captain's exact words, with the same limits, negations and scope,
-plus the current stardate and the part that officer should look at. Allow at
+plus the current stardate and the part that officer should look at, and asks
+the officer to begin the report with the main finding in one complete
+sentence, because that sentence is spoken aloud in the officer's own voice. Allow at
 most one officer to change files; the others only review.${riker ? `
 When they have reported, give picard-riker their actual findings and the
 Captain's exact words, and ask him to recommend one course.` : ""}
 Officers do not hand work to each other; you call each one. Handing a request to
 an officer is not running a command or changing a file.
 
-Wait for the real results. Then give each officer's main finding in one short
-sentence, naming the officer, ${riker ? "then Riker's recommendation, " : ""}and stop so the Captain can decide.
-The officers' full reports are already shown on screen, so do not repeat them.
-If an officer fails, say so plainly.`;
+Wait for the real results. Each officer's first sentence${riker ? ", with Riker's last," : ""} is
+spoken aloud before you speak, and their full reports are already shown on
+screen, so do not repeat them. Then close in one or two short sentences of your
+own${riker ? ` that name the course Riker recommends in a few words, as the proposal now
+waiting for the Captain's decision,` : `, such as what is now waiting for the Captain's decision,`} and stop so
+the Captain can decide. If an officer fails, say so plainly.`;
 }
 
 /** Sent to the computer when the Bridge crew is on duty but Picard Code has given it the request. */

@@ -1,3 +1,6 @@
+import type { CrewID } from "../shared/crew.js";
+import type { SpeakingVoice } from "../shared/crew-voices.js";
+
 export interface SpeechInput {
   // One channel of signed, little-endian 16-bit audio at 16,000 samples/second.
   write(audio: Uint8Array): void;
@@ -14,7 +17,8 @@ export interface SpeechListener {
 }
 export interface SpeechSpeaker {
   // Stream one channel of 16-bit little-endian audio at 24,000 samples/second.
-  speak(text: string, signal: AbortSignal): AsyncIterable<Uint8Array>;
+  // Without a voice, the computer's configured voice speaks.
+  speak(text: string, signal: AbortSignal, voice?: SpeakingVoice): AsyncIterable<Uint8Array>;
 }
 export interface SpeechSelection {
   listening: "mai" | "whisper";
@@ -22,5 +26,7 @@ export interface SpeechSelection {
 }
 export interface SpeechService extends SpeechListener, SpeechSpeaker {
   selection?: SpeechSelection;
+  /** The voice an officer speaks with on this service. */
+  officerVoice?(officer: CrewID): SpeakingVoice;
   close?(): Promise<void>;
 }

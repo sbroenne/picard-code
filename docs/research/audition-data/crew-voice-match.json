@@ -1,0 +1,1083 @@
+{
+  "method": "Speaker-recognition embeddings from several models, z-normalised per role and averaged. Rankings include all measured same-gender candidates of at least grade D. Officer assignments exclude French, Hindi, Italian and Indian English voices and reserve Alloy and Iris for the computer.",
+  "bandwidthHz": 3973,
+  "roles": {
+    "picard-riker": {
+      "segments": 3,
+      "seconds": 23
+    },
+    "picard-data": {
+      "segments": 6,
+      "seconds": 52
+    },
+    "picard-geordi": {
+      "segments": 1,
+      "seconds": 13
+    },
+    "picard-worf": {
+      "segments": 12,
+      "seconds": 111
+    },
+    "picard-troi": {
+      "segments": 3,
+      "seconds": 21
+    },
+    "picard-crusher": {
+      "segments": 1,
+      "seconds": 11
+    },
+    "computer": {
+      "segments": 6,
+      "seconds": 48
+    },
+    "picard": {
+      "segments": 13,
+      "seconds": 119
+    },
+    "q": {
+      "segments": 4,
+      "seconds": 35
+    }
+  },
+  "models": {
+    "redimnet2": {
+      "name": "ReDimNet2 b6",
+      "licence": "MIT",
+      "castCheck": {
+        "accuracy": 1.0,
+        "segments": 47,
+        "ownMean": 0.9232244922759685,
+        "otherMean": 0.3238884856303533
+      },
+      "used": true
+    },
+    "redimnet": {
+      "name": "ReDimNet b6",
+      "licence": "MIT",
+      "castCheck": {
+        "accuracy": 1.0,
+        "segments": 47,
+        "ownMean": 0.8821812525708624,
+        "otherMean": 0.24987941877982506
+      },
+      "used": true
+    },
+    "wespeaker": {
+      "name": "WeSpeaker ResNet293-LM",
+      "licence": "CC-BY-4.0",
+      "castCheck": {
+        "accuracy": 1.0,
+        "segments": 47,
+        "ownMean": 0.8825660068938073,
+        "otherMean": 0.23453479630093202
+      },
+      "used": true
+    },
+    "ecapa": {
+      "name": "SpeechBrain ECAPA-TDNN",
+      "licence": "Apache-2.0",
+      "castCheck": {
+        "accuracy": 1.0,
+        "segments": 47,
+        "ownMean": 0.8763582490860148,
+        "otherMean": 0.34397016333561414
+      },
+      "used": true
+    },
+    "ecapa2": {
+      "name": "ECAPA2",
+      "licence": "CC-BY-NC-4.0 (non-commercial; used only to measure, never shipped)",
+      "castCheck": {
+        "accuracy": 1.0,
+        "segments": 47,
+        "ownMean": 0.8770432713183951,
+        "otherMean": 0.20679843070229897
+      },
+      "used": true
+    },
+    "wavlm": {
+      "name": "WavLM Base Plus SV (stand-in for WavLM-Large SV)",
+      "licence": "MIT",
+      "castCheck": {
+        "accuracy": 1.0,
+        "segments": 47,
+        "ownMean": 0.9799724348047947,
+        "otherMean": 0.6827900979852846
+      },
+      "used": true
+    }
+  },
+  "castPitchAndPace": {
+    "picard-riker": {
+      "pitch": 133.534,
+      "pitchRange": 0.724,
+      "pace": 7.38
+    },
+    "picard-data": {
+      "pitch": 143.532,
+      "pitchRange": 0.983,
+      "pace": 7.646
+    },
+    "picard-geordi": {
+      "pitch": 207.131,
+      "pitchRange": 0.446,
+      "pace": 7.375
+    },
+    "picard-worf": {
+      "pitch": 137.05,
+      "pitchRange": 0.77,
+      "pace": 6.271
+    },
+    "picard-troi": {
+      "pitch": 205.343,
+      "pitchRange": 0.842,
+      "pace": 5.128
+    },
+    "picard-crusher": {
+      "pitch": 206.532,
+      "pitchRange": 0.693,
+      "pace": 6.25
+    },
+    "computer": {
+      "pitch": 222.638,
+      "pitchRange": 0.893,
+      "pace": 7.476
+    },
+    "picard": {
+      "pitch": 141.883,
+      "pitchRange": 1.058,
+      "pace": 6.625
+    },
+    "q": {
+      "pitch": 139.445,
+      "pitchRange": 1.414,
+      "pace": 6.0
+    }
+  },
+  "picks": {
+    "kokoro": {
+      "assigned": {
+        "picard-riker": "am_michael",
+        "picard-data": "am_liam",
+        "picard-geordi": "am_echo",
+        "picard-worf": "bm_lewis",
+        "picard-troi": "bf_alice",
+        "picard-crusher": "af_nova"
+      },
+      "ranking": {
+        "picard-riker": [
+          {
+            "voice": "am_michael",
+            "score": 2.067,
+            "agreement": 1,
+            "pitch": 111.319,
+            "pitchRange": 0.683,
+            "pace": 7.754
+          },
+          {
+            "voice": "am_liam",
+            "score": 1.929,
+            "agreement": 0,
+            "pitch": 118.965,
+            "pitchRange": 0.938,
+            "pace": 7.06
+          },
+          {
+            "voice": "am_onyx",
+            "score": 1.413,
+            "agreement": 0,
+            "pitch": 88.354,
+            "pitchRange": 0.442,
+            "pace": 7.609
+          },
+          {
+            "voice": "hm_psi",
+            "score": 0.681,
+            "agreement": 0,
+            "pitch": 132.381,
+            "pitchRange": 0.995,
+            "pace": 7.948
+          },
+          {
+            "voice": "im_nicola",
+            "score": 0.676,
+            "agreement": 0,
+            "pitch": 93.069,
+            "pitchRange": 0.587,
+            "pace": 6.736
+          },
+          {
+            "voice": "hm_omega",
+            "score": 0.572,
+            "agreement": 0,
+            "pitch": 126.403,
+            "pitchRange": 0.998,
+            "pace": 7.68
+          }
+        ],
+        "picard-data": [
+          {
+            "voice": "am_liam",
+            "score": 1.948,
+            "agreement": 1,
+            "pitch": 118.965,
+            "pitchRange": 0.938,
+            "pace": 7.06
+          },
+          {
+            "voice": "am_echo",
+            "score": 1.714,
+            "agreement": 1,
+            "pitch": 106.908,
+            "pitchRange": 0.783,
+            "pace": 8.341
+          },
+          {
+            "voice": "am_eric",
+            "score": 1.004,
+            "agreement": 1,
+            "pitch": 154.724,
+            "pitchRange": 0.962,
+            "pace": 8.645
+          },
+          {
+            "voice": "am_onyx",
+            "score": 0.596,
+            "agreement": 0,
+            "pitch": 88.354,
+            "pitchRange": 0.442,
+            "pace": 7.609
+          },
+          {
+            "voice": "am_michael",
+            "score": 0.365,
+            "agreement": 0,
+            "pitch": 111.319,
+            "pitchRange": 0.683,
+            "pace": 7.754
+          },
+          {
+            "voice": "bm_fable",
+            "score": 0.105,
+            "agreement": 0,
+            "pitch": 101.492,
+            "pitchRange": 0.9,
+            "pace": 5.567
+          }
+        ],
+        "picard-geordi": [
+          {
+            "voice": "am_echo",
+            "score": 1.814,
+            "agreement": 3,
+            "pitch": 106.908,
+            "pitchRange": 0.783,
+            "pace": 8.341
+          },
+          {
+            "voice": "am_fenrir",
+            "score": 1.744,
+            "agreement": 3,
+            "pitch": 135.476,
+            "pitchRange": 1.0,
+            "pace": 7.291
+          },
+          {
+            "voice": "bm_fable",
+            "score": 0.154,
+            "agreement": 0,
+            "pitch": 101.492,
+            "pitchRange": 0.9,
+            "pace": 5.567
+          },
+          {
+            "voice": "am_puck",
+            "score": 0.149,
+            "agreement": 0,
+            "pitch": 110.04,
+            "pitchRange": 0.808,
+            "pace": 6.734
+          },
+          {
+            "voice": "am_onyx",
+            "score": 0.089,
+            "agreement": 0,
+            "pitch": 88.354,
+            "pitchRange": 0.442,
+            "pace": 7.609
+          },
+          {
+            "voice": "hm_omega",
+            "score": 0.01,
+            "agreement": 0,
+            "pitch": 126.403,
+            "pitchRange": 0.998,
+            "pace": 7.68
+          }
+        ],
+        "picard-worf": [
+          {
+            "voice": "am_michael",
+            "score": 1.895,
+            "agreement": 3,
+            "pitch": 111.319,
+            "pitchRange": 0.683,
+            "pace": 7.754
+          },
+          {
+            "voice": "bm_lewis",
+            "score": 1.685,
+            "agreement": 1,
+            "pitch": 90.943,
+            "pitchRange": 0.717,
+            "pace": 8.418
+          },
+          {
+            "voice": "am_liam",
+            "score": 1.549,
+            "agreement": 0,
+            "pitch": 118.965,
+            "pitchRange": 0.938,
+            "pace": 7.06
+          },
+          {
+            "voice": "im_nicola",
+            "score": 1.1,
+            "agreement": 1,
+            "pitch": 93.069,
+            "pitchRange": 0.587,
+            "pace": 6.736
+          },
+          {
+            "voice": "bm_george",
+            "score": 1.0,
+            "agreement": 0,
+            "pitch": 141.066,
+            "pitchRange": 0.775,
+            "pace": 7.448
+          },
+          {
+            "voice": "am_onyx",
+            "score": 0.525,
+            "agreement": 0,
+            "pitch": 88.354,
+            "pitchRange": 0.442,
+            "pace": 7.609
+          }
+        ],
+        "picard-troi": [
+          {
+            "voice": "bf_alice",
+            "score": 1.848,
+            "agreement": 4,
+            "pitch": 218.813,
+            "pitchRange": 0.92,
+            "pace": 8.29
+          },
+          {
+            "voice": "ff_siwis",
+            "score": 1.34,
+            "agreement": 0,
+            "pitch": 208.932,
+            "pitchRange": 0.593,
+            "pace": 7.552
+          },
+          {
+            "voice": "bf_emma",
+            "score": 1.28,
+            "agreement": 1,
+            "pitch": 180.838,
+            "pitchRange": 0.475,
+            "pace": 8.033
+          },
+          {
+            "voice": "if_sara",
+            "score": 1.235,
+            "agreement": 0,
+            "pitch": 221.356,
+            "pitchRange": 0.608,
+            "pace": 7.855
+          },
+          {
+            "voice": "bf_lily",
+            "score": 1.23,
+            "agreement": 0,
+            "pitch": 182.94,
+            "pitchRange": 0.858,
+            "pace": 7.426
+          },
+          {
+            "voice": "bf_isabella",
+            "score": 1.099,
+            "agreement": 0,
+            "pitch": 206.532,
+            "pitchRange": 0.503,
+            "pace": 7.993
+          }
+        ],
+        "picard-crusher": [
+          {
+            "voice": "ff_siwis",
+            "score": 1.768,
+            "agreement": 4,
+            "pitch": 208.932,
+            "pitchRange": 0.593,
+            "pace": 7.552
+          },
+          {
+            "voice": "hf_beta",
+            "score": 1.529,
+            "agreement": 1,
+            "pitch": 182.94,
+            "pitchRange": 0.792,
+            "pace": 6.73
+          },
+          {
+            "voice": "if_sara",
+            "score": 1.504,
+            "agreement": 0,
+            "pitch": 221.356,
+            "pitchRange": 0.608,
+            "pace": 7.855
+          },
+          {
+            "voice": "af_nova",
+            "score": 1.342,
+            "agreement": 1,
+            "pitch": 158.341,
+            "pitchRange": 0.672,
+            "pace": 7.9
+          },
+          {
+            "voice": "bf_alice",
+            "score": 1.104,
+            "agreement": 0,
+            "pitch": 218.813,
+            "pitchRange": 0.92,
+            "pace": 8.29
+          },
+          {
+            "voice": "af_heart",
+            "score": 0.815,
+            "agreement": 0,
+            "pitch": 197.206,
+            "pitchRange": 0.668,
+            "pace": 7.631
+          }
+        ],
+        "computer": [
+          {
+            "voice": "af_alloy",
+            "score": 1.536,
+            "agreement": 2,
+            "pitch": 144.363,
+            "pitchRange": 0.725,
+            "pace": 8.256
+          },
+          {
+            "voice": "af_nova",
+            "score": 1.435,
+            "agreement": 1,
+            "pitch": 158.341,
+            "pitchRange": 0.672,
+            "pace": 7.9
+          },
+          {
+            "voice": "af_river",
+            "score": 1.423,
+            "agreement": 1,
+            "pitch": 176.708,
+            "pitchRange": 0.508,
+            "pace": 7.156
+          },
+          {
+            "voice": "af_nicole",
+            "score": 1.227,
+            "agreement": 0,
+            "pitch": 153.833,
+            "pitchRange": 0.375,
+            "pace": 7.968
+          },
+          {
+            "voice": "bf_emma",
+            "score": 1.061,
+            "agreement": 1,
+            "pitch": 180.838,
+            "pitchRange": 0.475,
+            "pace": 8.033
+          },
+          {
+            "voice": "bf_lily",
+            "score": 1.01,
+            "agreement": 1,
+            "pitch": 182.94,
+            "pitchRange": 0.858,
+            "pace": 7.426
+          }
+        ],
+        "picard": [
+          {
+            "voice": "bm_lewis",
+            "score": 2.767,
+            "agreement": 3,
+            "pitch": 90.943,
+            "pitchRange": 0.717,
+            "pace": 8.418
+          },
+          {
+            "voice": "im_nicola",
+            "score": 1.832,
+            "agreement": 0,
+            "pitch": 93.069,
+            "pitchRange": 0.587,
+            "pace": 6.736
+          },
+          {
+            "voice": "hm_psi",
+            "score": 1.482,
+            "agreement": 0,
+            "pitch": 132.381,
+            "pitchRange": 0.995,
+            "pace": 7.948
+          },
+          {
+            "voice": "hm_omega",
+            "score": 0.752,
+            "agreement": 0,
+            "pitch": 126.403,
+            "pitchRange": 0.998,
+            "pace": 7.68
+          },
+          {
+            "voice": "bm_george",
+            "score": 0.731,
+            "agreement": 0,
+            "pitch": 141.066,
+            "pitchRange": 0.775,
+            "pace": 7.448
+          },
+          {
+            "voice": "bm_daniel",
+            "score": 0.561,
+            "agreement": 0,
+            "pitch": 123.516,
+            "pitchRange": 0.592,
+            "pace": 8.042
+          }
+        ],
+        "q": [
+          {
+            "voice": "hm_omega",
+            "score": 1.407,
+            "agreement": 2,
+            "pitch": 126.403,
+            "pitchRange": 0.998,
+            "pace": 7.68
+          },
+          {
+            "voice": "bm_lewis",
+            "score": 1.278,
+            "agreement": 0,
+            "pitch": 90.943,
+            "pitchRange": 0.717,
+            "pace": 8.418
+          },
+          {
+            "voice": "am_michael",
+            "score": 0.791,
+            "agreement": 0,
+            "pitch": 111.319,
+            "pitchRange": 0.683,
+            "pace": 7.754
+          },
+          {
+            "voice": "am_echo",
+            "score": 0.607,
+            "agreement": 0,
+            "pitch": 106.908,
+            "pitchRange": 0.783,
+            "pace": 8.341
+          },
+          {
+            "voice": "bm_george",
+            "score": 0.559,
+            "agreement": 0,
+            "pitch": 141.066,
+            "pitchRange": 0.775,
+            "pace": 7.448
+          },
+          {
+            "voice": "am_fenrir",
+            "score": 0.474,
+            "agreement": 0,
+            "pitch": 135.476,
+            "pitchRange": 1.0,
+            "pace": 7.291
+          }
+        ]
+      }
+    },
+    "mai": {
+      "assigned": {
+        "picard-riker": "en-US-Ethan__neutral",
+        "picard-data": "en-US-Sage__neutral",
+        "picard-geordi": "en-US-Jasper__neutral",
+        "picard-worf": "en-GB-Harry__neutral",
+        "picard-troi": "en-GB-Emily__neutral",
+        "picard-crusher": "en-AU-Isla__neutral"
+      },
+      "ranking": {
+        "picard-riker": [
+          {
+            "voice": "en-US-Ethan__neutral",
+            "score": 1.784,
+            "agreement": 6,
+            "pitch": 94.15,
+            "pitchRange": 0.375,
+            "pace": 7.078
+          },
+          {
+            "voice": "en-GB-Harry__neutral",
+            "score": 0.61,
+            "agreement": 0,
+            "pitch": 102.671,
+            "pitchRange": 0.983,
+            "pace": 8.393
+          },
+          {
+            "voice": "en-US-Sage__neutral",
+            "score": -0.046,
+            "agreement": 0,
+            "pitch": 128.613,
+            "pitchRange": 1.018,
+            "pace": 8.135
+          },
+          {
+            "voice": "en-US-Jasper__neutral",
+            "score": -0.124,
+            "agreement": 0,
+            "pitch": 140.253,
+            "pitchRange": 0.877,
+            "pace": 7.668
+          },
+          {
+            "voice": "en-IN-Dhruv__neutral",
+            "score": -0.262,
+            "agreement": 0,
+            "pitch": 162.981,
+            "pitchRange": 0.67,
+            "pace": 8.352
+          },
+          {
+            "voice": "en-US-Grant__neutral",
+            "score": -0.937,
+            "agreement": 0,
+            "pitch": 113.921,
+            "pitchRange": 0.762,
+            "pace": 8.388
+          }
+        ],
+        "picard-data": [
+          {
+            "voice": "en-US-Sage__neutral",
+            "score": 1.896,
+            "agreement": 5,
+            "pitch": 128.613,
+            "pitchRange": 1.018,
+            "pace": 8.135
+          },
+          {
+            "voice": "en-US-Grant__neutral",
+            "score": 0.296,
+            "agreement": 0,
+            "pitch": 113.921,
+            "pitchRange": 0.762,
+            "pace": 8.388
+          },
+          {
+            "voice": "en-GB-Harry__neutral",
+            "score": 0.203,
+            "agreement": 0,
+            "pitch": 102.671,
+            "pitchRange": 0.983,
+            "pace": 8.393
+          },
+          {
+            "voice": "en-US-Ethan__neutral",
+            "score": 0.031,
+            "agreement": 1,
+            "pitch": 94.15,
+            "pitchRange": 0.375,
+            "pace": 7.078
+          },
+          {
+            "voice": "en-IN-Dhruv__neutral",
+            "score": -0.927,
+            "agreement": 0,
+            "pitch": 162.981,
+            "pitchRange": 0.67,
+            "pace": 8.352
+          },
+          {
+            "voice": "en-US-Jasper__neutral",
+            "score": -1.163,
+            "agreement": 0,
+            "pitch": 140.253,
+            "pitchRange": 0.877,
+            "pace": 7.668
+          }
+        ],
+        "picard-geordi": [
+          {
+            "voice": "en-US-Jasper__neutral",
+            "score": 2.511,
+            "agreement": 2,
+            "pitch": 140.253,
+            "pitchRange": 0.877,
+            "pace": 7.668
+          },
+          {
+            "voice": "en-US-Grant__neutral",
+            "score": 2.334,
+            "agreement": 3,
+            "pitch": 113.921,
+            "pitchRange": 0.762,
+            "pace": 8.388
+          },
+          {
+            "voice": "en-US-Sage__neutral",
+            "score": 0.823,
+            "agreement": 1,
+            "pitch": 128.613,
+            "pitchRange": 1.018,
+            "pace": 8.135
+          },
+          {
+            "voice": "en-US-Ethan__neutral",
+            "score": 0.648,
+            "agreement": 0,
+            "pitch": 94.15,
+            "pitchRange": 0.375,
+            "pace": 7.078
+          },
+          {
+            "voice": "en-GB-Harry__neutral",
+            "score": 0.1,
+            "agreement": 0,
+            "pitch": 102.671,
+            "pitchRange": 0.983,
+            "pace": 8.393
+          },
+          {
+            "voice": "en-IN-Dhruv__neutral",
+            "score": -1.262,
+            "agreement": 0,
+            "pitch": 162.981,
+            "pitchRange": 0.67,
+            "pace": 8.352
+          }
+        ],
+        "picard-worf": [
+          {
+            "voice": "en-IN-Dhruv__neutral",
+            "score": 1.215,
+            "agreement": 1,
+            "pitch": 162.981,
+            "pitchRange": 0.67,
+            "pace": 8.352
+          },
+          {
+            "voice": "en-US-Ethan__neutral",
+            "score": 1.133,
+            "agreement": 3,
+            "pitch": 94.15,
+            "pitchRange": 0.375,
+            "pace": 7.078
+          },
+          {
+            "voice": "en-GB-Harry__neutral",
+            "score": 1.09,
+            "agreement": 2,
+            "pitch": 102.671,
+            "pitchRange": 0.983,
+            "pace": 8.393
+          },
+          {
+            "voice": "en-US-Sage__neutral",
+            "score": 0.311,
+            "agreement": 0,
+            "pitch": 128.613,
+            "pitchRange": 1.018,
+            "pace": 8.135
+          },
+          {
+            "voice": "en-US-Grant__neutral",
+            "score": -0.116,
+            "agreement": 0,
+            "pitch": 113.921,
+            "pitchRange": 0.762,
+            "pace": 8.388
+          },
+          {
+            "voice": "en-US-Jasper__neutral",
+            "score": -0.425,
+            "agreement": 0,
+            "pitch": 140.253,
+            "pitchRange": 0.877,
+            "pace": 7.668
+          }
+        ],
+        "picard-troi": [
+          {
+            "voice": "en-GB-Emily__neutral",
+            "score": 1.444,
+            "agreement": 5,
+            "pitch": 173.672,
+            "pitchRange": 0.717,
+            "pace": 7.22
+          },
+          {
+            "voice": "en-US-Iris__neutral",
+            "score": 0.885,
+            "agreement": 0,
+            "pitch": 173.672,
+            "pitchRange": 1.233,
+            "pace": 7.004
+          },
+          {
+            "voice": "en-IN-Priya__neutral",
+            "score": 0.858,
+            "agreement": 1,
+            "pitch": 201.815,
+            "pitchRange": 0.633,
+            "pace": 7.918
+          },
+          {
+            "voice": "en-AU-Isla__neutral",
+            "score": 0.271,
+            "agreement": 0,
+            "pitch": 160.181,
+            "pitchRange": 0.702,
+            "pace": 7.047
+          },
+          {
+            "voice": "en-US-Harper__neutral",
+            "score": 0.054,
+            "agreement": 0,
+            "pitch": 207.729,
+            "pitchRange": 0.85,
+            "pace": 8.152
+          },
+          {
+            "voice": "en-US-Olivia__neutral",
+            "score": -0.001,
+            "agreement": 0,
+            "pitch": 168.728,
+            "pitchRange": 0.517,
+            "pace": 8.393
+          }
+        ],
+        "picard-crusher": [
+          {
+            "voice": "en-IN-Priya__neutral",
+            "score": 1.326,
+            "agreement": 2,
+            "pitch": 201.815,
+            "pitchRange": 0.633,
+            "pace": 7.918
+          },
+          {
+            "voice": "en-AU-Isla__neutral",
+            "score": 1.144,
+            "agreement": 2,
+            "pitch": 160.181,
+            "pitchRange": 0.702,
+            "pace": 7.047
+          },
+          {
+            "voice": "en-GB-Emily__neutral",
+            "score": 1.023,
+            "agreement": 1,
+            "pitch": 173.672,
+            "pitchRange": 0.717,
+            "pace": 7.22
+          },
+          {
+            "voice": "en-US-Harper__neutral",
+            "score": 0.826,
+            "agreement": 1,
+            "pitch": 207.729,
+            "pitchRange": 0.85,
+            "pace": 8.152
+          },
+          {
+            "voice": "en-US-Olivia__neutral",
+            "score": 0.431,
+            "agreement": 0,
+            "pitch": 168.728,
+            "pitchRange": 0.517,
+            "pace": 8.393
+          },
+          {
+            "voice": "en-US-Iris__neutral",
+            "score": 0.37,
+            "agreement": 0,
+            "pitch": 173.672,
+            "pitchRange": 1.233,
+            "pace": 7.004
+          }
+        ],
+        "computer": [
+          {
+            "voice": "en-US-Iris__neutral",
+            "score": 1.773,
+            "agreement": 6,
+            "pitch": 173.672,
+            "pitchRange": 1.233,
+            "pace": 7.004
+          },
+          {
+            "voice": "en-US-Harper__neutral",
+            "score": 1.024,
+            "agreement": 0,
+            "pitch": 207.729,
+            "pitchRange": 0.85,
+            "pace": 8.152
+          },
+          {
+            "voice": "en-US-Olivia__neutral",
+            "score": 0.702,
+            "agreement": 0,
+            "pitch": 168.728,
+            "pitchRange": 0.517,
+            "pace": 8.393
+          },
+          {
+            "voice": "en-IN-Priya__neutral",
+            "score": 0.299,
+            "agreement": 0,
+            "pitch": 201.815,
+            "pitchRange": 0.633,
+            "pace": 7.918
+          },
+          {
+            "voice": "en-GB-Emily__neutral",
+            "score": -0.019,
+            "agreement": 0,
+            "pitch": 173.672,
+            "pitchRange": 0.717,
+            "pace": 7.22
+          },
+          {
+            "voice": "en-AU-Isla__neutral",
+            "score": -0.869,
+            "agreement": 0,
+            "pitch": 160.181,
+            "pitchRange": 0.702,
+            "pace": 7.047
+          }
+        ],
+        "picard": [
+          {
+            "voice": "en-GB-Harry__neutral",
+            "score": 1.591,
+            "agreement": 5,
+            "pitch": 102.671,
+            "pitchRange": 0.983,
+            "pace": 8.393
+          },
+          {
+            "voice": "en-US-Ethan__neutral",
+            "score": 0.994,
+            "agreement": 1,
+            "pitch": 94.15,
+            "pitchRange": 0.375,
+            "pace": 7.078
+          },
+          {
+            "voice": "en-IN-Dhruv__neutral",
+            "score": 0.002,
+            "agreement": 0,
+            "pitch": 162.981,
+            "pitchRange": 0.67,
+            "pace": 8.352
+          },
+          {
+            "voice": "en-US-Grant__neutral",
+            "score": -0.333,
+            "agreement": 0,
+            "pitch": 113.921,
+            "pitchRange": 0.762,
+            "pace": 8.388
+          },
+          {
+            "voice": "en-US-Jasper__neutral",
+            "score": -0.429,
+            "agreement": 0,
+            "pitch": 140.253,
+            "pitchRange": 0.877,
+            "pace": 7.668
+          },
+          {
+            "voice": "en-US-Sage__neutral",
+            "score": -0.687,
+            "agreement": 0,
+            "pitch": 128.613,
+            "pitchRange": 1.018,
+            "pace": 8.135
+          }
+        ],
+        "q": [
+          {
+            "voice": "en-GB-Harry__neutral",
+            "score": 1.406,
+            "agreement": 3,
+            "pitch": 102.671,
+            "pitchRange": 0.983,
+            "pace": 8.393
+          },
+          {
+            "voice": "en-US-Grant__neutral",
+            "score": 1.265,
+            "agreement": 1,
+            "pitch": 113.921,
+            "pitchRange": 0.762,
+            "pace": 8.388
+          },
+          {
+            "voice": "en-US-Ethan__neutral",
+            "score": 0.376,
+            "agreement": 1,
+            "pitch": 94.15,
+            "pitchRange": 0.375,
+            "pace": 7.078
+          },
+          {
+            "voice": "en-US-Sage__neutral",
+            "score": 0.123,
+            "agreement": 0,
+            "pitch": 128.613,
+            "pitchRange": 1.018,
+            "pace": 8.135
+          },
+          {
+            "voice": "en-US-Jasper__neutral",
+            "score": -0.185,
+            "agreement": 0,
+            "pitch": 140.253,
+            "pitchRange": 0.877,
+            "pace": 7.668
+          },
+          {
+            "voice": "en-IN-Dhruv__neutral",
+            "score": -1.55,
+            "agreement": 0,
+            "pitch": 162.981,
+            "pitchRange": 0.67,
+            "pace": 8.352
+          }
+        ]
+      }
+    }
+  }
+}

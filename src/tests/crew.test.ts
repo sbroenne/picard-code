@@ -153,8 +153,12 @@ test("the computer holds briefings itself; Riker weighs options instead of coord
 
 test("the computer relays an officer's report briefly; a word-for-word copy is recognised", () => {
   const briefing = crewBriefing(["picard-data", "picard-worf"]);
-  assert.match(briefing, /give each officer's main finding in one short\s+sentence, naming the officer/);
-  assert.match(briefing, /full reports are already shown on screen, so do not repeat them/);
+  assert.match(briefing, /begin the report with the main finding in one complete\s+sentence/);
+  assert.match(briefing, /spoken aloud before you speak/);
+  assert.match(briefing, /already shown on\s+screen, so do not repeat them/);
+  assert.match(crewBriefing(["picard-data", "picard-riker"]), /with Riker's last/);
+  assert.match(crewBriefing(["picard-data", "picard-riker"]), /name the course Riker recommends/);
+  assert.doesNotMatch(crewBriefing(["picard-data", "picard-worf"]), /Riker recommends/);
   const report = "Captain, I refused because the procedure risked losing the experiences and memories that make me who I am.";
   assert.equal(repeatsReport(`**Data:** ${report}`, report, "Data"), true);
   assert.equal(repeatsReport(`Data reports: "${report}"`, report, "Data"), true);

@@ -25,15 +25,24 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--whisper-model")
 parser.add_argument("--kokoro-model")
 parser.add_argument("--kokoro-voices")
-parser.add_argument("--kokoro-voice", default="bf_emma")
+parser.add_argument("--kokoro-voice", default="af_alloy")
 args = parser.parse_args()
+def phonemizer_for(voice):
+    # Kokoro's voice names start with "b" for British English voices.
+    # Reuse each native backend; repeated Windows initialization is costly.
+    accent = "en-gb" if voice.startswith("b") else "en-us"
+    if accent not in phonemizers:
+        phonemizers[accent] = EspeakBackend(accent, preserve_punctuation=True, with_stress=True)
+    return phonemizers[accent]
+
+
 try:
     with contextlib.redirect_stdout(sys.stderr):
         import numpy as np
 
         whisper = None
         kokoro = None
-        phonemizer = None
+        phonemizers = {}
         threads = min(4, os.cpu_count() or 1)
         if args.whisper_model:
             from faster_whisper import WhisperModel
@@ -52,11 +61,7 @@ try:
             if args.kokoro_voice not in kokoro.get_voices():
                 raise ValueError(f"Kokoro does not have the voice {args.kokoro_voice}.")
             from phonemizer.backend import EspeakBackend
-            # Reuse the native backend; repeated Windows initialization is costly.
-            # Kokoro's voice names start with "b" for British English voices.
-            accent = "en-gb" if args.kokoro_voice.startswith("b") else "en-us"
-            phonemizer = EspeakBackend(accent, preserve_punctuation=True, with_stress=True)
-            warmup = phonemizer.phonemize(["Ready."], strip=True)[0]
+            warmup = phonemizer_for(args.kokoro_voice).phonemize(["Ready."], strip=True)[0]
             kokoro.create(warmup, voice=args.kokoro_voice, is_phonemes=True)
 except Exception as error:
     emit({"type": "error", "message": f"Local speech could not load: {error}"})
@@ -90,6 +95,13 @@ def run_job(request, cancelled):
             elif request["method"] == "synthesize":
                 if kokoro is None:
                     raise ValueError("Kokoro speaking is not enabled.")
+                voice = request.get("voice", args.kokoro_voice)
+                if not isinstance(voice, str) or voice not in kokoro.get_voices():
+                    raise ValueError(f"Kokoro does not have the voice {voice}.")
+                speed = request.get("speed", 1.0)
+                if not isinstance(speed, (int, float)) or not 0.8 <= speed <= 1.2:
+                    raise ValueError("The Kokoro speaking speed must be between 0.8 and 1.2.")
+                phonemizer = phonemizer_for(voice)
 
                 async def generate():
                     for sentence in re.split(r"(?<=[.!?])\s+", request["text"]):
@@ -97,7 +109,7 @@ def run_job(request, cancelled):
                             return
                         phonemes = phonemizer.phonemize([sentence], strip=True)[0]
                         async for samples, rate in kokoro.create_stream(
-                            phonemes, voice=args.kokoro_voice, is_phonemes=True,
+                            phonemes, voice=voice, speed=speed, is_phonemes=True,
                         ):
                             if cancelled.is_set():
                                 return

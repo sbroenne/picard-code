@@ -55,9 +55,6 @@ export interface SpeechSettings {
   resourceName: string;
   region: string;
   deployment: string;
-  voice: string;
-  voiceStyle: string;
-  kokoroVoice: string;
 }
 
 /** An approval OpenCode is waiting for. */

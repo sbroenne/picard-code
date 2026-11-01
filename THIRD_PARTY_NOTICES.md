@@ -85,6 +85,24 @@ is granted here.
 license; copyright 2026 DietrichGebert. Its license is kept beside it. It is
 used only to review changes to this repository, not by the app.
 
+`tools/voice-match` measured which ready-made voices sound closest to each
+actor. It is not part of the npm package or the app. When run, it downloads
+its Python packages and these speaker-recognition models into
+`~/.picard-code/voice-match`; none are committed or shipped:
+
+| Model | License | Source |
+| --- | --- | --- |
+| ReDimNet2 b6 | MIT; PalabraAI | [Project](https://github.com/PalabraAI/redimnet2) |
+| ReDimNet b6 | MIT; ID R&D | [Project](https://github.com/IDRnD/ReDimNet) |
+| WeSpeaker ResNet293-LM | CC BY 4.0; WeNet community | [Model card](https://huggingface.co/Wespeaker/wespeaker-voxceleb-resnet293-LM) |
+| SpeechBrain ECAPA-TDNN | Apache 2.0; SpeechBrain | [Model card](https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb) |
+| ECAPA2 | CC BY-NC 4.0 (non-commercial); Jenthe Thienpondt | [Model card](https://huggingface.co/Jenthe/ECAPA2) |
+| WavLM Base Plus SV | MIT; Microsoft | [Model card](https://huggingface.co/microsoft/wavlm-base-plus-sv) |
+
+The actor clips it compares against are the user's own and stay on their
+computer. Only the measured scores are kept, in
+`docs/research/audition-data/crew-voice-match.json`.
+
 ## Hosted services
 
 OpenCode performs coding through the model provider the user chooses, under

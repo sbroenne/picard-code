@@ -192,10 +192,11 @@ export async function localSpeech(settings: LocalSettings, listening: boolean, s
     },
   };
   const speaker: SpeechSpeaker = {
-    async *speak(text, signal) {
+    async *speak(text, signal, voice) {
       if (!speakerWorker) throw new Error("Kokoro speaking is not enabled.");
       let bytes = 0;
-      for await (const result of speakerWorker.request("synthesize", { text }, AbortSignal.any([signal, AbortSignal.timeout(60_000)]))) {
+      const request = voice ? { text, voice: voice.name, ...voice.speed === undefined ? {} : { speed: voice.speed } } : { text };
+      for await (const result of speakerWorker.request("synthesize", request, AbortSignal.any([signal, AbortSignal.timeout(60_000)]))) {
         if (result.type === "done") break;
         if (result.type !== "audio" || typeof result.audio !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(result.audio)) throw new Error("Kokoro returned an unexpected speaking result.");
         const chunk = Buffer.from(result.audio, "base64");

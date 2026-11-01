@@ -7,12 +7,14 @@ import { loadAzureSpeech } from "./azure-speech.js";
 import { localSpeech } from "./local-speech.js";
 import type { SpeechService, SpeechSelection } from "./speech-types.js";
 import type { SpeechSettings } from "../shared/types.js";
+import { COMPUTER_VOICES, crewVoice } from "../shared/crew-voices.js";
 
-/** British prebuilt MAI voice chosen by the user after listening to the comparison. */
-export const DEFAULT_MAI_VOICE = "en-GB-Emily:MAI-Voice-2.1-Flash";
+/** Fixed ready-made computer voices chosen from the measured comparison. */
+export const DEFAULT_MAI_VOICE = COMPUTER_VOICES.mai;
 
 /** Settings that the browser may read and change. Keys and passwords are never part of these. */
-export const SETTING_NAMES = ["subscription", "resourceGroup", "resourceName", "region", "deployment", "voice", "voiceStyle", "kokoroVoice"] as const;
+export const SETTING_NAMES = ["subscription", "resourceGroup", "resourceName", "region", "deployment"] as const;
+const RETIRED_VOICE_SETTINGS = ["voice", "voiceStyle", "kokoroVoice"] as const;
 const NAME = /^[a-zA-Z0-9_.:-]{1,150}$/;
 const PICARD_FOLDER = fileURLToPath(new URL("../../", import.meta.url));
 /**
@@ -123,8 +125,7 @@ export function describeSpeechSettings(record: Record<string, unknown> | undefin
     listening: record?.listening === "mai" ? "mai" : "whisper",
     speaking: record?.speaking === "mai" ? "mai" : "kokoro",
     subscription: text("subscription"), resourceGroup: text("resourceGroup"), resourceName: text("resourceName"),
-    region: text("region"), deployment: text("deployment"), voice: text("voice", DEFAULT_MAI_VOICE),
-    voiceStyle: text("voiceStyle", "neutral"), kokoroVoice: text("kokoroVoice", "bf_emma"),
+    region: text("region"), deployment: text("deployment"),
   };
 }
 
@@ -132,7 +133,9 @@ export function describeSpeechSettings(record: Record<string, unknown> | undefin
 export function mergeSpeechSettings(saved: Record<string, unknown> | undefined, data: Record<string, unknown>) {
   if (data.listening !== "mai" && data.listening !== "whisper") throw new Error("Choose Azure MAI or local Whisper for listening.");
   if (data.speaking !== "mai" && data.speaking !== "kokoro") throw new Error("Choose Azure MAI or local Kokoro for speaking.");
+  if (RETIRED_VOICE_SETTINGS.some((key) => key in data)) throw new Error("The computer and crew voices are fixed. Choose only the listening and speaking services.");
   const record: Record<string, unknown> = { ...saved, listening: data.listening, speaking: data.speaking };
+  for (const key of RETIRED_VOICE_SETTINGS) delete record[key];
   for (const key of SETTING_NAMES) {
     const value = data[key];
     if (value === undefined || value === "") { delete record[key]; continue; }
@@ -171,17 +174,17 @@ export async function speechFromSettings(record: Record<string, unknown>, overri
     subscription: name("subscription"), resourceGroup: name("resourceGroup"),
     resourceName: name("resourceName"), region: name("region"),
     deployment: listening === "mai" ? name("deployment") : undefined,
-    voice: speaking === "mai" ? name("voice", DEFAULT_MAI_VOICE) : DEFAULT_MAI_VOICE,
-    voiceStyle: speaking === "mai" ? name("voiceStyle", "neutral") : "neutral",
+    voice: DEFAULT_MAI_VOICE,
+    voiceStyle: "neutral",
   }) : undefined;
   const local = listening === "whisper" || speaking === "kokoro" ? await localSpeech({
     python: localPath(record, "localPython"),
     whisperModel: localPath(record, "whisperModel"),
     kokoroModel: localPath(record, "kokoroModel"),
     kokoroVoices: localPath(record, "kokoroVoices"),
-    kokoroVoice: name("kokoroVoice", "bf_emma"),
+    kokoroVoice: COMPUTER_VOICES.kokoro,
   }, listening === "whisper", speaking === "kokoro", signal) : undefined;
   const listener = listening === "mai" ? azure! : local!.listener;
   const speaker = speaking === "mai" ? azure! : local!.speaker;
-  return { selection, listen: listener.listen, speak: speaker.speak, close: local?.close };
+  return { selection, listen: listener.listen, speak: speaker.speak, officerVoice: (officer) => crewVoice(officer, speaking), close: local?.close };
 }

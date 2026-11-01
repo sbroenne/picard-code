@@ -1,11 +1,13 @@
 import { setTimeout as wait } from "node:timers/promises";
 import type { SpeechService } from "../server/speech-types.js";
+import type { SpeakingVoice } from "../shared/crew-voices.js";
 
 export function speechFixture(phrases: string | string[] = "Hello computer", seconds = 1, partials = true) {
   const queue = Array.isArray(phrases) ? [...phrases] : [phrases];
   let audioWrites = 0;
   let closes = 0;
   let spoken = "";
+  const said: { text: string; voice?: SpeakingVoice }[] = [];
   const service: SpeechService = {
     async listen(callbacks, signal) {
       await wait(5, undefined, { signal });
@@ -21,8 +23,10 @@ export function speechFixture(phrases: string | string[] = "Hello computer", sec
         close() { if (!closed) { closed = true; ++closes; } },
       };
     },
-    async *speak(text, signal) {
+    officerVoice: (officer) => ({ name: `test-${officer}` }),
+    async *speak(text, signal, voice) {
       spoken = text;
+      said.push({ text, ...voice ? { voice } : {} });
       const tone = Buffer.alloc(4800);
       for (let index = 0; index < tone.length / 2; index++) tone.writeInt16LE(Math.round(Math.sin(index / 24000 * 440 * 2 * Math.PI) * 3000), index * 2);
       for (let index = 0; index < seconds * 10; index++) {
@@ -32,5 +36,5 @@ export function speechFixture(phrases: string | string[] = "Hello computer", sec
       }
     },
   };
-  return { service, get audioWrites() { return audioWrites; }, get closes() { return closes; }, get spoken() { return spoken; } };
+  return { service, get audioWrites() { return audioWrites; }, get closes() { return closes; }, get spoken() { return spoken; }, said };
 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { loadSpeech } from "../server/speech.js";
+import { checkOfficerVoices } from "./officer-voices-check.js";
 
 const loaded = Date.now();
 const speech = await loadSpeech({ listening: "whisper", speaking: "kokoro" });
@@ -57,6 +58,7 @@ try {
   setTimeout(() => controller.abort(), 10);
   await assert.rejects(waiting, /stopped/);
   assert.match(await recognize(), /local listening connection is ready/i, "A cancelled speaking request must not corrupt later listening.");
+  console.log(`Officer voices spoke real audio: ${await checkOfficerVoices(speech)}.`);
   const directory = resolve(".picard-voice", "samples");
   await mkdir(directory, { recursive: true });
   const header = Buffer.alloc(44);
