@@ -57,6 +57,6 @@ jobs:
             gh pr create --base main --head release --title "Release $version" --body "$body"
           fi
           # workflow_dispatch runs even with GITHUB_TOKEN; bot pull_request runs wait for approval.
-          gh workflow run checks.yml --ref release
+          gh workflow run checks.yml --ref release -f pull-request="$(gh pr view release --json number --jq .number)"
           gh workflow run dependency-review.yml --ref release \
             -f base-ref="$(git rev-parse origin/main)" -f head-ref="$(git rev-parse HEAD)"

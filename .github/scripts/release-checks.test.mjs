@@ -24,12 +24,16 @@ test("release preparation dispatches both checks against the release branch and 
         *) return 1;;
       esac
     }
-    gh() { printf '%s\\n' "$*"; }
+    # The only PR lookup is the release PR number.
+    gh() {
+      if [ "$*" = "pr view release --json number --jq .number" ]; then printf '35';
+      else printf '%s\\n' "$*"; fi
+    }
     ${dispatch}
   `], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.stdout.trim().split("\n"), [
-    "workflow run checks.yml --ref release",
+    "workflow run checks.yml --ref release -f pull-request=35",
     "workflow run dependency-review.yml --ref release -f base-ref=base-sha -f head-ref=release-sha",
   ]);
 });
