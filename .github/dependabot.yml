@@ -4,6 +4,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Wait for npm releases to clear the seven-day package quarantine.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     ignore:
       # Node.js types follow the oldest supported Node.js (24), so code cannot use newer features.
