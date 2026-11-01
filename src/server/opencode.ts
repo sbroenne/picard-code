@@ -19,6 +19,8 @@ export interface ModelInfo {
 }
 
 export interface ProviderInfo { id: string; name: string }
+export interface PermissionRule { action: string; resource: string; effect: "allow" | "deny" | "ask" }
+export interface AgentInfo { id: string; mode: "primary" | "subagent" | "all"; system?: string; model?: unknown; permissions: PermissionRule[] }
 
 export interface SessionInfo {
   id: string;
@@ -39,7 +41,7 @@ export type ContentItem =
 
 export type SessionMessage =
   | { id: string; type: "user"; text: string; time: { created: number } }
-  | { id: string; type: "assistant"; content: ContentItem[]; error?: OpenCodeError; finish?: string; time: { created: number; completed?: number } }
+  | { id: string; type: "assistant"; agent?: string; content: ContentItem[]; error?: OpenCodeError; finish?: string; time: { created: number; completed?: number } }
   | { id: string; type: "idle"; outcome: "succeeded" | "failed" | "interrupted"; error?: OpenCodeError; time: { created: number } }
   | { id: string; type: string; time: { created: number } };
 
@@ -106,23 +108,36 @@ export class OpenCode {
     return (await this.call<{ data: ProviderInfo[] }>("GET", "/api/provider", { directory })).data;
   }
 
+  async agents(directory: string) {
+    return (await this.call<{ data: AgentInfo[] }>("GET", "/api/agent", { directory })).data;
+  }
+
   async defaultModel(directory: string) {
     return (await this.call<{ data: ModelInfo | null }>("GET", "/api/model/default", { directory })).data;
   }
 
-  async sessions(directory: string) {
-    const query = new URLSearchParams({ directory, parentID: "null", archived: "false", limit: "100" });
-    return (await this.call<{ data: SessionInfo[] }>("GET", `/api/session?${query}`, { directory })).data;
+  async sessions(directory: string, parentID?: string) {
+    const query = new URLSearchParams({ directory, parentID: parentID ?? "null", archived: "false", limit: "100" });
+    const all: SessionInfo[] = [];
+    const cursors = new Set<string>();
+    for (;;) {
+      const page = await this.call<{ data: SessionInfo[]; cursor?: { next?: string | null } }>("GET", `/api/session?${query}`, { directory });
+      all.push(...page.data);
+      if (!parentID || !page.cursor?.next) return all;
+      if (cursors.has(page.cursor.next)) throw new Error("OpenCode returned the same page of crew entries twice.");
+      cursors.add(page.cursor.next);
+      query.set("cursor", page.cursor.next);
+    }
   }
 
   async session(id: string, directory: string) {
     return (await this.call<{ data: SessionInfo }>("GET", `/api/session/${encodeURIComponent(id)}`, { directory })).data;
   }
 
-  async createSession(directory: string, title: string, model?: ModelRef) {
+  async createSession(directory: string, title: string, model?: ModelRef, options: { agent?: string; parentID?: string } = {}) {
     return (await this.call<{ data: SessionInfo }>("POST", "/api/session", {
       directory,
-      body: { title, agent: "build", ...(model ? { model } : {}), location: { directory } },
+      body: { title, agent: options.agent ?? "build", ...(options.parentID ? { parentID: options.parentID } : {}), ...(model ? { model } : {}), location: { directory } },
     })).data;
   }
 
@@ -138,6 +153,10 @@ export class OpenCode {
     return this.call<void>("POST", `/api/session/${encodeURIComponent(id)}/model`, { directory, body: { model } });
   }
 
+  setAgent(id: string, directory: string, agent: string) {
+    return this.call<void>("POST", `/api/session/${encodeURIComponent(id)}/agent`, { directory, body: { agent } });
+  }
+
   /** Conversation instructions sent with the session; an unchanged value is ignored by OpenCode. */
   setInstructions(id: string, directory: string, key: string, value: string) {
     return this.call<void>("PUT", `/api/experimental/session/${encodeURIComponent(id)}/instructions/entries/${encodeURIComponent(key)}`, { directory, body: { value } });
@@ -145,6 +164,11 @@ export class OpenCode {
 
   prompt(id: string, directory: string, text: string) {
     return this.call<unknown>("POST", `/api/session/${encodeURIComponent(id)}/prompt`, { directory, body: { text } });
+  }
+
+  /** One short answer from the log entry's context, without adding to it or using tools. */
+  async generate(id: string, directory: string, prompt: string) {
+    return (await this.call<{ data: { text: string } }>("POST", `/api/session/${encodeURIComponent(id)}/generate`, { directory, body: { prompt } })).data.text;
   }
 
   interrupt(id: string, directory: string) {
@@ -159,15 +183,17 @@ export class OpenCode {
   async messages(id: string, directory: string) {
     const all: SessionMessage[] = [];
     let cursor: string | undefined;
-    // Pages come oldest first; long conversations take several pages.
-    for (let page = 0; page < 50; page++) {
+    const seen = new Set<string>();
+    // Pages come oldest first; read them all so the newest messages are never left out.
+    for (;;) {
       const query = new URLSearchParams({ order: "asc", limit: "200", ...(cursor ? { cursor } : {}) });
       const result = await this.call<{ data: SessionMessage[]; cursor?: { next?: string } }>("GET", `/api/session/${encodeURIComponent(id)}/message?${query}`, { directory });
       all.push(...result.data);
-      if (result.data.length < 200 || !result.cursor?.next) break;
+      if (result.data.length < 200 || !result.cursor?.next) return all;
+      if (seen.has(result.cursor.next)) throw new Error("OpenCode returned the same page of this log entry twice, so its newest messages could not be read.");
+      seen.add(result.cursor.next);
       cursor = result.cursor.next;
     }
-    return all;
   }
 
   async permissions(directory: string) {

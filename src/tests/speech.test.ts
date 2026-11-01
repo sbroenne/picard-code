@@ -239,6 +239,11 @@ test("spoken question answers match only clear, offered choices and keep the use
   assert.match("retry" in skip ? skip.retry : "", /Skip question on screen/);
   const negativeLabel = { ...closed, options: [{ value: "keep", label: "Do not change files" }, { value: "change", label: "Change files" }] };
   assert.deepEqual(matchSpokenAnswer(negativeLabel, "do not change files"), { answer: "keep" });
+  const proceed = { ...closed, options: [{ value: "y", label: "Yes, apply the fix" }, { value: "n", label: "No" }] };
+  for (const words of ["Make it so.", "Make it so, Number One.", "Engage!", "make it so, Mr. La Forge"]) assert.deepEqual(matchSpokenAnswer(proceed, words), { answer: "y" }, words);
+  assert.deepEqual(matchSpokenAnswer(closed, "Make it so."), { retry: "Please choose Small change or Explain first." }, "with no plain yes on offer, the order to proceed chooses nothing");
+  assert.deepEqual(matchSpokenAnswer({ ...proceed, options: [...proceed.options, { value: "both", label: "Yes, and add a test" }] }, "Make it so."), { retry: "Please choose Yes, apply the fix, No, or Yes, and add a test." });
+  assert.deepEqual(matchSpokenAnswer(proceed, "Don't make it so."), { retry: "Please choose Yes, apply the fix or No." });
   assert.equal(canAskAloud(form(question)), true);
   assert.equal(canAskAloud(form({ key: "many", type: "multiselect", options: question.options })), false);
   assert.equal(canAskAloud(form(question, { ...question, key: "q1" })), false);

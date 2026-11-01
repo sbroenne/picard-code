@@ -13,6 +13,8 @@ export async function wikipediaFixture(subject: WikipediaArticle["subject"]): Pr
       : "Patrick Stewart trained at the Bristol Old Vic Theatre School."}`,
   };
 }
+import { crewConfiguration } from "../server/crew.js";
+import type { AgentInfo, PermissionRule } from "../server/opencode.js";
 
 /**
  * A local stand-in for OpenCode 2's server, shaped after real OpenCode 2.2.5 behaviour.
@@ -32,7 +34,14 @@ export async function startFixture(project: string) {
   const pending = new Map<string, (data: Record<string, unknown>) => void>();
   const generations = new Map<string, number>();
   const requests: { method: string; path: string; directory: string; data: Record<string, unknown> }[] = [];
+  // Answers to Picard Code's question about who should handle a request, used before the fixed words below; null fails.
+  const crewChoices: (string | null)[] = [];
   let signedIn = true;
+  const buildPermissions: PermissionRule[] = [{ action: "*", resource: "*", effect: "allow" }, { action: "read", resource: "*.env", effect: "ask" }];
+  const agents: AgentInfo[] = [
+    { id: "build", mode: "primary", permissions: buildPermissions },
+    ...Object.entries(crewConfiguration(buildPermissions).agents).map(([id, agent]): AgentInfo => ({ ...agent, id, mode: "all", permissions: buildPermissions })),
+  ];
   const id = (prefix: string) => `${prefix}_${randomUUID().replaceAll("-", "")}`;
 
   const publish = (directory: string, type: string, data: unknown) => {
@@ -51,15 +60,15 @@ export async function startFixture(project: string) {
     publish(directory, `session.execution.${outcome}`, { sessionID, ...(error ? { error } : {}), ...(outcome === "interrupted" ? { reason } : {}) });
   };
   const assistant = (sessionID: string, content: ContentItem[], error?: { type: string; message: string }) => {
-    const message = { id: id("msg"), type: "assistant" as const, content, ...(error ? { error } : {}), time: { created: Date.now() } };
+    const message = { id: id("msg"), type: "assistant" as const, agent: sessions.get(sessionID)?.agent, content, ...(error ? { error } : {}), time: { created: Date.now() } };
     messages.get(sessionID)!.push(message);
     return message;
   };
-  const createSession = (directory = project, title = "New conversation") => {
-    const session: SessionInfo = { id: id("ses"), title, agent: "build", location: { directory }, time: { created: Date.now(), updated: Date.now() } };
+  const createSession = (directory = project, title = "New conversation", parentID?: string, agent = "build") => {
+    const session: SessionInfo = { id: id("ses"), title, agent, ...(parentID ? { parentID } : {}), location: { directory }, time: { created: Date.now(), updated: Date.now() } };
     sessions.set(session.id, session);
     messages.set(session.id, []);
-    publish(directory, "session.created", { sessionID: session.id, title, location: { directory } });
+    publish(directory, "session.created", { sessionID: session.id, title, parentID, location: { directory } });
     return session;
   };
   // Like OpenCode 2, live text is numbered within its reply and stored only once the piece ends.
@@ -140,6 +149,7 @@ export async function startFixture(project: string) {
       if (path === "/api/location/reload") { send(204); return; }
       if (path === "/api/model") { send(200, { data: models }); return; }
       if (path === "/api/provider") { send(200, { data: providers }); return; }
+      if (path === "/api/agent") { send(200, { data: agents }); return; }
       if (path === "/api/model/default") { send(200, { data: models[0] }); return; }
       if (path === "/api/event") {
         response.writeHead(200, { "Content-Type": "text/event-stream" });
@@ -154,10 +164,14 @@ export async function startFixture(project: string) {
       if (path === "/api/session") {
         if (request.method === "POST") {
           const location = data.location as { directory: string };
-          send(200, { data: createSession(location.directory, typeof data.title === "string" ? data.title : undefined) });
+          send(200, { data: createSession(location.directory, typeof data.title === "string" ? data.title : undefined, typeof data.parentID === "string" ? data.parentID : undefined, typeof data.agent === "string" ? data.agent : "build") });
         } else {
           const wanted = url.searchParams.get("directory");
-          send(200, { data: [...sessions.values()].reverse().filter((session) => !wanted || session.location.directory === wanted) });
+          const parentID = url.searchParams.get("parentID");
+          const entries = [...sessions.values()].reverse().filter((session) => (!wanted || session.location.directory === wanted) && (parentID === "null" ? !session.parentID : !parentID || session.parentID === parentID));
+          const offset = Number(url.searchParams.get("cursor") ?? 0);
+          const limit = Number(url.searchParams.get("limit") ?? 100);
+          send(200, { data: entries.slice(offset, offset + limit), cursor: { next: offset + limit < entries.length ? String(offset + limit) : null } });
         }
         return;
       }
@@ -167,7 +181,7 @@ export async function startFixture(project: string) {
         send(204);
         return;
       }
-      const match = /^\/api\/session\/([^/]+)(?:\/(message|prompt|interrupt|model|permission|form)(?:\/([^/]+)(?:\/(reply))?)?)?$/.exec(path);
+      const match = /^\/api\/session\/([^/]+)(?:\/(message|prompt|generate|interrupt|model|agent|permission|form)(?:\/([^/]+)(?:\/(reply))?)?)?$/.exec(path);
       if (match) {
         const sessionID = match[1]!;
         const session = sessions.get(sessionID);
@@ -184,6 +198,16 @@ export async function startFixture(project: string) {
           else send(200, { data: session });
         } else if (action === "model") {
           session.model = data.model as SessionInfo["model"];
+          send(204);
+        } else if (action === "generate") {
+          // Like OpenCode's one-off answer: it reads the log entry but adds nothing to it. This stand-in picks officers by fixed words.
+          const request = /"""\n([\s\S]*)\n"""$/.exec(String(data.prompt ?? ""))?.[1] ?? "";
+          if (crewChoices[0] === null) { crewChoices.shift(); send(500, { message: "The test model cannot be reached." }); return; }
+          const chosen = crewChoices.length ? crewChoices.shift()! : /\bData and Geordi\b/.test(request) ? "picard-data, picard-geordi" : /\bfrom Data\b/i.test(request) ? "picard-data" : "computer";
+          send(200, { data: { text: chosen } });
+        } else if (action === "agent") {
+          session.agent = String(data.agent);
+          publish(directory, "session.agent.selected", { sessionID, agent: session.agent });
           send(204);
         } else if (action === "message") {
           const snapshot = structuredClone(messages.get(sessionID)!);
@@ -225,7 +249,42 @@ export async function startFixture(project: string) {
           publish(directory, "session.execution.started", { sessionID });
           send(200, {});
           const manner = instructions.get(sessionID)?.["picard-manner"] ?? "";
-          if (text.includes("multi-message")) {
+          // The computer holds a briefing only when Picard Code has really called one.
+          if (manner.includes("Hold a briefing") && /\bData and Geordi\b/.test(text)) {
+            const data = createSession(directory, "Data investigation", sessionID, "picard-data");
+            data.model = session.model;
+            assistant(data.id, [{ type: "text", text: "Test stand-in: Data supplied an investigation report." }]);
+            const geordi = createSession(directory, "Geordi repair", sessionID, "picard-geordi");
+            geordi.model = session.model;
+            active.add(geordi.id);
+            generations.set(geordi.id, generation);
+            publish(directory, "session.execution.started", { sessionID: geordi.id });
+            const input = { command: "echo crew" };
+            assistant(geordi.id, [{ type: "tool", id: "call_test", name: "shell", state: { status: "running", input } }]);
+            const permission: PermissionRequest = { id: id("per"), sessionID: geordi.id, action: "shell", resources: ["echo crew"], metadata: input };
+            permissions.push(permission);
+            pending.set(geordi.id, (answer) => {
+              if (answer.decision === "reject") stopWithFailedTool(geordi.id, "shell", input, "The user declined this tool call", generation);
+              else { completeTool(geordi.id, "shell", "Test stand-in: no command was run."); finish(geordi.id, "succeeded"); }
+              reply(sessionID, answer.decision === "reject"
+                ? "Test stand-in: Geordi's action was denied. No command was run."
+                : "Test stand-in: the briefing reports are collected. No command was run.", generation);
+            });
+            later(() => publish(directory, "permission.asked", permission), 50);
+          } else if (session.agent === "picard-data" && /\ban answer from Data\b/i.test(text)) {
+            reply(sessionID, "Test stand-in: Captain, the cache is stale. No command was run.", generation);
+          } else if (session.agent === "picard-data" && /\bnews from Data\b/i.test(text)) {
+            // Like a real run: one web page refuses Data, then Data searches and reports.
+            assistant(sessionID, [{ type: "tool", id: "call_fetch", name: "webfetch", state: { status: "error", input: { url: "https://example.com/news" }, error: { type: "unknown", message: "StatusCode: non 2xx status code (403 GET https://example.com/news)" } } }]);
+            const input = { query: "news today" };
+            assistant(sessionID, [{ type: "tool", id: "call_search", name: "websearch", state: { status: "running", input } }]);
+            publish(directory, "session.tool.called", { sessionID, id: "call_search" });
+            later(() => {
+              if (!current(sessionID, generation)) return;
+              completeTool(sessionID, "websearch", "Test stand-in: no web search was made.");
+              reply(sessionID, "Test stand-in: Captain, no real news was searched.", generation);
+            }, 4000);
+          } else if (text.includes("multi-message")) {
             assistant(sessionID, [{ type: "text", text: "An intermediate test reply, not a finished answer." }]);
             publish(directory, "session.text.ended", { sessionID });
             reply(sessionID, undefined, generation);
@@ -281,7 +340,7 @@ export async function startFixture(project: string) {
   if (!address || typeof address === "string") throw new Error("Fixture server did not start.");
   return {
     url: `http://127.0.0.1:${address.port}`,
-    password, requests, permissions, forms, active, instructions,
+    password, requests, crewChoices, permissions, forms, active, instructions, agents, sessions, messages,
     createSession,
     publish,
     setSignedIn: (ready: boolean) => { signedIn = ready; },

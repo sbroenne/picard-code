@@ -58,6 +58,11 @@ export function matchSpokenAnswer(field: TextField, transcript: string): SpokenA
   }
   const exact = labels.find((label) => normalize(label) === said);
   if (exact) return { answer: valueOf(exact) };
+  // The Captain's order to proceed chooses the one offered answer that plainly says yes.
+  if (/^(?:make it so|engage)(?: (?:number one|mr(?: \w+){1,2}|counsell?or|doctor|computer))?$/.test(said)) {
+    const yes = labels.filter((label) => /^(?:yes|proceed|go ahead|continue)\b/.test(normalize(label)));
+    if (yes.length === 1) return { answer: valueOf(yes[0]!) };
+  }
   const ordinal = /^(?:the )?(?:option |number |choice )?(\w+)(?: one| option)?(?: please)?$/.exec(said)?.[1];
   const position = ordinal ? ORDINALS.findIndex((pattern) => pattern.test(ordinal)) : -1;
   if (position >= 0 && position < labels.length) return { answer: valueOf(labels[position]!) };

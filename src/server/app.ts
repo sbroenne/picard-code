@@ -5,12 +5,14 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { AppState, BrowserEvent, FormField, FormValue } from "../shared/types.js";
 import { chatMessages, availableModels, errorMessage } from "./engine.js";
 import { partID } from "./history.js";
-import type { OpenCode, OpenCodeEvent } from "./opencode.js";
+import type { OpenCode, OpenCodeEvent, SessionInfo } from "./opencode.js";
 import { projectDirectory } from "./process.js";
-import { computerManner } from "./instructions.js";
+import { computerManner, crewChoice } from "./instructions.js";
 import { checkTributeRequest, explicitStorySubject, storyAcceptance, tributeSubject } from "../shared/tribute.js";
 import { TRIBUTE_ENTRIES } from "../shared/tribute-data.js";
 import { wikipediaReader, type WikipediaArticle } from "./wikipedia.js";
+import { addressedOfficer, chosenCrew, crewMember, type CrewID } from "../shared/crew.js";
+import { requireCrew, verifiedCrew } from "./crew.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechService } from "./speech-types.js";
 import { canSetUpLocalSpeech, describeSpeechSettings, localSpeechReady, mergeSpeechSettings, readSpeechSettings, saveSpeechSettings, setUpLocalSpeech, speechFromSettings, speechSettingsFile } from "./speech.js";
@@ -132,11 +134,12 @@ export interface AppOptions {
   /** Starts speech from saved settings; replaceable in tests so no real service is called. */
   startSpeech?: (settings: Record<string, unknown>) => Promise<SpeechService>;
   localSpeechReady?: (settings: Record<string, unknown> | undefined, listening?: boolean, speaking?: boolean) => Promise<boolean>;
-  setUpLocalSpeech?: (onStep: (step: string) => void) => Promise<void>;
+  setUpLocalSpeech?: (onStep: (step: string) => void, signal?: AbortSignal) => Promise<void>;
   /** Folder holding the computer sounds downloaded at startup. */
   soundFolder?: string;
   /** Reads Wikipedia for requested tribute questions; tests supply a labelled stand-in. */
   readWikipedia?: (subject: WikipediaArticle["subject"]) => Promise<WikipediaArticle>;
+  prepareCrew?: (directory: string) => Promise<unknown>;
 }
 
 export async function startApp(options: AppOptions) {
@@ -157,6 +160,9 @@ export async function startApp(options: AppOptions) {
   const readWikipedia = options.readWikipedia ?? wikipediaReader();
   /** The one-time local speech download runs in the background, because it takes minutes. */
   let localSetup: { state: "running" | "done" | "failed"; step: string; error?: string; result?: unknown } | undefined;
+  /** Stops a running speech download on shutdown, so it cannot keep installing or change settings afterwards. */
+  const closing = new AbortController();
+  let localSetupRun: Promise<void> | undefined;
 
   const applySpeech = async (record: Record<string, unknown>) => {
     let next: SpeechService;
@@ -191,33 +197,83 @@ export async function startApp(options: AppOptions) {
     return result;
   };
 
+  const rootSession = async (id: string, project: string): Promise<SessionInfo | undefined> => {
+    const seen = new Set<string>();
+    for (;;) {
+      if (seen.has(id)) throw new Error("OpenCode reported a crew entry that points back to itself.");
+      seen.add(id);
+      const session = await client.session(id, project);
+      if (!sameDirectory(session.location.directory, project) || session.time.archived) return undefined;
+      if (!session.parentID) return session;
+      id = session.parentID;
+    }
+  };
+
+  const family = async (root: SessionInfo, project: string) => {
+    const result = [root];
+    const seen = new Set([root.id]);
+    for (let index = 0; index < result.length; index++) {
+      const parent = result[index]!;
+      for (const child of await client.sessions(project, parent.id)) {
+        if (!sameDirectory(child.location.directory, project) || child.parentID !== parent.id || child.time.archived) continue;
+        if (seen.has(child.id)) throw new Error("OpenCode repeated a crew entry relationship.");
+        seen.add(child.id);
+        result.push(child);
+      }
+    }
+    return result;
+  };
+
+  const families = async (roots: SessionInfo[], project: string) => (await Promise.all(roots.map(async (root) =>
+    (await family(root, project)).map((session) => ({ session, logEntryID: root.id }))
+  ))).flat();
+
   const working = async (project: string) => {
-    const [active, current] = await Promise.all([client.active(project), sessions(project)]);
-    const ids = new Set(current.map((session) => session.id));
-    return active.filter((id) => ids.has(id));
+    const active = await client.active(project);
+    const owned = await Promise.all(active.map(async (id) => (await rootSession(id, project)) ? id : undefined));
+    return owned.filter((id): id is string => !!id);
   };
 
   const state = async (project: string): Promise<AppState> => {
-    const [info, models, conversations, active, permissions, questions] = await Promise.all([
+    const [info, models, conversations, active, permissions, questions, agents] = await Promise.all([
       client.info(),
       availableModels(client, project),
       sessions(project),
       client.active(project),
       client.permissions(project),
       client.forms(project),
+      client.agents(project),
     ]);
-    const ids = new Set(conversations.map((session) => session.id));
+    const related = await families(conversations, project);
+    const entries = new Map(related.map((entry) => [entry.session.id, entry]));
+    const activity = related.filter((entry) => active.includes(entry.session.id)).map(({ session, logEntryID }) => ({
+      sessionID: session.id, logEntryID,
+      ...(crewMember(session.agent) ? { officer: crewMember(session.agent)!.id } : {}),
+      status: retrying.has(session.id) ? "retry" as const : "busy" as const,
+      ...(retrying.has(session.id) ? { message: retrying.get(session.id) } : {}),
+    }));
+    const statuses: AppState["statuses"] = {};
+    for (const entry of activity) {
+      if (!statuses[entry.logEntryID] || entry.status === "retry") statuses[entry.logEntryID] = {
+        type: entry.status, ...(entry.message ? { message: entry.message } : {}),
+      };
+    }
     for (const id of retrying.keys()) if (!active.includes(id)) retrying.delete(id);
     return {
       project,
       version: info.version,
       ...models,
       conversations: conversations.map((session) => ({ id: session.id, title: session.title, created: session.time.created, updated: session.time.updated })),
-      statuses: Object.fromEntries(active.filter((id) => ids.has(id)).map((id) => [id, retrying.has(id)
-        ? { type: "retry" as const, message: retrying.get(id) }
-        : { type: "busy" as const }])),
-      permissions: permissions.filter((request) => ids.has(request.sessionID)),
-      questions: questions.filter((request) => ids.has(request.sessionID)),
+      statuses,
+      permissions: permissions.filter((request) => entries.has(request.sessionID)).map((request) => ({
+        ...request, logEntryID: entries.get(request.sessionID)!.logEntryID,
+        officer: crewMember(entries.get(request.sessionID)!.session.agent)?.id,
+      })),
+      questions: questions.filter((request) => entries.has(request.sessionID)).map((request) => ({
+        ...request, logEntryID: entries.get(request.sessionID)!.logEntryID,
+        officer: crewMember(entries.get(request.sessionID)!.session.agent)?.id,
+      })),
+      crew: { available: verifiedCrew(agents), activity },
       speech: { configured: !!speech,
         listening: speech?.selection?.listening ?? "mai",
         speaking: speech?.selection?.speaking ?? "mai",
@@ -228,7 +284,8 @@ export async function startApp(options: AppOptions) {
   const eventStream = async (request: IncomingMessage, response: ServerResponse, project: string) => {
     const controller = new AbortController();
     response.on("close", () => controller.abort());
-    const ids = new Set((await sessions(project)).map((session) => session.id));
+    const related = await families(await sessions(project), project);
+    const entries = new Map(related.map((entry) => [entry.session.id, entry]));
     response.writeHead(200, { "Content-Type": "text/event-stream", "Connection": "keep-alive", "X-Accel-Buffering": "no" });
     response.flushHeaders();
     streams.add(response);
@@ -249,15 +306,31 @@ export async function startApp(options: AppOptions) {
       send({ type: "connection", connected: true });
       for await (const event of stream) {
         if (controller.signal.aborted || directory !== project) break;
-        if (event.type === "session.created" && typeof event.data.sessionID === "string" && !event.data.parentID) {
-          const location = event.data.location;
-          if (location && typeof location === "object" && "directory" in location && typeof location.directory === "string" && sameDirectory(location.directory, project)) ids.add(event.data.sessionID);
-        }
         const id = eventSession(event);
-        if (!id || !ids.has(id)) continue;
+        if (!id || event.type === "session.deleted" && !entries.has(id)) continue;
+        if (event.type === "session.moved") {
+          const previous = entries.get(id);
+          if (previous) for (const [key, entry] of entries) if (entry.logEntryID === previous.logEntryID) entries.delete(key);
+          send({ type: "state" });
+        }
+        if (event.type === "session.created" || event.type === "session.agent.selected" || !entries.has(id)) {
+          const root = await rootSession(id, project);
+          if (!root) continue;
+          entries.set(id, { session: await client.session(id, project), logEntryID: root.id });
+        }
+        const entry = entries.get(id);
+        if (!entry) continue;
         if (event.type === "session.retry.scheduled") retrying.set(id, errorMessage(event.data.error));
         else if (/^session\.(step\.started|execution\.)/.test(event.type)) retrying.delete(id);
-        for (const item of browserEvents(event)) send(item);
+        for (const item of browserEvents(event)) {
+          if ("sessionID" in item) item.sessionID = entry.logEntryID;
+          if (item.type === "delta") {
+            item.speaker = crewMember(entry.session.agent)?.id;
+            item.background = !!entry.session.parentID;
+          }
+          send(item);
+        }
+        if (event.type === "session.deleted") entries.delete(id);
       }
       if (!controller.signal.aborted && directory === project) throw new Error("OpenCode closed its live connection.");
     } catch (error) {
@@ -344,9 +417,10 @@ export async function startApp(options: AppOptions) {
             if (!canSetUpLocalSpeech(record)) throw new HttpError(400, "The new speech settings did not work, so nothing was changed. A configured local speech file is missing. Check the paths in the speech settings file.");
             const job: NonNullable<typeof localSetup> = { state: "running", step: "Starting the download" };
             localSetup = job;
-            void (async () => {
+            localSetupRun = (async () => {
               try {
-                await setUpLocal((step) => { job.step = step; });
+                await setUpLocal((step) => { job.step = step; }, closing.signal);
+                closing.signal.throwIfAborted();
                 job.result = await applySpeech(record);
                 job.state = "done";
               } catch (error) {
@@ -365,6 +439,7 @@ export async function startApp(options: AppOptions) {
           if ((await working(project)).length) throw new HttpError(409, "Stop the current work before refreshing the provider connection.");
           for (const stream of streams) stream.end();
           await client.reload(project);
+          await options.prepareCrew?.(project);
           json(response, 200, { refreshed: true });
           return;
         }
@@ -376,6 +451,12 @@ export async function startApp(options: AppOptions) {
           catch (error) { throw new HttpError(400, `Could not open that folder. ${errorMessage(error)}`); }
           const check = await client.location(next);
           if (!sameDirectory(check.directory, next)) throw new HttpError(409, "OpenCode did not select that folder. Restart Picard Code with --project instead.");
+          try { await options.prepareCrew?.(next); }
+          catch (error) {
+            try { await options.prepareCrew?.(project); }
+            catch (restoreError) { throw new Error(`Could not set up the bridge crew or restore the previous settings. ${errorMessage(error)} ${errorMessage(restoreError)}`); }
+            throw error;
+          }
           directory = next;
           for (const stream of streams) stream.end();
           json(response, 200, await state(next));
@@ -392,18 +473,30 @@ export async function startApp(options: AppOptions) {
           const id = match[1]!;
           const session = await assertSession(id, project);
           if (match[2] === "messages" && method === "GET") {
-            json(response, 200, chatMessages(await client.messages(id, project)));
+            const related = await family(session, project);
+            const history = (await Promise.all(related.map(async (entry) =>
+              chatMessages(await client.messages(entry.id, project), entry.agent).filter((message) => !entry.parentID || message.role === "assistant").map((message) => ({
+                ...message,
+                ...(entry.parentID ? { background: true, speaker: message.speaker ?? crewMember(entry.agent)?.id } : {}),
+              }))
+            ))).flat().sort((a, b) => (a.created ?? 0) - (b.created ?? 0));
+            json(response, 200, history);
             return;
           }
           if (match[2] === "stop" && method === "POST") {
             await body(request);
             await client.interrupt(id, project);
+            const related = await family(session, project);
+            await Promise.all(related.filter((entry) => entry.parentID).map((entry) => client.interrupt(entry.id, project)));
             json(response, 200, { stopped: true });
             return;
           }
           if (match[2] === "delete" && method === "POST") {
             await body(request);
-            if ((await client.active(project)).includes(id)) throw new HttpError(409, "This log entry is still working. Stop it before deleting it.");
+            const related = await family(session, project);
+            const active = await client.active(project);
+            if (related.some((entry) => active.includes(entry.id))) throw new HttpError(409, "This log entry is still working. Stop it before deleting it.");
+            for (const entry of related.slice(1).reverse()) await client.deleteSession(entry.id, project);
             await client.deleteSession(id, project);
             json(response, 200, { deleted: true });
             return;
@@ -416,6 +509,8 @@ export async function startApp(options: AppOptions) {
             let tribute;
             try { tribute = checkTributeRequest(data.tribute); }
             catch (error) { throw new HttpError(400, errorMessage(error)); }
+            if (data.bridge !== undefined && typeof data.bridge !== "boolean") throw new HttpError(400, "Choose whether the Bridge crew is on or off.");
+            const bridge = data.bridge !== false;
             if (tribute.storyID) {
               const subject = explicitStorySubject(text);
               if (!subject && !storyAcceptance(text)) throw new HttpError(400, "That response did not request a tribute story.");
@@ -427,17 +522,33 @@ export async function startApp(options: AppOptions) {
             if (!models.some((model) => model.providerID === providerID && model.modelID === modelID)) {
               throw new HttpError(400, "Sign in to a model provider in OpenCode and choose an available model.");
             }
-            if ((await client.active(project)).includes(id)) throw new HttpError(409, "Wait for the current reply, or stop it before sending another message.");
+            const related = await family(session, project);
+            const active = await client.active(project);
+            if (related.some((entry) => active.includes(entry.id))) throw new HttpError(409, "Wait for the current reply, or stop it before sending another message.");
             const subject = tributeSubject(text);
             let wikipedia: WikipediaArticle | undefined;
             if (subject && !tribute.storyID) {
               try { wikipedia = await readWikipedia(subject); }
               catch (error) { throw new HttpError(502, `${errorMessage(error)} The request was not sent. Try again when Wikipedia is available.`); }
             }
-            if (session.title === "New log entry" || session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
+            const officer = bridge ? addressedOfficer(text) : undefined;
+            if (bridge && (officer || crewMember(session.agent))) await requireCrew(client, project);
             if (session.model?.id !== modelID || session.model.providerID !== providerID) await client.setModel(id, project, { id: modelID, providerID });
+            // When the Captain names no officer, Picard Code itself asks who should handle the request and hands it
+            // over, instead of relying on the computer to decide to call an officer. This needs the crew really loaded.
+            const onDuty = bridge && !officer && verifiedCrew(await client.agents(project));
+            let chosen: CrewID[] = [];
+            if (onDuty) {
+              try { chosen = chosenCrew(await client.generate(id, project, crewChoice(text, crewMember(session.agent)?.name))); }
+              catch (error) { throw new HttpError(502, `Could not decide which officer should handle this request. ${errorMessage(error)} The request was not sent.`); }
+            }
+            // One officer answers in the log entry; several meet in a briefing that the computer runs.
+            // With the Bridge crew off, every request goes to the computer, including follow-ups in an officer's log entry.
+            const agent = !bridge ? "build" : officer?.id ?? (chosen.length === 1 ? chosen[0]! : crewMember(session.agent) ? "build" : session.agent);
+            if (agent && session.agent !== agent) await client.setAgent(id, project, agent);
+            if (session.title === "New log entry" || session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
             // Picard Code's conversation manner travels with the conversation, not as a file in the project.
-            await client.setInstructions(id, project, "picard-manner", computerManner(text, tribute, wikipedia));
+            await client.setInstructions(id, project, "picard-manner", computerManner(text, tribute, wikipedia, { agent, onDuty, briefing: chosen.length > 1 ? chosen : undefined, offDuty: !bridge }));
             await client.prompt(id, project, text);
             json(response, 202, { accepted: true, ...(wikipedia ? { reference: { title: wikipedia.title, url: wikipedia.url } } : {}) });
             return;
@@ -450,13 +561,13 @@ export async function startApp(options: AppOptions) {
           if (approval[1] === "permissions") {
             const item = (await client.permissions(project)).find((item) => item.id === requestID);
             if (!item) throw new HttpError(409, "That approval is no longer waiting. Refresh the log entry.");
-            await assertSession(item.sessionID, project);
+            if (!await rootSession(item.sessionID, project)) throw new HttpError(403, "That approval belongs to another project folder.");
             if (data.reply !== "once" && data.reply !== "reject") throw new HttpError(400, "Choose Allow once or Deny.");
             await client.replyPermission(item.sessionID, requestID, project, data.reply);
           } else {
             const item = (await client.forms(project)).find((item) => item.id === requestID);
             if (!item) throw new HttpError(409, "That question is no longer waiting. Refresh the log entry.");
-            await assertSession(item.sessionID, project);
+            if (!await rootSession(item.sessionID, project)) throw new HttpError(403, "That question belongs to another project folder.");
             if (data.skip === true) await client.cancelForm(item.sessionID, requestID, project);
             else await client.replyForm(item.sessionID, requestID, project, checkAnswer(item.fields, data.answer));
           }
@@ -506,6 +617,8 @@ export async function startApp(options: AppOptions) {
     origin, token,
     url: `${origin}/#token=${token}`,
     close: async () => {
+      closing.abort();
+      await localSetupRun;
       closeSpeech();
       for (const stream of streams) stream.end();
       try { await speech?.close?.(); }

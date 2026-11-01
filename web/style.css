@@ -88,12 +88,14 @@ a { color: var(--peach); text-underline-offset: 4px; }
 .sidebar { grid-area: sidebar; display: flex; flex-direction: column; gap: 6px; padding-top: 6px; min-height: 0; }
 .rail-button { display: flex; align-items: flex-end; justify-content: flex-end; text-align: right; min-height: 62px; padding: 8px 12px; color: var(--ink); text-decoration: none; font: 600 17px/1.1 var(--lcars); letter-spacing: .06em; text-transform: uppercase; flex: none; }
 .rail-button[aria-current] { background: var(--gold); }
-.tribute-switch { position: relative; gap: 8px; cursor: pointer; }
-.tribute-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-.tribute-switch b { min-width: 34px; padding: 3px 6px; border: 1px solid var(--ink); border-radius: 12px; background: var(--ink); color: var(--lilac); text-align: center; font: 600 12px/1 var(--lcars); letter-spacing: .06em; }
-.tribute-switch:has(input:not(:checked)) b { background: transparent; color: var(--ink); }
-.tribute-switch:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 3px; }
-.tribute-switch:has(input:active) { filter: brightness(.85); }
+.rail-switch { position: relative; gap: 8px; cursor: pointer; }
+.rail-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.rail-switch b { min-width: 34px; padding: 3px 6px; border: 1px solid var(--ink); border-radius: 12px; background: var(--ink); color: var(--lilac); text-align: center; font: 600 12px/1 var(--lcars); letter-spacing: .06em; }
+.rail-switch.blue b { color: var(--blue); }
+.rail-switch:has(input:not(:checked)) b { background: transparent; color: var(--ink); }
+.rail-switch:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 3px; }
+.rail-switch.blue:has(input:focus-visible) { outline-color: var(--gold); }
+.rail-switch:has(input:active) { filter: brightness(.85); }
 .rail-fill { flex: 1; min-height: 24px; display: flex; flex-direction: column; gap: 6px; }
 .rail-fill .readout { min-height: 0; font-size: 14px; }
 a.readout { text-decoration: none; }
@@ -122,6 +124,8 @@ a.tribute { text-decoration: none; }
 .message[data-role="user"] { border-left-color: var(--blue); }
 .message-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .message-header strong { font: 600 14px/1 var(--lcars); letter-spacing: .16em; text-transform: uppercase; color: var(--orange); }
+/* "Crew report" sits beside the officer's name; the copy button stays at the right. */
+.message-header small { margin: 0 auto 0 14px; color: var(--muted); font: 500 12px/1 var(--lcars); letter-spacing: .12em; text-transform: uppercase; }
 .message[data-role="user"] .message-header strong { color: var(--blue); }
 .message[data-role="user"] .message-text { color: #d9d4ff; }
 .copy-button { color: var(--muted); background: transparent; padding: 4px 8px; font: 500 12px/1 var(--lcars); letter-spacing: .1em; text-transform: uppercase; opacity: 0; transition: opacity 120ms; }
@@ -292,3 +296,25 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
   .voice-mark i:nth-child(5n) { animation-delay: 600ms !important; }
   @keyframes level { from { height: 10px; } to { height: 60px; } }
 }
+/* While a request runs, a line at the end of the conversation says so, and who is on it. */
+.working { max-width: 920px; margin: 0 auto 14px; padding: 10px 0 10px 22px; border-left: 8px solid var(--blue); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font: 500 18px/1.4 var(--lcars); letter-spacing: .04em; color: #d9d4ff; }
+.working[hidden] { display: none; }
+.working-mark { display: inline-flex; gap: 5px; }
+.working-mark i { width: 9px; height: 9px; border-radius: 50%; background: var(--blue); }
+.working-step { color: var(--muted); font-size: 16px; }
+.working-step:empty { display: none; }
+.console[data-working="true"][data-phase="standby"] .status { color: var(--blue); }
+.console[data-working="true"][data-phase="standby"] .voice-mark i { background: var(--blue); }
+/* A failed step the request recovered from stays readable, folded away. */
+.step-failures { max-width: 920px; margin: -6px 0 14px 30px; color: var(--muted); font-size: 14px; }
+.step-failures summary { cursor: pointer; font: 500 13px/1.4 var(--lcars); letter-spacing: .1em; text-transform: uppercase; }
+.step-failure { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: no-preference) {
+  .working-mark i { animation: idle 900ms ease-in-out infinite alternate; }
+  .working-mark i:nth-child(2) { animation-delay: 300ms; }
+  .working-mark i:nth-child(3) { animation-delay: 600ms; }
+  .console[data-working="true"][data-phase="standby"] .voice-mark i { animation: level 1800ms ease-in-out infinite alternate; }
+}
+/* An officer's report keeps a narrower peach bar; reports for the latest request are shown in full. */
+.message.crew-report { border-left-color: var(--peach); border-left-width: 4px; }
+.message.current.crew-report .message-text { font-size: 18px; }

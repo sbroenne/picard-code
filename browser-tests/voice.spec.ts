@@ -4,6 +4,7 @@ import { resolve, join } from "node:path";
 import { spawn } from "node:child_process";
 import { TRIBUTE_ENTRIES } from "../src/shared/tribute-data";
 import { formatStardate } from "../src/shared/stardate";
+import type { ChatMessage } from "../src/shared/types";
 
 const folder = resolve(`.picard-test-voice-audio-${process.pid}`);
 const microphoneFile = join(folder, "utterance.wav");
@@ -36,7 +37,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "interrupt" | "interrupt-room" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech") {
+async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "officer" | "news" | "interrupt" | "interrupt-room" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -116,6 +117,85 @@ function sounds(page: import("@playwright/test").Page) {
 }
 
 test.setTimeout(60000);
+
+test("briefing reports stay in one log entry; officer approvals require a button and only the computer's summary is spoken", async ({ page }) => {
+  const spoken = spokenText(page);
+  await launch(page, "crew");
+  await startListening(page);
+  await expect(page.getByRole("heading", { name: "Approval required." })).toBeVisible({ timeout: 20000 });
+  await expect(page.getByText("Geordi needs your decision.", { exact: true })).toBeVisible();
+  await expect(page.locator(".crew-report")).toContainText("Data supplied an investigation report.");
+  expect(spoken.some((text) => text.includes("Data supplied"))).toBe(false);
+  await page.getByRole("button", { name: "Deny", exact: true }).click();
+  await expect(page.locator(".message.current[data-role=assistant]:not(.crew-report)")).toContainText("Geordi's action was denied", { timeout: 15000 });
+  await expect.poll(() => spoken.filter((text) => text.includes("Geordi's action was denied")).length).toBe(1);
+  await expect(page.locator(".message.current[data-role=assistant]:not(.crew-report) .message-header strong")).toHaveText("Computer");
+  expect(spoken.some((text) => text.includes("Data supplied"))).toBe(false);
+  await expect(page.locator("#approvals")).toBeEmpty();
+});
+
+test("a request for one officer is handed to that officer, who answers in the conversation; the answer is spoken once", async ({ page }) => {
+  const spoken = spokenText(page);
+  await launch(page, "officer");
+  await startListening(page);
+  const answer = page.locator(".message.current[data-role=assistant]");
+  await expect(answer).toContainText("Test stand-in: Captain, the cache is stale.", { timeout: 20000 });
+  await expect(answer).toHaveCount(1);
+  await expect(answer.locator(".message-header strong")).toHaveText("Data");
+  await expect.poll(() => spoken.filter((text) => text.includes("the cache is stale")).length, { timeout: 15000 }).toBe(1);
+  await expect(page.locator(".crew-report")).toHaveCount(0);
+});
+
+test("while work runs, the conversation says who is working and what they are doing; a step that failed on the way is folded away", async ({ page }) => {
+  await launch(page, "news");
+  await startListening(page);
+  const working = page.locator("#working");
+  await expect(working).toBeVisible({ timeout: 20000 });
+  await expect(working).toContainText("Data is working on it.");
+  await expect(working).toContainText("Searching the web.");
+  // The working line sits right after the latest request, in the conversation, not in the console.
+  const request = (await page.locator(".message.current[data-role=user]").boundingBox())!;
+  const line = (await working.boundingBox())!;
+  expect(line.y).toBeGreaterThan(request.y);
+  await expect(page.locator(".message-error")).toHaveCount(0);
+  await expect(page.locator(".step-failures summary")).toHaveText("1 step did not work");
+  await expect(page.locator(".message.current[data-role=assistant]").last()).toContainText("Test stand-in: Captain, no real news was searched.", { timeout: 15000 });
+  await expect(page.locator(".message.current[data-role=assistant] .message-header strong").last()).toHaveText("Data");
+  await expect(working).toBeHidden();
+  // The real error stays readable, word for word, when opened.
+  const note = page.locator(".step-failures");
+  await expect(note.locator(".step-failure")).toBeHidden();
+  await note.locator("summary").click();
+  await expect(note.locator(".step-failure")).toContainText("403 GET https://example.com/news");
+  await expect(page.locator(".message-error")).toHaveCount(0);
+});
+
+test("with the Bridge crew off, an officer request goes to the computer", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("picard-bridge-enabled", "false"));
+  await launch(page, "crew");
+  await expect(page.getByRole("switch", { name: "Bridge crew", exact: true })).not.toBeChecked();
+  const sent = page.waitForRequest((request) => request.url().endsWith("/send"));
+  await startListening(page);
+  expect((await sent).postDataJSON()).toMatchObject({ text: "Computer, have Data and Geordi look at the repair", bridge: false });
+  await expect(page.locator(".message.current[data-role=assistant]").first()).toBeVisible({ timeout: 20000 });
+  await expect(page.locator(".message.current[data-role=assistant] .message-header strong").first()).toHaveText("Computer");
+  await expect(page.getByText("Geordi needs your decision.", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".crew-report")).toHaveCount(0);
+});
+
+test("crew activity and decisions return after reload, and Belay that stops the related work", async ({ page }) => {
+  await launch(page, "crew");
+  await startListening(page);
+  await expect(page.getByText("Geordi needs your decision.", { exact: true })).toBeVisible({ timeout: 20000 });
+  await page.reload();
+  await expect(page.getByText("Geordi needs your decision.", { exact: true })).toBeVisible();
+  await expect(page.locator(".crew-report")).toContainText("Data supplied an investigation report.");
+  await page.getByRole("button", { name: "Switch microphone off", exact: true }).click();
+  await page.getByRole("button", { name: "Belay that", exact: true }).click();
+  await expect(page.locator("#approvals")).toBeEmpty();
+  await expect(page.getByRole("button", { name: "Belay that", exact: true })).toBeHidden();
+  await expect(page.locator(".message.current[data-role=assistant]:not(.crew-report)")).toContainText("Work stopped before it finished.");
+});
 
 test("Computer interrupts playback, then the next request keeps its exact words", async ({ page }) => {
   const commands: string[] = [];
@@ -237,6 +317,9 @@ test("the arrival call waits for a click and works before speech is set up", asy
     const page = await browser.newPage();
     // Headless Chromium can allow autoplay despite its policy flags; hold audio until a real click.
     await page.addInitScript(() => {
+      // Playwright's own page calls count as user activation, so wait for a real click instead.
+      let clicked = false;
+      window.addEventListener("pointerdown", (event) => { if (event.isTrusted) clicked = true; }, true);
       const NativeAudioContext = window.AudioContext;
       window.AudioContext = class extends NativeAudioContext {
         private suspended: Promise<void>;
@@ -244,11 +327,12 @@ test("the arrival call waits for a click and works before speech is set up", asy
           super(options);
           this.suspended = this.suspend();
         }
+        // The suspend above finishes later, so report the context as suspended until a real click.
         override get state() {
-          return navigator.userActivation.hasBeenActive ? super.state : "suspended";
+          return clicked ? super.state : "suspended";
         }
         override resume() {
-          return navigator.userActivation.hasBeenActive ? this.suspended.then(() => super.resume()) : Promise.resolve();
+          return clicked ? this.suspended.then(() => super.resume()) : Promise.resolve();
         }
       };
     });
@@ -410,6 +494,28 @@ test(`${subject} facts have LCARS headings and a real, stable Stardate`, async (
   expect((await sounds(page)).some((sound) => sound.startsWith("tribute-fact:"))).toBe(false);
 });
 }
+
+test("a standalone fact stays visible when an officer report replaces the computer's repeated answer", async ({ page }) => {
+  await page.addInitScript(() => { Math.random = () => 0; });
+  await page.route("**/api/conversations/*/messages", async (route) => {
+    const response = await route.fetch();
+    const messages: ChatMessage[] = await response.json();
+    const withReports = messages.flatMap((message) => message.role === "assistant" && message.outcome === "succeeded"
+      ? [{ ...message, id: `report-${message.id}`, background: true, speaker: "picard-data" as const }, message]
+      : [message]);
+    await route.fulfill({ response, json: withReports });
+  });
+  const spoken = spokenText(page);
+  await launch(page, "tribute");
+  await startListening(page);
+  await expect(page.locator("#messages > .crew-report + .tribute-fact")).toHaveCount(1, { timeout: 20000 });
+  await expect(page.locator(".tribute-fact")).toHaveCount(1);
+  await expect(page.locator(".message .tribute-fact")).toHaveCount(0);
+  await expect(page.locator(".crew-report").last().locator(".message-header strong")).toHaveText("Data");
+  await expect.poll(async () => (await sounds(page)).some((sound) => sound.startsWith("tribute-fact:")), { timeout: 5000 }).toBe(true);
+  expect(spoken).toHaveLength(2);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
 
 test("a fact cue follows actual playback once, without listening or speaking the fact, even with the old preference", async ({ page }) => {
   await page.addInitScript(() => {
