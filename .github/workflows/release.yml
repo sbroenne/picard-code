@@ -2,6 +2,7 @@ name: Publish to npm
 
 # Runs when the owner publishes a GitHub release tagged v<version>, for example v0.2.0.
 # npm accepts it through trusted publishing, so no npm token is stored in GitHub.
+# The version is only staged; it goes public when the owner approves it on npm.
 on:
   release:
     types: [published]
@@ -20,11 +21,11 @@ jobs:
       id-token: write
     steps:
       - name: Get the source
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Set up Node
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           registry-url: https://registry.npmjs.org
@@ -42,5 +43,5 @@ jobs:
         run: npm run build
       - name: Run server tests
         run: npm test
-      - name: Publish
-        run: npm publish
+      - name: Stage on npm for the owner's approval
+        run: npm stage publish

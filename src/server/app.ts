@@ -281,7 +281,7 @@ export async function startApp(options: AppOptions) {
     };
   };
 
-  const eventStream = async (request: IncomingMessage, response: ServerResponse, project: string) => {
+  const eventStream = async (response: ServerResponse, project: string) => {
     const controller = new AbortController();
     response.on("close", () => controller.abort());
     const related = await families(await sessions(project), project);
@@ -394,7 +394,7 @@ export async function startApp(options: AppOptions) {
           return;
         }
         if (path === "/api/events" && method === "GET") {
-          await eventStream(request, response, project);
+          await eventStream(response, project);
           return;
         }
         if (path === "/api/settings" && method === "GET") {

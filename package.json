@@ -26,7 +26,7 @@
     "node": ">=24"
   },
   "bin": {
-    "picard-code": "./dist/server/cli.js"
+    "picard-code": "dist/server/cli.js"
   },
   "files": [
     "dist/server/",
@@ -39,7 +39,7 @@
     "build": "tsc -p tsconfig.json && vite build",
     "start": "node dist/server/cli.js",
     "test": "node --test dist/tests/*.test.js",
-    "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json",
+    "check": "oxlint --deny-warnings && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json",
     "test:browser": "playwright test",
     "opencode": "node dist/server/cli.js opencode",
     "test:live": "node dist/tests/live-check.js",
@@ -69,6 +69,7 @@
     "@types/ws": "^8.18.1",
     "dompurify": "^3.4.17",
     "marked": "^18.1.1",
+    "oxlint": "^1.89.0",
     "typescript": "^7.0.2",
     "vite": "^8.0.0"
   }
