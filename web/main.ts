@@ -415,6 +415,8 @@ function controls() {
   element("provider-status").textContent = !state ? "Checking" : state.models.length
     ? `Connected: ${[...new Set(state.models.map((choice) => choice.provider))].join(", ")}. ${state.models.length} model${state.models.length === 1 ? "" : "s"} available.` : "Not connected";
   readouts();
+  renderWorking();
+  element("voice-console").dataset.working = String(working);
   voice.sync();
   autoListen();
   voiceControls();
@@ -523,6 +525,16 @@ function renderMessages() {
     const failures = texts.length ? [] : message.parts.filter((part) => part.type === "tool" && part.status === "error");
     if (message.role === "assistant" && !texts.length && !failures.length && !message.error) return;
     if (repeatsOfficer(list, index)) return;
+    if (!texts.length && !message.error && message.role === "assistant" && recovered(list, index)) {
+      // A step that failed before the answer arrived stays readable, folded away, without looking like the answer failed.
+      const previous = container.lastElementChild;
+      const note = previous?.classList.contains("step-failures") ? previous as HTMLDetailsElement : make("details", "step-failures");
+      if (note !== previous) { note.append(make("summary")); container.append(note); }
+      for (const part of failures) note.append(make("p", "step-failure", part.text));
+      const count = note.querySelectorAll(".step-failure").length;
+      note.querySelector("summary")!.textContent = `${count} step${count === 1 ? "" : "s"} did not work`;
+      return;
+    }
     const article = make("article", `message ${message.background ? "crew-report " : ""}${index >= latest ? "current" : "earlier"}`);
     article.dataset.role = message.role;
     const header = make("div", "message-header");
@@ -755,6 +767,63 @@ function repeatsOfficer(list: ChatMessage[], index: number) {
   const message = list[index]!;
   if (message.role !== "assistant" || message.background || message.speaker || message.error || !written(message).trim()) return false;
   return reportsAround(list, index).some((report) => repeatsReport(written(message), written(report), crewMember(report.speaker)!.name));
+}
+
+/** A step failed, but the same request went on: a later reply has written text, or the work is still running. */
+function recovered(list: ChatMessage[], index: number) {
+  const next = list.findIndex((message, at) => at > index && message.role === "user");
+  const rest = list.slice(index + 1, next < 0 ? undefined : next);
+  return rest.some((message) => message.role === "assistant" && written(message).trim()) || next < 0 && busy();
+}
+
+const STEPS: Record<string, string> = {
+  websearch: "Searching the web.",
+  webfetch: "Reading a web page.",
+  read: "Reading files.",
+  grep: "Searching the project.",
+  glob: "Searching the project.",
+  list: "Searching the project.",
+  edit: "Changing files.",
+  write: "Changing files.",
+  patch: "Changing files.",
+  apply_patch: "Changing files.",
+  shell: "Running a command.",
+  bash: "Running a command.",
+};
+
+/** What the latest request is doing right now, when a running step says so. */
+function currentStep() {
+  const list = shown();
+  const latest = list.findLastIndex((message) => message.role === "user");
+  for (const message of list.slice(latest + 1).reverse()) {
+    const step = message.parts.filter((item) => item.type === "tool" && (item.status === "running" || item.status === "pending"))
+      .map((item) => STEPS[item.text.split("\n", 1)[0]!]).findLast(Boolean);
+    if (step) return step;
+  }
+  return "";
+}
+
+function spokenList(names: string[]) {
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0] ?? "";
+}
+
+/** A line at the end of the conversation while the server reports the request as running. */
+function renderWorking() {
+  const node = element("working");
+  const status = selected ? state?.statuses[selected] : undefined;
+  const show = !!state && (!!status || submitting) && !pending();
+  node.hidden = !show;
+  if (!show) return;
+  const officers = [...new Set(state!.crew.activity
+    .filter((item) => item.logEntryID === selected && item.officer)
+    .map((item) => crewMember(item.officer)!.name))];
+  const text = !status ? "Sending your request."
+    : status.type === "retry" ? `Retrying. ${status.message ?? ""}`.trim()
+    : officers.length ? `${spokenList(officers)} ${officers.length === 1 ? "is" : "are"} working on it.`
+    : "Working on it.";
+  const step = status ? currentStep() : "";
+  if (element("working-text").textContent !== text) element("working-text").textContent = text;
+  if (element("working-step").textContent !== step) element("working-step").textContent = step;
 }
 
 /** The stored conversation with any reply text that is still being written. */

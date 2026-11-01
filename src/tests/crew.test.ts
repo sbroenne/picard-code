@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BRIDGE_CREW, addressedOfficer, repeatsReport } from "../shared/crew.js";
+import { BRIDGE_CREW, chosenCrew, addressedOfficer, repeatsReport } from "../shared/crew.js";
 import { crewConfiguration, verifiedCrew } from "../server/crew.js";
 import type { AgentInfo, PermissionRule } from "../server/opencode.js";
 import { chatMessages } from "../server/history.js";
-import { CAPTAINS_ORDERS, COMPUTER_MANNER, CREW_ROUTING, computerInstructions, computerManner } from "../server/instructions.js";
+import { CAPTAINS_ORDERS, COMPUTER_MANNER, CREW_KEPT, computerInstructions, computerManner, crewBriefing, crewChoice } from "../server/instructions.js";
 import { crewInstructions } from "../server/crew.js";
 
 test("only explicit officer addresses select crew, without changing the user's words", () => {
@@ -107,18 +107,22 @@ test("the Captain's orders are understood, but never answer an approval or widen
   assert.match(CAPTAINS_ORDERS, /unclear which proposal he means[\s\S]*ask one short question instead of guessing/);
   assert.match(CAPTAINS_ORDERS, /"Engage" means start the agreed work now/);
   assert.match(CAPTAINS_ORDERS, /never answer an approval or a\s+question waiting on screen/);
-  assert.match(CREW_ROUTING, /"Number One" or "Will" is Riker/);
-  assert.match(CREW_ROUTING, /"Make it so" after that officer's proposal, give it to the same\s+officer and pass the sessionID/);
+  assert.match(crewChoice("Make it so."), /"Number One" or "Will" is Riker/);
+  assert.match(crewChoice("Make it so.", "Data"), /follows up on an officer's earlier reply[\s\S]*"Make it so"[\s\S]*choose that officer\. The latest\s+reply in this log entry came from Data\./);
 });
 
 test("the computer holds briefings itself; Riker weighs options instead of coordinating", () => {
-  assert.match(CREW_ROUTING, /hold a briefing[\s\S]*give each\s+officer needed a separate assignment/);
-  assert.match(CREW_ROUTING, /give picard-riker the other\s+officers' actual findings after they report/);
-  assert.match(CREW_ROUTING, /Allow at most one officer to change files/);
-  assert.match(CREW_ROUTING, /Officers do not hand work to each other; you\s+call each one/);
-  assert.doesNotMatch(CREW_ROUTING, /to coordinate/);
+  const briefing = crewBriefing(["picard-worf", "picard-troi", "picard-riker"]);
+  assert.match(briefing, /briefing on this\s+request with Worf, Troi and Riker/);
+  assert.match(briefing, /Hold a briefing[\s\S]*as\s+your first step, give each of these officers a separate assignment/);
+  assert.match(briefing, /except picard-riker:\n- picard-worf: Worf, review risks[\s\S]*\n- picard-troi: Troi, review clarity[^\n]*\nDo not read files/, "Riker is called after the others, not at the same time");
+  assert.match(briefing, /give picard-riker their actual findings/);
+  assert.match(briefing, /Allow at\s+most one officer to change files/);
+  assert.match(briefing, /Officers do not hand work to each other; you call each one/);
+  assert.doesNotMatch(crewBriefing(["picard-worf", "picard-troi"]), /picard-riker|Riker's recommendation/);
+  assert.doesNotMatch(briefing, /to coordinate/);
   const riker = BRIDGE_CREW.find((officer) => officer.id === "picard-riker")!;
-  assert.equal(riker.duty, "Weigh options and recommend");
+  assert.equal(riker.duty, "Weigh options and recommend, including plans and decisions");
   assert.doesNotMatch(`${riker.personality} ${riker.role}`, /coordinat|delegate|assignments/i);
   for (const officer of BRIDGE_CREW) {
     assert.match(crewInstructions(officer), /Do not hand work to other officers/);
@@ -127,8 +131,9 @@ test("the computer holds briefings itself; Riker weighs options instead of coord
 });
 
 test("the computer relays an officer's report briefly; a word-for-word copy is recognised", () => {
-  assert.match(CREW_ROUTING, /relay it\s+briefly in your own neutral manner, naming the officer/);
-  assert.match(CREW_ROUTING, /full reports are already shown on\s+screen, so do not repeat them/);
+  const briefing = crewBriefing(["picard-data", "picard-worf"]);
+  assert.match(briefing, /give each officer's main finding in one short\s+sentence, naming the officer/);
+  assert.match(briefing, /full reports are already shown on screen, so do not repeat them/);
   const report = "Captain, I refused because the procedure risked losing the experiences and memories that make me who I am.";
   assert.equal(repeatsReport(`**Data:** ${report}`, report, "Data"), true);
   assert.equal(repeatsReport(`Data reports: "${report}"`, report, "Data"), true);
@@ -138,16 +143,30 @@ test("the computer relays an officer's report briefly; a word-for-word copy is r
   assert.equal(repeatsReport(`Worf: ${report}`, report, "Data"), false);
 });
 
-test("the computer routes only when the crew is loaded, and officers never route", () => {
-  const now = new Date("2026-10-31T12:00:00Z");
-  const routed = computerManner("Computer, check this.", { mode: "off" }, undefined, { routing: true });
-  assert.ok(routed.trimEnd().endsWith(CREW_ROUTING), "routing comes last, after the repository guidance");
-  assert.ok(routed.includes(CREW_ROUTING));
+test("Picard Code asks who handles a request, and the computer is told the answer", () => {
+  const question = crewChoice("Computer, Walt, review the login code.");
+  for (const officer of BRIDGE_CREW) assert.ok(question.includes(`- ${officer.id}: ${officer.name}, ${officer.duty.toLowerCase()}`));
+  assert.match(question, /Do\s+not answer the request, do not use tools/);
+  assert.match(question, /the ids of the officers who should handle it, separated by commas, or the\s+single word computer/);
+  assert.match(question, /news,\s+research and explanations go to picard-data; writing, rewording and questions\s+about people go to picard-troi/);
+  assert.match(question, /Choose computer only for quick facts[\s\S]*small talk[\s\S]*Picard Code itself[\s\S]*Sir Patrick Stewart/);
+  assert.match(question, /"Rika" or\s+"Ryker" for Riker, "Walt"/);
+  assert.ok(question.endsWith('word for word:\n"""\nComputer, Walt, review the login code.\n"""'), "the Captain's words are passed unchanged");
+  assert.doesNotMatch(question, /latest\s+reply/);
+  assert.deepEqual(chosenCrew("picard-worf"), ["picard-worf"]);
+  assert.deepEqual(chosenCrew("Worf."), ["picard-worf"]);
+  assert.deepEqual(chosenCrew("picard-data, picard-worf, picard-data"), ["picard-data", "picard-worf"]);
+  assert.deepEqual(chosenCrew("computer"), []);
+  assert.deepEqual(chosenCrew(""), []);
+  const kept = computerManner("Computer, what is the capital of France?", { mode: "off" }, undefined, { onDuty: true });
+  assert.ok(kept.trimEnd().endsWith(CREW_KEPT), "the computer is told it keeps this request");
+  const briefed = computerManner("Computer, check this.", { mode: "off" }, undefined, { onDuty: true, briefing: ["picard-data", "picard-worf"] });
+  assert.ok(briefed.trimEnd().endsWith(crewBriefing(["picard-data", "picard-worf"])), "the briefing comes last, after the repository guidance");
+  assert.ok(!briefed.includes(CREW_KEPT));
   for (const officer of BRIDGE_CREW) {
-    assert.ok(routed.includes(officer.id));
-    assert.ok(!computerManner("Computer, check this.", { mode: "off" }, undefined, { agent: officer.id, routing: true }).includes(CREW_ROUTING));
+    const own = computerManner("Computer, check this.", { mode: "off" }, undefined, { agent: officer.id, onDuty: true, briefing: ["picard-data", "picard-worf"] });
+    assert.ok(!own.includes(CREW_KEPT) && !own.includes("Hold a briefing"), "officers never route");
   }
-  assert.match(routed, /"Rika" or\s+"Ryker" for Riker, "Walt"/);
-  assert.match(routed, /exact words/);
-  assert.ok(!computerManner("Computer, check this.", { mode: "off" }).includes(CREW_ROUTING));
+  const plain = computerManner("Computer, check this.", { mode: "off" });
+  assert.ok(!plain.includes(CREW_KEPT) && !plain.includes("Hold a briefing"));
 });

@@ -2,57 +2,82 @@ import { formatStardate } from "../shared/stardate.js";
 import { gentleWitAllowed, tributeSubject, type TributeRequest } from "../shared/tribute.js";
 import { TRIBUTE_ENTRIES } from "../shared/tribute-data.js";
 import type { WikipediaArticle } from "./wikipedia.js";
-import { BRIDGE_CREW, crewMember } from "../shared/crew.js";
+import { BRIDGE_CREW, crewMember, type CrewID } from "../shared/crew.js";
 
-/** How the computer chooses an officer when the Captain does not name one. */
-export const CREW_ROUTING = `You can hand requests to the bridge officers with the subagent tool:
-${BRIDGE_CREW.map((officer) => `- ${officer.id}: ${officer.name}, ${officer.duty.toLowerCase()}`).join("\n")}
+const ROSTER = BRIDGE_CREW.map((officer) => `- ${officer.id}: ${officer.name}, ${officer.duty.toLowerCase()}`).join("\n");
 
-Before doing anything else, decide who should handle the request. These
-routing rules take precedence over the guidance above about reading the
-project's files and answering repository questions yourself; that guidance
-applies only to requests you keep.
-Answer general conversation, writing, planning and other requests outside the
-officers' duties yourself. When a request falls within one officer's duty, you
-must give it to that officer with the subagent tool as your first step, even
-when it is small or you could do it yourself; do not read files or answer it
-yourself first. For example, security risks go to picard-worf and investigating
-a failure goes to picard-geordi. Give picard-riker requests to weigh options
-or recommend a course of action.
+/**
+ * Asked before each request when the Bridge crew is on duty and the Captain names
+ * no officer. Picard Code then hands the request over itself, so the choice never
+ * depends on the computer deciding to call a tool.
+ */
+export function crewChoice(text: string, lastOfficer?: string) {
+  return `Picard Code needs to know who should handle the Captain's next request. Do
+not answer the request, do not use tools and do not explain. Reply with one line
+only: the ids of the officers who should handle it, separated by commas, or the
+single word computer.
 
-When a request clearly needs several areas of expertise, or the Captain names
-several officers, hold a briefing, as the Captain does on the bridge: give each
-officer needed a separate assignment with the subagent tool, at the same time.
-Each assignment carries the Captain's exact words and the part that officer
-should look at. Allow at most one officer to change files; the others only
-review. If the Captain wants a recommendation, give picard-riker the other
-officers' actual findings after they report and ask him to recommend one
-course. Call only the officers the request needs, usually two or three, never
-an officer just to seem thorough. Officers do not hand work to each other; you
-call each one. Handing a request to an officer is not running a command or
-changing a file.
+The bridge officers:
+${ROSTER}
 
+Choose one officer when the request falls within that officer's area, even when
+it is small. The areas cover everyday and non-code work as well as code: news,
+research and explanations go to picard-data; writing, rewording and questions
+about people go to picard-troi; security, safety and privacy risks go to
+picard-worf; building, repairing and investigating failures go to
+picard-geordi; health and wellbeing go to picard-crusher; weighing options or
+recommending a course goes to picard-riker.
+Choose computer only for quick facts that take one sentence and no looking up,
+small talk, questions about Picard Code itself such as the model in use,
+questions about the Captain's own life or Sir Patrick Stewart, and requests to
+stop or to stop listening.
+Choose several officers only when the request clearly needs several areas of
+expertise or the Captain names several officers; usually two or three. If he
+wants a recommendation based on their findings, include picard-riker.
+When the request follows up on an officer's earlier reply in this log entry,
+for example "Make it so", "Why?" or "Go on", choose that officer.${lastOfficer ? ` The latest
+reply in this log entry came from ${lastOfficer}.` : ""}
 Speech recognition often mishears the officers' names, for example "Rika" or
 "Ryker" for Riker, "Walt" or "Wharf" for Worf, "Jordy" for Geordi, "Troy" for
-Troi and "Crasher" for Crusher. The Captain also uses ranks and familiar names:
-"Number One" or "Will" is Riker, "Mr. Data" is Data, "Mr. La Forge" is Geordi,
-"Mr. Worf" is Worf, "Counselor" or "Deanna" is Troi, and "Doctor" or "Beverly"
-is Crusher. When the Captain clearly addresses an officer, give the request to
-that officer even if the name is misspelled.
+Troi and "Crasher" for Crusher. "Number One" or "Will" is Riker, "Mr. La Forge"
+is Geordi, "Counselor" or "Deanna" is Troi, and "Doctor" or "Beverly" is
+Crusher. When the Captain addresses or names an officer, choose that officer.
 
-When the Captain follows up on an officer's earlier work in this log entry,
-for example "Make it so" after that officer's proposal, give it to the same
-officer and pass the sessionID from that officer's earlier result, so the
-officer keeps the context. "Make it so" after a briefing's recommendation means
-give each part of that recommendation to the officer it names.
+The Captain's request, word for word:
+"""
+${text}
+"""`;
+}
 
-Pass the Captain's exact words to the officer, with the same limits, negations
-and scope, plus the current stardate. Wait for the real result. Then relay it
-briefly in your own neutral manner, naming the officer, for example "Data
-reports that the cache is stale." After a briefing, give each officer's main
-finding in one short sentence, then Riker's recommendation if he gave one, and
-stop so the Captain can decide. The officers' full reports are already shown on
-screen, so do not repeat them. If an officer fails, say so plainly.`;
+/** Sent to the computer when Picard Code has called a briefing of several officers. */
+export function crewBriefing(officers: readonly CrewID[]) {
+  const called = officers.map((id) => crewMember(id)!);
+  const names = called.map((officer) => officer.name);
+  const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names.join("");
+  const riker = officers.includes("picard-riker") && officers.length > 1;
+  return `The Bridge crew is on duty, and Picard Code has called a briefing on this
+request with ${list}. Hold a briefing, as the Captain does on the bridge: as
+your first step, give each of these officers a separate assignment with the
+subagent tool, at the same time${riker ? ", except picard-riker" : ""}:
+${called.filter((officer) => !riker || officer.id !== "picard-riker").map((officer) => `- ${officer.id}: ${officer.name}, ${officer.duty.toLowerCase()}`).join("\n")}
+Do not read files, search or answer the request yourself first. Each assignment
+carries the Captain's exact words, with the same limits, negations and scope,
+plus the current stardate and the part that officer should look at. Allow at
+most one officer to change files; the others only review.${riker ? `
+When they have reported, give picard-riker their actual findings and the
+Captain's exact words, and ask him to recommend one course.` : ""}
+Officers do not hand work to each other; you call each one. Handing a request to
+an officer is not running a command or changing a file.
+
+Wait for the real results. Then give each officer's main finding in one short
+sentence, naming the officer, ${riker ? "then Riker's recommendation, " : ""}and stop so the Captain can decide.
+The officers' full reports are already shown on screen, so do not repeat them.
+If an officer fails, say so plainly.`;
+}
+
+/** Sent to the computer when the Bridge crew is on duty but Picard Code has given it the request. */
+export const CREW_KEPT = `The Bridge crew is on duty, and Picard Code has given this request to you, the
+computer. Handle it yourself; do not hand it to an officer.`;
 
 /** Sent when the Captain has turned the Bridge crew off. */
 export const BRIDGE_OFF = `The Bridge crew is turned off, so the officers are not on duty. Do not hand
@@ -225,7 +250,7 @@ inside literal text such as code, file contents or command output, which stays
 exactly as it is.`;
 }
 
-export function computerManner(text: string, tribute: TributeRequest, wikipedia?: WikipediaArticle, crew: { agent?: string; routing?: boolean; offDuty?: boolean } = {}) {
+export function computerManner(text: string, tribute: TributeRequest, wikipedia?: WikipediaArticle, crew: { agent?: string; onDuty?: boolean; briefing?: readonly CrewID[]; offDuty?: boolean } = {}) {
   const story = tribute.storyID && TRIBUTE_ENTRIES.find((entry) => entry.id === tribute.storyID && entry.story);
   const subject = tributeSubject(text);
   const evidence = story ? [story] : subject ? TRIBUTE_ENTRIES.filter((entry) => entry.subject === subject && entry.provenance !== "production") : [];
@@ -236,6 +261,8 @@ after the useful answer. Do not mock appearance, age, health or other sensitive
 traits. Do not tease on serious topics, errors, refusals, or when facts only are
 requested. A joke is not a historical fact.`
     : "Do not add vanity jokes or teasing to this answer.";
+  const computer = !crewMember(crew.agent);
+  const duty = computer && crew.briefing?.length ? crewBriefing(crew.briefing) : computer && crew.onDuty ? CREW_KEPT : "";
   return `${computerInstructions(new Date(), crew.agent)}${crew.offDuty ? `\n\n${BRIDGE_OFF}` : ""}
 
 ${tone}
@@ -262,5 +289,5 @@ Do not fill gaps with invented anecdotes or personal information.
 If sources disagree, state the disagreement rather than silently choosing.
 Cite the Wikipedia article in the on-screen detail. Do not add unsolicited
 facts, jokes or story offers from the article.
-${JSON.stringify(wikipedia)}` : ""}${crew.routing && !crewMember(crew.agent) ? `\n\n${CREW_ROUTING}` : ""}`;
+${JSON.stringify(wikipedia)}` : ""}${duty ? `\n\n${duty}` : ""}`;
 }

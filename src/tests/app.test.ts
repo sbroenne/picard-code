@@ -14,6 +14,7 @@ import type { AppOptions } from "../server/app.js";
 import { speechFixture } from "./speech-fixture.js";
 import { EARLIER_SPEECH_SETTINGS, saveSpeechSettings, speechSettingsFile } from "../server/speech.js";
 import { BRIDGE_CREW } from "../shared/crew.js";
+import { CREW_KEPT, crewBriefing } from "../server/instructions.js";
 
 async function setup(extra: Partial<AppOptions> = {}) {
   const temporary = await mkdtemp(resolve(".picard-test-"));
@@ -63,10 +64,34 @@ test("direct crew requests keep words and models unchanged; missing crew fails e
     assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text });
     assert.match(context.fixture.instructions.get(session.id)!["picard-manner"]!, new RegExp(`This reply is from ${officer.name}`));
   }
+  const generated = () => context.fixture.requests.filter((request) => request.path.endsWith("/generate"));
+  assert.equal(generated().length, 0, "an officer named by the Captain needs no officer check");
   const ordinary = await (await context.request("conversations", {})).json();
-  assert.equal((await context.request(`conversations/${ordinary.id}/send`, { text: "Computer, Walt, check this for risks.", providerID: "other-provider", modelID: "other" })).status, 202);
-  assert.equal(context.fixture.sessions.get(ordinary.id)?.agent, "build", "an unclear name stays with the computer, which may route it");
-  assert.match(context.fixture.instructions.get(ordinary.id)!["picard-manner"]!, /hold a briefing/);
+  context.fixture.crewChoices.push("picard-worf");
+  const misheard = "Computer, Walt, check this for risks.";
+  assert.equal((await context.request(`conversations/${ordinary.id}/send`, { text: misheard, providerID: "other-provider", modelID: "other" })).status, 202);
+  assert.ok(String(generated().at(-1)?.data.prompt).endsWith(`"""\n${misheard}\n"""`), "Picard Code asks who handles the Captain's exact words");
+  assert.equal(context.fixture.sessions.get(ordinary.id)?.agent, "picard-worf", "Picard Code hands a request for one officer to that officer");
+  assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text: misheard });
+  assert.match(context.fixture.instructions.get(ordinary.id)!["picard-manner"]!, /This reply is from Worf/);
+  while (context.fixture.active.has(ordinary.id)) await new Promise((resolve) => setTimeout(resolve, 20));
+  context.fixture.crewChoices.push("computer");
+  assert.equal((await context.request(`conversations/${ordinary.id}/send`, { text: "What is the capital of France?", providerID: "other-provider", modelID: "other" })).status, 202);
+  assert.match(String(generated().at(-1)?.data.prompt), /The latest\s+reply in this log entry came from Worf\./);
+  assert.equal(context.fixture.sessions.get(ordinary.id)?.agent, "build", "a request the computer keeps returns from the officer to the computer");
+  assert.ok(context.fixture.instructions.get(ordinary.id)!["picard-manner"]!.trimEnd().endsWith(CREW_KEPT));
+  const briefing = await (await context.request("conversations", {})).json();
+  context.fixture.crewChoices.push("picard-worf, picard-troi");
+  assert.equal((await context.request(`conversations/${briefing.id}/send`, { text: "Computer, look over the sign-in page.", providerID: "other-provider", modelID: "other" })).status, 202);
+  assert.equal(context.fixture.sessions.get(briefing.id)?.agent, "build", "the computer runs a briefing");
+  assert.ok(context.fixture.instructions.get(briefing.id)!["picard-manner"]!.trimEnd().endsWith(crewBriefing(["picard-worf", "picard-troi"])));
+  const unchosen = await (await context.request("conversations", {})).json();
+  const prompts = context.fixture.requests.filter((request) => request.path.endsWith("/prompt")).length;
+  context.fixture.crewChoices.push(null);
+  const failed = await context.request(`conversations/${unchosen.id}/send`, { text: "Computer, check this.", providerID: "other-provider", modelID: "other" });
+  assert.equal(failed.status, 502);
+  assert.match((await failed.json()).error, /^Could not decide which officer should handle this request\. .*The test model cannot be reached.* The request was not sent\.$/);
+  assert.equal(context.fixture.requests.filter((request) => request.path.endsWith("/prompt")).length, prompts, "nothing is sent when the officer check fails");
   const offDuty = await (await context.request("conversations", {})).json();
   assert.equal((await context.request(`conversations/${offDuty.id}/send`, { text: "Computer, Data, explain this.", providerID: "other-provider", modelID: "other" })).status, 202);
   assert.equal(context.fixture.sessions.get(offDuty.id)?.agent, "picard-data");
@@ -81,9 +106,11 @@ test("direct crew requests keep words and models unchanged; missing crew fails e
   const offManner = context.fixture.instructions.get(bridgeOff.id)!["picard-manner"]!;
   assert.match(offManner, /The Bridge crew is turned off/);
   assert.doesNotMatch(offManner, /picard-riker/);
+  const checks = generated().length;
   const unrouted = await (await context.request("conversations", {})).json();
   assert.equal((await context.request(`conversations/${unrouted.id}/send`, { text: "Computer, explain this.", providerID: "other-provider", modelID: "other" })).status, 202);
-  assert.doesNotMatch(context.fixture.instructions.get(unrouted.id)!["picard-manner"]!, /picard-riker/, "no routing is offered when the crew is not loaded");
+  assert.doesNotMatch(context.fixture.instructions.get(unrouted.id)!["picard-manner"]!, /picard-riker|Bridge crew is on duty/, "no officer is offered when the crew is not loaded");
+  assert.equal(generated().length, checks, "no officer check runs when the Bridge crew is off or not loaded");
   const session = await (await context.request("conversations", {})).json();
   const before = context.fixture.requests.filter((request) => request.path.endsWith("/prompt")).length;
   const response = await context.request(`conversations/${session.id}/send`, { text: "Computer, Data, explain this", providerID: "other-provider", modelID: "other" });

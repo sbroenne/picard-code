@@ -6,7 +6,7 @@ import { setTimeout as wait } from "node:timers/promises";
 import { startEngine, projectDirectory } from "../server/process.js";
 import { startApp } from "../server/app.js";
 import { availableModels } from "../server/engine.js";
-import { BRIDGE_CREW, crewMember, repeatsReport, type CrewID } from "../shared/crew.js";
+import { BRIDGE_CREW, crewMember, type CrewID } from "../shared/crew.js";
 import type { AppState, ChatMessage } from "../shared/types.js";
 
 const temporary = await mkdtemp(join(tmpdir(), "picard-crew-check-"));
@@ -63,32 +63,31 @@ try {
   };
   const text = (message?: ChatMessage) => message?.parts.filter((part) => part.type === "text").map((part) => part.text).join("").trim() ?? "";
   const CONTRACTION = /\b(?:\w+n['’]t|\w+['’](?:re|ve|ll|m|d)|(?:it|that|there|what|let|here|he|she|who)['’]s)\b/i;
-  const ordinary = await send("Computer, write one short sentence inviting a friend to visit a museum. Do not ask questions, use tools or change files.");
+  const ordinary = await send("Computer, what is the capital of France? Answer in one sentence. Do not ask questions, use tools or change files.");
   const ordinaryReply = ordinary.messages.findLast((message) => message.role === "assistant");
-  assert.equal(ordinaryReply?.speaker, undefined, "ordinary requests remain with the neutral computer");
-  assert.match(ordinaryReply?.parts.filter((part) => part.type === "text").map((part) => part.text).join("") ?? "", /museum/i);
-  assert.equal((await engine.client.sessions(project, ordinary.id)).length, 0, "an ordinary request must not be handed to an officer");
+  assert.equal(ordinaryReply?.speaker, undefined, "a quick fact remains with the neutral computer");
+  assert.match(ordinaryReply?.parts.filter((part) => part.type === "text").map((part) => part.text).join("") ?? "", /Paris/i);
+  assert.equal((await engine.client.sessions(project, ordinary.id)).length, 0, "a quick fact must not be handed to an officer");
+  // Picard Code picks the officer first and hands the request over; that officer answers in the log entry itself.
   const routed = async (request: string, expected: CrewID) => {
     const result = await send(request);
-    const children = await engine!.client.sessions(project, result.id);
-    const said = result.messages.filter((message) => message.role === "assistant").map((message) => message.parts.filter((part) => part.type === "text").map((part) => part.text).join("")).join("\n---\n");
-    assert.deepEqual(children.map((child) => child.agent), [expected], `"${request}" must go to exactly ${expected}. The computer said:\n${said}`);
-    const name = crewMember(expected)!.name;
-    const report = text(result.messages.findLast((message) => message.background && message.speaker === expected));
-    assert.ok(report, `${name} must report`);
-    const relay = result.messages.findLast((message) => message.role === "assistant" && !message.background);
-    assert.equal(relay?.speaker, undefined, "the computer relays the officer's answer");
-    // A word-for-word copy is hidden on screen and the report is spoken instead; any other relay names the officer.
-    if (!repeatsReport(text(relay), report, name)) assert.match(text(relay), new RegExp(name, "i"), `the computer's relay names ${name}`);
-    return children[0]!;
+    const reply = result.messages.findLast((message) => message.role === "assistant" && !message.background);
+    const said = result.messages.filter((message) => message.role === "assistant").map((message) => `${message.speaker ?? "computer"}: ${text(message)}`).join("\n---\n");
+    assert.equal(reply?.speaker, expected, `"${request}" must be answered by ${expected}. The log entry says:\n${said}`);
+    assert.equal(reply?.error, undefined);
+    assert.ok(text(reply), `${crewMember(expected)!.name} must answer`);
+    assert.equal((await engine!.client.sessions(project, result.id)).length, 0, `${crewMember(expected)!.name} answers directly and does not hand work on`);
+    return result;
   };
   const offDuty = await send("Computer, Worf, review example.ts for security risks. Do not change any files or run commands.", false);
   assert.equal((await engine.client.sessions(project, offDuty.id)).length, 0, "with the Bridge crew off, no officer is involved");
   assert.ok(offDuty.messages.filter((message) => message.role === "assistant").every((message) => message.speaker === undefined), "with the Bridge crew off, the computer answers");
   await routed("Computer, review example.ts for security risks. Do not change any files or run commands.", "picard-worf");
   await routed("Computer, Walt, is it risky to log the greeting name in example.ts? Do not change any files or run commands.", "picard-worf");
-  const routedRiker = await routed("Computer, Rika, should example.ts stay as one function or be split into two? Weigh both and recommend one. Do not change any files or run commands.", "picard-riker");
-  assert.equal((await engine.client.sessions(project, routedRiker.id)).length, 0, "Riker recommends; he does not hand work on");
+  // Everyday work outside code goes to the officer whose area it is in.
+  await routed("Computer, explain in two sentences why the sky looks blue. Do not change any files or run commands.", "picard-data");
+  await routed("Computer, write one short sentence inviting a friend to visit a museum. Do not ask questions, change any files or run commands.", "picard-troi");
+  await routed("Computer, Rika, should example.ts stay as one function or be split into two? Weigh both and recommend one. Do not change any files or run commands.", "picard-riker");
   const requests: Record<CrewID, { text: string; expected: RegExp }> = {
     "picard-riker": { text: "Rain is forecast. Recommend an indoor museum visit or an outdoor picnic, and give one reason.", expected: /museum|indoor/i },
     "picard-data": { text: "There are two red tickets and three blue tickets. How many tickets are there altogether?", expected: /\b5\b|five/i },
@@ -119,7 +118,8 @@ try {
   assert.equal(carried?.speaker, "picard-data", "the order goes to the officer who made the proposal");
   assert.match(text(carried), /museum/i, `"Make it so" must carry out the proposal. Data proposed:\n${proposed}\nand then said:\n${text(carried)}`);
   assert.notEqual(text(carried), proposed, `"Make it so" must write the invitation, not repeat the proposal:\n${text(carried)}`);
-  assert.doesNotMatch(text(carried), /\?\s*$/, `"Make it so" after a clear proposal is an order to act, not a reason to ask again:\n${text(carried)}`);
+  // The invitation itself may be a question, so look for asking the Captain again rather than any question mark.
+  assert.doesNotMatch(text(carried), /\b(?:shall I|should I|would you like me to|do you want me to|may I|please confirm)\b/i, `"Make it so" after a clear proposal is an order to act, not a reason to ask again:\n${text(carried)}`);
   // With nothing proposed, the order to proceed is a question, never a guess.
   const unclear = await api<{ id: string }>("conversations", {});
   roots.push(unclear.id);
@@ -147,7 +147,7 @@ try {
   assert.equal(summary?.speaker, undefined, "the computer gives the briefing summary");
   assert.match(text(summary), /Riker/i, `the summary includes Riker's recommendation:\n${text(summary)}`);
   assert.deepEqual((await readdir(project)).sort(), ["example.ts", "opencode.json"]);
-  console.log("Real crew check passed: neutral computer writing without routing, the computer answering an officer request with the Bridge crew off, automatic routing to Worf (also when misheard as Walt) and to Riker (misheard as Rika) with the officer's full report and a computer relay naming the officer, Riker recommending without handing work on, all six non-code officer replies in their own voices (Data without contractions, Worf brief, no exclamation marks), \"Make it so\" carrying out Data's proposal, an unclear \"Make it so\" answered with a question, an automatic briefing of Worf and Troi or Data, a full briefing in which the computer itself called all six officers with the selected model and none handed work on, and the computer's summary with Riker's recommendation. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
+  console.log("Real crew check passed: the neutral computer answering a quick fact itself, the computer answering an officer request with the Bridge crew off, Picard Code handing requests to Worf (also when misheard as Walt), to Data for an explanation, to Troi for writing and to Riker (misheard as Rika), each officer answering in the log entry without handing work on, all six non-code officer replies in their own voices (Data without contractions, Worf brief, no exclamation marks), \"Make it so\" carrying out Data's proposal, an unclear \"Make it so\" answered with a question, an automatic briefing of Worf and Troi or Data, a full briefing in which the computer itself called all six officers with the selected model and none handed work on, and the computer's summary with Riker's recommendation. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
 } finally {
   await app?.close();
   try {

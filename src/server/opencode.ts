@@ -166,6 +166,11 @@ export class OpenCode {
     return this.call<unknown>("POST", `/api/session/${encodeURIComponent(id)}/prompt`, { directory, body: { text } });
   }
 
+  /** One short answer from the log entry's context, without adding to it or using tools. */
+  async generate(id: string, directory: string, prompt: string) {
+    return (await this.call<{ data: { text: string } }>("POST", `/api/session/${encodeURIComponent(id)}/generate`, { directory, body: { prompt } })).data.text;
+  }
+
   interrupt(id: string, directory: string) {
     return this.call<unknown>("POST", `/api/session/${encodeURIComponent(id)}/interrupt`, { directory });
   }

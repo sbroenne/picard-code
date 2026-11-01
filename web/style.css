@@ -287,6 +287,25 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
   .voice-mark i:nth-child(5n) { animation-delay: 600ms !important; }
   @keyframes level { from { height: 10px; } to { height: 60px; } }
 }
+/* While a request runs, a line at the end of the conversation says so, and who is on it. */
+.working { max-width: 920px; margin: 0 auto 14px; padding: 10px 0 10px 22px; border-left: 8px solid var(--blue); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font: 500 18px/1.4 var(--lcars); letter-spacing: .04em; color: #d9d4ff; }
+.working[hidden] { display: none; }
+.working-mark { display: inline-flex; gap: 5px; }
+.working-mark i { width: 9px; height: 9px; border-radius: 50%; background: var(--blue); }
+.working-step { color: var(--muted); font-size: 16px; }
+.working-step:empty { display: none; }
+.console[data-working="true"][data-phase="standby"] .status { color: var(--blue); }
+.console[data-working="true"][data-phase="standby"] .voice-mark i { background: var(--blue); }
+/* A failed step the request recovered from stays readable, folded away. */
+.step-failures { max-width: 920px; margin: -6px 0 14px 30px; color: var(--muted); font-size: 14px; }
+.step-failures summary { cursor: pointer; font: 500 13px/1.4 var(--lcars); letter-spacing: .1em; text-transform: uppercase; }
+.step-failure { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: no-preference) {
+  .working-mark i { animation: idle 900ms ease-in-out infinite alternate; }
+  .working-mark i:nth-child(2) { animation-delay: 300ms; }
+  .working-mark i:nth-child(3) { animation-delay: 600ms; }
+  .console[data-working="true"][data-phase="standby"] .voice-mark i { animation: level 1800ms ease-in-out infinite alternate; }
+}
 /* An officer's report keeps a narrower peach bar; reports for the latest request are shown in full. */
 .message.crew-report { border-left-color: var(--peach); border-left-width: 4px; }
 .message.current.crew-report .message-text { font-size: 18px; }

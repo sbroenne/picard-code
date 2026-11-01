@@ -112,19 +112,31 @@ When a question from OpenCode is waiting with exactly one plain yes answer
 (such as "Yes" or "Proceed"), saying "Make it so" or "Engage" chooses it.
 Approvals are never answered by voice, including by these orders.
 
-You do not have to name an officer. When you don't, the computer decides: it
-answers ordinary requests itself, hands a clear specialist request to the right
-officer (for example a security question to Worf), and holds a briefing when
-work needs several officers. It then tells you briefly what the officer found,
-such as "Data reports the cache is stale."; the officer's full report stays on
-screen. If the computer only copies the report word for word, the copy is not
-shown and the report itself is spoken. The computer also recognises common
-mishearings, such as "Rika" for Riker or "Walt" for Worf. Each hand-over makes
-an extra model request.
+You do not have to name an officer. When you don't, Picard Code first asks the
+selected model, in a quick separate check, who should handle the request, and
+then hands it over itself. This check adds nothing to the log entry, usually
+takes a second or two, and makes one small extra model request. If it fails,
+the request is not sent and the real error is shown. Each officer has an area,
+and everyday work outside code belongs to it too:
 
-An explicit officer address at the start always selects that officer directly;
-mentioning Data or saying "do not ask Data" does not. Follow-ups stay with that
-officer in the same log entry.
+- Riker: plans, decisions, options and recommendations.
+- Data: research, news, history, science and explanations.
+- Geordi: building, fixing, setting things up and investigating failures.
+- Worf: security, safety, privacy and risks.
+- Troi: writing, clarity and usability, and questions about people and feelings.
+- Crusher: health, wellbeing, reliability and recovery.
+
+The computer keeps only quick facts it can give in a sentence, small talk,
+questions about Picard Code itself, and questions about the Captain or Sir
+Patrick Stewart. A request in one officer's area goes to that officer, who
+answers you directly in the log entry, just as if you had named them. A request
+that needs several officers becomes a briefing, run by the computer. The check
+also recognises common mishearings, such as "Rika" for Riker or "Walt" for
+Worf, and sends a follow-up such as "Make it so" back to the officer who just
+answered.
+
+An explicit officer address at the start always selects that officer directly,
+without the check; mentioning Data or saying "do not ask Data" does not.
 
 A briefing works as it does on the bridge. The computer calls each officer the
 work needs, usually two or three, never the whole crew by default. Each officer
@@ -132,7 +144,9 @@ reports to you directly, and at most one of them may change files. If you want
 a recommendation, Riker weighs their findings and recommends one course. The
 computer then gives each officer's main finding in a sentence, followed by
 Riker's recommendation, and you decide; "Make it so" carries out that
-recommendation. Officers do not hand work to each other. When one needs a
+recommendation. Each officer's full report stays on screen; if the computer
+only copies a report word for word, the copy is not shown and the report itself
+is spoken. Officers do not hand work to each other. When one needs a
 colleague, they name the officer and you can call them. Each officer called
 makes an extra model request and can increase cost.
 
@@ -151,7 +165,7 @@ you say **Belay that**. If the crew cannot be loaded (see below), the computer
 also answers everything itself, and naming an officer reports why.
 
 Everyone uses the selected model and the existing speech service and voice.
-Only the directly addressed officer's final answer or the computer's brief
+Only the answering officer's final answer or the computer's brief briefing
 summary is spoken; background reports stay on screen. There are no actor imitations,
 lasting shared crew memory or automatic issue watching.
 
@@ -175,8 +189,10 @@ permission rules. Naming an officer then reports that the crew is unavailable.
 `npm run test:crew:live` checks real officer replies and a few measurable voice
 habits (no exclamation marks, Data without contractions, Worf brief), "Make it
 so" carrying out an officer's own proposal, an unclear "Make it so" answered
-with a question, automatic routing (including misheard names) and real
-briefings in which the computer calls each officer itself. It cannot judge whether an officer sounds right; that needs
+with a question, a quick fact kept by the computer, requests handed to the
+right officer without naming them (including misheard names, an explanation to
+Data and writing to Troi) and real briefings in which the computer calls each
+officer itself. It cannot judge whether an officer sounds right; that needs
 you. It makes model requests, may incur provider charges, and never
 answers an approval itself. It does not check a physical microphone or speakers.
 
@@ -210,8 +226,15 @@ question or approval waiting for you, and the computer console with one large
 status (for example Standing by, Listening, Understanding, Working, Speaking
 or Decision needed) and a line saying what to do next. The console also holds
 **Stop speaking** and **Belay that** when they apply, and the microphone
-button; the row of lights beside it shows listening. The latest request and reply are shown
-large; earlier messages are smaller. The header shows only the name and the
+button; the row of lights beside it shows listening, and turns blue and moves
+while work runs. While the request runs, a line at the end of the conversation
+also says so and who is on it, such as "Data is working on it.", with what is
+happening now when OpenCode reports it, such as "Searching the web.". It shows
+only while OpenCode reports the work as running. If a step fails along the way
+but the request carries on, such as a web page that refuses access, it is
+folded into a small "1 step did not work" note; open it to read the exact
+error. A reply that ends without an answer still shows its errors in full.
+The latest request and reply are shown large; earlier messages are smaller. The header shows only the name and the
 tribute badge. Like the ship's computer, there are no entry names or
 modes on the main screen.
 
@@ -808,6 +831,5 @@ does not include file attachments, a full file editor, or package publication.
 ## Developing Picard Code
 
 - [AGENTS.md](AGENTS.md): rules for people and coding agents changing this repository.
-- [Continuing on another computer](docs/CONTINUING.md): setup, checks and open work.
 - [Conversation research](docs/research/conversation-research.md) and
   [voice and conversation direction](docs/research/voice-and-conversation-direction.md).

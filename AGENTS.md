@@ -1,8 +1,7 @@
 # Working on Picard Code
 
 Rules for people and coding agents who change this repository. Read
-[README.md](README.md) for what the app does and how to run it, and
-[docs/CONTINUING.md](docs/CONTINUING.md) to set up another computer.
+[README.md](README.md) for what the app does and how to run it.
 
 ## What this is
 

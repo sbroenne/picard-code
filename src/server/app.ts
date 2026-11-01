@@ -7,11 +7,11 @@ import { chatMessages, availableModels, errorMessage } from "./engine.js";
 import { partID } from "./history.js";
 import type { OpenCode, OpenCodeEvent, SessionInfo } from "./opencode.js";
 import { projectDirectory } from "./process.js";
-import { computerManner } from "./instructions.js";
+import { computerManner, crewChoice } from "./instructions.js";
 import { checkTributeRequest, explicitStorySubject, storyAcceptance, tributeSubject } from "../shared/tribute.js";
 import { TRIBUTE_ENTRIES } from "../shared/tribute-data.js";
 import { wikipediaReader, type WikipediaArticle } from "./wikipedia.js";
-import { addressedOfficer, crewMember } from "../shared/crew.js";
+import { addressedOfficer, chosenCrew, crewMember, type CrewID } from "../shared/crew.js";
 import { requireCrew, verifiedCrew } from "./crew.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechService } from "./speech-types.js";
@@ -531,18 +531,24 @@ export async function startApp(options: AppOptions) {
               try { wikipedia = await readWikipedia(subject); }
               catch (error) { throw new HttpError(502, `${errorMessage(error)} The request was not sent. Try again when Wikipedia is available.`); }
             }
-            // With the Bridge crew off, every request goes to the computer, including follow-ups in an officer's log entry.
             const officer = bridge ? addressedOfficer(text) : undefined;
             if (bridge && (officer || crewMember(session.agent))) await requireCrew(client, project);
-            if (officer && session.agent !== officer.id) await client.setAgent(id, project, officer.id);
-            if (!bridge && crewMember(session.agent)) await client.setAgent(id, project, "build");
-            if (session.title === "New log entry" || session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
             if (session.model?.id !== modelID || session.model.providerID !== providerID) await client.setModel(id, project, { id: modelID, providerID });
+            // When the Captain names no officer, Picard Code itself asks who should handle the request and hands it
+            // over, instead of relying on the computer to decide to call an officer. This needs the crew really loaded.
+            const onDuty = bridge && !officer && verifiedCrew(await client.agents(project));
+            let chosen: CrewID[] = [];
+            if (onDuty) {
+              try { chosen = chosenCrew(await client.generate(id, project, crewChoice(text, crewMember(session.agent)?.name))); }
+              catch (error) { throw new HttpError(502, `Could not decide which officer should handle this request. ${errorMessage(error)} The request was not sent.`); }
+            }
+            // One officer answers in the log entry; several meet in a briefing that the computer runs.
+            // With the Bridge crew off, every request goes to the computer, including follow-ups in an officer's log entry.
+            const agent = !bridge ? "build" : officer?.id ?? (chosen.length === 1 ? chosen[0]! : crewMember(session.agent) ? "build" : session.agent);
+            if (agent && session.agent !== agent) await client.setAgent(id, project, agent);
+            if (session.title === "New log entry" || session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
             // Picard Code's conversation manner travels with the conversation, not as a file in the project.
-            const agent = bridge ? officer?.id ?? session.agent : "build";
-            // The computer routes to officers only when the Bridge crew is on and the crew is really loaded.
-            const routing = bridge && !crewMember(agent) && verifiedCrew(await client.agents(project));
-            await client.setInstructions(id, project, "picard-manner", computerManner(text, tribute, wikipedia, { agent, routing, offDuty: !bridge }));
+            await client.setInstructions(id, project, "picard-manner", computerManner(text, tribute, wikipedia, { agent, onDuty, briefing: chosen.length > 1 ? chosen : undefined, offDuty: !bridge }));
             await client.prompt(id, project, text);
             json(response, 202, { accepted: true, ...(wikipedia ? { reference: { title: wikipedia.title, url: wikipedia.url } } : {}) });
             return;

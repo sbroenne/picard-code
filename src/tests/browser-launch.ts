@@ -13,6 +13,7 @@ const fixture = await startFixture(project);
 // so most end in silence ("").
 const phrases = process.argv.includes("--crew") ? ["Computer, have Data and Geordi look at the repair", ""]
   : process.argv.includes("--officer") ? ["Computer, I wanted to have an answer from Data", ""]
+  : process.argv.includes("--news") ? ["Computer, get the news from Data", ""]
   : process.argv.includes("--tribute") ? ["Computer, multi-message answer", "Hello again", "Another answer", "One more answer", "Keep going", "The last answer", ""]
   : process.argv.includes("--picard") ? ["Computer, tell me about myself", "Yes, please.", ""]
   : process.argv.includes("--picard-decline") ? ["Computer, tell me about myself", "Not now", ""]
