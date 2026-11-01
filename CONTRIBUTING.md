@@ -93,6 +93,14 @@ explain the user-facing difference and the checks you ran.
 Screenshots of stand-ins must be labeled. New speech services need license,
 data-flow, setup, error, and cancellation documentation.
 
+### Release notes
+
+If people using Picard Code will notice your change, add a release note: run
+`npx changeset`, choose **patch**, and write one or two plain sentences about
+what changed for them. Commit the new file in `.changeset/` with your change.
+**Minor** is kept for a major redesign the maintainer chooses; never choose
+**major**. Changes only to tests, checks or contributor docs need no note.
+
 ## Review and AI assistance
 
 Copilot and other coding tools are welcome. Read their changes yourself and
