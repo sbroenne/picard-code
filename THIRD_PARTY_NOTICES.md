@@ -42,13 +42,15 @@ does not grant permission to remove notices or bypass redistribution terms.
 
 ## Computer sounds
 
-Picard Code automatically downloads four short sound files from
+Picard Code automatically downloads five short sound files from
 [TrekCore](https://www.trekcore.com/audio/) into the ignored `.picard-sounds`
 folder on first startup. `npm run setup:sounds` can also check and download
 them. The project owner chose the existing three computer sounds and confirmed
 permission to use those files. The added startup call is listed by TrekCore
 as “Hail All Ship” under Next Generation Era Computer Sounds; it is not
 claimed to be the exact recording from Picard's arrival ceremony.
+The owner also confirmed permission for the additional “TNG Tricorder Open”
+recording used to announce new automatic tribute facts.
 These recordings are not covered by this project's license, are not
 redistributed in this repository, and no license or redistribution permission
 is granted here.
@@ -59,6 +61,7 @@ is granted here.
 | A spoken request was accepted | https://www.trekcore.com/audio/computer/computer_work_beep.mp3 |
 | Speech was not understood or could not be sent | https://www.trekcore.com/audio/computer/input_failed_clean.mp3 |
 | An accepted request finally failed or was denied | https://www.trekcore.com/audio/computer/denybeep1.mp3 |
+| A new automatic tribute fact, after the spoken answer finishes | https://www.trekcore.com/audio/tricorder/tng_tricorder_open.mp3 |
 
 ## Hosted services
 

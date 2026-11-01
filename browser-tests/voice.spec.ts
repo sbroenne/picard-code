@@ -2,12 +2,14 @@ import { test, expect } from "@playwright/test";
 import { mkdir, writeFile, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { spawn } from "node:child_process";
+import { TRIBUTE_ENTRIES } from "../src/shared/tribute-data";
+import { formatStardate } from "../src/shared/stardate";
 
 const folder = resolve(`.picard-test-voice-audio-${process.pid}`);
 const microphoneFile = join(folder, "utterance.wav");
 const soundFolder = join(folder, "sounds");
 // Silent stand-ins for the downloaded sounds; each has its own length so the test can tell them apart.
-const SOUND_LENGTHS = { startup: 0.2, "request-accepted": 0.3, "input-failed": 0.4, "request-failed": 0.6 };
+const SOUND_LENGTHS = { startup: 0.2, "request-accepted": 0.3, "input-failed": 0.4, "request-failed": 0.6, "tribute-fact": 0.5 };
 // Simulated speaker output keeps the browser's audio clock running even when this computer's real speakers are unavailable.
 test.use({ permissions: ["microphone"], launchOptions: { args: [
   "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--disable-audio-output",
@@ -39,7 +41,20 @@ async function launch(page: import("@playwright/test").Page, mode?: "approval" |
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
     const plays: string[] = [];
-    Object.assign(window, { acceptedSounds: plays });
+    const timeline: { name: string; at: number; end: number; capture: boolean }[] = [];
+    let capture = false;
+    Object.assign(window, { acceptedSounds: plays, audioTimeline: timeline });
+    const node = window.AudioWorkletNode;
+    window.AudioWorkletNode = class extends node {
+      constructor(...args: ConstructorParameters<typeof AudioWorkletNode>) {
+        super(...args);
+        const post = this.port.postMessage.bind(this.port);
+        this.port.postMessage = (message: unknown) => {
+          if (typeof message === "boolean") capture = message;
+          post(message);
+        };
+      }
+    };
     const decode = BaseAudioContext.prototype.decodeAudioData;
     BaseAudioContext.prototype.decodeAudioData = async function (this: BaseAudioContext, data: ArrayBuffer) {
       const buffer = await decode.call(this, data);
@@ -49,10 +64,12 @@ async function launch(page: import("@playwright/test").Page, mode?: "approval" |
     const start = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<typeof start>) {
       const buffer = this.buffer;
+      let name = "speech";
       if (buffer && decoded.has(buffer)) {
-        const name = Object.entries(lengths).find(([, seconds]) => Math.abs(seconds - buffer.duration) < 0.02)?.[0];
+        name = Object.entries(lengths).find(([, seconds]) => Math.abs(seconds - buffer.duration) < 0.02)?.[0] ?? "unknown";
         plays.push(`${name}: ${document.querySelector("#status")?.textContent ?? ""}`);
       }
+      if (buffer) timeline.push({ name, at: this.context.currentTime, end: Math.max(args[0] ?? 0, this.context.currentTime) + buffer.duration, capture });
       return start.apply(this, args);
     };
   }, SOUND_LENGTHS);
@@ -222,12 +239,16 @@ test("the arrival call waits for a click and works before speech is set up", asy
     await page.addInitScript(() => {
       const NativeAudioContext = window.AudioContext;
       window.AudioContext = class extends NativeAudioContext {
+        private suspended: Promise<void>;
         constructor(options?: AudioContextOptions) {
           super(options);
-          void this.suspend();
+          this.suspended = this.suspend();
+        }
+        override get state() {
+          return navigator.userActivation.hasBeenActive ? super.state : "suspended";
         }
         override resume() {
-          return navigator.userActivation.hasBeenActive ? super.resume() : Promise.resolve();
+          return navigator.userActivation.hasBeenActive ? this.suspended.then(() => super.resume()) : Promise.resolve();
         }
       };
     });
@@ -235,7 +256,7 @@ test("the arrival call waits for a click and works before speech is set up", asy
     const played = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds);
     expect(await played()).toEqual([]);
     await page.locator("#voice-console").click();
-    await expect.poll(played).toEqual(["startup: Ready"]);
+    await expect.poll(played).toEqual(["startup: Standing by"]);
     await expect(page.locator("#voice-setup-hint")).toBeVisible();
   } finally { await browser.close(); }
 });
@@ -310,10 +331,17 @@ test("facts vary within one log, are separate from copied answers, and the navig
   await expect(page.locator(".tribute-fact a").first()).toHaveAttribute("href", /^https:/);
   const latestFact = page.locator(".tribute-fact").last();
   await expect(latestFact).toBeInViewport();
-  await expect(latestFact).toHaveCSS("border-left-width", "8px");
-  await expect(latestFact).toHaveCSS("background-color", "rgb(32, 24, 35)");
+  await expect(latestFact.locator(".tribute-record-body")).toHaveCSS("border-left-width", "14px");
+  await expect(latestFact).toHaveCSS("background-color", "rgb(0, 0, 0)");
   await expect(latestFact).toHaveCSS("color", "rgb(242, 230, 218)");
-  await expect(latestFact.locator("strong")).toHaveCSS("font-size", "18px");
+  await expect(latestFact.getByRole("heading", { name: "Jean-Luc Picard", exact: true })).toHaveCSS("font-size", "24px");
+  await expect(latestFact.locator(".tribute-record-title small")).toHaveText("Personnel file");
+  await expect(latestFact.locator(".tribute-record-bars")).toHaveAttribute("aria-hidden", "true");
+  const date = await latestFact.locator(".tribute-stardate").textContent();
+  await latestFact.locator("a").focus();
+  await expect(latestFact.locator("a")).toBeFocused();
+  await expect(latestFact.locator(".tribute-stardate")).toHaveText(date!);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("tribute-fact.png"), fullPage: true });
   expect(spoken.some((text) => text.startsWith("Picard fact."))).toBe(false);
   await page.evaluate(() => {
@@ -334,7 +362,43 @@ test("facts vary within one log, are separate from copied answers, and the navig
   await expect(page.locator(".tribute-fact")).toHaveCount(0);
 });
 
-test("optional fact speech starts after the buffered answer ends", async ({ page }) => {
+for (const subject of ["picard", "stewart"] as const) {
+test(`${subject} facts have LCARS headings and a real, stable Stardate`, async ({ page }, testInfo) => {
+  const shownAt = new Date("2026-11-01T06:00:00Z");
+  await page.clock.setFixedTime(shownAt);
+  await page.addInitScript((seen) => {
+    Math.random = () => 0;
+    localStorage.setItem("picard-tribute-seen", JSON.stringify(seen));
+  }, subject === "stewart" ? TRIBUTE_ENTRIES.filter((entry) => entry.subject === "Picard").map((entry) => entry.id) : []);
+  await launch(page, "tribute");
+  await startListening(page);
+  const fact = page.locator(`.tribute-fact[data-subject="${subject}"]`);
+  await expect(fact).toHaveCount(1, { timeout: 20000 });
+  await expect(fact.getByRole("heading")).toHaveText(subject === "picard" ? "Jean-Luc Picard" : "Sir Patrick Stewart");
+  await expect(fact.locator(".tribute-record-title small")).toHaveText(subject === "picard" ? "Personnel file" : "All the world’s a stage");
+  await expect(fact.locator(".tribute-record-body")).toHaveCSS("border-left-color", subject === "picard" ? "rgb(204, 153, 204)" : "rgb(255, 204, 153)");
+  const date = `Stardate ${formatStardate(shownAt)}`;
+  await expect(fact.locator(".tribute-stardate")).toHaveText(date);
+  await page.getByRole("switch", { name: "Tribute", exact: true }).uncheck();
+  await page.clock.setFixedTime(new Date("2026-11-02T06:00:00Z"));
+  await page.getByRole("switch", { name: "Tribute", exact: true }).check();
+  await expect(fact.locator(".tribute-stardate")).toHaveText(date);
+  await fact.locator("a").focus();
+  await expect(fact.locator("a")).toBeFocused();
+  await expect(fact.locator("a")).toHaveAttribute("href", /^https:/);
+  await page.screenshot({ path: testInfo.outputPath(`${subject}-record.png`), fullPage: true });
+  await page.setViewportSize({ width: 1000, height: 900 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const bounds = await fact.boundingBox();
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(1000);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await page.reload();
+  await expect(page.locator(".tribute-fact")).toHaveCount(0);
+  expect((await sounds(page)).some((sound) => sound.startsWith("tribute-fact:"))).toBe(false);
+});
+}
+
+test("a fact cue follows actual playback once, without listening or speaking the fact, even with the old preference", async ({ page }) => {
   await page.addInitScript(() => {
     Math.random = () => 0;
     localStorage.setItem("picard-tribute-spoken", "true");
@@ -348,15 +412,74 @@ test("optional fact speech starts after the buffered answer ends", async ({ page
   }));
   await launch(page, "tribute");
   await startListening(page);
-  await expect.poll(() => sent.some((item) => item.text.startsWith("Picard fact.")), { timeout: 20000 }).toBe(true);
-  const index = sent.findIndex((item) => item.text.startsWith("Picard fact."));
-  expect(index).toBe(2);
-  expect(sent[index]!.at - sent[index - 1]!.at).toBeGreaterThanOrEqual(1000);
+  await expect.poll(async () => (await sounds(page)).filter((sound) => sound.startsWith("tribute-fact:")).length, { timeout: 20000 }).toBe(1);
   await expect(page.locator(".tribute-fact")).toHaveCount(1);
+  expect(sent).toHaveLength(2);
+  expect(sent.some((item) => /^(Picard|Patrick Stewart) fact\./.test(item.text))).toBe(false);
+  const timeline = await page.evaluate(() => (window as unknown as {
+    audioTimeline: { name: string; at: number; end: number; capture: boolean }[];
+  }).audioTimeline);
+  const cueIndex = timeline.findIndex((item) => item.name === "tribute-fact");
+  const cue = timeline[cueIndex]!;
+  expect(cue.at).toBeGreaterThanOrEqual(Math.max(...timeline.slice(0, cueIndex).filter((item) => item.name === "speech").map((item) => item.end)));
+  expect(cue.capture).toBe(false);
+  await expect(status(page)).toHaveText("Standing by", { timeout: 5000 });
+  await page.getByRole("switch", { name: "Tribute", exact: true }).uncheck();
+  await page.getByRole("switch", { name: "Tribute", exact: true }).check();
+  expect((await sounds(page)).filter((sound) => sound.startsWith("tribute-fact:"))).toHaveLength(1);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
-test("turning Tribute off cancels the optional tail without cutting off the answer", async ({ page }) => {
+test("turning Tribute off during its cue stops that cue and returns to listening", async ({ page }) => {
+  await page.addInitScript(() => { Math.random = () => 0; });
+  await launch(page, "tribute");
+  await startListening(page);
+  await expect.poll(async () => (await sounds(page)).some((sound) => sound.startsWith("tribute-fact:")), { timeout: 20000 }).toBe(true);
+  await page.getByRole("switch", { name: "Tribute", exact: true }).uncheck();
+  await expect(status(page)).toHaveText("Standing by", { timeout: 5000 });
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("a missing tribute sound is reported and never replaced by automatic fact speech", async ({ page }) => {
+  await page.addInitScript(() => {
+    Math.random = () => 0;
+    localStorage.setItem("picard-tribute-spoken", "true");
+  });
+  await page.route("**/api/sounds/tribute-fact", (route) => route.fulfill({ status: 404, body: "This sound is not set up." }));
+  const spoken = spokenText(page);
+  await launch(page, "tribute");
+  await expect(page.getByText("The tribute-fact sound could not be loaded: HTTP 404. Restart Picard Code to check and download its sounds.", { exact: true })).toBeVisible();
+  await startListening(page);
+  await expect(page.locator(".tribute-fact")).toHaveCount(1, { timeout: 20000 });
+  await expect(status(page)).toHaveText("Standing by", { timeout: 5000 });
+  expect((await sounds(page)).some((sound) => sound.startsWith("tribute-fact:"))).toBe(false);
+  expect(spoken.some((text) => /^(Picard|Patrick Stewart) fact\./.test(text))).toBe(false);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("Tribute off discards a cue whose sound is still loading", async ({ page }) => {
+  await page.addInitScript(() => { Math.random = () => 0; });
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/sounds/tribute-fact", async (route) => {
+    await ready;
+    await route.continue();
+  });
+  await launch(page, "tribute");
+  await startListening(page);
+  await expect(page.locator(".tribute-fact")).toHaveCount(1, { timeout: 20000 });
+  // All buffered answer audio has ended, but the cue is still waiting for its file.
+  await expect(page.locator("#status-detail")).toHaveText("A new tribute fact is on screen.", { timeout: 5000 });
+  await page.getByRole("switch", { name: "Tribute", exact: true }).uncheck();
+  const loaded = page.waitForResponse("**/api/sounds/tribute-fact");
+  release();
+  await loaded;
+  await expect(status(page)).toHaveText("Standing by", { timeout: 5000 });
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  expect((await sounds(page)).some((sound) => sound.startsWith("tribute-fact:"))).toBe(false);
+});
+
+test("turning Tribute off cancels the pending cue without cutting off the answer", async ({ page }) => {
   await page.addInitScript(() => {
     Math.random = () => 0;
     localStorage.setItem("picard-tribute-spoken", "true");
@@ -370,6 +493,7 @@ test("turning Tribute off cancels the optional tail without cutting off the answ
   await expect(page.getByRole("button", { name: "Stop speaking", exact: true })).toBeVisible();
   await expect(status(page)).toHaveText("Standing by", { timeout: 10000 });
   expect(spoken.some((text) => text.startsWith("Picard fact."))).toBe(false);
+  expect((await sounds(page)).some((sound) => sound.startsWith("tribute-fact:"))).toBe(false);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
@@ -421,6 +545,7 @@ for (const action of ["Stop speaking", "New log entry", "Settings", "Microphone 
     // The fake speaking service emits ten buffers, totalling one second of playback.
     await page.waitForTimeout(1600);
     expect(spoken.some((text) => text.startsWith("Picard fact."))).toBe(false);
+    expect((await sounds(page)).some((sound) => sound.startsWith("tribute-fact:"))).toBe(false);
     if (action !== "Microphone off" && action !== "Settings") await page.getByRole("button", { name: "Switch microphone off" }).click();
   });
 }
