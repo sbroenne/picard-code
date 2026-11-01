@@ -70,7 +70,19 @@ Fork the repository, create a branch, and follow
 [Run from source](README.md#run-from-source). Use your own OpenCode sign-in and speech resources.
 OpenCode 2 is required; `npm install` brings the tested copy.
 
-Before each commit, run:
+Before each commit, choose the checks that match the change.
+For changes only to documentation, the project website (`site/`), or
+`browser-tests/site.spec.ts`, run:
+
+```sh
+npx playwright test browser-tests/site.spec.ts
+```
+
+This checks desktop and phone layouts and documentation links without building
+or testing the app. Release note text can accompany these changes.
+
+For app code, dependencies, setup scripts, check configuration, or any other
+files, run the full checks:
 
 ```sh
 npm run check
@@ -78,6 +90,11 @@ npm run build
 npm test
 npx playwright test
 ```
+
+Changes to the changed-file rules also need
+`node --test .github/scripts/check-scope.test.mjs`.
+GitHub follows the same split; manual runs always use full checks.
+See [AGENTS.md](AGENTS.md#checks) for the rules.
 
 If Chromium is missing, run `npx playwright install chromium`. Windows users
 should use `npm.cmd` for commands with `--` arguments.

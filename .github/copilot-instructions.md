@@ -11,5 +11,5 @@ repository. In short:
 - Do not commit show recordings, models, samples or local settings; downloads and settings live in `~/.picard-code`.
 - Never publish to npm; only the owner does, through a GitHub release.
 - For a change users will notice, add a release note with `npx changeset` (patch, never major).
-- Before committing, run `npm run check`, `npm run build`, `npm test` and `npx playwright test`.
+- Before committing, use the checks in AGENTS.md: website tests for documentation and website-only changes; full checks for app, setup, dependency and check configuration changes.
 - Maintainers and coding agents: before opening a pull request, review the complete branch diff with the `ponytail-review` skill.

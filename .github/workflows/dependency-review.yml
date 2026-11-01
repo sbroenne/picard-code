@@ -2,6 +2,11 @@ name: Dependency review
 
 on:
   pull_request:
+    paths:
+      - "**/package.json"
+      - "**/package-lock.json"
+      - "**/npm-shrinkwrap.json"
+      - .github/workflows/dependency-review.yml
 
 permissions:
   contents: read

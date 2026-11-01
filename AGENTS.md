@@ -150,7 +150,18 @@ never instead of the written or spoken explanation:
 
 ## Checks
 
-Run these before every commit (Windows: use `npm.cmd` when passing `--` options):
+For changes only to documentation, the project website (`site/`), or
+`browser-tests/site.spec.ts`, run `npx playwright test browser-tests/site.spec.ts`
+before committing. This checks the website at desktop and phone widths and
+its documentation links, without building or testing the app. Release note
+text in `.changeset/*.md` can accompany these changes.
+Documentation here means root-level Markdown files, `LICENSE`, `docs/`,
+`.github/copilot-instructions.md`, `.github/PULL_REQUEST_TEMPLATE.md` and
+`.github/ISSUE_TEMPLATE/`. Other paths still need full checks.
+
+For all other changes, including app code, dependencies, setup scripts and
+check configuration, run these before committing (Windows: use `npm.cmd`
+when passing `--` options):
 
 ```sh
 npm run check
@@ -158,6 +169,13 @@ npm run build
 npm test
 npx playwright test
 ```
+
+When changing the changed-file rules, also run
+`node --test .github/scripts/check-scope.test.mjs`.
+GitHub uses the same split for pull requests and pushes to main. The required
+server checks are skipped for documentation and website changes; the required
+browser check runs only the website tests. Unknown paths and manual runs use
+the full checks. A failed changed-file check blocks merging.
 
 The browser checks use a labeled test stand-in for OpenCode, a fake
 microphone and silent stand-in sounds. When you change OpenCode, speech or conversation behavior, also run the
