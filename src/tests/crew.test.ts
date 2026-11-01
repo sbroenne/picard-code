@@ -1,11 +1,32 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BRIDGE_CREW, chosenCrew, addressedOfficer, repeatsReport } from "../shared/crew.js";
-import { crewConfiguration, verifiedCrew } from "../server/crew.js";
-import type { AgentInfo, PermissionRule } from "../server/opencode.js";
+import { crewConfiguration, loadedAgents, verifiedCrew } from "../server/crew.js";
+import { OpenCode, type AgentInfo, type PermissionRule } from "../server/opencode.js";
 import { chatMessages } from "../server/history.js";
 import { CAPTAINS_ORDERS, COMPUTER_MANNER, CREW_KEPT, computerInstructions, computerManner, crewBriefing, crewChoice } from "../server/instructions.js";
 import { crewInstructions } from "../server/crew.js";
+
+test("startup and reload wait for real agents without swallowing errors or cancellation", async () => {
+  const permissions: PermissionRule[] = [{ action: "edit", resource: "*", effect: "ask" }];
+  const build: AgentInfo = { id: "build", mode: "primary", permissions };
+  const crew: AgentInfo[] = [
+    build,
+    ...Object.entries(crewConfiguration(permissions).agents).map(([id, agent]): AgentInfo => ({ ...agent, id, mode: "all", permissions })),
+  ];
+  const client = new OpenCode("http://127.0.0.1:1", "test");
+  let calls = 0;
+  client.agents = async () => ++calls === 1 ? [] : [build];
+  assert.deepEqual(await loadedAgents(client, "."), [build]);
+  assert.equal(calls, 2);
+  calls = 0;
+  client.agents = async () => ++calls === 1 ? [build] : crew;
+  assert.deepEqual(await loadedAgents(client, ".", true), crew);
+  assert.equal(calls, 2);
+  client.agents = async () => { throw new Error("The agent request failed."); };
+  await assert.rejects(loadedAgents(client, "."), /The agent request failed/);
+  await assert.rejects(loadedAgents(client, ".", false, AbortSignal.abort()), { name: "AbortError" });
+});
 
 test("only explicit officer addresses select crew, without changing the user's words", () => {
   for (const officer of BRIDGE_CREW) {

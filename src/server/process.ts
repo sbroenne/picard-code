@@ -7,7 +7,7 @@ import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { makeClient } from "./engine.js";
-import { CREW_UNAVAILABLE, crewConfiguration, verifiedCrew } from "./crew.js";
+import { CREW_UNAVAILABLE, crewConfiguration, loadedAgents, verifiedCrew } from "./crew.js";
 
 const execute = promisify(execFile);
 
@@ -145,11 +145,18 @@ export async function startEngine(directory: string, signal?: AbortSignal) {
   /** Loads the crew for a project. Returns why the crew is unavailable, if it is; the computer keeps working either way. */
   const prepareCrew = async (project: string): Promise<string | undefined> => {
     if (crewBlocked) return crewBlocked;
-    const build = (await client.agents(project)).find((agent) => agent.id === "build");
-    if (!build) throw new Error("OpenCode did not provide the current coding agent's permission rules.");
-    await writeFile(configFile, JSON.stringify(crewConfiguration(build.permissions)), { mode: 0o600 });
-    await client.reload(project);
-    return verifiedCrew(await client.agents(project)) ? undefined : CREW_UNAVAILABLE;
+    let agents = await loadedAgents(client, project, false, signal);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const build = agents.find((agent) => agent.id === "build");
+      if (!build) throw new Error("OpenCode did not provide the current coding agent's permission rules.");
+      await writeFile(configFile, JSON.stringify(crewConfiguration(build.permissions)), { mode: 0o600 });
+      await client.reload(project);
+      agents = await loadedAgents(client, project, true, signal);
+      if (verifiedCrew(agents)) return undefined;
+      // Project rules can arrive after the initial built-in agents. Copy those real rules again, never weaken them.
+      if (JSON.stringify(agents.find((agent) => agent.id === "build")?.permissions) === JSON.stringify(build.permissions)) break;
+    }
+    return CREW_UNAVAILABLE;
   };
   try {
     const deadline = Date.now() + 45_000;

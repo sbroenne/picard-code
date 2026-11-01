@@ -47,6 +47,18 @@ export function verifiedCrew(agents: AgentInfo[]) {
 
 export const CREW_UNAVAILABLE = 'The bridge crew is not available with the current OpenCode settings. Start Picard Code with its own OpenCode server, and check for settings that override the "picard-" crew definitions.';
 
+/** OpenCode can answer during startup or reload before its agents have finished loading. */
+export async function loadedAgents(client: OpenCode, directory: string, crew = false, signal?: AbortSignal) {
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    signal?.throwIfAborted();
+    const agents = await client.agents(directory);
+    if (crew ? verifiedCrew(agents) : agents.some((agent) => agent.id === "build")) return agents;
+    if (Date.now() >= deadline) return agents;
+    await new Promise<void>((resolve) => setTimeout(resolve, 100));
+  }
+}
+
 export async function requireCrew(client: OpenCode, directory: string) {
   const agents = await client.agents(directory);
   if (!verifiedCrew(agents)) throw new Error(CREW_UNAVAILABLE);

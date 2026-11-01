@@ -33,6 +33,12 @@ setup includes an official OpenCode 2 copy (the `@opencode/cli` package), so a
 separate global OpenCode installation is optional when running from source.
 OpenCode 1 is not supported.
 
+The installed copy is currently OpenCode 2.1.4. The package lists use older
+versions available after a seven-day package-service quarantine, including
+Marked 18.1.1, Rolldown 1.2.15 and CTranslate2 4.8.3. Keep your configured npm
+and Python package services; do not bypass their quarantine to install newer
+versions.
+
 ```sh
 npm install
 npm run build
@@ -629,6 +635,16 @@ Both paths use the same automatic listen/respond loop. Whisper starts
 recognizing after the pause; unlike MAI, it does not display live words while
 you are speaking. Stopping speech discards late audio and does not block the
 separate listening worker. No service is silently replaced if setup fails.
+
+On Windows ARM, app startup, the OpenCode 2.1.4 connection and all six bridge
+officers have been checked on the development machine. Real local speaking
+and listening also passed, using Intel-compatible Python 3.11 through
+Windows' built-in compatibility support rather than ARM-native speech
+packages. Kokoro produced 4.3 seconds of audio in 3.0 seconds, and Whisper
+understood it in 1.8 seconds. The owner also reports that the physical
+microphone and speakers work on this Windows ARM machine. That hands-on check
+is separate from the automated checks and does not establish that every
+Windows ARM machine works.
 
 On the checked Windows machine, real Kokoro speaking with `bf_emma` produced
 **4.2 seconds of audio in 2.4 seconds**, and Whisper understood that audio in
