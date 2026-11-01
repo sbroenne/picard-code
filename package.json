@@ -70,7 +70,7 @@
     "dompurify": "^3.4.17",
     "marked": "^18.1.1",
     "oxlint": "^1.89.0",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vite": "^8.0.0"
   }
 }
