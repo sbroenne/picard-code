@@ -88,7 +88,7 @@
           <p id="workspace-caption" class="muted"></p>
           <p>Picard Code works with any model provider OpenCode supports, such as GitHub Copilot, Anthropic, OpenAI or a model on this computer.</p>
           <ol>
-            <li>In a terminal in the Picard Code folder, run <code>npm run opencode -- auth login</code>.</li>
+            <li>In a terminal, run <code>npx picard-code opencode auth login</code>.</li>
             <li>Choose your provider from the list and follow its sign-in.</li>
             <li>Choose <strong>Refresh connection</strong> below.</li>
           </ol>
@@ -120,7 +120,7 @@
             <select id="setting-listening" name="listening"><option value="whisper">On this computer (Whisper)</option><option value="mai">Azure, your own resource</option></select>
             <label for="setting-speaking">Speaking</label>
             <select id="setting-speaking" name="speaking"><option value="kokoro">On this computer (Kokoro)</option><option value="mai">Azure, your own resource</option></select>
-            <p id="local-note" class="muted span" hidden>Speech on this computer needs a one-time download of about 432 MB. Save and apply starts it; it can take a few minutes.</p>
+            <p id="local-note" class="muted span" hidden>Speech on this computer needs a one-time download, about 750 MB on disk. Save and apply starts it; it can take a few minutes.</p>
             <label for="setting-kokoroVoice" class="kokoro-field">Kokoro voice</label>
             <input id="setting-kokoroVoice" class="kokoro-field" name="kokoroVoice" autocomplete="off" />
             <fieldset id="azure-fields" class="field-grid nested">

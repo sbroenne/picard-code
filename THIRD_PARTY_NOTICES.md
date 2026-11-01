@@ -10,10 +10,24 @@ The JavaScript dependencies are installed through npm. Local speech
 dependencies and weights are downloaded separately, not bundled or committed.
 Their installed license files and notices must be preserved.
 
-## Local speech
+## Included in the npm package
 
 | Component | License and attribution | Source |
 | --- | --- | --- |
+| OpenCode 2 (installed by npm as one `@opencode/cli-*` package for the computer) | MIT; OpenCode contributors | [Project](https://github.com/anomalyco/opencode) |
+| ws | MIT; copyright 2011 Einar Otto Stangvik, copyright 2013 Arnout Kazemier and contributors | [Project](https://github.com/websockets/ws) |
+| marked (built into the browser page) | MIT; copyright 2018+ MarkedJS, copyright 2011-2018 Christopher Jeffrey | [Project](https://github.com/markedjs/marked) |
+| DOMPurify (built into the browser page) | Apache 2.0 or MPL 2.0, used under Apache 2.0; copyright Cure53 and other contributors | [Project](https://github.com/cure53/DOMPurify) |
+
+## Local speech
+
+`npx picard-code setup-speech` downloads these into the `.picard-code` folder
+in the user's home folder.
+
+| Component | License and attribution | Source |
+| --- | --- | --- |
+| uv 0.13.6 (sets up Python; downloaded from its GitHub release and checked against a fixed checksum) | MIT or Apache 2.0; Astral Software Inc. | [Project](https://github.com/astral-sh/uv) |
+| Python 3.11 (a python-build-standalone build, downloaded by uv) | Python Software Foundation License; the build includes libraries with their own notices | [Project](https://github.com/astral-sh/python-build-standalone) |
 | faster-whisper | MIT; copyright 2023 SYSTRAN | [Project](https://github.com/SYSTRAN/faster-whisper) |
 | Converted Whisper `tiny.en` weights | MIT; converted by SYSTRAN from OpenAI Whisper | [Model card](https://huggingface.co/Systran/faster-whisper-tiny.en) |
 | kokoro-onnx | MIT; copyright 2025 github.com/thewh1teagle | [Project](https://github.com/thewh1teagle/kokoro-onnx) |
@@ -42,9 +56,9 @@ does not grant permission to remove notices or bypass redistribution terms.
 
 ## Optional computer sounds
 
-`npm run setup:sounds` downloads three short sound files from
-[TrekCore](https://www.trekcore.com/audio/) into the ignored `.picard-sounds`
-folder. The project owner chose these files for their own setup. This is not
+`npx picard-code setup-sounds` downloads three short sound files from
+[TrekCore](https://www.trekcore.com/audio/) into the `.picard-code/sounds`
+folder in the user's home folder. The project owner chose these files for their own setup. This is not
 a license grant from the rights holders: users must confirm their own right
 to download and use them. They are not covered by this project's MIT license, are not redistributed
 in this repository, and no license terms are stated for them here. Picard Code

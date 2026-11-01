@@ -193,7 +193,7 @@ test("spoken question answers match only clear, offered choices and keep the use
 
 test("speech runs on this computer unless Azure is chosen", async () => {
   const missing = { localPython: "picard-missing-python" };
-  await assert.rejects(speechFromSettings(missing), /local speech file is missing\. Run npm run setup:speech/);
+  await assert.rejects(speechFromSettings(missing), /local speech file is missing\. Run npx picard-code setup-speech/);
   await assert.rejects(speechFromSettings({ ...missing, listening: "mai", speaking: "mai" }), /valid subscription/);
 });
 

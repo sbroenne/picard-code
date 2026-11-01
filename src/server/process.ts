@@ -4,10 +4,11 @@ import { createServer } from "node:net";
 import { delimiter, dirname, join, extname } from "node:path";
 import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { makeClient } from "./engine.js";
 
 const execute = promisify(execFile);
+const require = createRequire(import.meta.url);
 
 export async function projectDirectory(path: string): Promise<string> {
   const directory = await realpath(path);
@@ -47,11 +48,9 @@ export async function openCodeCommand(): Promise<{ command: string; prefix: stri
       : { command: file, prefix: [] };
   }
   // Prefer the copy installed with Picard Code; it is the version Picard Code was checked against.
-  const paths = [
-    fileURLToPath(new URL("../../node_modules/.bin/", import.meta.url)),
-    ...(process.env.PATH ?? "").split(delimiter),
-  ];
-  for (const path of paths) {
+  const bundled = bundledOpenCode();
+  if (bundled && await exists(bundled)) return { command: bundled, prefix: [] };
+  for (const path of (process.env.PATH ?? "").split(delimiter)) {
     const directory = path.replace(/^"|"$/g, "");
     if (process.platform !== "win32") {
       const entry = join(directory, "opencode");
@@ -67,7 +66,21 @@ export async function openCodeCommand(): Promise<{ command: string; prefix: stri
       if (await exists(entry)) return { command: entry, prefix: [] };
     }
   }
-  throw new Error("OpenCode is not installed or is not on PATH. Run npm install in the Picard Code folder, or install OpenCode 2 from https://opencode.ai, then restart your terminal.");
+  throw new Error("OpenCode was not found. Picard Code includes it for Windows, macOS and Linux on x64 and arm64 processors; if this computer is one of those, install Picard Code again. Otherwise install OpenCode 2 from https://opencode.ai, then restart your terminal.");
+}
+
+/**
+ * OpenCode's program for this computer, from the matching @opencode/cli-* package in optionalDependencies.
+ * Picard Code depends on these directly: the @opencode/cli wrapper needs a setup script that npx blocks.
+ * On x64 only the baseline build is listed, because it runs on every x64 processor.
+ */
+export function bundledOpenCode(platform = process.platform, arch = process.arch) {
+  try { return join(dirname(require.resolve(`${openCodePackage(platform, arch)}/package.json`)), "bin", platform === "win32" ? "opencode.exe" : "opencode"); }
+  catch { return undefined; }
+}
+
+export function openCodePackage(platform: string, arch: string) {
+  return `@opencode/cli-${platform === "win32" ? "windows" : platform}-${arch}${arch === "x64" ? "-baseline" : ""}`;
 }
 
 export async function stopOwnedProcess(child: ChildProcess): Promise<void> {

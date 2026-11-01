@@ -35,8 +35,8 @@ Bring open-ended ideas to [Discussions](https://github.com/sbroenne/picard-code/
 use the [issue forms](https://github.com/sbroenne/picard-code/issues/new/choose)
 for bugs and proposals.
 
-This is an early source project, not a published npm package. The app is
-voice-only and designed for a computer screen. Automated desktop checks do not
+This is an early project. The app is voice-only and designed for a computer
+screen. Automated desktop checks do not
 prove physical audio works. Earlier real-service evidence predates the
 OpenCode 2 migration; current real model, Azure, and local speech paths still
 need fresh checks before those results can be claimed for this version.
@@ -50,71 +50,100 @@ By default, listening (Whisper) and speaking (Kokoro) run on this computer,
 with no cloud account. Your own Azure MAI resource can be chosen instead, for
 either side or both.
 
-## Run from source
+## Get started
 
 You need:
 
-- **Node.js 22.12 or newer** (it includes npm) and **Git**.
-- **[uv](https://docs.astral.sh/uv/getting-started/installation/)**, which
-  sets up the Python 3.11 that local speech uses. You do not need to install
-  Python yourself.
-- About **650 MB** of free disk space for the speech models and their Python
-  packages.
+- **Node.js 22.12 or newer**, which includes npm and npx.
 - A microphone, and speakers or headphones.
 - A model provider OpenCode can use (see
   [Connect a model provider](#connect-a-model-provider)).
+- For speech on this computer, one of these computers, with about **750 MB**
+  of free disk space:
+  - an Apple silicon Mac with macOS 14 or newer;
+  - Windows on an x64 processor;
+  - Linux on an x64 or arm64 processor, with glibc 2.28 or newer (most desktop
+    Linux versions since 2019).
 
-The development setup includes an official OpenCode 2 copy (the
-`@opencode/cli` package), so a separate global OpenCode installation is
-optional when running from source. OpenCode 1 is not supported.
+  Other computers can use [Azure speech](#azure-speech-setup) instead.
+
+Then, in a terminal:
 
 ```sh
-git clone https://github.com/sbroenne/picard-code.git
-cd picard-code
-npm install
-npm run setup:speech
-npm run build
-npm start
+npx picard-code setup-speech
+npx picard-code
 ```
 
-`npm run setup:speech` downloads the Whisper and Kokoro models once (about
-432 MB) into the ignored `.picard-voice` folder and checks them. It is safe to
-run again. Once it has finished, `npm start` listens and speaks on this
-computer without further setup. If you skip it, Picard Code starts without
-speech, and the **Listen · Speak** tile offers the same download. See
-[Local Whisper and Kokoro setup](#local-whisper-and-kokoro-setup) for details,
-or [Azure speech setup](#azure-speech-setup) to use your own Azure resource
-instead.
+The first command downloads the local Whisper and Kokoro speech once (see
+[Local Whisper and Kokoro setup](#local-whisper-and-kokoro-setup)). It is safe
+to run again. The second starts Picard Code for the current folder. The first
+time, npx also downloads Picard Code and the official OpenCode 2 it includes
+(about 230 MB). You do not need to install OpenCode, Python or anything else
+yourself. OpenCode 1 is not supported.
+
+If you skip `setup-speech`, Picard Code starts without speech, and the
+**Listen · Speak** tile offers the same download.
 
 Your browser opens automatically. Keep the terminal open; press **Ctrl+C** to
 stop Picard Code and the OpenCode server it started. Use `--no-open` to print
-the address without opening a browser.
+the address without opening a browser, and `npx picard-code --help` for all
+options.
 
 To choose a different project folder:
 
 ```sh
-npm start -- --project "full path to your project"
+npx picard-code --project "full path to your project"
 ```
 
 Windows example:
 
 ```powershell
-npm.cmd start -- --project "C:\Users\you\source\my-project"
+npx picard-code --project "C:\Users\you\source\my-project"
 ```
 
 macOS or Linux example:
 
 ```sh
-npm start -- --project "$HOME/projects/my-project"
+npx picard-code --project "$HOME/projects/my-project"
 ```
 
 You can also change the folder with the **Project** tile in the side panel.
 Stop running work first.
 The folder is passed to OpenCode for every log entry and request.
 
-**`npx picard-code` is not available yet.** The npm package has not been
-published. The commands above are the supported launch
-path for this version.
+### What stays on your computer
+
+Everything Picard Code downloads or saves is kept in one folder,
+`.picard-code` in your home folder (on Windows, `C:\Users\you\.picard-code`):
+
+- `speech.json`: your speech settings (no keys or passwords);
+- `voice`, `python` and `uv`: local speech, its Python and the uv tool that set it up;
+- `sounds`: the optional computer sounds.
+
+Nothing is written into your project. To remove everything, delete that
+folder. OpenCode keeps its own sign-ins and log entries; see
+[OpenCode's documentation](https://opencode.ai/v2/docs/). npx keeps Picard
+Code itself in npm's cache; `npx picard-code@latest` gets the newest version.
+
+## Run from source
+
+To change Picard Code itself, you also need **Git**:
+
+```sh
+git clone https://github.com/sbroenne/picard-code.git
+cd picard-code
+npm install
+npm run build
+npm run setup:speech
+npm start
+```
+
+These use the same `.picard-code` folder. In PowerShell, use `npm.cmd` for
+commands with `--` options, for example
+`npm.cmd start -- --project "C:\Users\you\source\my-project"`; some npm
+PowerShell wrappers otherwise drop the `--`. `npm run opencode -- auth login`
+and `npm run setup:sounds` do the same as the `npx picard-code` commands below.
+See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes.
 
 ## Connect a model provider
 
@@ -127,9 +156,8 @@ without any sign-in; they appear in the list under **OpenCode**.
 
 To sign in to a provider:
 
-1. In another terminal in this repository, run `npm run opencode -- auth login`
-   (Windows: `npm.cmd run opencode -- auth login`; or `opencode auth login` if
-   installed globally).
+1. In another terminal, run `npx picard-code opencode auth login` (or
+   `opencode auth login` if you installed OpenCode yourself).
 2. Choose your provider from the list and follow its sign-in. For GitHub
    Copilot, that is GitHub's device sign-in: check you are signed in to the
    right account, enter the code OpenCode shows, and approve it yourself.
@@ -137,7 +165,7 @@ To sign in to a provider:
    **Refresh connection**. Pick a model with the **Model** tile; models are
    grouped by provider.
 
-`npm run opencode -- auth list` shows which providers are signed in.
+`npx picard-code opencode auth list` shows which providers are signed in.
 
 ## The main screen and Settings
 
@@ -314,7 +342,7 @@ still does not interrupt it; approvals still need an on-screen button.
 - "Stop listening" and switching the microphone off do not cancel OpenCode's work.
   **Belay that** cancels the current OpenCode request. These are separate
   controls.
-- **Optional computer sounds:** run `npm run setup:sounds` once to download three
+- **Optional computer sounds:** run `npx picard-code setup-sounds` once to download three
   short TrekCore sounds (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
   then restart Picard Code. Download them only if you have the right to use
   them; they are not part of this project. During spoken conversation they play quietly, once
@@ -383,12 +411,10 @@ prebuilt British `bf_emma` voice by default (`af_heart` and the other Kokoro
 voices can be chosen with `kokoroVoice`). Both run on the CPU. No Azure resource, key, or login
 is needed when both sides are local. A model provider is still needed for coding.
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then
-download the models from a terminal in the Picard Code folder (safe to run
-again; uv fetches Python 3.11 if needed):
+Download it once from a terminal (safe to run again):
 
 ```sh
-npm run setup:speech
+npx picard-code setup-speech
 ```
 
 Picard Code then uses Whisper and Kokoro whenever you start it, unless your
@@ -400,31 +426,21 @@ Picard Code downloads everything in the background, shows each step, and
 switches over when it is ready. No restart is needed. If the download fails,
 the real reason is shown and the working speech stays in place.
 
-The same steps by hand, on Windows:
+Setup works in this order, all inside `.picard-code` in your home folder:
 
-```powershell
-uv venv --python 3.11 .picard-voice
-uv pip install --python .picard-voice\Scripts\python.exe -r scripts\requirements-speech.txt
-.\.picard-voice\Scripts\python.exe scripts\setup-local-speech.py
-npm.cmd start
-```
+1. It checks that this computer can run local speech (see
+   [Get started](#get-started)), and stops with a plain reason if not.
+2. It downloads [uv](https://docs.astral.sh/uv/) 0.13.6, a tool that sets up
+   Python, from uv's GitHub release, and checks it against a fixed checksum.
+3. uv downloads Python 3.11 and installs the speech packages listed in
+   `scripts/requirements-speech.txt`.
+4. It downloads roughly **432 MB** of model files. The Kokoro files are checked
+   against published checksums; the public Whisper download is fixed to a
+   specific revision and uses no account token.
 
-On macOS or Linux:
-
-```sh
-uv venv --python 3.11 .picard-voice
-uv pip install --python .picard-voice/bin/python -r scripts/requirements-speech.txt
-.picard-voice/bin/python scripts/setup-local-speech.py
-npm start
-```
-
-Setup downloads roughly **432 MB** of model files, plus Python dependencies;
-together they use about 650 MB of disk space.
-The Kokoro files are checked against published checksums; the public Whisper
-download is fixed to a specific revision and uses no account token. Model
-files, the Python environment, and generated samples remain in the ignored
-`.picard-voice` folder. Inference uses local files only, with up to four CPU
-threads per service. Do not use Python 3.14 for this setup.
+Together these use about 750 MB of disk space. Nothing is installed outside
+that folder, and an existing Python or uv is left alone. Inference uses local
+files only, with up to four CPU threads per service.
 
 Both paths use the same automatic listen/respond loop. Whisper starts
 recognizing after the pause; unlike MAI, it does not display live words while
@@ -552,9 +568,9 @@ Whisper and Kokoro are the default. A side uses Azure MAI only when you choose
 it in the **Listen · Speak** tile, in `speech.json`, or with a launch option.
 Launch options override the settings file:
 
-```powershell
-npm.cmd start -- --listening mai --speaking kokoro
-npm.cmd start -- --listening whisper --speaking mai
+```sh
+npx picard-code --listening mai --speaking kokoro
+npx picard-code --listening whisper --speaking mai
 ```
 
 For a mixed setup, keep the Azure resource settings and set `listening` and
@@ -603,12 +619,8 @@ computer with a password. Set the
 same password in the Picard Code terminal, then:
 
 ```sh
-npm start -- --connect http://127.0.0.1:4096 --project "full project path"
+npx picard-code --connect http://127.0.0.1:4096 --project "full project path"
 ```
-
-In PowerShell, use `npm.cmd` for commands with `--` arguments. Some npm
-PowerShell wrappers otherwise discard the argument separator. You can also
-launch directly with `node dist/server/cli.js --project "full project path"`.
 
 For example, in PowerShell, set `$env:OPENCODE_SERVER_PASSWORD` before running
 `opencode serve --hostname 127.0.0.1 --port 4096` and before starting Picard Code
@@ -703,14 +715,10 @@ and repeat the browser checks.
 
 ## If something goes wrong
 
-- **Missing OpenCode:** install OpenCode 2 from
-  [opencode.ai](https://opencode.ai/v2/docs/) or run `npm install` for the
-  included development copy. Restart the terminal after a global installation.
-- **npm blocks OpenCode's setup script:** the setup script picks the right
-  OpenCode program for your computer. This repository already allows it in
-  `package.json`. If npm still asks, review the official package, then use
-  `npm install-scripts approve @opencode/cli` followed by
-  `npm rebuild @opencode/cli`.
+- **Missing OpenCode:** Picard Code includes OpenCode 2 for Windows, macOS
+  and Linux on x64 and arm64 processors. On other computers, such as Alpine
+  Linux, install OpenCode 2 from [opencode.ai](https://opencode.ai/v2/docs/)
+  and point `PICARD_OPENCODE_PATH` to it.
 - **Browser cannot connect:** open the full launch address printed in the
   terminal, including its temporary key. It must use `127.0.0.1`, not a different
   hostname. Do not share that address.
@@ -718,7 +726,7 @@ and repeat the browser checks.
   refresh the connection while no work is running.
 - **Live updates stop:** keep the terminal open. The browser reconnects and
   reloads saved messages and pending approvals. Use **Try again** if needed.
-- **OpenCode cannot start:** run `npm run opencode` directly to see its setup
+- **OpenCode cannot start:** run `npx picard-code opencode` directly to see its setup
   problem. Picard Code does not replace a failed connection with a fake reply.
 - **Unusual installation:** `PICARD_OPENCODE_PATH` can point to the real
   OpenCode program or its JavaScript starting file, but not a Windows `.cmd` shortcut.
@@ -729,7 +737,7 @@ and repeat the browser checks.
 - **Azure rejects speech:** check resource access, the deployed live listening
   model, supported region and voice, and service quota. A speech error does
   not mean OpenCode stopped; use **Belay that** separately when needed.
-- **Local speech will not start:** install uv, run `npm run setup:speech`
+- **Local speech will not start:** run `npx picard-code setup-speech`
   and read any error it prints, check the configured paths, then choose
   **Save and apply** in the **Listen · Speak** tile again (no restart
   needed). The reported error is not replaced
@@ -752,7 +760,7 @@ the local server that `opencode serve` provides:
 
 Windows is checked on the development machine. App startup and shutdown are
 implemented for macOS and Linux but still need checks on those systems. This first version
-does not include file attachments, a full file editor, or package publication.
+does not include file attachments or a full file editor.
 
 ## Developing Picard Code
 

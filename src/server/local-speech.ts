@@ -136,7 +136,7 @@ export async function localSpeech(settings: LocalSettings, listening: boolean, s
   signal?.throwIfAborted();
   for (const path of [settings.python, ...(listening ? [settings.whisperModel] : []), ...(speaking ? [settings.kokoroModel, settings.kokoroVoices] : [])]) {
     try { await realpath(path); }
-    catch { throw new Error("A configured local speech file is missing. Run npm run setup:speech, or choose Save and apply in the Listen · Speak tile to download it."); }
+    catch { throw new Error("A configured local speech file is missing. Run npx picard-code setup-speech, or choose Save and apply in the Listen · Speak tile to download it."); }
   }
   // A cancelled speaking batch must not delay the next listening request.
   const listenerWorker = listening ? new LocalWorker(settings, true, false) : undefined;

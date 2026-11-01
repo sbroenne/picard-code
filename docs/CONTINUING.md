@@ -6,31 +6,33 @@ details for each step; [AGENTS.md](../AGENTS.md) has the rules for changes.
 
 ## 1. Get the code and build it
 
-You need Node.js **22.12 or newer**, Git,
-[uv](https://docs.astral.sh/uv/getting-started/installation/) for local
-speech, and about 650 MB of free disk space for the speech models.
+You need Node.js **22.12 or newer**, Git, and about 750 MB of free disk space
+for local speech.
 
 ```sh
 git clone https://github.com/sbroenne/picard-code.git
 cd picard-code
 npm install
-npm run setup:speech
 npm run build
+npm run setup:speech
 npm test
 ```
 
-`npm run setup:speech` downloads the Whisper and Kokoro models (about 432 MB)
-into the ignored `.picard-voice` folder. Each computer needs its own download;
-do not copy the folder between computers.
+`npm run setup:speech` downloads its own uv, Python 3.11 and the Whisper and
+Kokoro models (about 432 MB) into the `.picard-code` folder in your home folder
+(on Windows, `C:\Users\<you>\.picard-code`). Nothing needs to be installed
+first. Each computer needs its own download; do not copy the folder between
+computers.
 
-Picard Code uses OpenCode 2 (the `@opencode/cli` package); `npm install`
-brings the tested copy. If npm asks to approve OpenCode's setup script, review
-it, then run `npm install-scripts approve @opencode/cli` and
-`npm rebuild @opencode/cli`.
+Older checkouts kept speech in `.picard-voice` and sounds in `.picard-sounds`
+inside the repository. Picard Code no longer reads those: run the setup
+commands again, then delete the old folders.
 
-Dependabot does not upgrade OpenCode. To upgrade it, change its version in
-`package.json`, run `npm install`, review and approve the new setup script with
-the two commands above, then run the real checks in step 5.
+Picard Code includes OpenCode 2: `npm install` brings the tested copy for this
+computer, one of the `@opencode/cli-*` packages in `package.json`. Dependabot
+does not upgrade OpenCode. To upgrade it, change all six `@opencode/cli-*`
+versions in `package.json` to the same new version, run `npm install`, then run
+the real checks in step 5.
 
 ## 2. Sign in to a model provider through OpenCode
 
@@ -54,9 +56,9 @@ Picard Code, choose the **Listen · Speak** tile, choose **Azure, your own
 resource**, and fill in the speech fields with your
 subscription, resource group, resource name, region and live-listening
 deployment, then choose **Save and apply**; no restart is needed. This saves
-`speech.json` in the `.picard-code` folder in your home folder (on Windows,
-`C:\Users\<you>\.picard-code`), as described in the README. The default voice is British Emily (`neutral` style). The file
-holds no key; the key is read into memory at startup.
+`speech.json` in the `.picard-code` folder, as described in the README. The
+default voice is British Emily (`neutral` style). The file holds no key; the
+key is read into memory at startup.
 
 Either side can be chosen separately, for example
 `npm start -- --listening whisper --speaking mai`.
@@ -67,8 +69,8 @@ Either side can be chosen separately, for example
 npm run setup:sounds
 ```
 
-This downloads three short TrekCore sounds, checks them, and saves them in the
-ignored `.picard-sounds` folder. They are never committed. See
+This downloads three short TrekCore sounds, checks them, and saves them in
+`.picard-code/sounds` in your home folder. They are never committed. See
 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md). The app works without them.
 
 ## 5. Start and check
@@ -122,7 +124,9 @@ Still open:
   voices were chosen; final tuning has not been judged.
 - Fresh real OpenCode 2, model, Azure, and local speech checks.
 - Not planned yet: rewriting spoken requests into "captain style", interrupting
-  the computer by speaking over it, and publishing `npx picard-code`.
+  the computer by speaking over it.
+- `npx picard-code` on Windows and Linux: the package was only run through npx
+  on macOS.
 
 ## Making the repository public
 
@@ -137,5 +141,29 @@ Some GitHub features only work on a public repository. After making it public:
 3. Protect `main` with a rule that requires the **Project checks** to pass.
 4. Turn on automatic Copilot code review, so the Ponytail skill reviews each
    pull request.
+
+## Publishing to npm
+
+The README tells people to run `npx picard-code`, so publish the first
+version as soon as the repository is public. Only the owner publishes; coding
+agents never do.
+
+1. **First version, by hand.** npm only lets GitHub publish a package that
+   already exists. On an up-to-date `main`, run `npm login`, then
+   `npm publish`. Publishing builds the package first and includes only what
+   `files` in `package.json` lists. Then check from an empty folder that
+   `npx picard-code --help` works.
+2. **Let GitHub publish later versions.** On npmjs.com, open the package's
+   **Settings → Trusted publishing**, choose **GitHub Actions**, and enter
+   owner `sbroenne`, repository `picard-code`, workflow `release.yml` and
+   environment `npm`. In GitHub **Settings → Environments**, create the `npm`
+   environment and, if you like, require your own approval. No npm token is
+   stored anywhere.
+3. **Each later version.** In a pull request, raise `version` in
+   `package.json` (for example `npm version 0.2.0 --no-git-tag-version`) and
+   merge it. Then create a GitHub release with the tag `v0.2.0`. The
+   **Publish to npm** workflow checks that the tag matches, runs the checks,
+   and publishes with provenance (a public record that GitHub built it from
+   this repository).
 
 Research and its evidence limits are in [docs/research](research/).

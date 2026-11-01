@@ -133,7 +133,7 @@ export interface AppOptions {
   startSpeech?: (settings: Record<string, unknown>) => Promise<SpeechService>;
   localSpeechReady?: (settings: Record<string, unknown> | undefined, listening?: boolean, speaking?: boolean) => Promise<boolean>;
   setUpLocalSpeech?: (onStep: (step: string) => void) => Promise<void>;
-  /** Optional folder holding the short sounds downloaded by `npm run setup:sounds`. */
+  /** Optional folder holding the short sounds downloaded by `npx picard-code setup-sounds`. */
   soundFolder?: string;
   /** Reads Wikipedia for requested tribute questions; tests supply a labelled stand-in. */
   readWikipedia?: (subject: WikipediaArticle["subject"]) => Promise<WikipediaArticle>;

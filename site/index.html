@@ -104,8 +104,8 @@
             <small>Prebuilt voices, never a cloned performer. Chosen apart from listening.</small></dd></div>
           <div class="lilac"><dt>Coding</dt><dd>OpenCode 2
             <small>GitHub Copilot, Anthropic, OpenAI, a local model, or another provider it supports.</small></dd></div>
-          <div class="tan"><dt>Status</dt><dd>Early source project
-            <small>Voice only, for desktop computers. No npm package yet.</small></dd></div>
+          <div class="tan"><dt>Status</dt><dd>Early project
+            <small>Voice only, for desktop computers. Runs with npx.</small></dd></div>
         </dl>
         <aside class="notice" aria-labelledby="data-title">
           <h3 id="data-title">A local app does not always mean local processing</h3>
@@ -147,25 +147,21 @@
         <h2 id="start-title">Your computer.<br>Your project. Your voice.</h2>
         <div class="start-grid">
           <div>
-            <p class="intro">You need Node.js 22.12 or newer, Git, uv (it installs the Python that local
-              speech uses), a microphone, and a model provider OpenCode can use. Listening and speaking run
-              on your computer by default, so no cloud account is needed for speech. This website is only
-              an introduction; it does not run the app or listen to you.</p>
+            <p class="intro">You need Node.js 22.12 or newer, a microphone, and a model provider OpenCode
+              can use. Picard Code includes OpenCode 2. Listening and speaking run on your computer by
+              default, after a one-time download of about 750 MB, so no cloud account is needed for speech.
+              This website is only an introduction; it does not run the app or listen to you.</p>
             <p class="limits">Automated checks use labeled stand-ins. They do not prove that physical
               microphones, speakers, or real model and speech services work, and earlier real-service
               results predate OpenCode 2.
               <a href="https://github.com/sbroenne/picard-code#checks">The checks and their limits</a></p>
           </div>
           <div class="source">
-            <h3>Run from source</h3>
-            <pre><code>git clone https://github.com/sbroenne/picard-code.git
-cd picard-code
-npm install
-npm run setup:speech
-npm run build
-npm start</code></pre>
-            <a class="pill lilac" href="https://github.com/sbroenne/picard-code#run-from-source">Read the setup guide <span aria-hidden="true">&nearr;</span></a>
-            <a class="text-link" href="https://github.com/sbroenne/picard-code/blob/main/docs/CONTINUING.md">Continuing on another computer</a>
+            <h3>Get started</h3>
+            <pre><code>npx picard-code setup-speech
+npx picard-code</code></pre>
+            <a class="pill lilac" href="https://github.com/sbroenne/picard-code#get-started">Read the setup guide <span aria-hidden="true">&nearr;</span></a>
+            <a class="text-link" href="https://github.com/sbroenne/picard-code#run-from-source">Run from source</a>
           </div>
         </div>
       </section>

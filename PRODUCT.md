@@ -24,8 +24,8 @@ OpenCode performs the coding work, with any model provider it supports.
 The first version needs saved conversations, live replies, project-folder
 context, and real OpenCode approval requests. Credentials stay out of the
 browser. Services listen locally and must reject requests from unrelated
-websites. A future published package may support `npx picard-code`; publication
-is not part of the first version.
+websites. People run it with `npx picard-code`, which includes OpenCode 2 and
+can download local speech.
 
 Spoken requests are the only input; there is no typing fallback. The app is
 designed for a computer screen, not a phone. The microphone switches on when

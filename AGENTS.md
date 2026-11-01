@@ -64,11 +64,13 @@ original TNG-inspired look.
   boundaries must survive unchanged.
 - **No copied franchise material in the repository.** No show artwork,
   dialogue, voice cloning or recordings are committed. The three optional
-  TrekCore sounds are downloaded by `npm run setup:sounds` into the ignored
-  `.picard-sounds` folder, with the owner's confirmed permission; keep them out
+  TrekCore sounds are downloaded by `npm run setup:sounds` into
+  `~/.picard-code/sounds`, with the owner's confirmed permission; keep them out
   of git and keep their attribution in `THIRD_PARTY_NOTICES.md`.
-- **Downloaded models, Python environments and samples stay out of git**
-  (`.picard-voice`). Keep license notices for anything downloaded.
+- **Downloads stay outside the repository.** Speech setup keeps uv, Python and
+  the models in `~/.picard-code`; live-check samples go to the ignored
+  `.picard-voice/samples`. Keep license notices for anything downloaded or
+  included in the npm package.
 
 ## How the computer talks
 
@@ -152,7 +154,8 @@ echo), macOS and Linux, and the owner's subjective review of voice and timing.
 ## Git
 
 Commit to the working branch with a clear plain-English message. Do not force
-push. Do not publish the npm package.
+push. Only the owner publishes to npm, by creating a GitHub release (see
+[docs/CONTINUING.md](docs/CONTINUING.md)); coding agents never publish.
 
 Maintainers and coding agents: before opening a pull request, review the
 complete branch diff with the Ponytail review skill in

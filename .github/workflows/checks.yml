@@ -46,6 +46,15 @@ jobs:
         run: npm run build
       - name: Run server tests
         run: npm test
+      - name: Check the npm package runs with npx
+        run: |
+          mkdir -p ../package-check
+          file=$(npm pack --ignore-scripts --pack-destination ../package-check | tail -n 1)
+          cd ../package-check
+          tar -tzf "$file" > files.txt
+          grep -qx "package/web-dist/index.html" files.txt
+          if grep -q "^package/dist/tests/" files.txt; then echo "Test files must not be in the package."; exit 1; fi
+          npx --yes "./$file" opencode --version
       - name: Check the desktop app and project website
         run: npx playwright test
       - name: Keep browser failure evidence

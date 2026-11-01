@@ -65,8 +65,8 @@ sensitive security reports.
 
 ## Make and check a change
 
-Fork the repository, create a branch, and follow the source setup in
-[README.md](README.md). Use your own OpenCode sign-in and speech resources.
+Fork the repository, create a branch, and follow
+[Run from source](README.md#run-from-source). Use your own OpenCode sign-in and speech resources.
 OpenCode 2 is required; `npm install` brings the tested copy.
 
 Before each commit, run:

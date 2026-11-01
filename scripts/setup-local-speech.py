@@ -1,12 +1,14 @@
 import hashlib
 import os
+import sys
 from pathlib import Path
 import urllib.request
 
 from huggingface_hub import snapshot_download
 
 
-ROOT = Path(__file__).resolve().parent.parent / ".picard-voice" / "models"
+# The models folder, given by setup-speech.mjs.
+ROOT = Path(sys.argv[1])
 ASSETS = {
     "kokoro-v1.0.onnx": "beb0d1848dee9a49da392cc3df26958d46cfa35d321edf434f52949153f0df3a",
     "voices-v1.0.bin": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d",
@@ -42,4 +44,4 @@ snapshot_download(
     allow_patterns=["model.bin", "config.json", "tokenizer.json", "vocabulary.*", "README.md"],
     token=False,
 )
-print("Local speech models are ready. Weights remain in the ignored .picard-voice folder.")
+print(f"Local speech models are ready in {ROOT}.")

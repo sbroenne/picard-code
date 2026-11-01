@@ -1,14 +1,30 @@
 #!/usr/bin/env node
+import { spawn } from "node:child_process";
 import { parseArgs } from "node:util";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startApp } from "./app.js";
 import { checkVersion, makeClient, localServerUrl, errorMessage } from "./engine.js";
-import { projectDirectory, startEngine, openBrowser } from "./process.js";
-import { loadSpeech } from "./speech.js";
+import { projectDirectory, startEngine, openBrowser, openCodeCommand } from "./process.js";
+import { loadSpeech, PICARD_HOME } from "./speech.js";
 import type { SpeechService } from "./speech-types.js";
 
 async function main() {
+  const [command, ...rest] = process.argv.slice(2);
+  if (command === "opencode") {
+    // The OpenCode included with Picard Code, for signing in to model providers.
+    const openCode = await openCodeCommand();
+    const child = spawn(openCode.command, [...openCode.prefix, ...rest], { stdio: "inherit" });
+    await new Promise<void>((done, fail) => {
+      child.once("error", fail);
+      child.once("exit", (code) => { process.exitCode = code ?? 1; done(); });
+    });
+    return;
+  }
+  if (command === "setup-speech" || command === "setup-sounds") {
+    await import(new URL(`../../scripts/${command}.mjs`, import.meta.url).href);
+    return;
+  }
   const { values } = parseArgs({
     options: {
       project: { type: "string", short: "p" },
@@ -21,9 +37,9 @@ async function main() {
     },
   });
   if (values.help) {
-    console.log(`Picard Code - a local browser interface for OpenCode
+    console.log(`Picard Code - a voice-only local browser interface for OpenCode
 
-  ${process.platform === "win32" ? "npm.cmd" : "npm"} start -- --project "path to your project"
+  npx picard-code --project "path to your project"
 
   --project, -p   Project folder (defaults to the current folder)
   --port          Browser port (defaults to a free local port)
@@ -33,9 +49,13 @@ async function main() {
   --speaking      kokoro (on this computer, the default) or mai (Azure)
   --help, -h      Show these instructions
 
+  npx picard-code setup-speech       Download local Whisper and Kokoro speech
+  npx picard-code setup-sounds       Download the three optional computer sounds
+  npx picard-code opencode <args>    Run the included OpenCode
+
 Picard Code works with any model provider OpenCode supports, such as GitHub
-Copilot, Anthropic or OpenAI. To sign in, run "npm run opencode -- auth login"
-and choose your provider.`);
+Copilot, Anthropic or OpenAI. To sign in, run "npx picard-code opencode auth login"
+and choose your provider. Downloads and settings are kept in ${PICARD_HOME}.`);
     return;
   }
   const port = values.port === undefined ? 0 : Number(values.port);
@@ -108,7 +128,7 @@ and choose your provider.`);
       client, project, port,
       speech, speechError,
       webRoot: fileURLToPath(new URL("../../web-dist/", import.meta.url)),
-      soundFolder: fileURLToPath(new URL("../../.picard-sounds/", import.meta.url)),
+      soundFolder: join(PICARD_HOME, "sounds"),
     });
     // From here the app owns speech, including any service chosen later in settings.
     cleanupSpeech = undefined;

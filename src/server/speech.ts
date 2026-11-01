@@ -14,9 +14,13 @@ export const DEFAULT_MAI_VOICE = "en-GB-Emily:MAI-Voice-2.1-Flash";
 /** Settings that the browser may read and change. Keys and passwords are never part of these. */
 export const SETTING_NAMES = ["subscription", "resourceGroup", "resourceName", "region", "deployment", "voice", "voiceStyle", "kokoroVoice"] as const;
 const NAME = /^[a-zA-Z0-9_.:-]{1,150}$/;
-/** Local speech files live in the Picard Code folder, never in the user's project. */
 const PICARD_FOLDER = fileURLToPath(new URL("../../", import.meta.url));
-const VOICE_FOLDER = resolve(PICARD_FOLDER, ".picard-voice");
+/**
+ * Settings and downloads live in .picard-code in the user's home folder, never in their project,
+ * and not beside the app, which npx keeps in a cache that each update replaces.
+ */
+export const PICARD_HOME = join(homedir(), ".picard-code");
+const VOICE_FOLDER = join(PICARD_HOME, "voice");
 const LOCAL_PATHS = {
   localPython: resolve(VOICE_FOLDER, process.platform === "win32" ? "Scripts" : "bin", process.platform === "win32" ? "python.exe" : "python"),
   whisperModel: resolve(VOICE_FOLDER, "models", "whisper-tiny.en"),
@@ -42,7 +46,7 @@ export function canSetUpLocalSpeech(record: Record<string, unknown> | undefined)
   return (Object.keys(LOCAL_PATHS) as (keyof typeof LOCAL_PATHS)[]).every((key) => localPath(record, key) === LOCAL_PATHS[key]);
 }
 
-/** Runs the same steps as npm run setup:speech, reporting each step as it starts. */
+/** Runs the same steps as npx picard-code setup-speech, reporting each step as it starts. */
 export function setUpLocalSpeech(onStep: (step: string) => void) {
   return new Promise<void>((done, fail) => {
     const child = spawn(process.execPath, [resolve(PICARD_FOLDER, "scripts", "setup-speech.mjs")], { cwd: PICARD_FOLDER, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
@@ -52,7 +56,7 @@ export function setUpLocalSpeech(onStep: (step: string) => void) {
         const text = line.trim();
         if (!text) continue;
         last = text;
-        if (/^(Creating|Installing|Downloading|uv is not installed|That step failed)/.test(text)) onStep(text.replace(/\.+$/, ""));
+        if (/^(Creating|Installing|Downloading|That step failed)/.test(text)) onStep(text.replace(/\.+$/, ""));
       }
     };
     child.stdout.on("data", read);
