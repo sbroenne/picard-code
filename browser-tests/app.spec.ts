@@ -72,7 +72,9 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
   await expect(conversation).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: /^Model/ }).click();
-  await page.mouse.click(700, 500);
+  await expect(page.getByRole("combobox", { name: "Model" })).toBeVisible();
+  // Settings is 880 pixels wide from the left; click the conversation to its right.
+  await page.mouse.click(1300, 500);
   await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
 
   await page.getByRole("link", { name: /^Provider/ }).click();

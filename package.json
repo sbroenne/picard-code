@@ -26,7 +26,7 @@
     "node": ">=24"
   },
   "bin": {
-    "picard-code": "./dist/server/cli.js"
+    "picard-code": "dist/server/cli.js"
   },
   "files": [
     "dist/server/",
