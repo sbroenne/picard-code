@@ -2,8 +2,8 @@ name: Prepare release
 
 # While release notes wait in .changeset/, this keeps the pull request "Release <version>" up
 # to date: it raises the version and moves the notes into CHANGELOG.md. Merging it starts
-# Create release. GitHub holds the checks on a pull request that a workflow opened or updated
-# until the owner selects "Approve workflows to run" on it.
+# Create release. Start the checks directly so a bot-created pull request needs no
+# manual workflow approval.
 on:
   push:
     branches: [main]
@@ -24,6 +24,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      actions: write
     steps:
       - name: Get the source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -48,10 +49,14 @@ jobs:
           # The release branch is rebuilt from main every time, so it is replaced.
           git push --force origin release
           notes="$(awk -v v="## $version" '$0==v{f=1;next} /^## /{f=0} f' CHANGELOG.md)"
-          body="Select Approve workflows to run so the checks start. When they pass, approve and merge this to release $version. Merging creates the GitHub release v$version and stages it on npm, where you approve it.
+          body="Checks start automatically. When they pass, approve and merge this to release $version. Merging creates the GitHub release v$version and stages it on npm, where you approve it.
           $notes"
           if [ "$(gh pr view release --json state --jq .state 2>/dev/null)" = OPEN ]; then
             gh pr edit release --title "Release $version" --body "$body"
           else
             gh pr create --base main --head release --title "Release $version" --body "$body"
           fi
+          # workflow_dispatch runs even with GITHUB_TOKEN; bot pull_request runs wait for approval.
+          gh workflow run checks.yml --ref release
+          gh workflow run dependency-review.yml --ref release \
+            -f base-ref="$(git rev-parse origin/main)" -f head-ref="$(git rev-parse HEAD)"

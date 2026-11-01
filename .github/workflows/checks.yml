@@ -26,8 +26,8 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Check changed-file rules
-        run: node --test .github/scripts/check-scope.test.mjs
+      - name: Check workflow and changed-file rules
+        run: node --test .github/scripts/*.test.mjs
       - name: Choose the checks
         id: scope
         env:
