@@ -174,6 +174,11 @@ Commit to the working branch with a clear plain-English message. Do not force
 push. Only the owner publishes to npm, by creating a GitHub release (see
 [docs/RELEASING.md](docs/RELEASING.md)); coding agents never publish.
 
+A change users will notice carries a release note in the same pull request:
+a file in `.changeset/` made with `npx changeset`, bump **patch**, one or two
+plain sentences for users (see [CONTRIBUTING.md](CONTRIBUTING.md#release-notes)).
+Never choose **major**; **minor** only when the owner asks for it.
+
 Maintainers and coding agents: before opening a pull request, review the
 complete branch diff with the Ponytail review skill in
 `.github/skills/ponytail-review`. Fix what it finds, or say in the pull request

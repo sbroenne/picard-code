@@ -86,7 +86,8 @@ a { color: var(--peach); text-underline-offset: 4px; }
 
 /* Side panel: LCARS buttons that open the slide-outs. */
 .sidebar { grid-area: sidebar; display: flex; flex-direction: column; gap: 6px; padding-top: 6px; min-height: 0; }
-.rail-button { display: flex; align-items: flex-end; justify-content: flex-end; text-align: right; min-height: 62px; padding: 8px 12px; color: var(--ink); text-decoration: none; font: 600 17px/1.1 var(--lcars); letter-spacing: .06em; text-transform: uppercase; flex: none; }
+/* On short screens the buttons (down to their text) and the Stardate shrink first, so the readouts keep room for their text. */
+.rail-button { display: flex; align-items: flex-end; justify-content: flex-end; text-align: right; padding: 8px 12px; color: var(--ink); text-decoration: none; font: 600 17px/1.1 var(--lcars); letter-spacing: .06em; text-transform: uppercase; flex: 0 1 62px; }
 .rail-button[aria-current] { background: var(--gold); }
 .rail-switch { position: relative; gap: 8px; cursor: pointer; }
 .rail-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
@@ -96,8 +97,8 @@ a { color: var(--peach); text-underline-offset: 4px; }
 .rail-switch:has(input:focus-visible) { outline: 3px solid var(--blue); outline-offset: 3px; }
 .rail-switch.blue:has(input:focus-visible) { outline-color: var(--gold); }
 .rail-switch:has(input:active) { filter: brightness(.85); }
-.rail-fill { flex: 1; min-height: 24px; display: flex; flex-direction: column; gap: 6px; }
-.rail-fill .readout { min-height: 0; font-size: 14px; }
+.rail-fill { flex: 1 0 auto; display: flex; flex-direction: column; gap: 6px; }
+.rail-fill .readout { min-height: 40px; font-size: 14px; }
 a.readout { text-decoration: none; }
 a.readout:hover, a.tribute:hover { filter: brightness(1.12); }
 a.readout[aria-current] { background: var(--gold); }
@@ -105,7 +106,7 @@ a.tribute { text-decoration: none; }
 .rail-fill .readout:nth-child(1) { flex: 3; }
 .rail-fill .readout:nth-child(2) { flex: 1; }
 .rail-fill .readout:nth-child(3) { flex: 1.6; }
-#rail-end { border-radius: 0 0 0 var(--elbow); min-height: 70px; }
+#rail-end { border-radius: 0 0 0 var(--elbow); flex: 0 1 70px; min-height: 46px; }
 
 /* Main viewscreen: the conversation above, the voice console below. */
 .workspace { grid-area: main; min-width: 0; min-height: 0; padding: 14px 0 0 var(--gap); display: flex; flex-direction: column; transition: opacity 160ms; }
@@ -282,6 +283,13 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
   .console { grid-template-columns: auto minmax(0, 1fr); }
   .console-actions { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; }
   .console-actions .pill { min-width: 190px; }
+}
+/* Short laptop screens, such as 1280 × 720 at 150% scale: a tighter side panel. */
+@media (max-height: 640px) {
+  .sidebar, .rail-fill { gap: 4px; }
+  .rail-button { padding: 6px 12px; }
+  .rail-fill .readout { min-height: 36px; padding: 4px 12px; }
+  #rail-end { min-height: 40px; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .drawer:not([hidden]) { animation: slide 180ms ease-out; }

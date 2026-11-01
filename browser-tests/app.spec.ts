@@ -1,4 +1,7 @@
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+
+const { version } = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
 
 // The launch token is available only to the launcher, not to unauthenticated pages.
 // For browser tests, capture the test launcher's printed address from its own process.
@@ -38,6 +41,7 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
   await expect(page.locator("#readout-model")).not.toHaveText(/^(—|None)$/);
   await expect(page.locator("#readout-project")).not.toHaveText("—");
   await expect(page.locator("#readout-speech")).toHaveText("Not set up");
+  await expect(page.locator("#readout-version")).toHaveText(version);
   await page.screenshot({ path: testInfo.outputPath("empty-screen.png"), fullPage: true });
 });
 

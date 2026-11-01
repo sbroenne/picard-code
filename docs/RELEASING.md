@@ -38,17 +38,32 @@ coding agents never do.
    environment and, under **Deployment branches and tags**, allow only the
    tag rule `v*`. No npm token is stored anywhere.
 3. **Each later version.** Version numbers follow the Enterprise-D's
-   registry, NCC-1701-D: `1701.4.x`, where 4 stands for D. Raise only the last
-   number for each release (`1701.4.0`, `1701.4.1`, …). Keep `1701.5.0`, the
-   Enterprise-E, for a major redesign. In a pull request, raise `version` in
-   `package.json` (for example `npm version 1701.4.1 --no-git-tag-version`) and
-   merge it. Then create a GitHub release with the tag `v1701.4.1`. The
-   **Publish to npm** workflow checks that the tag matches, runs the checks,
-   and stages the version on npm with provenance (a public record that GitHub
-   built it from this repository). Staged versions are not public yet. Approve
-   it on npmjs.com, or run `npm stage list` and then
-   `npm stage approve <id>`; npm asks for your second sign-in step. Then
-   check from an empty folder that `npx picard-code@1701.4.1 --help` works.
+   registry, NCC-1701-D: `1701.4.x`, where 4 stands for D. Normal releases
+   raise only the last number (`1701.4.0`, `1701.4.1`, …). Keep `1701.5.0`,
+   the Enterprise-E, for a major redesign; never raise the first number.
+   Pull requests bring their release notes as small files in `.changeset/`
+   (see [CONTRIBUTING.md](../CONTRIBUTING.md#release-notes)).
+   1. On a branch from an up-to-date `main`, run
+      `GITHUB_TOKEN=$(gh auth token) npm run release:version`. It raises
+      `version` (a patch note gives `1701.4.1`, a minor note `1701.5.0`),
+      writes the notes into `CHANGELOG.md` with a link to each pull request
+      and its author, and removes the used notes. Read `CHANGELOG.md`, then
+      merge it through a pull request.
+   2. On the updated `main`, create the GitHub release with the same notes:
+
+      ```sh
+      version=$(node -p "require('./package.json').version")
+      gh release create "v$version" --title "v$version" \
+        --notes "$(awk -v v="## $version" '$0==v{f=1;next} /^## /{f=0} f' CHANGELOG.md)"
+      ```
+
+   3. The **Publish to npm** workflow checks that the tag matches and that
+      `CHANGELOG.md` has notes for it, runs the checks, and stages the version
+      on npm with provenance (a public record that GitHub built it from this
+      repository). Staged versions are not public yet. Approve it on
+      npmjs.com, or run `npm stage list` and then `npm stage approve <id>`;
+      npm asks for your second sign-in step. Then check from an empty folder
+      that `npx picard-code@1701.4.1 --help` works.
 
 ## The launch video and YouTube channel
 

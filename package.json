@@ -50,7 +50,8 @@
     "test:behavior:live": "node dist/tests/behavior-live-check.js",
     "setup:sounds": "node scripts/setup-sounds.mjs",
     "setup:speech": "node scripts/setup-speech.mjs",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "release:version": "changeset version && npm install --package-lock-only --no-audit --no-fund"
   },
   "dependencies": {
     "ws": "^8.22.0"
@@ -64,6 +65,8 @@
     "@opencode/cli-windows-x64-baseline": "^2.1.4"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.3",
     "@playwright/test": "^1.58.0",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.18.1",

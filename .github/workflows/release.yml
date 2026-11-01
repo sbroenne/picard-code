@@ -29,12 +29,13 @@ jobs:
         with:
           node-version: "24"
           registry-url: https://registry.npmjs.org
-      - name: Check the release tag matches the package version
+      - name: Check the release tag matches the package version and has release notes
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          expected="v$(node -p "require('./package.json').version")"
-          if [ "$TAG" != "$expected" ]; then echo "The release tag $TAG does not match package.json ($expected)."; exit 1; fi
+          version="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "v$version" ]; then echo "The release tag $TAG does not match package.json (v$version)."; exit 1; fi
+          if ! grep -qxF "## $version" CHANGELOG.md; then echo "CHANGELOG.md has no release notes for $version."; exit 1; fi
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Check types

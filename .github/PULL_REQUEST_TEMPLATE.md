@@ -1,6 +1,7 @@
 ## What changes?
 
-Explain the useful difference and link any related issue.
+Explain the useful difference and link any related issue. If people using
+Picard Code will notice it, add a release note with `npx changeset`.
 
 ## How does it fit Picard Code?
 
