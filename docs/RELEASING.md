@@ -46,12 +46,14 @@ coding agents never do.
    Pull requests bring their release notes as small files in `.changeset/`
    (see [CONTRIBUTING.md](../CONTRIBUTING.md#release-notes)).
    1. While notes wait, the **Prepare release** workflow keeps a pull request
-      **Release 1701.4.x** open and starts the checks on it. It raises
-      `version` (a patch note gives `1701.4.1`, a minor note `1701.5.0`),
-      writes the notes into `CHANGELOG.md` with a link to each pull request
-      (and thanks for other contributors), and removes the used notes. Read
-      the notes, approve the pull request (a workflow opened it, so it needs
-      one approval), and merge it when you want to release.
+      **Release 1701.4.x** open. It raises `version` (a patch note gives
+      `1701.4.1`, a minor note `1701.5.0`), writes the notes into
+      `CHANGELOG.md` with a link to each pull request (and thanks for other
+      contributors), and removes the used notes. A workflow opened the pull
+      request, so GitHub holds its checks until you select **Approve
+      workflows to run** on it, again after each update. When the checks
+      pass, read the notes, approve the pull request (for the same reason it
+      needs one approval), and merge it when you want to release.
    2. The merge starts the **Create release** workflow. It creates the GitHub
       release `v<version>` with the same notes, then starts **Publish to npm**
       on that tag. If the release exists but publishing did not start, run
