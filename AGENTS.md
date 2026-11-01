@@ -189,8 +189,10 @@ Never change the owner's saved speech choices just to run a check.
 ## Git
 
 Commit to the working branch with a clear plain-English message. Do not force
-push. Only the owner publishes to npm, by creating a GitHub release (see
-[docs/RELEASING.md](docs/RELEASING.md)); coding agents never publish.
+push. Only the owner releases: merging the **Release** pull request that the
+Prepare release workflow keeps open creates the GitHub release and stages it
+on npm, and the owner approves it there (see [docs/RELEASING.md](docs/RELEASING.md)).
+Coding agents never raise the version or publish on their own.
 
 A change users will notice carries a release note in the same pull request:
 a file in `.changeset/` made with `npx changeset`, bump **patch**, one or two

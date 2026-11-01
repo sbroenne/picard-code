@@ -9,7 +9,7 @@ repository. In short:
 - Keep secrets out of the repository, logs and browser; services stay on `127.0.0.1`.
 - Do not write files into the user's project; Picard Code sends its own instructions per request.
 - Do not commit show recordings, models, samples or local settings; downloads and settings live in `~/.picard-code`.
-- Never publish to npm; only the owner does, through a GitHub release.
+- Never raise the version or publish to npm on your own; only the owner releases (see docs/RELEASING.md).
 - For a change users will notice, add a release note with `npx changeset` (patch, never major).
 - Before committing, use the checks in AGENTS.md: website tests for documentation and website-only changes; full checks for app, setup, dependency and check configuration changes.
 - Maintainers and coding agents: before opening a pull request, review the complete branch diff with the `ponytail-review` skill.

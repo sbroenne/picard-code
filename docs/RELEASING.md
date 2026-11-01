@@ -18,6 +18,8 @@ changing others:
   checks (ubuntu-latest, windows-latest, macos-latest). Copilot reviews each
   pull request once it is ready, using the Ponytail skill.
 - **Actions** may only use GitHub's own actions, pinned to exact versions.
+  **Allow GitHub Actions to create and approve pull requests** (Settings →
+  Actions → General) is on, so the release pull request can be opened.
 
 ## Publishing to npm
 
@@ -43,21 +45,18 @@ coding agents never do.
    the Enterprise-E, for a major redesign; never raise the first number.
    Pull requests bring their release notes as small files in `.changeset/`
    (see [CONTRIBUTING.md](../CONTRIBUTING.md#release-notes)).
-   1. On a branch from an up-to-date `main`, run
-      `GITHUB_TOKEN=$(gh auth token) npm run release:version`. It raises
+   1. While notes wait, the **Prepare release** workflow keeps a pull request
+      **Release 1701.4.x** open and starts the checks on it. It raises
       `version` (a patch note gives `1701.4.1`, a minor note `1701.5.0`),
       writes the notes into `CHANGELOG.md` with a link to each pull request
-      and its author, and removes the used notes. Read `CHANGELOG.md`, then
-      merge it through a pull request.
-   2. On the updated `main`, create the GitHub release with the same notes:
-
-      ```sh
-      version=$(node -p "require('./package.json').version")
-      gh release create "v$version" --title "v$version" \
-        --notes "$(awk -v v="## $version" '$0==v{f=1;next} /^## /{f=0} f' CHANGELOG.md)"
-      ```
-
-   3. The **Publish to npm** workflow checks that the tag matches and that
+      (and thanks for other contributors), and removes the used notes. Read
+      the notes, approve the pull request (a workflow opened it, so it needs
+      one approval), and merge it when you want to release.
+   2. The merge starts the **Create release** workflow. It creates the GitHub
+      release `v<version>` with the same notes, then starts **Publish to npm**
+      on that tag. If the release exists but publishing did not start, run
+      `gh workflow run release.yml --ref v<version>`.
+   3. **Publish to npm** checks that the tag matches and that
       `CHANGELOG.md` has notes for it, runs the checks, and stages the version
       on npm with provenance (a public record that GitHub built it from this
       repository). Staged versions are not public yet. Approve it on
