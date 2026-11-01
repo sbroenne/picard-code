@@ -27,6 +27,9 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole("link", { name: "Help shape the computer", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Watch the video on YouTube" })).toHaveAttribute("href", "https://youtu.be/_OKnpwS9dOI");
     await expect(page.locator(".console figcaption")).toContainText("staged example conversation");
+    await expect(page.locator("#start pre code")).toHaveText("npx picard-code");
+    await expect(page.locator("#start .intro")).toContainText("Save and apply");
+    await expect(page.locator("#start .intro")).toContainText("Choose Azure for both listening and speaking");
     await expect(page.locator(".site-footer")).toContainText("Not connected with or endorsed by Sir Patrick Stewart");
     await expect(page.locator('script:not([type="application/ld+json"]), iframe, audio, video')).toHaveCount(0);
     await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(1);

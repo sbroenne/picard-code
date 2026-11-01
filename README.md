@@ -76,20 +76,24 @@ You need:
 Then, in a terminal:
 
 ```sh
-npx picard-code setup-speech
 npx picard-code
 ```
 
-The first command downloads the local Whisper and Kokoro speech once (see
-[Local Whisper and Kokoro setup](#local-whisper-and-kokoro-setup)). It is safe
-to run again. The second starts Picard Code for the current folder. The first
-time, npx also downloads Picard Code and a copy of the official OpenCode 2
+This starts Picard Code for the current folder. The first time, npx downloads
+Picard Code and a copy of the official OpenCode 2
 (about 230 MB). If OpenCode 2 is already installed, Picard Code uses yours
 instead. You do not need to install OpenCode, Python or anything else
 yourself. OpenCode 1 is not supported.
 
-If you skip `setup-speech`, Picard Code starts without speech, and the
-**Listen · Speak** tile offers the same download.
+On a fresh installation, the app opens without speech. Choose the
+**Listen · Speak** tile, keep **On this computer** for listening and speaking,
+and choose **Save and apply**. The app downloads local Whisper and Kokoro
+speech, shows each step, and starts speech when it is ready, without a restart
+(see [Local Whisper and Kokoro setup](#local-whisper-and-kokoro-setup)).
+This is a one-time download; later starts use your saved speech choices.
+If you choose [Azure speech](#azure-speech-setup) for both listening and
+speaking, no local speech download is needed. Speech choices are separate
+from the model provider OpenCode uses.
 
 Your browser opens automatically. Keep the terminal open; press **Ctrl+C** to
 stop Picard Code and the OpenCode server it started. Use `--no-open` to print
@@ -142,11 +146,13 @@ git clone https://github.com/sbroenne/picard-code.git
 cd picard-code
 npm install
 npm run build
-npm run setup:speech
 npm start
 ```
 
-These use the same `.picard-code` folder. In PowerShell, use `npm.cmd` for
+Choose speech in the app as described in [Get started](#get-started).
+If you prefer to download local speech from the terminal before starting,
+`npm run setup:speech` is optional. These use the same `.picard-code` folder.
+In PowerShell, use `npm.cmd` for
 commands with `--` options, for example
 `npm.cmd start -- --project "C:\Users\you\source\my-project"`; some npm
 PowerShell wrappers otherwise drop the `--`. `npm run opencode -- auth login`
@@ -573,7 +579,18 @@ prebuilt British `bf_emma` voice by default (`af_heart` and the other Kokoro
 voices can be chosen with `kokoroVoice`). Both run on the CPU. No Azure resource, key, or login
 is needed when both sides are local. A model provider is still needed for coding.
 
-Download it once from a terminal (safe to run again):
+Start Picard Code, choose the **Listen · Speak** tile, keep
+**On this computer** for listening and speaking, and choose **Save and apply**.
+Picard Code downloads everything in the background, shows each step, and
+starts the selected speech services when ready. No restart is needed. If the
+download fails, the real reason is shown and any working speech stays in place.
+
+The local files are needed if either listening uses Whisper or speaking uses
+Kokoro, even when the other side uses Azure. With Azure for both sides, this
+download is not needed.
+
+If you prefer, download local speech once from a terminal before starting
+the app (optional and safe to run again):
 
 ```sh
 npx picard-code setup-speech
@@ -581,12 +598,6 @@ npx picard-code setup-speech
 
 Picard Code then uses Whisper and Kokoro whenever you start it, unless your
 saved speech settings choose Azure.
-
-You can also download from the app: choose the **Listen · Speak** tile, keep
-**On this computer** for listening and speaking, and choose **Save and apply**.
-Picard Code downloads everything in the background, shows each step, and
-switches over when it is ready. No restart is needed. If the download fails,
-the real reason is shown and the working speech stays in place.
 
 Setup works in this order, all inside `.picard-code` in your home folder:
 
@@ -918,10 +929,12 @@ and repeat the browser checks.
 - **Azure rejects speech:** check resource access, the deployed live listening
   model, supported region and voice, and service quota. A speech error does
   not mean OpenCode stopped; use **Belay that** separately when needed.
-- **Local speech will not start:** run `npx picard-code setup-speech`
-  and read any error it prints, check the configured paths, then choose
-  **Save and apply** in the **Listen · Speak** tile again (no restart
-  needed). The reported error is not replaced
+- **Local speech will not start:** choose **Save and apply** in the
+  **Listen · Speak** tile to download any missing local speech files and
+  start the selected services (no restart needed). Read any error shown.
+  You can also run `npx picard-code setup-speech` in a terminal and read any
+  error it prints. If you set custom file paths, check them before choosing
+  **Save and apply** again. The reported error is not replaced
   with Azure or browser speech. Picard Code needs working speech; there is
   no typing fallback.
 
