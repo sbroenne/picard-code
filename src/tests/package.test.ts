@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { bundledOpenCode, openCodeCommand, openCodePackage } from "../server/process.js";
 
 test("every computer the README promises maps to an OpenCode package Picard Code lists", () => {
@@ -16,9 +18,31 @@ test("the included OpenCode is found on this computer and is the pinned version"
   assert.equal(versions.size, 1, "Every @opencode/cli-* package must be pinned to the same version.");
   const program = bundledOpenCode();
   assert.ok(program, "No included OpenCode package matches this computer.");
-  const saved = process.env.PICARD_OPENCODE_PATH;
+  const saved = { path: process.env.PATH, openCode: process.env.PICARD_OPENCODE_PATH };
   delete process.env.PICARD_OPENCODE_PATH;
-  try { assert.equal((await openCodeCommand()).command, program); }
-  finally { if (saved !== undefined) process.env.PICARD_OPENCODE_PATH = saved; }
+  process.env.PATH = "";
+  try { assert.equal((await openCodeCommand()).command, program, "With no OpenCode installed, the included one is used."); }
+  finally {
+    process.env.PATH = saved.path;
+    if (saved.openCode !== undefined) process.env.PICARD_OPENCODE_PATH = saved.openCode;
+  }
   assert.equal(execFileSync(program, ["--version"], { encoding: "utf8" }).trim(), `opencode v${[...versions][0]}`);
+});
+
+test("an OpenCode 2 already installed is preferred; an older one is skipped", { skip: process.platform === "win32" && "needs a stand-in .exe" }, async () => {
+  const folder = mkdtempSync(join(tmpdir(), "picard-opencode-"));
+  const installed = join(folder, "opencode");
+  const saved = { path: process.env.PATH, openCode: process.env.PICARD_OPENCODE_PATH };
+  delete process.env.PICARD_OPENCODE_PATH;
+  process.env.PATH = folder;
+  try {
+    writeFileSync(installed, "#!/bin/sh\necho opencode v2.9.0\n", { mode: 0o755 });
+    assert.equal((await openCodeCommand()).command, installed);
+    writeFileSync(installed, "#!/bin/sh\necho 1.14.0\n", { mode: 0o755 });
+    assert.equal((await openCodeCommand()).command, bundledOpenCode());
+  } finally {
+    process.env.PATH = saved.path;
+    if (saved.openCode !== undefined) process.env.PICARD_OPENCODE_PATH = saved.openCode;
+    rmSync(folder, { recursive: true, force: true });
+  }
 });

@@ -51,7 +51,7 @@ async function main() {
   --help, -h      Show these instructions
 
   npx picard-code setup-speech       Download local Whisper and Kokoro speech
-  npx picard-code opencode <args>    Run the included OpenCode
+  npx picard-code opencode <args>    Run the OpenCode Picard Code uses
 
 Picard Code works with any model provider OpenCode supports, such as GitHub
 Copilot, Anthropic or OpenAI. To sign in, run "npx picard-code opencode auth login"

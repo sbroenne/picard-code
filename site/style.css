@@ -57,7 +57,8 @@ a { color: var(--peach); text-underline-offset: 4px; }
 }
 .block { min-height: 38px; padding: 6px 12px; }
 .header { grid-area: header; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 0 0 10px var(--gap); min-width: 0; }
-.title { color: var(--orange); text-decoration: none; font: 600 clamp(36px, 4.4vw, 64px)/.85 var(--lcars); letter-spacing: .04em; text-transform: uppercase; }
+.title { color: var(--orange); display: inline-flex; align-items: center; gap: .3em; text-decoration: none; font: 600 clamp(36px, 4.4vw, 64px)/.85 var(--lcars); letter-spacing: .04em; text-transform: uppercase; }
+.title img { width: .9em; height: .9em; }
 .badge { margin: 0; color: var(--tan); font: 500 14px/1 var(--lcars); letter-spacing: .14em; text-transform: uppercase; }
 
 .elbow { position: relative; background: var(--c); }

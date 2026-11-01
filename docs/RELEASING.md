@@ -40,6 +40,35 @@ agents never do.
    and publishes with provenance (a public record that GitHub built it from
    this repository).
 
+## The launch video and YouTube channel
+
+The short video is on the [Picard Code channel](https://www.youtube.com/@PicardCode)
+at <https://youtu.be/_OKnpwS9dOI>, linked from the website and README. It is
+**unlisted** until this work reaches `main`; then set it to **Public** in
+YouTube Studio.
+
+The video is never committed: it contains the TrekCore startup call. Its
+source is `video/index.html`, a [HyperFrames](https://github.com/heygen-com/hyperframes)
+composition; `video/assets/` and `video/out/` are ignored by git. To make it
+again (needs ffmpeg and `npm run setup:speech`):
+
+1. Capture the screens and spoken text from the labeled test stand-in:
+   `npm run build`, then
+   `PICARD_SITE_CAPTURE=1 npx playwright test browser-tests/voice.spec.ts --grep "website example|stewart facts have LCARS" --project desktop`.
+2. Make the voice lines with the local Kokoro voices (stock voices only, never
+   an imitation of a real actor):
+   `~/.picard-code/voice/bin/python3 video/speak.py`.
+3. From inside `video/`, run `npx hyperframes@0.8.226 lint`, then
+   `npx hyperframes@0.8.226 render --output out/picard-code.mp4`.
+
+YouTube needs a 1280×720 thumbnail, an 800×800 channel picture (the logo
+from `site/assets/mark.svg`) and a 2560×1440 channel banner. Keep the banner's
+words inside the centre 1546×423, which is all that phones show. The video description lists what the app uses,
+says the voices are stock Kokoro voices and the startup sound comes from
+TrekCore with permission, and ends with the same unofficial-tribute and
+trademark lines as the website. An end screen needs a second video or a
+playlist, so add one when there is more than one video.
+
 ## Older checkouts
 
 Older checkouts kept speech in `.picard-voice` and sounds in `.picard-sounds`

@@ -1,3 +1,5 @@
+<img src="site/assets/mark.svg" alt="Picard Code logo: code brackets around voice levels" width="96" height="96">
+
 # Picard Code
 
 **A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard.**
@@ -17,6 +19,7 @@ The computer handles general questions, writing, research and planning as well
 as code. A project folder is context for project work, not a limit on what you
 can ask.
 
+[Watch the short video](https://youtu.be/_OKnpwS9dOI) ·
 [Help shape the computer](CONTRIBUTING.md) ·
 [Setup and support](SUPPORT.md) · [MIT license](LICENSE)
 
@@ -81,8 +84,9 @@ npx picard-code
 The first command downloads the local Whisper and Kokoro speech once (see
 [Local Whisper and Kokoro setup](#local-whisper-and-kokoro-setup)). It is safe
 to run again. The second starts Picard Code for the current folder. The first
-time, npx also downloads Picard Code and the official OpenCode 2 it includes
-(about 230 MB). You do not need to install OpenCode, Python or anything else
+time, npx also downloads Picard Code and a copy of the official OpenCode 2
+(about 230 MB). If OpenCode 2 is already installed, Picard Code uses yours
+instead. You do not need to install OpenCode, Python or anything else
 yourself. OpenCode 1 is not supported.
 
 If you skip `setup-speech`, Picard Code starts without speech, and the
@@ -121,7 +125,8 @@ Everything Picard Code downloads or saves is kept in one folder,
 `.picard-code` in your home folder (on Windows, `C:\Users\you\.picard-code`):
 
 - `speech.json`: your speech settings (no keys or passwords);
-- `voice`, `python` and `uv`: local speech, its Python and the uv tool that set it up;
+- `voice`: local speech and its Python environment;
+- `uv` and `python`: only if uv was not already installed, the uv that set up speech and its Python;
 - `sounds`: the computer sounds, downloaded at the first start.
 
 Nothing is written into your project. To remove everything, delete that
@@ -589,16 +594,18 @@ Setup works in this order, all inside `.picard-code` in your home folder:
 
 1. It checks that this computer can run local speech (see
    [Get started](#get-started)), and stops with a plain reason if not.
-2. It downloads [uv](https://docs.astral.sh/uv/) 0.13.6, a tool that sets up
-   Python, from uv's GitHub release, and checks it against a fixed checksum.
-3. uv downloads Python 3.11 and installs the speech packages listed in
+2. It uses the [uv](https://docs.astral.sh/uv/) already installed, a tool that
+   sets up Python. If there is none, it downloads uv 0.13.6 from uv's GitHub
+   release and checks it against a fixed checksum.
+3. uv finds or downloads Python 3.11 and installs the speech packages listed in
    `scripts/requirements-speech.txt`.
 4. It downloads roughly **432 MB** of model files. The Kokoro files are checked
    against published checksums; the public Whisper download is fixed to a
    specific revision and uses no account token.
 
-Together these use about 750 MB of disk space. Nothing is installed outside
-that folder, and an existing Python or uv is left alone. Inference uses local
+Together these use about 750 MB of disk space. An installed uv keeps any
+Python it downloads in its usual place; otherwise nothing is installed
+outside that folder. Inference uses local
 files only, with up to four CPU threads per service.
 
 Both paths use the same automatic listen/respond loop. Whisper starts
@@ -876,10 +883,11 @@ and repeat the browser checks.
 
 ## If something goes wrong
 
-- **Missing OpenCode:** Picard Code includes OpenCode 2 for Windows, macOS
-  and Linux on x64 and arm64 processors. On other computers, such as Alpine
-  Linux, install OpenCode 2 from [opencode.ai](https://opencode.ai/v2/docs/)
-  and point `PICARD_OPENCODE_PATH` to it.
+- **Missing OpenCode:** Picard Code uses an OpenCode 2 found on your PATH,
+  and otherwise its own copy for Windows, macOS and Linux on x64 and arm64
+  processors. An older OpenCode on your PATH is skipped. On other computers,
+  such as Alpine Linux, install OpenCode 2 from
+  [opencode.ai](https://opencode.ai/v2/docs/).
 - **Browser cannot connect:** open the full launch address printed in the
   terminal, including its temporary key. It must use `127.0.0.1`, not a different
   hostname. Do not share that address.

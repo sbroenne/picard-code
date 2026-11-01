@@ -26,7 +26,7 @@ in the user's home folder.
 
 | Component | License and attribution | Source |
 | --- | --- | --- |
-| uv 0.13.6 (sets up Python; downloaded from its GitHub release and checked against a fixed checksum) | MIT or Apache 2.0; Astral Software Inc. | [Project](https://github.com/astral-sh/uv) |
+| uv 0.13.6 (sets up Python; downloaded from its GitHub release and checked against a fixed checksum, only when uv is not already installed) | MIT or Apache 2.0; Astral Software Inc. | [Project](https://github.com/astral-sh/uv) |
 | Python 3.11 (a python-build-standalone build, downloaded by uv) | Python Software Foundation License; the build includes libraries with their own notices | [Project](https://github.com/astral-sh/python-build-standalone) |
 | faster-whisper | MIT; copyright 2023 SYSTRAN | [Project](https://github.com/SYSTRAN/faster-whisper) |
 | Converted Whisper `tiny.en` weights | MIT; converted by SYSTRAN from OpenAI Whisper | [Model card](https://huggingface.co/Systran/faster-whisper-tiny.en) |

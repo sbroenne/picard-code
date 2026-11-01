@@ -27,7 +27,8 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole("link", { name: "Help shape the computer", exact: true })).toBeVisible();
     await expect(page.locator(".console figcaption")).toContainText("no real model, project, or speech service");
     await expect(page.locator(".site-footer")).toContainText("Not connected with or endorsed by Sir Patrick Stewart");
-    await expect(page.locator("script, iframe, audio, video")).toHaveCount(0);
+    await expect(page.locator('script:not([type="application/ld+json"]), iframe, audio, video')).toHaveCount(0);
+    await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(1);
     await page.locator(".console").scrollIntoViewIfNeeded();
     await expect.poll(() => page.locator("img").evaluateAll((images) =>
       images.every((image) => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0))).toBe(true);

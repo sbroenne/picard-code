@@ -10,6 +10,23 @@
   <meta property="og:description" content="Speak to your computer as the Captain spoke to his ship, and hear it answer. Open source, made with deep respect and gratitude.">
   <meta property="og:url" content="https://sbroenne.github.io/picard-code/">
   <meta property="og:image" content="https://sbroenne.github.io/picard-code/assets/console.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://sbroenne.github.io/picard-code/">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Picard Code",
+    "description": "A voice-only local browser app for OpenCode. Speak to your computer as Captain Jean-Luc Picard spoke to his ship, and hear it answer.",
+    "url": "https://sbroenne.github.io/picard-code/",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Windows, macOS, Linux",
+    "license": "https://opensource.org/licenses/MIT",
+    "codeRepository": "https://github.com/sbroenne/picard-code",
+    "image": "https://sbroenne.github.io/picard-code/assets/console.png",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
   <title>Picard Code &mdash; A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard</title>
   <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
@@ -22,7 +39,7 @@
       <span class="block lilac">Open source</span>
     </div>
     <header class="header">
-      <a class="title" href="./">Picard Code</a>
+      <a class="title" href="./"><img src="./assets/mark.svg" alt="" width="56" height="56">Picard Code</a>
       <p class="badge">Unofficial &middot; MIT license</p>
     </header>
     <div class="elbow elbow-top orange" aria-hidden="true"></div>
@@ -54,6 +71,7 @@
         <div class="actions">
           <a class="pill peach" href="#tribute">Read the tribute</a>
           <a class="pill lilac" href="#computer">Meet the computer</a>
+          <a class="pill orange" href="https://youtu.be/_OKnpwS9dOI">Watch the video <span aria-hidden="true">&nearr;</span></a>
         </div>
       </section>
 
@@ -93,8 +111,8 @@
         <figure class="console">
           <div class="console-bar"><span>Current log entry</span><span>Staged example</span></div>
           <img src="./assets/console.png" width="1440" height="1000" loading="lazy"
-            alt="The Picard Code interface. Picard asks: Computer, why is the settings test failing? The computer answers that the default voice replaces the saved choice, shows one line of code, and asks whether to make the change. Side-panel tiles show Captain's log, the project, model, speech services, and stardate.">
-          <figcaption>The real interface showing a staged example. The question and answer come from the
+            alt="The Picard Code interface. Picard asks Mr. Data why the shields read full when they are failing, and Data names the one cause in the tactical display code. Picard then asks Number One whether to fix it now or after reaching Starbase 74, and Riker recommends fixing it now. Below, a Jean-Luc Picard personnel file notes his interest in archaeology, with its source. Side-panel tiles show Captain's log, the Tribute and Bridge crew switches, the project, model, speech services, and stardate.">
+          <figcaption>The real interface showing a staged example. The questions and answers come from the
             project&rsquo;s labeled test stand-in; no real model, project, or speech service was used.</figcaption>
         </figure>
         <dl class="readouts">
@@ -107,6 +125,17 @@
           <div class="tan"><dt>Status</dt><dd>Early project
             <small>Voice only, for desktop computers. Runs with npx.</small></dd></div>
         </dl>
+        <div class="cards">
+          <article class="card blue"><h3>The bridge crew</h3>
+            <p>Riker, Data, Geordi, Worf, Troi and Crusher each bring their own expertise and manner.
+              Name one, or let the request go to the right officer. No copied dialogue or imitated voices.</p></article>
+          <article class="card orange"><h3>The Captain&rsquo;s orders</h3>
+            <p>&ldquo;Make it so&rdquo; carries out exactly what was proposed. &ldquo;Engage&rdquo;,
+              &ldquo;Report&rdquo;, &ldquo;Options&rdquo; and &ldquo;On screen&rdquo; work too. Approvals still need a button.</p></article>
+          <article class="card lilac"><h3>Tribute facts</h3>
+            <p>Now and then a short, sourced fact about Picard or Sir Patrick Stewart appears after an answer.
+              Switch Tribute off for plain work.</p></article>
+        </div>
         <aside class="notice" aria-labelledby="data-title">
           <h3 id="data-title">A local app does not always mean local processing</h3>
           <p>Listening starts as soon as speech is ready. With Azure listening, speech it detects goes to Azure
@@ -148,7 +177,7 @@
         <div class="start-grid">
           <div>
             <p class="intro">You need Node.js 22.12 or newer, a microphone, and a model provider OpenCode
-              can use. Picard Code includes OpenCode 2. Listening and speaking run on your computer by
+              can use. Picard Code uses your OpenCode 2, or brings its own. Listening and speaking run on your computer by
               default, after a one-time download of about 750 MB, so no cloud account is needed for speech.
               This website is only an introduction; it does not run the app or listen to you.</p>
             <p class="limits">Automated checks use labeled stand-ins. They do not prove that physical

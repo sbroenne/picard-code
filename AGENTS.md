@@ -62,8 +62,8 @@ original TNG-inspired look.
   sounds are downloaded at startup (or by `npm run setup:sounds`) into
   `~/.picard-code/sounds`; keep them out of git and keep their attribution and
   permission limits in `THIRD_PARTY_NOTICES.md`.
-- **Downloads stay outside the repository.** Speech setup keeps uv, Python and
-  the models in `~/.picard-code`; live-check samples go to the ignored
+- **Downloads stay outside the repository.** Speech setup keeps the models
+  in `~/.picard-code`; live-check samples go to the ignored
   `.picard-voice/samples`. Keep license notices for anything downloaded or
   included in the npm package.
 
@@ -167,11 +167,7 @@ matching real check from the README (`test:live`, `test:speech:live`,
 these make real model requests and some make small Azure charges. Report
 plainly which real checks ran and which could not.
 
-If a local speech check needs missing Whisper or Kokoro files, run
-`npm run setup:speech` in this checkout before retrying it. Install `uv` first
-if it is missing. This downloads the models and Python packages into the
-ignored `.picard-voice` folder; never commit them or change the owner's saved
-speech choices just to run a check.
+Never change the owner's saved speech choices just to run a check.
 
 Still not checked anywhere: a physical microphone and speakers (room noise,
 echo), macOS and Linux, and the owner's subjective review of voice and timing.

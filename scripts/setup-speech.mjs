@@ -1,6 +1,6 @@
 // Sets up local Whisper listening and Kokoro speaking in .picard-code/voice in the user's home folder.
-// Downloads a fixed, checked copy of uv, which brings Python 3.11 and the speech packages,
-// then about 432 MB of models. Everything stays in .picard-code, so deleting that folder removes it.
+// Uses the uv already installed, or else downloads a fixed, checked copy. uv brings Python 3.11 and
+// the speech packages, then about 432 MB of models are downloaded into .picard-code/voice.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { access, mkdir, rename, rm, writeFile } from "node:fs/promises";
@@ -13,8 +13,8 @@ const home = join(homedir(), ".picard-code");
 const voice = join(home, "voice");
 const windows = process.platform === "win32";
 const python = join(voice, windows ? "Scripts" : "bin", windows ? "python.exe" : "python");
-// Keep uv's Python and Hugging Face's download logs inside .picard-code too, and leave no download cache.
-const env = { ...process.env, UV_PYTHON_INSTALL_DIR: join(home, "python"), UV_PYTHON_PREFERENCE: "only-managed", UV_NO_CACHE: "1", HF_HOME: join(voice, "huggingface") };
+// Keep Hugging Face's download logs inside .picard-code too.
+const env = { ...process.env, HF_HOME: join(voice, "huggingface") };
 
 // uv's release files and checksums, for the computers the speech packages support.
 const UV_VERSION = "0.13.6";
@@ -35,6 +35,13 @@ function unsupported() {
 }
 
 async function uv() {
+  const installed = spawnSync("uv", ["--version"], { encoding: "utf8" });
+  if (installed.status === 0) {
+    console.log(`\nUsing the ${installed.stdout.trim()} already installed on this computer.`);
+    return "uv";
+  }
+  // A downloaded uv keeps its Python inside .picard-code and leaves no download cache.
+  Object.assign(env, { UV_PYTHON_INSTALL_DIR: join(home, "python"), UV_PYTHON_PREFERENCE: "only-managed", UV_NO_CACHE: "1" });
   const [file, checksum] = UV[`${process.platform}-${process.arch}`];
   const folder = join(home, "uv", UV_VERSION);
   const program = join(folder, windows ? "uv.exe" : "uv");
