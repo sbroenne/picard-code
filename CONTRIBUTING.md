@@ -100,6 +100,7 @@ If people using Picard Code will notice your change, add a release note: run
 what changed for them. Commit the new file in `.changeset/` with your change.
 **Minor** is kept for a major redesign the maintainer chooses; never choose
 **major**. Changes only to tests, checks or contributor docs need no note.
+The release notes link your pull request and thank you by name.
 
 ## Review and AI assistance
 
