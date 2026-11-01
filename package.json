@@ -23,7 +23,7 @@
   },
   "type": "module",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=24"
   },
   "bin": {
     "picard-code": "./dist/server/cli.js"

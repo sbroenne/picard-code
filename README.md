@@ -62,7 +62,7 @@ either side or both.
 
 You need:
 
-- **Node.js 22.12 or newer**, which includes npm and npx.
+- **Node.js 24 or newer**, using a long-term support (LTS) version such as 24 or 26. It includes npm and npx.
 - A microphone, and speakers or headphones.
 - A model provider OpenCode can use (see
   [Connect a model provider](#connect-a-model-provider)).
