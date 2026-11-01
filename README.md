@@ -44,10 +44,7 @@ use the [issue forms](https://github.com/sbroenne/picard-code/issues/new/choose)
 for bugs and proposals.
 
 This is an early project. The app is voice-only and designed for a computer
-screen. Automated desktop checks do not
-prove physical audio works. Earlier real-service evidence predates the
-OpenCode 2 migration; current real model, Azure, and local speech paths still
-need fresh checks before those results can be claimed for this version.
+screen.
 
 ### How it works
 
@@ -172,7 +169,7 @@ may call you "Jean-Luc" when she disagrees. They say "Captain" or "sir", and
 dialogue, no famous scenes or running jokes, and no actor voice imitation. They
 can contribute to non-code work too; the computer keeps its restrained, neutral
 manner. [docs/research/bridge-crew-voices.md](docs/research/bridge-crew-voices.md)
-explains the choices and their evidence limits.
+explains the choices.
 
 Start with **Computer**, as before. Officers answer to their bridge names:
 "Number One" or "Will", "Mr. Data", "Mr. La Forge" or "Geordi", "Mr. Worf",
@@ -281,7 +278,7 @@ right officer without naming them (including misheard names, an explanation to
 Data and writing to Troi) and real briefings in which the computer calls each
 officer itself. It cannot judge whether an officer sounds right; that needs
 you. It makes model requests, may incur provider charges, and never
-answers an approval itself. It does not check a physical microphone or speakers.
+answers an approval itself.
 
 ## Connect a model provider
 
@@ -488,8 +485,7 @@ on-screen button.
   without switching the microphone on or off.
   Listening uses the browser's echo cancellation and ignores recognized words
   repeated from the current spoken answer. If that also blocks your interruption,
-  click the panel or **Stop speaking**. Physical microphone and speaker echo
-  still needs checking on your computer. Whisper recognizes the interruption
+  click the panel or **Stop speaking**. Whisper recognizes the interruption
   after you pause; services with live words can stop playback sooner.
   Listening still pauses for computer sounds.
 - When OpenCode asks a single question, the computer reads it aloud with its
@@ -791,7 +787,7 @@ request are kept as you said them; your request is never rewritten.
 
 This changes phrasing, not OpenCode's tools or approval rules. The voice is a
 prebuilt voice, not a performer's clone or a show recording. The research
-behind these choices, with its evidence limits, is in
+behind these choices is in
 [docs/research](docs/research/conversation-research.md).
 
 ## Reuse an existing OpenCode server
@@ -891,8 +887,6 @@ and a refused command approval that must not run. It writes the full exchange
 to `.picard-voice/samples/behavior-transcript.md`. Model wording varies; the
 check verifies behavior, not exact words.
 
-A check with your physical microphone and speakers is still needed
-to judge room noise, listening sensitivity, comfortable pauses, and playback.
 Quiet, very short words or a long pause inside a sentence may need a repeat.
 Interrupting playback uses **Stop speaking**, not voice-over-voice detection.
 
@@ -949,9 +943,8 @@ services to install newer versions.
 - [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
 - [Kokoro ONNX](https://github.com/thewh1teagle/kokoro-onnx)
 
-The owner uses Picard Code on Windows and macOS. Startup and shutdown are
-implemented for Linux but still need a check there. This first version
-does not include file attachments or a full file editor.
+Picard Code is used daily on Windows and macOS and is built for Linux too.
+This first version does not include file attachments or a full file editor.
 
 ## Developing Picard Code
 

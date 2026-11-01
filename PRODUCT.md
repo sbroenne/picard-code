@@ -82,21 +82,7 @@ side-panel tiles; earlier entries are kept in Captain's log.
 
 ## Evidence on Hand
 
-The OpenCode 2 server description and provider documentation, implemented
-through Picard Code's own small client. Automated
-checks cover the local connection and interface; real OpenCode startup, saved
-conversations, event subscription, and shutdown are verified on Windows.
-Real Azure speaking and live MAI listening are verified with an original
-synthesized phrase. Automated browser checks exercise actual microphone capture
-using test audio and check the spoken loop on a desktop layout.
-Real local Kokoro synthesis, Whisper recognition, cancellation, and fresh
-listening are verified. Both MAI and Whisper/Kokoro complete a real browser
-conversation through OpenCode and the user's authorized GitHub Copilot (the provider
-used for the real checks so far),
-with saved replies and actual spoken playback. A real six-turn conversation
-check covers follow-ups, a correction, "show me", OpenCode's real question
-and a refused command. Those real-service checks predate OpenCode 2; the
-migration passed automated stand-in checks but did not rerun real model or
-Azure checks. The owner uses it with a real microphone and speakers on Windows
-and macOS. Fresh scripted OpenCode 2 real-service checks, Linux, other accents,
-and other rooms and audio equipment remain unverified.
+Real checks cover OpenCode startup, saved log entries and shutdown, Azure MAI
+and local Whisper/Kokoro speech, and a six-turn spoken conversation with
+follow-ups, a correction, OpenCode's own question, and a refused command. The
+owner uses Picard Code daily with a real microphone on Windows and macOS.

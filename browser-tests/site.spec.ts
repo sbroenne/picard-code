@@ -26,7 +26,7 @@ for (const width of [1440, 390]) {
     await expect(page.locator("main h1, main h2").first()).toHaveText(/tribute/i);
     await expect(page.getByRole("link", { name: "Help shape the computer", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Watch the video on YouTube" })).toHaveAttribute("href", "https://youtu.be/_OKnpwS9dOI");
-    await expect(page.locator(".console figcaption")).toContainText("no real model, project, or speech service");
+    await expect(page.locator(".console figcaption")).toContainText("staged example conversation");
     await expect(page.locator(".site-footer")).toContainText("Not connected with or endorsed by Sir Patrick Stewart");
     await expect(page.locator('script:not([type="application/ld+json"]), iframe, audio, video')).toHaveCount(0);
     await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(1);

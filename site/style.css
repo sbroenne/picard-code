@@ -148,7 +148,6 @@ h2 { margin: 0 0 26px; color: var(--peach); font-size: clamp(36px, 4.4vw, 64px);
 .supporting strong { color: var(--peach); }
 
 .start-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 36px; align-items: start; }
-.limits { max-width: 34em; padding-left: 14px; border-left: 6px solid var(--tan); color: var(--muted); font-size: 16px; }
 .source h3 { margin: 0 0 12px; color: var(--tan); font-size: 20px; letter-spacing: .14em; }
 .source pre { margin: 0 0 22px; padding: 18px 20px; overflow-x: auto; border-left: 8px solid var(--tan); border-radius: 0 20px 20px 0; background: var(--panel); color: var(--peach); font: 14px/1.7 "SF Mono", Consolas, monospace; }
 .source .pill { margin-right: 16px; }

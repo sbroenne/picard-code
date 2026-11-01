@@ -53,9 +53,7 @@ coding agents never do.
 ## The launch video and YouTube channel
 
 The short video is on the [Picard Code channel](https://www.youtube.com/@PicardCode)
-at <https://youtu.be/_OKnpwS9dOI>, linked from the website and README. It is
-**unlisted** until this work reaches `main`; then set it to **Public** in
-YouTube Studio.
+at <https://youtu.be/_OKnpwS9dOI>, linked from the website and README.
 
 The video is never committed: it contains the TrekCore startup call. Its
 source is `video/index.html`, a [HyperFrames](https://github.com/heygen-com/hyperframes)

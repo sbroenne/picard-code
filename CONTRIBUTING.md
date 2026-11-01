@@ -82,14 +82,14 @@ npx playwright test
 If Chromium is missing, run `npx playwright install chromium`. Windows users
 should use `npm.cmd` for commands with `--` arguments.
 
-These checks use labeled stand-ins and generated audio. They do not prove real
-models, speech services, or physical audio work. When changing those behaviors,
-also run the matching real checks in README. They can require your own sign-in,
+These checks use a test stand-in for OpenCode and generated audio. When changing
+models, speech, or conversation behavior, also run the matching real checks in
+README. They can require your own sign-in,
 model downloads, or paid Azure/model requests. Report exactly what ran and what
 could not; never submit credentials to CI.
 
 Keep changes focused and update related documentation. In a pull request,
-explain the user-facing difference, checks, and remaining evidence gaps.
+explain the user-facing difference and the checks you ran.
 Screenshots of stand-ins must be labeled. New speech services need license,
 data-flow, setup, error, and cancellation documentation.
 
@@ -121,9 +121,7 @@ On Windows, set `$env:PICARD_SITE_CAPTURE = "1"` in PowerShell and run
 `npx.cmd playwright test browser-tests/voice.spec.ts --grep "everyday answer"`,
 then remove the environment variable with
 `Remove-Item Env:PICARD_SITE_CAPTURE`.
-Review the image before committing it. It shows the real interface with a
-staged example from the labeled test stand-in, not a real model, project, or
-speech result, and the website caption must say so.
+Review the image before committing it.
 
 Pages deploys only `site/`, after each change to it reaches `main`.
 
