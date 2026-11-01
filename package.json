@@ -56,19 +56,19 @@
     "ws": "^8.22.0"
   },
   "optionalDependencies": {
-    "@opencode/cli-darwin-arm64": "2.2.5",
-    "@opencode/cli-darwin-x64-baseline": "2.2.5",
-    "@opencode/cli-linux-arm64": "2.2.5",
-    "@opencode/cli-linux-x64-baseline": "2.2.5",
-    "@opencode/cli-windows-arm64": "2.2.5",
-    "@opencode/cli-windows-x64-baseline": "2.2.5"
+    "@opencode/cli-darwin-arm64": "^2.1.4",
+    "@opencode/cli-darwin-x64-baseline": "^2.1.4",
+    "@opencode/cli-linux-arm64": "^2.1.4",
+    "@opencode/cli-linux-x64-baseline": "^2.1.4",
+    "@opencode/cli-windows-arm64": "^2.1.4",
+    "@opencode/cli-windows-x64-baseline": "^2.1.4"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.0",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.18.1",
     "dompurify": "^3.4.17",
-    "marked": "^18.1.2",
+    "marked": "^18.1.1",
     "typescript": "^5.9.3",
     "vite": "^8.0.0"
   }

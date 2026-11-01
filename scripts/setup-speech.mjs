@@ -13,6 +13,8 @@ const home = join(homedir(), ".picard-code");
 const voice = join(home, "voice");
 const windows = process.platform === "win32";
 const python = join(voice, windows ? "Scripts" : "bin", windows ? "python.exe" : "python");
+// Whisper's CTranslate2 has no Windows ARM build, so Windows ARM uses Intel-compatible Python through Windows' built-in emulation.
+const windowsArm = windows && process.arch === "arm64";
 // Keep Hugging Face's download logs inside .picard-code too.
 const env = { ...process.env, HF_HOME: join(voice, "huggingface") };
 
@@ -21,12 +23,13 @@ const UV_VERSION = "0.13.6";
 const UV = {
   "darwin-arm64": ["aarch64-apple-darwin.tar.gz", "60fbd5c8a1ed681845eea28d9d622fcde03c51e91a43465b64a1e17db1ed3472"],
   "win32-x64": ["x86_64-pc-windows-msvc.zip", "a2a8820d5eea32f08ef467ef3b7f66883a9b076d5737a2fc2fbb5f458d1bb50f"],
+  "win32-arm64": ["x86_64-pc-windows-msvc.zip", "a2a8820d5eea32f08ef467ef3b7f66883a9b076d5737a2fc2fbb5f458d1bb50f"],
   "linux-x64": ["x86_64-unknown-linux-gnu.tar.gz", "f29c3e94ffabd7e6f3ba521dba169a9b7ec12100bf3257087f0f24f6123f3645"],
   "linux-arm64": ["aarch64-unknown-linux-gnu.tar.gz", "229e194255c7958d86d56e8790d969a6f74736592133f0dfd0076f754c642c1d"],
 };
 
 function unsupported() {
-  if (!UV[`${process.platform}-${process.arch}`]) return "Local speech runs on Apple silicon Macs, on Windows with an x64 processor, and on Linux with an x64 or arm64 processor.";
+  if (!UV[`${process.platform}-${process.arch}`]) return "Local speech runs on Apple silicon Macs, on Windows, and on Linux with an x64 or arm64 processor.";
   if (process.platform === "darwin" && Number(release().split(".")[0]) < 23) return "Local speech needs macOS 14 or newer.";
   if (process.platform === "linux") {
     const [major, minor] = (process.report.getReport().header.glibcVersionRuntime ?? "0.0").split(".").map(Number);
@@ -80,7 +83,8 @@ try {
   const reason = unsupported();
   if (reason) throw new Error(`${reason} Choose Azure MAI speech in the Listen · Speak tile instead.`);
   const program = await uv();
-  run(program, ["venv", "--allow-existing", "--python", "3.11", voice], `Creating the Python 3.11 environment in ${voice}...`);
+  run(program, ["venv", "--allow-existing", "--python", windowsArm ? "cpython-3.11-windows-x86_64-none" : "3.11", voice],
+    `Creating the Python 3.11 environment in ${voice}${windowsArm ? " (Intel-compatible, run through Windows' emulation)" : ""}...`);
   run(program, ["pip", "install", "--python", python, "-r", join(scripts, "requirements-speech.txt")], "Installing the speech packages...");
   run(python, [join(scripts, "setup-local-speech.py"), join(voice, "models")], "Downloading and checking the Whisper and Kokoro models (about 432 MB)...");
   console.log("\nLocal speech is ready. Picard Code uses Whisper and Kokoro unless your saved speech settings choose Azure.");

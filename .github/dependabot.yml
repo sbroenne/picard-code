@@ -6,7 +6,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      # The per-computer OpenCode packages must stay on the same version.
+      # The per-computer OpenCode packages must ask for the same minimum version.
       opencode:
         patterns: ["@opencode/cli-*"]
       development-tools:

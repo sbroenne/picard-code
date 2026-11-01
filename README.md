@@ -69,7 +69,8 @@ You need:
 - For speech on this computer, one of these computers, with about **750 MB**
   of free disk space:
   - an Apple silicon Mac with macOS 14 or newer;
-  - Windows on an x64 processor;
+  - Windows on an x64 or ARM processor (ARM uses Intel-compatible Python
+    through Windows' built-in emulation);
   - Linux on an x64 or arm64 processor, with glibc 2.28 or newer (most desktop
     Linux versions since 2019).
 
@@ -614,6 +615,19 @@ recognizing after the pause; unlike MAI, it does not display live words while
 you are speaking. Stopping speech discards late audio and does not block the
 separate listening worker. No service is silently replaced if setup fails.
 
+On Windows ARM, app startup, the OpenCode 2.1.4 connection and all six bridge
+officers have been checked on the development machine. Real local speaking
+and listening also passed, using Intel-compatible Python 3.11 through
+Windows' built-in compatibility support rather than ARM-native speech
+packages, because Whisper's CTranslate2 has no Windows ARM version. That
+Python was set up by hand; `setup-speech` now chooses it automatically on
+Windows ARM, but that automatic step has not yet been checked there.
+Kokoro produced 4.3 seconds of audio in 3.0 seconds, and Whisper
+understood it in 1.8 seconds. The owner also reports that the physical
+microphone and speakers work on this Windows ARM machine. That hands-on check
+is separate from the automated checks and does not establish that every
+Windows ARM machine works.
+
 On the checked Windows machine, real Kokoro speaking with `bf_emma` produced
 **4.2 seconds of audio in 2.4 seconds**, and Whisper understood that audio in
 **0.5 seconds**. Worker startup took **4.4 seconds**. These are short-phrase measurements, not
@@ -916,8 +930,12 @@ and repeat the browser checks.
 
 ## References
 
-Implemented against OpenCode **2.2.5** (`@opencode/cli`), talking directly to
-the local server that `opencode serve` provides:
+Picard Code needs OpenCode **2.1.4 or newer** (the `@opencode/cli` packages)
+and installs the newest OpenCode 2 available to you. It talks directly to the
+local server that `opencode serve` provides. Package lists set minimum
+versions, not exact ones, so a package service that holds new releases back
+for a few days still works. Do not bypass your configured npm or Python package
+services to install newer versions.
 
 - [OpenCode 2 documentation](https://opencode.ai/v2/docs/)
 - [Moving from OpenCode 1](https://opencode.ai/v2/docs/migrate-v1/)
