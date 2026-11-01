@@ -7,6 +7,7 @@ import { checkVersion, makeClient, localServerUrl, errorMessage } from "./engine
 import { projectDirectory, startEngine, openBrowser } from "./process.js";
 import { loadSpeech } from "./speech.js";
 import type { SpeechService } from "./speech-types.js";
+import { setupSounds, soundFolder } from "../../scripts/setup-sounds.mjs";
 
 async function main() {
   const { values } = parseArgs({
@@ -67,6 +68,8 @@ and choose your provider.`);
   process.on("SIGTERM", shutdown);
   process.on("SIGHUP", shutdown);
   try {
+    console.log("Checking computer sounds...");
+    await setupSounds(soundFolder, controller.signal);
     let client;
     let prepareCrew: ((directory: string) => Promise<unknown>) | undefined;
     if (values.connect) {
@@ -111,7 +114,7 @@ and choose your provider.`);
       client, project, port, prepareCrew,
       speech, speechError,
       webRoot: fileURLToPath(new URL("../../web-dist/", import.meta.url)),
-      soundFolder: fileURLToPath(new URL("../../.picard-sounds/", import.meta.url)),
+      soundFolder,
     });
     // From here the app owns speech, including any service chosen later in settings.
     cleanupSpeech = undefined;

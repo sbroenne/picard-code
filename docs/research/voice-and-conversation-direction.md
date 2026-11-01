@@ -177,7 +177,7 @@ The user's listening judgment was: "the british computer voices are better." The
 
 The demonstrated spoken-answer and clarification problems still require fixes; changing the voice cannot repair them.
 
-Visible input restyling and voice-over-voice interruption remain excluded until a further explicit decision. Spoken clarification must use OpenCode's actual pending question and preserve choices and permission boundaries. Every implemented change needs real behavior checks, not merely convincing sample audio.
+At this stage, visible input restyling and voice-over-voice interruption were excluded until a further explicit decision. Spoken interruption was subsequently requested and implemented as described below. Spoken clarification must use OpenCode's actual pending question and preserve choices and permission boundaries. Every implemented change needs real behavior checks, not merely convincing sample audio.
 
 Do not describe the research as acoustically complete, or the app as faithful, solely because the speech connection passes its checks.
 
@@ -195,7 +195,15 @@ These changes follow the objective findings above. They do not settle whether th
 | Short follow-ups, corrections and "show me" lacked guidance. | The instructions cover all three, plus specific reasons for unavailable information, truthful completion reports and no stock catchphrases. |
 | Voice choice. | British MAI Emily (`en-GB-Emily:MAI-Voice-2.1-Flash`) with the neutral style is the default, following the user's listening preference. Kokoro defaults to the British `bf_emma`. Harper, `af_heart` and the other voices remain selectable. |
 
-Not implemented, by decision: rewriting requests in a captain's style, and interrupting the computer by voice. Approvals always need a button press.
+Spoken interruption now accepts "Computer" during an answer and stops playback,
+not running work. Requests keep their original words. Browser echo cancellation
+and rejection of words repeated from the current answer guard against the
+computer hearing itself; a click on the computer panel and **Stop speaking**
+remain available. Browser checks use a simulated microphone, not room acoustics.
+Physical microphone and speaker echo remains unchecked.
+
+Not implemented, by decision: rewriting requests in a captain's style.
+Approvals always need a button press.
 
 ### Real multi-turn check
 

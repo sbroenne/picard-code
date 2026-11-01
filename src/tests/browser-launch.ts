@@ -11,7 +11,11 @@ const project = await projectDirectory(process.cwd());
 const fixture = await startFixture(project);
 // Each utterance hears the next phrase; the last one repeats. Within a task everything said is sent,
 // so most end in silence ("").
-const phrases = process.argv.includes("--crew") ? ["Computer, have Data and Geordi look at the repair", ""]
+const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there", "Computer", "Keep the exact name and do not change files.", ""]
+  : process.argv.includes("--interrupt-request") || process.argv.includes("--interrupt-final") ? ["Computer, hello there", "Computer, keep the exact name and do not change files.", ""]
+  : process.argv.includes("--interrupt-room") ? ["Computer, hello there", "Hello again", ""]
+  : process.argv.includes("--interrupt-approval") ? ["Computer, request an approval", "Computer, allow once", ""]
+  : process.argv.includes("--crew") ? ["Computer, have Data and Geordi look at the repair", ""]
   : process.argv.includes("--officer") ? ["Computer, I wanted to have an answer from Data", ""]
   : process.argv.includes("--news") ? ["Computer, get the news from Data", ""]
   : process.argv.includes("--tribute") ? ["Computer, multi-message answer", "Hello again", "Another answer", "One more answer", "Keep going", "The last answer", ""]
@@ -32,7 +36,8 @@ const phrases = process.argv.includes("--crew") ? ["Computer, have Data and Geor
   : process.argv.includes("--unsafe") ? ["Computer, show unsafe output", ""]
   : process.argv.includes("--fresh") ? ["Computer, hello there", "New log entry", "Is anyone there"]
   : ["Computer, hello there", "Hello again", ""];
-const speech = process.argv.includes("--speech") ? speechFixture(phrases).service : undefined;
+const speech = process.argv.includes("--speech") ? speechFixture(phrases,
+  process.argv.some((arg) => arg.startsWith("--interrupt")) ? 20 : 1, !process.argv.includes("--interrupt-final")).service : undefined;
 const soundIndex = process.argv.indexOf("--sounds");
 const soundFolder = soundIndex > 0 ? process.argv[soundIndex + 1] : undefined;
 // A throwaway settings file, so checks never read or change the owner's real speech settings.

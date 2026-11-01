@@ -23,30 +23,32 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
     if (!chosen) { socket.close(1013, "Speech is not set up."); return; }
     let phase: VoicePhase = "off";
     let input: SpeechInput | undefined;
-    let operation: AbortController | undefined;
+    let listening: AbortController | undefined;
+    let speaking: AbortController | undefined;
     let epoch = 0;
+    let speechEpoch = 0;
     let audioBytes = 0;
-    let producingSpeech = false;
     let commitTimer: ReturnType<typeof setTimeout> | undefined;
     const send = (event: SpeechEvent) => {
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
     };
     const state = (next: VoicePhase, id?: number) => { phase = next; send(id === undefined ? { type: "state", phase } : { type: "state", phase, id }); };
-    const stop = () => {
+    const stopListening = () => {
       ++epoch;
       clearTimeout(commitTimer);
-      operation?.abort();
-      operation = undefined;
+      listening?.abort();
+      listening = undefined;
       input?.close();
       input = undefined;
       audioBytes = 0;
-      producingSpeech = false;
     };
+    const stopSpeaking = () => { ++speechEpoch; speaking?.abort(); speaking = undefined; };
+    const stop = () => { stopListening(); stopSpeaking(); };
     const fail = (message: string) => { stop(); state("off"); send({ type: "error", message }); };
     const listen = async (id?: number) => {
-      stop();
+      stopListening();
       const current = epoch;
-      operation = new AbortController();
+      listening = new AbortController();
       state("thinking");
       try {
         const next = await chosen.listen({
@@ -59,7 +61,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
             send({ type: "transcript", text });
           },
           error: (message) => { if (epoch === current) fail(message); },
-        }, operation.signal);
+        }, listening.signal);
         if (epoch !== current) { next.close(); return; }
         input = next;
         state("listening", id);
@@ -68,36 +70,35 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
       }
     };
     const speak = async (text: string, id: number) => {
-      stop();
-      const current = epoch;
-      operation = new AbortController();
-      producingSpeech = true;
-      state("thinking");
+      stopSpeaking();
+      const current = speechEpoch;
+      speaking = new AbortController();
+      send({ type: "state", phase: "thinking" });
       let started = false;
       let remainder = Buffer.alloc(0);
       try {
-        for await (const bytes of chosen.speak(text, operation.signal)) {
-          if (epoch !== current || socket.readyState !== WebSocket.OPEN) return;
+        for await (const bytes of chosen.speak(text, speaking.signal)) {
+          if (speechEpoch !== current || socket.readyState !== WebSocket.OPEN) return;
           if (socket.bufferedAmount > 1_000_000) throw new Error("Spoken playback fell behind. Speaking was stopped; the written answer remains on screen.");
           const joined = Buffer.concat([remainder, bytes]);
           const end = joined.length - joined.length % 2;
           if (end) {
             if (!started) {
               started = true;
-              state("speaking");
+              send({ type: "state", phase: "speaking" });
               send({ type: "audio-start", rate: 24000, id });
             }
             socket.send(joined.subarray(0, end), { binary: true });
           }
           remainder = Buffer.from(joined.subarray(end));
         }
-        if (epoch !== current) return;
+        if (speechEpoch !== current) return;
         if (remainder.length) throw new Error("The speaking service returned incomplete audio. The written answer remains on screen.");
         if (!started) throw new Error("No spoken audio was produced. The written answer remains on screen.");
         send({ type: "audio-end", id });
         // Remain paused until the browser finishes playing its queued audio.
       } catch (error) {
-        if (epoch === current) fail(error instanceof Error ? error.message : "Could not speak the answer. Read it on screen.");
+        if (speechEpoch === current) fail(error instanceof Error ? error.message : "Could not speak the answer. Read it on screen.");
       }
     };
     socket.on("message", (raw, binary) => {
@@ -107,7 +108,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
           const bytes = Buffer.isBuffer(raw) ? raw : Buffer.concat(Array.isArray(raw) ? raw : [Buffer.from(raw)]);
           if (!bytes.length || bytes.length % 2 || bytes.length > 2560) throw new Error("Microphone audio must contain small, complete 16-bit audio samples.");
           audioBytes += bytes.length;
-          if (audioBytes > 16000 * 2 * 3600) throw new Error("Listening reached the service's one-hour limit. Click the computer panel to listen again.");
+          if (audioBytes > 16000 * 2 * 3600) throw new Error("Listening reached the service's one-hour limit. Click the microphone button to listen again.");
           input.write(bytes);
           return;
         }
@@ -119,13 +120,15 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
           void listen(id);
         }
         else if (data.type === "pause") {
-          if (!producingSpeech) { stop(); state("off"); }
+          stopListening();
+          phase = "off";
+          if (!speaking) state("off");
         } else if (data.type === "commit") {
           if (phase !== "listening" || !input || !audioBytes) throw new Error("No spoken audio is waiting.");
           state("thinking");
-          commitTimer = setTimeout(() => fail("The listening service did not finish understanding the request. Click the computer panel to listen again."), 30_000);
+          commitTimer = setTimeout(() => fail("The listening service did not finish understanding the request. Click the microphone button to listen again."), 30_000);
           input.commit();
-        } else if (data.type === "stop-speaking") { stop(); state("off"); }
+        } else if (data.type === "stop-speaking") { stopSpeaking(); send({ type: "state", phase: "off" }); }
         else if (data.type === "speak" && "text" in data && typeof data.text === "string" && data.text.trim() && data.text.length <= 1000
           && "id" in data && typeof data.id === "number" && Number.isSafeInteger(data.id) && data.id > 0) {
           void speak(data.text.trim(), data.id);

@@ -340,8 +340,9 @@ Wikipedia requests.
 
 Optional speech follows the answer only after playback finishes. **Stop
 speaking**, microphone off, switching log entries or projects, Settings,
-errors and disconnection discard pending extras. Speaking over the computer
-still does not interrupt it; approvals still need an on-screen button.
+errors and disconnection discard pending extras. Saying "Computer" during an
+answer stops spoken playback and pending extras; approvals still need an
+on-screen button.
 
 ### Spoken requests
 
@@ -372,8 +373,8 @@ still does not interrupt it; approvals still need an on-screen button.
   understood, with or without "Computer". The computer beeps, says "Standing
   by.", ends the task and waits for "Computer" again. Work already running
   carries on, and the microphone stays on.
-- **"Stop"** (or "cancel that", "belay that", "never mind"; with "Computer"
-  before a task) cancels the current work, the same as **Belay that**.
+- **"Belay that"** (or "stop", "cancel that", "never mind"; with "Computer"
+  before a task) cancels the current work, the same as the **Belay that** button.
 - There is one current log entry. **"Computer, new log entry"** (or "new
   task", "start over") clears the screen, the same as the **New log entry**
   button. Every request that starts a task with "Computer" begins a new log
@@ -387,9 +388,18 @@ still does not interrupt it; approvals still need an on-screen button.
   and dates are spoken in a listenable form ("src slash app dot ts, line 3")
   while the screen keeps the exact text. Follow-ups, corrections and
   "show me" stay in the same log entry.
-- Listening pauses while the computer speaks or plays a sound, so it cannot
-  take its own voice as a new request. **Stop speaking** interrupts playback.
-  Speaking over the computer does not interrupt it.
+- **Say "Computer" to interrupt an answer**, then give your request, or say
+  "Computer" and the request together. Other room speech during an answer is
+  ignored, even within a log entry. This stops spoken playback and pending
+  tribute extras, not running work. Your words are kept unchanged.
+  **Stop speaking**, or clicking the computer panel, also interrupts playback
+  without switching the microphone on or off.
+  Listening uses the browser's echo cancellation and ignores recognized words
+  repeated from the current spoken answer. If that also blocks your interruption,
+  click the panel or **Stop speaking**. Physical microphone and speaker echo
+  still needs checking on your computer. Whisper recognizes the interruption
+  after you pause; services with live words can stop playback sooner.
+  Listening still pauses for computer sounds.
 - When OpenCode asks a single question, the computer reads it aloud with its
   choices and listens for your answer; no "Computer" is needed for the answer.
   Say the option's name or, for example,
@@ -401,17 +411,23 @@ still does not interrupt it; approvals still need an on-screen button.
 - "Stop listening" and switching the microphone off do not cancel OpenCode's work.
   **Belay that** cancels the current OpenCode request. These are separate
   controls.
-- **Optional computer sounds:** run `npm run setup:sounds` once to download three
-  short TrekCore sounds (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)),
-  then restart Picard Code. During spoken conversation they play quietly, once
+- **Computer sounds:** Picard Code downloads four short TrekCore sounds
+  automatically on first startup (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+  Later starts use the checked local copies; missing or changed files are downloaded
+  again. If a download fails, startup reports the error rather than silently
+  leaving sounds out. `npm run setup:sounds` also checks and downloads them.
+  The TNG-era ship-wide call welcomes the Captain once when the app opens,
+  after a click if the browser requires one, even before speech is set up. It does not play
+  for new log entries or when the microphone is switched back on.
+  During spoken conversation the other sounds play quietly, once
   each: a beep when a spoken request is accepted, when you say "Computer"
   on its own, or when you say "stop listening"; an input-failed sound when speech was not understood,
   could not be sent, or was "Not sent"; and a deny beep just before the spoken result when an
-  accepted request finally fails or is denied. Answers to questions, **Belay that**, "Computer, stop" and switching the microphone off play no sound.
+  accepted request finally fails or is denied. Answers to questions, **Belay that**, "Computer, belay that" and switching the microphone off play no sound.
   Listening is paused while a sound plays, and listening, speech,
-  **Stop speaking** or stopping listening stop it. Each sound only accompanies the visible and
-  spoken explanation; it never replaces it. Without the files, there are no
-  sounds and nothing else changes.
+  **Stop speaking** or stopping listening stop it. Request sounds only accompany the visible and
+  spoken explanation; it never replaces it. A missing or unreadable sound is
+  reported on screen.
 - Replies update live. Only the written answer is shown, without the model's
   thinking or tool steps; when an action fails or is refused with no written
   answer, its error is shown instead. Code blocks remain readable. **Copy** copies the reply text.

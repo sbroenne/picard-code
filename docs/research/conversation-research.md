@@ -2,7 +2,7 @@
 
 Research and design recommendations, 31 October 2026.
 
-> **Status.** This is the research that shaped Picard Code's conversation rules. It is kept as written, with its evidence limits. Recommendations are not all implemented: the optional captain-style rendering of requests is **not** built, and spoken interruption is **not** built. See [voice-and-conversation-direction.md](voice-and-conversation-direction.md) for what was implemented and checked.
+> **Status.** This is the research that shaped Picard Code's conversation rules. It is kept as written, with its evidence limits. Recommendations are not all implemented: the optional captain-style rendering of requests is **not** built. Spoken interruption is now implemented, but physical microphone and speaker echo still needs checking. See [voice-and-conversation-direction.md](voice-and-conversation-direction.md) for what was implemented and checked.
 
 ## Main finding
 

@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
     child.once("exit", (code) => { if (code) reject(new Error(`Browser fixture failed: ${code}`)); });
   });
   await page.goto(url);
-  await expect(page.getByRole("status")).toHaveText("Ready");
+  await expect(page.getByRole("status")).toHaveText("Standing by");
   page.on("close", () => child.kill());
 });
 
@@ -43,7 +43,7 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
 
 test("the main screen shows only the conversation; the side panel tiles open their own settings", async ({ page }, testInfo) => {
   // Without speech set up, the console says so and points to Settings.
-  await expect(page.getByRole("status")).toHaveText("Ready");
+  await expect(page.getByRole("status")).toHaveText("Standing by");
   await expect(page.locator("#voice-setup-hint")).toBeVisible();
   await expect(page.locator("#listen-toggle")).toBeHidden();
   for (const name of ["Project folder", "Provider sign-in"]) await expect(page.getByRole("heading", { name })).toBeHidden();

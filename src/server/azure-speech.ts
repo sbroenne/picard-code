@@ -95,7 +95,7 @@ export function azureSpeech(settings: AzureSettings, key: string): SpeechService
         fail(`Azure rejected the listening connection (HTTP ${response.statusCode}). Check access to the configured live model deployment.`);
       });
       socket.on("close", () => {
-        if (!closed) fail("Azure closed its listening connection. Click the computer panel to listen again.");
+        if (!closed) fail("Azure closed its listening connection. Click the microphone button to listen again.");
       });
       socket.on("message", (raw) => {
         let event: Record<string, unknown>;

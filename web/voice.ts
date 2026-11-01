@@ -1,8 +1,9 @@
 import { Utterance, type SpeechEvent } from "../src/shared/speech";
+import { interruptsSpeech } from "../src/shared/wake";
 
-type Cue = "request-accepted" | "input-failed" | "request-failed";
+type Cue = "startup" | "request-accepted" | "input-failed" | "request-failed";
 // The downloaded recordings differ in loudness; these keep each one quiet.
-const CUE_VOLUME: Record<Cue, number> = { "request-accepted": 1, "input-failed": 0.5, "request-failed": 0.08 };
+const CUE_VOLUME: Record<Cue, number> = { startup: 0.15, "request-accepted": 1, "input-failed": 0.5, "request-failed": 0.08 };
 
 /** "standby" listens on this computer only; "listening" sends one utterance to the listening service. */
 export type ConsolePhase = "off" | "standby" | "listening" | "thinking" | "speaking";
@@ -39,10 +40,15 @@ export class VoiceConversation {
   private startedAt = 0;
   // From the end of an utterance until its words have been handled.
   private handling = false;
+  private recording = false;
+  private interruption = false;
+  private spoken = "";
   private revision = 0;
   private cues = new Map<Cue, Promise<AudioBuffer | undefined>>();
   private cueSource?: AudioBufferSourceNode;
   private cueEnded = 0;
+  private startupPending = true;
+  private startupReady = false;
 
   constructor(private hooks: {
     changed(): void;
@@ -53,12 +59,12 @@ export class VoiceConversation {
   }) {}
 
   private command(data: object) {
-    if (this.socket?.readyState !== WebSocket.OPEN) throw new Error("The voice connection stopped. Click the computer panel to listen again.");
+    if (this.socket?.readyState !== WebSocket.OPEN) throw new Error("The voice connection stopped. Click the microphone button to listen again.");
     this.socket.send(JSON.stringify(data));
   }
   private state(phase: ConsolePhase) {
     this.phase = phase;
-    const enabled = this.microphone && (phase === "standby" || phase === "listening");
+    const enabled = this.microphone && !this.handling && (phase === "standby" || phase === "listening" || this.speechPending);
     this.capture?.port.postMessage(enabled);
     if (!enabled) { this.utterance.reset(); this.preRoll = []; this.queue = undefined; }
     this.hooks.changed();
@@ -80,24 +86,25 @@ export class VoiceConversation {
     if (!cue) {
       cue = (async () => {
         const response = await fetch(`/api/sounds/${name}`);
-        if (response.status === 404) return undefined;
-        if (!response.ok) throw new Error();
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return await context.decodeAudioData(await response.arrayBuffer());
-      })().catch(() => {
-        this.hooks.error("A computer sound could not be loaded. Speaking and listening continue without it.");
+      })().catch((error: unknown) => {
+        this.hooks.error(`The ${name} sound could not be loaded: ${error instanceof Error ? error.message : String(error)}. Restart Picard Code to check and download its sounds.`);
         return undefined;
       });
       this.cues.set(name, cue);
     }
     return cue;
   }
-  /** Sounds play only while the microphone is on, nothing is being heard, and no spoken answer is due. */
+  /** The arrival call also works before speech is set up; no sound interrupts a request or spoken answer. */
   private canSound(context: AudioContext, revision: number, name: Cue) {
+    if (this.context !== context || revision !== this.revision || this.recording) return false;
+    if (name === "startup") return context.state === "running" && !this.cueSource && !this.speechPending && !this.handling
+      && (this.phase === "off" || this.phase === "standby");
     // The failure sound plays just before its spoken explanation, so it is allowed while that speech waits.
-    return this.context === context && revision === this.revision && this.microphone && this.phase !== "listening"
-      && (!this.speechPending || name === "request-failed");
+    return this.microphone && this.phase !== "listening" && (!this.speechPending || name === "request-failed");
   }
-  /** Plays one short optional sound. Resolves when it ends or is stopped. Listening or computer speech stops it. */
+  /** Plays one short sound. Resolves when it ends or is stopped. Listening or computer speech stops it. */
   private async sound(name: Cue) {
     const context = this.context;
     const revision = this.revision;
@@ -125,6 +132,34 @@ export class VoiceConversation {
     });
   }
 
+  private startup() {
+    if (!this.startupReady || !this.startupPending || !this.context || this.context.state !== "running") return;
+    this.startupPending = false;
+    void this.sound("startup");
+  }
+
+  private audioContext() {
+    if (!this.context) {
+      const context = new AudioContext();
+      this.context = context;
+      context.onstatechange = () => {
+        if (this.context !== context) return;
+        this.waitingForClick = context.state === "suspended";
+        if (context.state === "running") this.startup();
+        this.hooks.changed();
+      };
+    }
+    return this.context;
+  }
+
+  /** Welcomes the Captain once after the app opens, waiting for browser permission to play audio. */
+  arrive() {
+    if (this.startupReady) return;
+    this.startupReady = true;
+    const context = this.audioContext();
+    void context.resume().catch(() => undefined);
+    this.startup();
+  }
 
   /** Called once when a spoken request has been accepted. */
   acknowledge() {
@@ -161,18 +196,10 @@ export class VoiceConversation {
     const revision = ++this.revision;
     try {
       if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error("This browser cannot capture live speech. Use a current Chrome, Edge, Firefox or Safari.");
-      if (!this.context) {
-        const context = new AudioContext();
-        this.context = context;
-        context.onstatechange = () => {
-          if (this.context !== context) return;
-          this.waitingForClick = context.state === "suspended";
-          this.hooks.changed();
-        };
-      }
+      const context = this.audioContext();
       // Without a recent click the browser keeps sound suspended until the next one; do not wait for it here.
-      void this.context.resume().catch(() => undefined);
-      for (const name of Object.keys(CUE_VOLUME) as Cue[]) void this.loadCue(this.context, name);
+      void context.resume().catch(() => undefined);
+      for (const name of Object.keys(CUE_VOLUME) as Cue[]) void this.loadCue(context, name);
       const media = await navigator.mediaDevices.getUserMedia({ audio: {
         channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
       } });
@@ -181,13 +208,13 @@ export class VoiceConversation {
       media.getTracks().forEach((track) => { track.onended = () => {
         if (this.microphone) { this.failed = true; this.microphoneOff(); this.hooks.error("The microphone disconnected. Check your device, then click the microphone button to listen again."); }
       }; });
-      await this.context.audioWorklet.addModule("/microphone-worklet.js");
+      await context.audioWorklet.addModule("/microphone-worklet.js");
       if (revision !== this.revision) return;
-      this.capture = new AudioWorkletNode(this.context, "picard-microphone");
-      const source = this.context.createMediaStreamSource(media);
-      const silent = this.context.createGain();
+      this.capture = new AudioWorkletNode(context, "picard-microphone");
+      const source = context.createMediaStreamSource(media);
+      const silent = context.createGain();
       silent.gain.value = 0;
-      source.connect(this.capture).connect(silent).connect(this.context.destination);
+      source.connect(this.capture).connect(silent).connect(context.destination);
       this.capture.port.onmessage = (event: MessageEvent<ArrayBuffer>) => this.heard(event.data);
       if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
         await this.connect();
@@ -195,14 +222,15 @@ export class VoiceConversation {
       if (revision !== this.revision) return;
       this.microphone = true;
       this.partial = "";
-      this.waitingForClick = this.context.state === "suspended";
-      if (!this.speechPending) this.resume();
+      this.waitingForClick = context.state === "suspended";
+      this.resume();
     } catch (error) {
       this.failed = true;
       this.microphoneOff();
       throw new Error(`Could not start listening. ${error instanceof Error ? error.message : "Check microphone permissions and the selected speech setup."}`);
     } finally {
       this.opening = false;
+      this.startup();
       this.hooks.changed();
     }
   }
@@ -210,8 +238,8 @@ export class VoiceConversation {
   /** One 20 ms packet of microphone audio. Nothing leaves this computer until speech starts. */
   private heard(packet: ArrayBuffer) {
     if (!this.microphone || this.socket?.readyState !== WebSocket.OPEN) return;
-    if (this.phase !== "standby" && this.phase !== "listening") return;
-    if (this.phase === "standby" && (this.cueSource || performance.now() - this.cueEnded < 200)) {
+    if (this.handling || !this.recording && this.phase !== "standby" && !this.speechPending) return;
+    if (!this.recording && (this.cueSource || performance.now() - this.cueEnded < 200)) {
       // The computer's own sound is not a request.
       this.utterance.reset();
       this.preRoll = [];
@@ -221,20 +249,22 @@ export class VoiceConversation {
     let energy = 0;
     for (let index = 0; index < view.byteLength; index += 2) energy += (view.getInt16(index, true) / 32768) ** 2;
     const change = this.utterance.update(Math.sqrt(energy / (view.byteLength / 2)), view.byteLength / 32);
-    if (this.phase === "standby") {
+    if (!this.recording) {
       if (change !== "start") {
         this.preRoll.push(packet);
         if (this.preRoll.length > 25) this.preRoll.shift();
         return;
       }
       this.startedAt = Date.now();
+      this.recording = true;
+      this.interruption = this.speechPending;
       this.stopCue();
       this.queue = [...this.preRoll, packet];
       this.preRoll = [];
       this.endedEarly = false;
       this.partial = "";
       this.command({ type: "listen", id: ++this.listenID });
-      this.phase = "listening";
+      if (!this.speechPending) this.phase = "listening";
       this.hooks.changed();
       return;
     }
@@ -249,11 +279,16 @@ export class VoiceConversation {
     if (change === "end") {
       if (this.queue) this.endedEarly = true;
       else this.commit();
-    } else if (change === "drop") this.resume();
+    } else if (change === "drop") {
+      this.recording = false;
+      this.command({ type: "pause" });
+      this.resume();
+    }
   }
   private commit() {
     this.handling = true;
-    this.state("thinking");
+    this.recording = false;
+    this.state(this.speechPending ? this.phase : "thinking");
     this.command({ type: "commit" });
   }
 
@@ -285,16 +320,32 @@ export class VoiceConversation {
           const data = JSON.parse(event.data) as SpeechEvent;
           if (data.type === "state") {
             // The browser keeps its own listening state; the service only reports when it is ready or speaking.
-            if (data.phase === "listening" && this.phase === "listening" && this.queue && data.id === this.listenID) {
+            if (data.phase === "listening" && this.recording && this.queue && data.id === this.listenID) {
               for (const packet of this.queue) socket.send(packet);
               this.queue = undefined;
               if (this.endedEarly) this.commit();
             } else if (data.phase === "speaking" && this.speechPending) this.state("speaking");
           }
-          else if (data.type === "partial") { if (this.phase === "listening" || this.handling) { this.partial = data.text; this.hooks.changed(); } }
+          else if (data.type === "partial") {
+            if (this.recording || this.handling) {
+              this.partial = data.text;
+              if (this.interruption && this.speechPending && interruptsSpeech(data.text, this.spoken)) this.stopSpeaking();
+              this.hooks.changed();
+            }
+          }
           else if (data.type === "transcript") {
             if (!this.handling) return;
             const text = data.text.trim();
+            if (this.interruption) {
+              this.interruption = false;
+              if (!interruptsSpeech(text, this.spoken)) {
+                this.handling = false;
+                this.partial = "";
+                this.resume();
+                return;
+              }
+              this.stopSpeaking();
+            }
             this.partial = text;
             this.hooks.changed();
             void this.hooks.transcript(text, this.startedAt).then(() => {
@@ -316,7 +367,7 @@ export class VoiceConversation {
               if (!this.speechPending || data.id !== this.speechRevision) return;
               const next = this.followOn;
               this.followOn = undefined;
-              if (next?.valid()) {
+              if (!this.recording && !this.handling && next?.valid()) {
                 this.speak(next.text);
                 this.optionalSpeech = true;
                 next.started?.();
@@ -355,7 +406,8 @@ export class VoiceConversation {
 
   /** Returns to standby: listening on this computer for the next utterance, if listening is possible now. */
   resume() {
-    if (this.speechPending || this.handling) return;
+    if (this.speechPending) { this.state(this.phase); return; }
+    if (this.recording || this.handling) { this.state(this.recording ? "listening" : "thinking"); return; }
     if (this.socket?.readyState !== WebSocket.OPEN) { this.state("off"); return; }
     const listen = this.microphone && this.hooks.canListen();
     if (listen && this.phase === "standby") return;
@@ -370,6 +422,7 @@ export class VoiceConversation {
     if (can ? this.phase === "thinking" || this.phase === "off" : this.phase === "standby" || this.phase === "listening") this.resume();
   }
   microphoneOff() {
+    this.startupPending = false;
     this.cancelFollowOn();
     ++this.revision;
     this.microphone = false;
@@ -379,6 +432,8 @@ export class VoiceConversation {
     this.media?.getTracks().forEach((track) => track.stop());
     this.media = undefined;
     this.handling = false;
+    this.recording = false;
+    this.interruption = false;
     this.waitingForClick = false;
     this.stopCue();
     if (this.socket?.readyState === WebSocket.OPEN) this.command({ type: "pause" });
@@ -393,8 +448,15 @@ export class VoiceConversation {
     this.clearAudio();
     this.followOn = followOn;
     this.speechPending = true;
+    this.spoken = text;
     // Speaking replaces any utterance still being understood; the service drops it.
     this.handling = false;
+    this.recording = false;
+    this.interruption = false;
+    this.utterance.reset();
+    this.preRoll = [];
+    this.queue = undefined;
+    this.command({ type: "pause" });
     const id = ++this.speechRevision;
     this.state("thinking");
     const say = () => {

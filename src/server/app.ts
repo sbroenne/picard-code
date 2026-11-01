@@ -135,7 +135,7 @@ export interface AppOptions {
   startSpeech?: (settings: Record<string, unknown>) => Promise<SpeechService>;
   localSpeechReady?: (settings: Record<string, unknown> | undefined, listening?: boolean, speaking?: boolean) => Promise<boolean>;
   setUpLocalSpeech?: (onStep: (step: string) => void, signal?: AbortSignal) => Promise<void>;
-  /** Optional folder holding the short sounds downloaded by `npm run setup:sounds`. */
+  /** Folder holding the computer sounds downloaded at startup. */
   soundFolder?: string;
   /** Reads Wikipedia for requested tribute questions; tests supply a labelled stand-in. */
   readWikipedia?: (subject: WikipediaArticle["subject"]) => Promise<WikipediaArticle>;
@@ -382,7 +382,7 @@ export async function startApp(options: AppOptions) {
           json(response, 200, await state(project));
           return;
         }
-        const soundName = /^\/api\/sounds\/(request-accepted|input-failed|request-failed)$/.exec(path)?.[1];
+        const soundName = /^\/api\/sounds\/(startup|request-accepted|input-failed|request-failed)$/.exec(path)?.[1];
         if (soundName && method === "GET") {
           let sound: Buffer;
           try {
