@@ -5,11 +5,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
-    # OpenCode is upgraded by hand: all @opencode/cli-* packages must move to
-    # the same version, and the stand-in checks cannot prove a new version works.
-    ignore:
-      - dependency-name: "@opencode/cli-*"
     groups:
+      # The per-computer OpenCode packages must stay on the same version.
+      opencode:
+        patterns: ["@opencode/cli-*"]
       development-tools:
         dependency-type: development
         update-types: [minor, patch]
