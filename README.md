@@ -19,7 +19,8 @@ The computer handles general questions, writing, research and planning as well
 as code. A project folder is context for project work, not a limit on what you
 can ask.
 
-[Watch the short video](https://youtu.be/_OKnpwS9dOI) ·
+[![Watch the short Picard Code video on YouTube](site/assets/video.png)](https://youtu.be/_OKnpwS9dOI)
+
 [Help shape the computer](CONTRIBUTING.md) ·
 [Setup and support](SUPPORT.md) · [MIT license](LICENSE)
 

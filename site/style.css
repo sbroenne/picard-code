@@ -110,6 +110,9 @@ h1, h2, h3, h4 { font-family: var(--lcars); font-weight: 600; text-transform: up
   border-radius: 24px; background: var(--c); color: var(--ink); text-decoration: none;
   font: 600 17px/1 var(--lcars); letter-spacing: .07em; text-transform: uppercase; white-space: nowrap;
 }
+.video { display: block; max-width: 720px; margin-top: 32px; color: var(--ink); text-decoration: none; }
+.video img { display: block; width: 100%; height: auto; border: 3px solid var(--orange); border-bottom: 0; border-radius: 6px 6px 0 0; }
+.video > span { display: block; padding: 12px 22px; border-radius: 0 0 24px 24px; background: var(--orange); font: 600 17px/1 var(--lcars); letter-spacing: .1em; text-transform: uppercase; }
 
 .label { display: inline-flex; align-items: center; gap: 14px; margin: 0 0 22px; padding: 5px 20px 5px 5px; border-radius: 22px; background: var(--c); color: var(--ink); font: 600 16px/1 var(--lcars); letter-spacing: .14em; text-transform: uppercase; }
 .label b { padding: 6px 12px; border-radius: 16px; background: var(--ink); color: var(--c); }

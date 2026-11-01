@@ -61,7 +61,8 @@ again (needs ffmpeg and `npm run setup:speech`):
 3. From inside `video/`, run `npx hyperframes@0.8.226 lint`, then
    `npx hyperframes@0.8.226 render --output out/picard-code.mp4`.
 
-YouTube needs a 1280×720 thumbnail, an 800×800 channel picture (the logo
+YouTube needs a 1280×720 thumbnail (also kept as `site/assets/video.png`, the
+clickable video picture in the README and on the website), an 800×800 channel picture (the logo
 from `site/assets/mark.svg`) and a 2560×1440 channel banner. Keep the banner's
 words inside the centre 1546×423, which is all that phones show. The video description lists what the app uses,
 says the voices are stock Kokoro voices and the startup sound comes from
