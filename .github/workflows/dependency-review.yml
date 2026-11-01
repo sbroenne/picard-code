@@ -7,6 +7,16 @@ on:
       - "**/package-lock.json"
       - "**/npm-shrinkwrap.json"
       - .github/workflows/dependency-review.yml
+  workflow_dispatch:
+    inputs:
+      base-ref:
+        description: Commit before the dependency changes
+        required: true
+        type: string
+      head-ref:
+        description: Commit after the dependency changes
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -26,3 +36,5 @@ jobs:
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v4
         with:
           fail-on-severity: high
+          base-ref: ${{ inputs.base-ref || github.event.pull_request.base.sha }}
+          head-ref: ${{ inputs.head-ref || github.event.pull_request.head.sha }}
