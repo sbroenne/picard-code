@@ -153,11 +153,13 @@ meaning, even when the repository's name includes Picard.
 
 With **Tribute** on, a short fact about Picard or Patrick Stewart appears after
 every two to five eligible answers, with a varied gap and no limit per log
-entry. It appears as an LCARS-style record with a source link: **Personnel file**
+entry. It appears as a standalone LCARS-style record below the Computer reply,
+outside its orange frame, with a source link: **Personnel file**
 above **Jean-Luc Picard** in lilac, or **All the world’s a stage** above
 **Sir Patrick Stewart** in peach. A small **Stardate** shows when the fact
-appeared, not a date in the subject's life. It stays separate from the answer and its Copy
-button. Questions, approvals, errors, refusals and stopped work receive no
+appeared, not a date in the subject's life. It has no Computer label or Copy
+button and stays readable when earlier replies dim. Questions, approvals,
+errors, refusals and stopped work receive no
 facts. Reopening the Captain's log does not generate new ones. Facts avoid
 repetition until the reviewed collection has been used, and may contain
 spoilers from Picard's appearances.

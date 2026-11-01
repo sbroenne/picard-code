@@ -156,7 +156,7 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .message pre { background: #120f0c; color: var(--text); border-left: 4px solid var(--peach); padding: 14px; line-height: 1.6; white-space: pre; overflow-x: auto; max-width: 100%; }
 .message-error { color: #ffd6cc; background: #3a1414; padding: 12px; border-radius: 0 16px 16px 0; }
 .tribute-fact, .tribute-invitation, .tribute-source, .wikipedia-source { margin: 14px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
-.tribute-fact { --record-color: var(--lilac); margin-top: 24px; background: var(--ink); color: var(--text); font-size: 16px; }
+.tribute-fact { --record-color: var(--lilac); margin: 24px 0 28px; overflow-wrap: anywhere; background: var(--ink); color: var(--text); font-size: 16px; }
 .tribute-fact[data-subject="stewart"] { --record-color: var(--peach); }
 .tribute-record-header { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 8px 24px; padding: 0 0 10px 32px; color: var(--record-color); }
 .tribute-record-title small { display: block; font: 500 13px/1.4 var(--lcars); letter-spacing: .12em; text-transform: uppercase; }

@@ -324,6 +324,8 @@ test("facts vary within one log, are separate from copied answers, and the navig
   await launch(page, "tribute");
   await startListening(page);
   await expect(page.locator(".tribute-fact")).toHaveCount(2, { timeout: 35000 });
+  await expect(page.locator("#messages > .tribute-fact")).toHaveCount(2);
+  await expect(page.locator(".message .tribute-fact")).toHaveCount(0);
   await expect(page.locator(".message[data-role=user]")).toHaveCount(4);
   const facts = await page.locator(".tribute-fact p").allTextContents();
   expect(new Set(facts).size).toBe(2);
@@ -337,6 +339,9 @@ test("facts vary within one log, are separate from copied answers, and the navig
   await expect(latestFact.getByRole("heading", { name: "Jean-Luc Picard", exact: true })).toHaveCSS("font-size", "24px");
   await expect(latestFact.locator(".tribute-record-title small")).toHaveText("Personnel file");
   await expect(latestFact.locator(".tribute-record-bars")).toHaveAttribute("aria-hidden", "true");
+  await expect(latestFact.locator(".message-header, .copy-button")).toHaveCount(0);
+  await expect(latestFact).toHaveCSS("opacity", "1");
+  await expect(page.locator(".tribute-fact").first()).toHaveCSS("opacity", "1");
   const date = await latestFact.locator(".tribute-stardate").textContent();
   await latestFact.locator("a").focus();
   await expect(latestFact.locator("a")).toBeFocused();
@@ -374,6 +379,14 @@ test(`${subject} facts have LCARS headings and a real, stable Stardate`, async (
   await startListening(page);
   const fact = page.locator(`.tribute-fact[data-subject="${subject}"]`);
   await expect(fact).toHaveCount(1, { timeout: 20000 });
+  await expect(page.locator(`#messages > .message[data-role="assistant"] + .tribute-fact[data-subject="${subject}"]`)).toHaveCount(1);
+  await expect(page.locator(".message .tribute-fact")).toHaveCount(0);
+  await expect(fact.locator(".message-header, .copy-button")).toHaveCount(0);
+  const reply = page.locator(".message[data-role=assistant]").last();
+  const replyBounds = await reply.boundingBox();
+  const factBounds = await fact.boundingBox();
+  expect(factBounds!.y).toBeGreaterThanOrEqual(replyBounds!.y + replyBounds!.height + 24);
+  expect(factBounds!.x).toBe(replyBounds!.x);
   await expect(fact.getByRole("heading")).toHaveText(subject === "picard" ? "Jean-Luc Picard" : "Sir Patrick Stewart");
   await expect(fact.locator(".tribute-record-title small")).toHaveText(subject === "picard" ? "Personnel file" : "All the world’s a stage");
   await expect(fact.locator(".tribute-record-body")).toHaveCSS("border-left-color", subject === "picard" ? "rgb(204, 153, 204)" : "rgb(255, 204, 153)");

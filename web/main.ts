@@ -514,6 +514,18 @@ function renderMessages() {
     for (const part of failures) article.append(make("p", "message-error", part.text));
     if (message.error) article.append(make("p", "message-error", message.error));
     const extra = tributeDisplay.get(`${selected}:${message.id}`);
+    if (extra?.invitation && tributeEnabled) article.append(make("p", "tribute-invitation", extra.invitation));
+    if (extra?.story) {
+      const source = make("p", "tribute-source");
+      source.append(tributeSource(extra.story));
+      article.append(source);
+    }
+    if (extra?.reference) {
+      const source = make("p", "wikipedia-source");
+      source.append(sourceLink(extra.reference));
+      article.append(source);
+    }
+    container.append(article);
     if (extra?.fact) {
       const fact = make("aside", "tribute-fact");
       const picard = extra.fact.subject === "Picard";
@@ -532,20 +544,8 @@ function renderMessages() {
       const body = make("div", "tribute-record-body");
       body.append(make("p", undefined, extra.fact.text), tributeSource(extra.fact));
       fact.append(heading, bars, body);
-      article.append(fact);
+      container.append(fact);
     }
-    if (extra?.invitation && tributeEnabled) article.append(make("p", "tribute-invitation", extra.invitation));
-    if (extra?.story) {
-      const source = make("p", "tribute-source");
-      source.append(tributeSource(extra.story));
-      article.append(source);
-    }
-    if (extra?.reference) {
-      const source = make("p", "wikipedia-source");
-      source.append(sourceLink(extra.reference));
-      article.append(source);
-    }
-    container.append(article);
   });
   controls();
   if (nearBottom && window.matchMedia("(min-width: 701px)").matches) readingArea.scrollTop = readingArea.scrollHeight;

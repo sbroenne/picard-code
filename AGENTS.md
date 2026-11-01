@@ -121,6 +121,9 @@ Automatic fact records use “Personnel file” / “Jean-Luc Picard” or
 “All the world’s a stage” / “Sir Patrick Stewart”. Each has a real Stardate
 captured when it first appears, not an invented date in the subject's life.
 Keep that readout stable when the screen redraws.
+Render automatic facts as standalone records below their replies, outside
+the reply frame, with no Computer label or Copy button. Keep their text
+readable independently of earlier replies dimming.
 
 Computer sounds play once per real event, quietly, never while listening, and
 never instead of the written or spoken explanation:
