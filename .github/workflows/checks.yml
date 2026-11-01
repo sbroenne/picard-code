@@ -14,10 +14,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Choose checks for changed files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - name: Get the source and comparison commits
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check changed-file rules
+        run: node --test .github/scripts/check-scope.test.mjs
+      - name: Choose the checks
+        id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: node .github/scripts/check-scope.mjs
+
   # Things that can differ between computers: OpenCode packages, paths and starting programs.
   # Each system tests one Node version, so the oldest and newest supported versions are both covered.
   systems:
-    name: Server and package (${{ matrix.os }})
+    name: Test server and package (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
@@ -59,12 +83,53 @@ jobs:
           if grep -q "^package/dist/tests/" files.txt; then echo "Test files must not be in the package."; exit 1; fi
           npx --yes "./$file" opencode --version
 
+  # Fixed names keep the existing merge requirements intact even when the matrix is skipped.
+  ubuntu:
+    name: Server and package (ubuntu-latest)
+    needs: [changes, systems]
+    if: always() && needs.changes.outputs.full == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - env:
+          RESULT: ${{ needs.systems.result }}
+        run: test "$RESULT" = success
+
+  windows:
+    name: Server and package (windows-latest)
+    needs: [changes, systems]
+    if: always() && needs.changes.outputs.full == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - env:
+          RESULT: ${{ needs.systems.result }}
+        run: test "$RESULT" = success
+
+  macos:
+    name: Server and package (macos-latest)
+    needs: [changes, systems]
+    if: always() && needs.changes.outputs.full == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - env:
+          RESULT: ${{ needs.systems.result }}
+        run: test "$RESULT" = success
+
   # The browser checks use a test stand-in for OpenCode, so they run once.
   browser:
     name: Types and browser checks
+    needs: changes
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Require a successful changed-file check
+        env:
+          RESULT: ${{ needs.changes.result }}
+          FULL: ${{ needs.changes.outputs.full }}
+        run: test "$RESULT" = success && { test "$FULL" = true || test "$FULL" = false; }
       - name: Get the source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -79,11 +144,17 @@ jobs:
       - name: Install the test browser
         run: npx playwright install --with-deps chromium
       - name: Check types
+        if: needs.changes.outputs.full == 'true'
         run: npm run check
       - name: Build
+        if: needs.changes.outputs.full == 'true'
         run: npm run build
       - name: Check the desktop app and project website
+        if: needs.changes.outputs.full == 'true'
         run: npx playwright test
+      - name: Check documentation links and the project website
+        if: needs.changes.outputs.full != 'true'
+        run: npx playwright test browser-tests/site.spec.ts
       - name: Keep browser failure evidence
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

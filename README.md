@@ -839,6 +839,12 @@ against another program already running on your computer.
 
 ## Checks
 
+For changes only to documentation or the project website, use
+`npx playwright test browser-tests/site.spec.ts`. It checks website layouts
+and documentation links without building the app. App, dependency, setup and
+check configuration changes still need full checks; see
+[AGENTS.md](AGENTS.md#checks) and [CONTRIBUTING.md](CONTRIBUTING.md#make-and-check-a-change).
+
 ```sh
 npm run check
 npm run build
