@@ -235,8 +235,8 @@ on-screen button.
   understood, with or without "Computer". The computer beeps, says "Standing
   by.", ends the task and waits for "Computer" again. Work already running
   carries on, and the microphone stays on.
-- **"Stop"** (or "cancel that", "belay that", "never mind"; with "Computer"
-  before a task) cancels the current work, the same as **Belay that**.
+- **"Belay that"** (or "stop", "cancel that", "never mind"; with "Computer"
+  before a task) cancels the current work, the same as the **Belay that** button.
 - There is one current log entry. **"Computer, new log entry"** (or "new
   task", "start over") clears the screen, the same as the **New log entry**
   button. Every request that starts a task with "Computer" begins a new log
@@ -285,7 +285,7 @@ on-screen button.
   each: a beep when a spoken request is accepted, when you say "Computer"
   on its own, or when you say "stop listening"; an input-failed sound when speech was not understood,
   could not be sent, or was "Not sent"; and a deny beep just before the spoken result when an
-  accepted request finally fails or is denied. Answers to questions, **Belay that**, "Computer, stop" and switching the microphone off play no sound.
+  accepted request finally fails or is denied. Answers to questions, **Belay that**, "Computer, belay that" and switching the microphone off play no sound.
   Listening is paused while a sound plays, and listening, speech,
   **Stop speaking** or stopping listening stop it. Request sounds only accompany the visible and
   spoken explanation; it never replaces it. A missing or unreadable sound is

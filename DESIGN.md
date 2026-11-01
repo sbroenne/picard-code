@@ -38,7 +38,7 @@ scrolling, and message controls wrap without horizontal page overflow.
 
 ## States and access
 
-The setup screen tells the truth when Copilot is missing. Ready means the real
+The setup screen tells the truth when Copilot is missing. Standing by means the real
 OpenCode event stream is connected and a Copilot model is available. Working, loading, reconnecting, unanswered
 questions, and approval requests have visible labels. Errors name the problem
 and the recovery step.

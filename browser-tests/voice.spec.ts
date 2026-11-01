@@ -516,7 +516,7 @@ test("long work plays only the accepted sound, and “Stop” cancels it within 
   const spoken = spokenText(page);
   await launch(page, "slow");
   await startListening(page);
-  await expect(page.locator("#status-detail")).toHaveText("Say “Stop” to cancel.", { timeout: 15000 });
+  await expect(page.locator("#status-detail")).toHaveText("Say “Belay that” to cancel.", { timeout: 15000 });
   // No sound plays while the work continues.
   await page.waitForTimeout(3000);
   expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
@@ -604,7 +604,7 @@ test("replies show code safely, and the conversation reopens after reload", asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.reload();
   await expect(page.locator("#messages pre")).toContainText("const safe = true;");
-  await expect(status(page)).toHaveText(/Standing by|Listening|Understanding|Ready/, { timeout: 15000 });
+  await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
   await page.screenshot({ path: info.outputPath("conversation-screen.png"), fullPage: true });
 });
 
@@ -615,7 +615,7 @@ test("“New log entry” clears the screen and ends the task; the earlier conve
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
   await expect(status(page)).toHaveText("Speaking");
   await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
-  await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toBe("Ready for a new log entry.");
+  await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toBe("Standing by for a new log entry.");
   await expect(page.locator(".message")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
   // After the task ends, speech needs "Computer" again.
