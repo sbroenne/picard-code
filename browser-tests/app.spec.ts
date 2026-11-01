@@ -100,7 +100,7 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
 });
 
-test("the only Tribute toggle is a navigation tile; About retains the secondary speech preference", async ({ page }, testInfo) => {
+test("the only Tribute toggle is a navigation tile; About explains screen-only facts", async ({ page }, testInfo) => {
   const toggle = page.getByRole("switch", { name: "Tribute", exact: true });
   await expect(toggle).toBeChecked();
   await expect(page.locator("#sidebar").getByRole("switch")).toHaveCount(2);
@@ -120,21 +120,16 @@ test("the only Tribute toggle is a navigation tile; About retains the secondary 
   await tile.click();
   await expect(toggle).not.toBeChecked();
   await page.getByRole("link", { name: /Sir Patrick Stewart/ }).click();
-  const spoken = page.getByLabel("Speak automatic facts", { exact: true });
-  await expect(spoken).toBeDisabled();
+  await expect(page.getByLabel("Speak automatic facts", { exact: true })).toHaveCount(0);
+  await expect(page.locator("#settings-about")).toContainText("quiet tricorder sound after the answer finishes");
   await expect(page.locator("#settings-about").getByRole("switch")).toHaveCount(0);
   await toggle.check();
-  await spoken.check();
   await toggle.uncheck();
-  await expect(spoken).toBeChecked();
-  await expect(spoken).toBeDisabled();
   await page.reload();
   await expect(toggle).not.toBeChecked();
   await page.getByRole("link", { name: /Sir Patrick Stewart/ }).click();
-  await expect(spoken).toBeChecked();
-  await expect(spoken).toBeDisabled();
+  await expect(page.locator("#settings-about input")).toHaveCount(0);
   await toggle.check();
-  await expect(spoken).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 

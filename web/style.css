@@ -160,9 +160,18 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .message pre { background: #120f0c; color: var(--text); border-left: 4px solid var(--peach); padding: 14px; line-height: 1.6; white-space: pre; overflow-x: auto; max-width: 100%; }
 .message-error { color: #ffd6cc; background: #3a1414; padding: 12px; border-radius: 0 16px 16px 0; }
 .tribute-fact, .tribute-invitation, .tribute-source, .wikipedia-source { margin: 14px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
-.tribute-fact { margin-top: 20px; padding: 14px 18px; border-left: 8px solid var(--lilac); border-radius: 0 18px 18px 0; background: #201823; color: var(--text); font-size: 16px; }
-.tribute-fact strong { display: block; color: var(--lilac); font: 600 18px/1.4 var(--lcars); letter-spacing: .08em; text-transform: uppercase; }
-.tribute-fact p { margin: 6px 0 8px; }
+.tribute-fact { --record-color: var(--lilac); margin: 24px 0 28px; overflow-wrap: anywhere; background: var(--ink); color: var(--text); font-size: 16px; }
+.tribute-fact[data-subject="stewart"] { --record-color: var(--peach); }
+.tribute-record-header { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 8px 24px; padding: 0 0 10px 32px; color: var(--record-color); }
+.tribute-record-title small { display: block; font: 500 13px/1.4 var(--lcars); letter-spacing: .12em; text-transform: uppercase; }
+.tribute-record-title h3 { margin: 3px 0 0; font: 600 24px/1.2 var(--lcars); letter-spacing: .06em; text-transform: uppercase; }
+.tribute-stardate { font: 500 13px/1.4 var(--lcars); letter-spacing: .06em; }
+.tribute-record-bars { display: flex; gap: 6px; height: 8px; padding-left: 32px; }
+.tribute-record-bars span:first-child { flex: 1; background: var(--record-color); }
+.tribute-record-bars span:nth-child(2) { width: 36px; background: var(--blue); }
+.tribute-record-bars span:last-child { width: 60px; background: var(--record-color); border-radius: 0 8px 8px 0; }
+.tribute-record-body { border-left: 14px solid var(--record-color); border-radius: 28px 0 0 0; padding: 12px 18px 4px; }
+.tribute-fact p { margin: 0 0 8px; }
 .tribute-fact a, .tribute-source a, .wikipedia-source a { color: var(--muted); font-size: 12px; }
 .approval { padding: 18px 20px; margin: 16px 0 0; border-left: 14px solid var(--gold); border-radius: 0 26px 26px 0; background: #1f1708; }
 .approval h3 { margin: 0 0 8px; font: 600 24px/1.1 var(--lcars); letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
@@ -188,7 +197,7 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .console:focus { outline: 0; }
 .voice-readout { min-width: 0; }
 .status { margin: 0; font: 600 clamp(34px, 3.6vw, 52px)/1 var(--lcars); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.console[data-phase="standby"] .status { color: var(--gold); }
+.console[data-phase="standby"] .status, .console[data-phase="cue"] .status { color: var(--gold); }
 .console[data-phase="listening"] .status { color: var(--orange); }
 .console[data-phase="thinking"] .status { color: var(--blue); }
 .console[data-phase="speaking"] .status { color: var(--lilac); }

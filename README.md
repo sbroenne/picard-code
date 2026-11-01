@@ -370,17 +370,23 @@ meaning, even when the repository's name includes Picard.
 
 With **Tribute** on, a short fact about Picard or Patrick Stewart appears after
 every two to five eligible answers, with a varied gap and no limit per log
-entry. It appears in a distinct lilac panel with a clear subject heading and
-a source link, and stays separate from the answer and its Copy
-button. Questions, approvals, errors, refusals and stopped work receive no
+entry. It appears as a standalone LCARS-style record below the Computer reply,
+outside its orange frame, with a source link: **Personnel file**
+above **Jean-Luc Picard** in lilac, or **All the world’s a stage** above
+**Sir Patrick Stewart** in peach. A small **Stardate** shows when the fact
+appeared, not a date in the subject's life. It has no Computer label or Copy
+button and stays readable when earlier replies dim. Questions, approvals,
+errors, refusals and stopped work receive no
 facts. Reopening the Captain's log does not generate new ones. Facts avoid
 repetition until the reviewed collection has been used, and may contain
 spoilers from Picard's appearances.
 
-Facts are on screen only by default. Open **About** with the tribute badge to
-choose **Speak automatic facts**. Both preferences are remembered in this
-browser. Turning Tribute off keeps the speech choice for later and stops
-pending tribute speech without cutting off the main answer.
+Automatic facts are on screen only. A quiet tricorder-opening sound announces
+each new fact after the main answer finishes playing, before listening resumes.
+It does not repeat when the screen redraws or a log entry is reopened. There is
+no automatic-fact speech setting; an old saved speech choice has no effect.
+The Tribute choice is remembered in this browser. Turning it off stops pending
+tribute sounds and story offers without cutting off the main answer.
 
 Questions such as "Computer, tell me about myself" always mean Captain
 Jean-Luc Picard's fictional life, not Patrick Stewart's biography or your
@@ -490,7 +496,7 @@ on-screen button.
 - "Stop listening" and switching the microphone off do not cancel OpenCode's work.
   **Belay that** cancels the current OpenCode request. These are separate
   controls.
-- **Computer sounds:** Picard Code downloads four short TrekCore sounds
+- **Computer sounds:** Picard Code downloads five short TrekCore sounds
   automatically on first startup (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
   Later starts use the checked local copies; missing or changed files are downloaded
   again. If a download fails, startup reports the error rather than silently
