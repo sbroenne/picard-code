@@ -1,0 +1,46 @@
+name: Propose a speech service
+description: Add or improve a listening or speaking model.
+labels: ["enhancement", "speech"]
+body:
+  - type: dropdown
+    id: side
+    attributes:
+      label: Which side?
+      options:
+        - Listening
+        - Speaking
+        - Both, independently selectable
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Service or model and official source
+    validations:
+      required: true
+  - type: textarea
+    id: benefit
+    attributes:
+      label: What does it improve?
+      description: Explain quality, timing, hardware needs, languages, or easier setup.
+    validations:
+      required: true
+  - type: textarea
+    id: terms
+    attributes:
+      label: License, data destinations, and charges
+      description: Link the terms. Say what runs locally and what audio or text leaves the computer. No keys or private recordings.
+    validations:
+      required: true
+  - type: textarea
+    id: operation
+    attributes:
+      label: Setup, cancellation, and failures
+      description: Explain how this can work with the existing controls without silently changing services.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Proposed checks and evidence
+      description: Distinguish generated samples, real service checks, and physical audio testing.

@@ -1,0 +1,94 @@
+name: Project checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Things that can differ between computers: OpenCode packages, paths and starting programs.
+  # Each system tests one Node version, so the oldest and newest supported versions are both covered.
+  systems:
+    name: Server and package (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: "24"
+          - os: windows-latest
+            node: "24"
+          - os: macos-latest
+            node: lts/*
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Get the source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build
+        run: npm run build
+      - name: Run server tests
+        run: npm test
+      - name: Check the npm package runs with npx
+        run: |
+          mkdir -p ../package-check
+          file=$(npm pack --ignore-scripts --pack-destination ../package-check | tail -n 1)
+          cd ../package-check
+          tar -tzf "$file" > files.txt
+          grep -qx "package/web-dist/index.html" files.txt
+          if grep -q "^package/dist/tests/" files.txt; then echo "Test files must not be in the package."; exit 1; fi
+          npx --yes "./$file" opencode --version
+
+  # The browser checks use a test stand-in for OpenCode, so they run once.
+  browser:
+    name: Types and browser checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Get the source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install the test browser
+        run: npx playwright install --with-deps chromium
+      - name: Check types
+        run: npm run check
+      - name: Build
+        run: npm run build
+      - name: Check the desktop app and project website
+        run: npx playwright test
+      - name: Keep browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-failures
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore

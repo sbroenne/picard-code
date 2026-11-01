@@ -1,3 +1,5 @@
+<img src="site/assets/mark.svg" alt="Picard Code logo: code brackets around voice levels" width="96" height="96">
+
 # Picard Code
 
 **A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard.**
@@ -17,63 +19,142 @@ The computer handles general questions, writing, research and planning as well
 as code. A project folder is context for project work, not a limit on what you
 can ask.
 
+[![Watch the short Picard Code video on YouTube](site/assets/video.png)](https://youtu.be/_OKnpwS9dOI)
+
+[Help shape the computer](CONTRIBUTING.md) ·
+[Setup and support](SUPPORT.md) · [MIT license](LICENSE)
+
+The [project website](https://sbroenne.github.io/picard-code/) is a separate
+static tribute page, published from `site/` with GitHub Pages. It does not run
+the app or listen to visitors.
+
+## Contributions welcome
+
+The most valuable contributions are **computer character development** and
+**more listening and speaking models**, especially local choices. Help the
+computer stay calm, precise, useful, and recognizably part of this tribute:
+original wording, better follow-ups, pronunciation, and comfortable timing,
+not copied dialogue or cloned performer voices.
+
+We also welcome accessible desktop controls, real microphone and accent
+testing, easier cross-platform setup, and reliability improvements. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) for the project's direction and checks.
+Bring open-ended ideas to [Discussions](https://github.com/sbroenne/picard-code/discussions);
+use the [issue forms](https://github.com/sbroenne/picard-code/issues/new/choose)
+for bugs and proposals.
+
+This is an early project. The app is voice-only and designed for a computer
+screen. Automated desktop checks do not
+prove physical audio works. Earlier real-service evidence predates the
+OpenCode 2 migration; current real model, Azure, and local speech paths still
+need fresh checks before those results can be claimed for this version.
+
 ### How it works
 
 A small local browser app. OpenCode does the coding, with any model provider it
 supports, and keeps every log entry. Like the ship's computer, it
 listens all the time and acts only on requests that start with "Computer".
-Listening and speaking use your own Azure MAI resource, or Whisper and Kokoro
-on this computer; each side can be chosen on its own.
+By default, listening (Whisper) and speaking (Kokoro) run on this computer,
+with no cloud account. Your own Azure MAI resource can be chosen instead, for
+either side or both.
 
-## Run from source
+## Get started
 
-You need Node.js **22.12 or newer**, a model provider OpenCode can use, and either the Azure
-or local speech setup below for spoken conversation. The development
-setup includes an official OpenCode 2 copy (the `@opencode/cli` package), so a
-separate global OpenCode installation is optional when running from source.
-OpenCode 1 is not supported.
+You need:
 
-The installed copy is currently OpenCode 2.1.4. The package lists use older
-versions available after a seven-day package-service quarantine, including
-Marked 18.1.1, Rolldown 1.2.15 and CTranslate2 4.8.3. Keep your configured npm
-and Python package services; do not bypass their quarantine to install newer
-versions.
+- **Node.js 24 or newer**, using a long-term support (LTS) version such as 24 or 26. It includes npm and npx.
+- A microphone, and speakers or headphones.
+- A model provider OpenCode can use (see
+  [Connect a model provider](#connect-a-model-provider)).
+- For speech on this computer, one of these computers, with about **750 MB**
+  of free disk space:
+  - an Apple silicon Mac with macOS 14 or newer;
+  - Windows on an x64 or ARM processor (ARM uses Intel-compatible Python
+    through Windows' built-in emulation);
+  - Linux on an x64 or arm64 processor, with glibc 2.28 or newer (most desktop
+    Linux versions since 2019).
+
+  Other computers can use [Azure speech](#azure-speech-setup) instead.
+
+Then, in a terminal:
 
 ```sh
-npm install
-npm run build
-npm start
+npx picard-code setup-speech
+npx picard-code
 ```
+
+The first command downloads the local Whisper and Kokoro speech once (see
+[Local Whisper and Kokoro setup](#local-whisper-and-kokoro-setup)). It is safe
+to run again. The second starts Picard Code for the current folder. The first
+time, npx also downloads Picard Code and a copy of the official OpenCode 2
+(about 230 MB). If OpenCode 2 is already installed, Picard Code uses yours
+instead. You do not need to install OpenCode, Python or anything else
+yourself. OpenCode 1 is not supported.
+
+If you skip `setup-speech`, Picard Code starts without speech, and the
+**Listen · Speak** tile offers the same download.
 
 Your browser opens automatically. Keep the terminal open; press **Ctrl+C** to
 stop Picard Code and the OpenCode server it started. Use `--no-open` to print
-the address without opening a browser.
+the address without opening a browser, and `npx picard-code --help` for all
+options.
 
 To choose a different project folder:
 
 ```sh
-npm start -- --project "full path to your project"
+npx picard-code --project "full path to your project"
 ```
 
 Windows example:
 
 ```powershell
-npm.cmd start -- --project "C:\Users\you\source\my-project"
+npx picard-code --project "C:\Users\you\source\my-project"
 ```
 
 macOS or Linux example:
 
 ```sh
-npm start -- --project "$HOME/projects/my-project"
+npx picard-code --project "$HOME/projects/my-project"
 ```
 
 You can also change the folder with the **Project** tile in the side panel.
 Stop running work first.
 The folder is passed to OpenCode for every log entry and request.
 
-**`npx picard-code` is not available yet.** This repository is private and the
-package has not been published. The commands above are the supported launch
-path for this version.
+### What stays on your computer
+
+Everything Picard Code downloads or saves is kept in one folder,
+`.picard-code` in your home folder (on Windows, `C:\Users\you\.picard-code`):
+
+- `speech.json`: your speech settings (no keys or passwords);
+- `voice`: local speech and its Python environment;
+- `uv` and `python`: only if uv was not already installed, the uv that set up speech and its Python;
+- `sounds`: the computer sounds, downloaded at the first start.
+
+Nothing is written into your project. To remove everything, delete that
+folder. OpenCode keeps its own sign-ins and log entries; see
+[OpenCode's documentation](https://opencode.ai/v2/docs/). npx keeps Picard
+Code itself in npm's cache; `npx picard-code@latest` gets the newest version.
+
+## Run from source
+
+To change Picard Code itself, you also need **Git**:
+
+```sh
+git clone https://github.com/sbroenne/picard-code.git
+cd picard-code
+npm install
+npm run build
+npm run setup:speech
+npm start
+```
+
+These use the same `.picard-code` folder. In PowerShell, use `npm.cmd` for
+commands with `--` options, for example
+`npm.cmd start -- --project "C:\Users\you\source\my-project"`; some npm
+PowerShell wrappers otherwise drop the `--`. `npm run opencode -- auth login`
+does the same as `npx picard-code opencode auth login` below.
+See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes.
 
 ## Bridge crew
 
@@ -213,9 +294,8 @@ without any sign-in; they appear in the list under **OpenCode**.
 
 To sign in to a provider:
 
-1. In another terminal in this repository, run `npm run opencode -- auth login`
-   (Windows: `npm.cmd run opencode -- auth login`; or `opencode auth login` if
-   installed globally).
+1. In another terminal, run `npx picard-code opencode auth login` (or
+   `opencode auth login` if you installed OpenCode yourself).
 2. Choose your provider from the list and follow its sign-in. For GitHub
    Copilot, that is GitHub's device sign-in: check you are signed in to the
    right account, enter the code OpenCode shows, and approve it yourself.
@@ -223,7 +303,7 @@ To sign in to a provider:
    **Refresh connection**. Pick a model with the **Model** tile; models are
    grouped by provider.
 
-`npm run opencode -- auth list` shows which providers are signed in.
+`npx picard-code opencode auth list` shows which providers are signed in.
 
 ## The main screen and Settings
 
@@ -427,7 +507,7 @@ on-screen button.
   automatically on first startup (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
   Later starts use the checked local copies; missing or changed files are downloaded
   again. If a download fails, startup reports the error rather than silently
-  leaving sounds out. `npm run setup:sounds` also checks and downloads them.
+  leaving sounds out. They are kept in `.picard-code/sounds` in your home folder.
   The TNG-era ship-wide call welcomes the Captain once when the app opens,
   after a click if the browser requires one, even before speech is set up. It does not play
   for new log entries or when the microphone is switched back on.
@@ -476,13 +556,89 @@ The interface runs locally, but OpenCode sends messages and relevant project
 content to the model provider you chose. Because the microphone stays on, **MAI listening
 sends any speech it hears to Azure** to find out whether it starts with
 "Computer", even speech not meant for the computer; quiet room sound is not
-sent. Only requests that start with "Computer" go to the model. MAI speaking
+sent. "Computer" starts a task; once it starts, follow-up speech also goes to
+the model without that prefix until you return to standing by. MAI speaking
 sends reply text to Azure. Whisper and Kokoro process their audio locally.
-With both local speech services and a model on your own computer, nothing
-leaves the computer; with any online provider, coding requests do. Say "stop listening" before conversations you do not want sent to the model, or switch the microphone off with its button so nothing is heard at all;
+With both local speech services, speech is processed on this computer.
+An online model provider still receives coding requests; a local model's
+own tools and network settings determine any other connections.
+Say "stop listening" before conversations you do not want sent to the model,
+or switch the microphone off with its button so nothing is heard at all;
 background speech can be misunderstood.
 
+## Local Whisper and Kokoro setup
+
+This is the default speech setup. It needs no cloud account and keeps your
+speech on this computer.
+
+Local listening uses **faster-whisper** with the English `tiny.en` model.
+Local speaking uses **kokoro-onnx**, the standard Kokoro model, and its original
+prebuilt British `bf_emma` voice by default (`af_heart` and the other Kokoro
+voices can be chosen with `kokoroVoice`). Both run on the CPU. No Azure resource, key, or login
+is needed when both sides are local. A model provider is still needed for coding.
+
+Download it once from a terminal (safe to run again):
+
+```sh
+npx picard-code setup-speech
+```
+
+Picard Code then uses Whisper and Kokoro whenever you start it, unless your
+saved speech settings choose Azure.
+
+You can also download from the app: choose the **Listen · Speak** tile, keep
+**On this computer** for listening and speaking, and choose **Save and apply**.
+Picard Code downloads everything in the background, shows each step, and
+switches over when it is ready. No restart is needed. If the download fails,
+the real reason is shown and the working speech stays in place.
+
+Setup works in this order, all inside `.picard-code` in your home folder:
+
+1. It checks that this computer can run local speech (see
+   [Get started](#get-started)), and stops with a plain reason if not.
+2. It uses the [uv](https://docs.astral.sh/uv/) already installed, a tool that
+   sets up Python. If there is none, it downloads uv 0.13.6 from uv's GitHub
+   release and checks it against a fixed checksum.
+3. uv finds or downloads Python 3.11 and installs the speech packages listed in
+   `scripts/requirements-speech.txt`.
+4. It downloads roughly **432 MB** of model files. The Kokoro files are checked
+   against published checksums; the public Whisper download is fixed to a
+   specific revision and uses no account token.
+
+Together these use about 750 MB of disk space. An installed uv keeps any
+Python it downloads in its usual place; otherwise nothing is installed
+outside that folder. Inference uses local
+files only, with up to four CPU threads per service.
+
+Both paths use the same automatic listen/respond loop. Whisper starts
+recognizing after the pause; unlike MAI, it does not display live words while
+you are speaking. Stopping speech discards late audio and does not block the
+separate listening worker. No service is silently replaced if setup fails.
+
+On Windows ARM, app startup, the OpenCode 2.1.4 connection and all six bridge
+officers have been checked on the development machine. Real local speaking
+and listening also passed, using Intel-compatible Python 3.11 through
+Windows' built-in compatibility support rather than ARM-native speech
+packages, because Whisper's CTranslate2 has no Windows ARM version. That
+Python was set up by hand; `setup-speech` now chooses it automatically on
+Windows ARM, but that automatic step has not yet been checked there.
+Kokoro produced 4.3 seconds of audio in 3.0 seconds, and Whisper
+understood it in 1.8 seconds. The owner also reports that the physical
+microphone and speakers work on this Windows ARM machine. That hands-on check
+is separate from the automated checks and does not establish that every
+Windows ARM machine works.
+
+On the checked Windows machine, real Kokoro speaking with `bf_emma` produced
+**4.2 seconds of audio in 2.4 seconds**, and Whisper understood that audio in
+**0.5 seconds**. Worker startup took **4.4 seconds**. These are short-phrase measurements, not
+speed or accuracy promises for other machines. Longer turns and older CPUs
+can take longer. This small English model can misunderstand accents and
+technical terms; the understood request remains visible.
+
 ## Azure speech setup
+
+Azure speech is optional. Choose it for either side if you have your own Azure
+resource; unlike Whisper, MAI listening shows your words live while you speak.
 
 This version uses **MAI-Transcribe-2-Streaming** for live listening and the
 prebuilt British **Emily / MAI-Voice-2.1-Flash** voice with its **neutral**
@@ -552,6 +708,8 @@ not trust could use it to name a program to run. You can also write the file you
 
 ```json
 {
+  "listening": "mai",
+  "speaking": "mai",
   "subscription": "your-subscription-id",
   "resourceGroup": "your-resource-group",
   "resourceName": "your-ai-resource",
@@ -562,7 +720,9 @@ not trust could use it to name a program to run. You can also write the file you
 }
 ```
 
-`voice` and `voiceStyle` are optional; the values above are the defaults.
+`listening` and `speaking` must say `mai` to use Azure; without them, that side
+runs on this computer. `voice` and `voiceStyle` are optional; the values above
+are the defaults.
 Other prebuilt voices work too, for example
 `en-US-Harper:MAI-Voice-2.1-Flash` or `en-GB-Harry:MAI-Voice-2.1-Flash`. A
 saved `voice` is always used as written. Styles that worked in testing are
@@ -585,94 +745,18 @@ changing log entry, closing the page, or shutting down
 Picard Code stops the relevant listening connection. A speech failure leaves
 the written log entry intact and reports what failed.
 
-## Local Whisper and Kokoro setup
-
-Local listening uses **faster-whisper** with the English `tiny.en` model.
-Local speaking uses **kokoro-onnx**, the standard Kokoro model, and its original
-prebuilt British `bf_emma` voice by default (`af_heart` and the other Kokoro
-voices can be chosen with `kokoroVoice`). Both run on the CPU. No Azure resource, key, or login
-is needed when both sides are local. A model provider is still needed for coding.
-
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/). Then
-choose Whisper or Kokoro in **Speech** settings and **Save and apply**. The
-first time, Picard Code downloads everything in the background, shows each
-step, and switches over when it is ready. No restart is needed. If the download
-fails, the real reason is shown and the working speech stays in place.
-
-The same download from a terminal (safe to run again; uv fetches Python 3.11 if
-needed):
-
-```sh
-npm run setup:speech
-```
-
-The same steps by hand, on Windows:
-
-```powershell
-uv venv --python 3.11 .picard-voice
-uv pip install --python .picard-voice\Scripts\python.exe -r scripts\requirements-speech.txt
-.\.picard-voice\Scripts\python.exe scripts\setup-local-speech.py
-npm.cmd start -- --listening whisper --speaking kokoro
-```
-
-On macOS or Linux:
-
-```sh
-uv venv --python 3.11 .picard-voice
-uv pip install --python .picard-voice/bin/python -r scripts/requirements-speech.txt
-.picard-voice/bin/python scripts/setup-local-speech.py
-npm start -- --listening whisper --speaking kokoro
-```
-
-Setup downloads roughly **432 MB** of model files, plus Python dependencies.
-The Kokoro files are checked against published checksums; the public Whisper
-download is fixed to a specific revision and uses no account token. Model
-files, the Python environment, and generated samples remain in the ignored
-`.picard-voice` folder. Inference uses local files only, with up to four CPU
-threads per service. Do not use Python 3.14 for this setup.
-
-Both paths use the same automatic listen/respond loop. Whisper starts
-recognizing after the pause; unlike MAI, it does not display live words while
-you are speaking. Stopping speech discards late audio and does not block the
-separate listening worker. No service is silently replaced if setup fails.
-
-On Windows ARM, app startup, the OpenCode 2.1.4 connection and all six bridge
-officers have been checked on the development machine. Real local speaking
-and listening also passed, using Intel-compatible Python 3.11 through
-Windows' built-in compatibility support rather than ARM-native speech
-packages. Kokoro produced 4.3 seconds of audio in 3.0 seconds, and Whisper
-understood it in 1.8 seconds. The owner also reports that the physical
-microphone and speakers work on this Windows ARM machine. That hands-on check
-is separate from the automated checks and does not establish that every
-Windows ARM machine works.
-
-On the checked Windows machine, real Kokoro speaking with `bf_emma` produced
-**4.2 seconds of audio in 2.4 seconds**, and Whisper understood that audio in
-**0.5 seconds**. Worker startup took **4.4 seconds**. These are short-phrase measurements, not
-speed or accuracy promises for other machines. Longer turns and older CPUs
-can take longer. This small English model can misunderstand accents and
-technical terms; the understood request remains visible.
-
 ### Select either side independently
 
-MAI remains the default when Azure settings are provided. Launch options
-override the settings file:
+Whisper and Kokoro are the default. A side uses Azure MAI only when you choose
+it in the **Listen · Speak** tile, in `speech.json`, or with a launch option.
+Launch options override the settings file:
 
-```powershell
-npm.cmd start -- --listening mai --speaking kokoro
-npm.cmd start -- --listening whisper --speaking mai
+```sh
+npx picard-code --listening mai --speaking kokoro
+npx picard-code --listening whisper --speaking mai
 ```
 
-For a local default, `speech.json` can contain just:
-
-```json
-{
-  "listening": "whisper",
-  "speaking": "kokoro"
-}
-```
-
-For a mixed setup, keep the Azure resource settings and add `listening` and
+For a mixed setup, keep the Azure resource settings and set `listening` and
 `speaking`. Only MAI listening requires `deployment`. Optional local settings
 are `localPython`, `whisperModel`, `kokoroModel`, `kokoroVoices`, and
 `kokoroVoice`. The path settings are kept when you save from the **Listen · Speak** setting,
@@ -689,7 +773,7 @@ signal; `close()` releases owned workers. Selection happens in
 See [third-party notices](THIRD_PARTY_NOTICES.md) before redistributing local
 dependencies or downloaded models.
 
-### The computer's manner
+## The computer's manner
 
 Picard Code sends its own conversation instructions with every request, as
 OpenCode's per-request system instructions (`src/server/instructions.ts`).
@@ -718,12 +802,8 @@ computer with a password. Set the
 same password in the Picard Code terminal, then:
 
 ```sh
-npm start -- --connect http://127.0.0.1:4096 --project "full project path"
+npx picard-code --connect http://127.0.0.1:4096 --project "full project path"
 ```
-
-In PowerShell, use `npm.cmd` for commands with `--` arguments. Some npm
-PowerShell wrappers otherwise discard the argument separator. You can also
-launch directly with `node dist/server/cli.js --project "full project path"`.
 
 For example, in PowerShell, set `$env:OPENCODE_SERVER_PASSWORD` before running
 `opencode serve --hostname 127.0.0.1 --port 4096` and before starting Picard Code
@@ -746,7 +826,8 @@ Project data and work controls require that private browser connection. Requests
 from other websites are rejected. Other websites
 cannot use the interface to start work or read conversations. Provider
 configuration and credentials are not sent to the browser. Model output is
-displayed as text, never executed as HTML. These protections are not a barrier
+rendered as Markdown with unsafe HTML removed by DOMPurify, not executed as
+scripts. These protections are not a barrier
 against another program already running on your computer.
 
 ## Checks
@@ -794,8 +875,9 @@ original sample under `.picard-voice/samples`.
 generated microphone audio, OpenCode, a real model from your signed-in provider, saved
 messages, live text updates, and real spoken playback. `--local` checks the
 same path with Whisper and Kokoro. These checks make real model requests;
-the MAI variant also makes chargeable Azure requests. Both passed on the
-Windows development machine. They remove their own check conversations and
+the MAI variant also makes chargeable Azure requests. Earlier versions of both
+passed on the Windows development machine before the OpenCode 2 migration;
+those results do not verify the current version. They remove their own check conversations and
 save screenshots and generated audio in the ignored samples folder.
 
 `test:behavior:live` holds a six-turn conversation with a real model from your signed-in
@@ -816,14 +898,11 @@ and repeat the browser checks.
 
 ## If something goes wrong
 
-- **Missing OpenCode:** install OpenCode 2 from
-  [opencode.ai](https://opencode.ai/v2/docs/) or run `npm install` for the
-  included development copy. Restart the terminal after a global installation.
-- **npm blocks OpenCode's setup script:** the setup script picks the right
-  OpenCode program for your computer. This repository already allows it in
-  `package.json`. If npm still asks, review the official package, then use
-  `npm install-scripts approve @opencode/cli` followed by
-  `npm rebuild @opencode/cli`.
+- **Missing OpenCode:** Picard Code uses an OpenCode 2 found on your PATH,
+  and otherwise its own copy for Windows, macOS and Linux on x64 and arm64
+  processors. An older OpenCode on your PATH is skipped. On other computers,
+  such as Alpine Linux, install OpenCode 2 from
+  [opencode.ai](https://opencode.ai/v2/docs/).
 - **Browser cannot connect:** open the full launch address printed in the
   terminal, including its temporary key. It must use `127.0.0.1`, not a different
   hostname. Do not share that address.
@@ -831,7 +910,7 @@ and repeat the browser checks.
   refresh the connection while no work is running.
 - **Live updates stop:** keep the terminal open. The browser reconnects and
   reloads saved messages and pending approvals. Use **Try again** if needed.
-- **OpenCode cannot start:** run `npm run opencode` directly to see its setup
+- **OpenCode cannot start:** run `npx picard-code opencode` directly to see its setup
   problem. Picard Code does not replace a failed connection with a fake reply.
 - **Unusual installation:** `PICARD_OPENCODE_PATH` can point to the real
   OpenCode program or its JavaScript starting file, but not a Windows `.cmd` shortcut.
@@ -842,16 +921,21 @@ and repeat the browser checks.
 - **Azure rejects speech:** check resource access, the deployed live listening
   model, supported region and voice, and service quota. A speech error does
   not mean OpenCode stopped; use **Belay that** separately when needed.
-- **Local speech will not start:** complete the Python setup and model download,
-  check the configured paths, and choose **Save and apply** in the **Listen · Speak**
-  setting again (no restart needed). The reported error is not replaced
+- **Local speech will not start:** run `npx picard-code setup-speech`
+  and read any error it prints, check the configured paths, then choose
+  **Save and apply** in the **Listen · Speak** tile again (no restart
+  needed). The reported error is not replaced
   with Azure or browser speech. Picard Code needs working speech; there is
   no typing fallback.
 
 ## References
 
-Implemented against OpenCode **2.2.5** (`@opencode/cli`), talking directly to
-the local server that `opencode serve` provides:
+Picard Code needs OpenCode **2.1.4 or newer** (the `@opencode/cli` packages)
+and installs the newest OpenCode 2 available to you. It talks directly to the
+local server that `opencode serve` provides. Package lists set minimum
+versions, not exact ones, so a package service that holds new releases back
+for a few days still works. Do not bypass your configured npm or Python package
+services to install newer versions.
 
 - [OpenCode 2 documentation](https://opencode.ai/v2/docs/)
 - [Moving from OpenCode 1](https://opencode.ai/v2/docs/migrate-v1/)
@@ -864,10 +948,14 @@ the local server that `opencode serve` provides:
 
 Windows is checked on the development machine. App startup and shutdown are
 implemented for macOS and Linux but still need checks on those systems. This first version
-does not include file attachments, a full file editor, or package publication.
+does not include file attachments or a full file editor.
 
 ## Developing Picard Code
 
+- [CONTRIBUTING.md](CONTRIBUTING.md): welcome areas, proposal guidance, and review.
+- [SUPPORT.md](SUPPORT.md): questions and troubleshooting.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): respectful participation and reporting.
+- [SECURITY.md](SECURITY.md): private security reports and supported versions.
 - [AGENTS.md](AGENTS.md): rules for people and coding agents changing this repository.
 - [Conversation research](docs/research/conversation-research.md) and
   [voice and conversation direction](docs/research/voice-and-conversation-direction.md).

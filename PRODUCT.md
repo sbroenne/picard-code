@@ -24,25 +24,32 @@ OpenCode performs the coding work, with any model provider it supports.
 The first version needs saved conversations, live replies, project-folder
 context, and real OpenCode approval requests. Credentials stay out of the
 browser. Services listen locally and must reject requests from unrelated
-websites. A future published package may support `npx picard-code`; publication
-is not part of the first version.
+websites. People run it with `npx picard-code`, which uses an installed OpenCode 2 or its own copy and
+can download local speech.
 
-Spoken conversation is the main experience. Explicit microphone activation
-starts the selected listening service. End-of-speech detection sends ordinary requests
+Spoken requests are the only input; there is no typing fallback. The app is
+designed for a computer screen, not a phone. The microphone switches on when
+speech is ready, subject to browser permission and sound restrictions.
+"Computer" begins a task; follow-ups need no prefix until the user returns to
+standing by. End-of-speech detection sends ordinary requests
 without routine transcript review or a Send step. Brief spoken answers accompany
 full written results. Follow-ups keep context; microphone off, stop speaking,
-and stop work have separate meanings. Typing is a fallback. Decisions remain
-deliberate and listening is paused while work, approvals, or playback are active.
+and Belay that (stop work) have separate meanings. Decisions remain deliberate.
+Listening pauses during playback and settings changes; requests heard while
+work or a decision is pending are not sent.
 
-Use the supported MAI live listening and prebuilt MAI speaking services.
-Microphone audio goes to Azure only after activation, with a clear disclosure
-that processing can occur outside Europe. Keys remain in local server memory;
+Listening and speaking share small, separate interfaces. Real CPU Whisper
+listening and Kokoro speaking are the default, so anyone can run Picard Code
+without a cloud account. The supported MAI live listening and prebuilt MAI
+speaking services can be chosen instead, each side on its own.
+Azure listening receives detected speech before deciding whether "Computer"
+was said, including speech not meant for the model. Processing can occur
+outside Europe. Standing by still listens; microphone off stops capture.
+Keys remain in local server memory;
 connection settings contain no secrets. Reuse suitable resources on the
 explicitly approved subscription without changing spending limits or access.
 
-Listening and speaking share small, separate interfaces. Real CPU Whisper
-listening and Kokoro speaking are independently selectable alternatives.
-Both use the same automatic conversation loop and deliberate decisions, with
+Both setups use the same automatic conversation loop and deliberate decisions, with
 no silent fallback. Local audio processing needs no Azure credentials;
 recognized coding requests still go to the chosen model.
 
@@ -58,29 +65,37 @@ or implied endorsement.
 
 The computer's writing should be brief, precise, and neutral. Use original
 phrasing, truthful acknowledgments, explicit uncertainty, and useful errors.
-No voice cloning, show dialogue, or recordings in the repository. Four short
+No voice cloning, show dialogue, or recordings in the repository. Three short
 computer sounds chosen by the project owner are an optional separate download,
 used with the owner's confirmed permission; they accompany, never replace,
 the visible and spoken explanation. No fictional ship status, repetitive
 catchphrases, or claims that work succeeded before the real result arrives.
 
-The owner prefers the British prebuilt voices: MAI Emily (neutral style) by
-default, with Kokoro `bf_emma` as the local default. This is a preference for
-British delivery, not a claim of authenticity.
+The owner prefers the British prebuilt voices: Kokoro `bf_emma` by default,
+and MAI Emily (neutral style) when Azure speaking is chosen. This is a
+preference for British delivery, not a claim of authenticity.
+
+The user is always Captain Jean-Luc Picard, labeled "Picard" on screen.
+The computer says "Captain" occasionally. Use the plain TNG terms in AGENTS.md:
+Captain's log, log entry, Stardate, and Standing by. Settings open from the
+side-panel tiles; earlier entries are kept in Captain's log.
 
 ## Evidence on Hand
 
-The official OpenCode server, SDK, and provider documentation. Automated
+The OpenCode 2 server description and provider documentation, implemented
+through Picard Code's own small client. Automated
 checks cover the local connection and interface; real OpenCode startup, saved
 conversations, event subscription, and shutdown are verified on Windows.
 Real Azure speaking and live MAI listening are verified with an original
 synthesized phrase. Automated browser checks exercise actual microphone capture
-using test audio and check the conversation loop on desktop and phone layouts.
+using test audio and check the spoken loop on a desktop layout.
 Real local Kokoro synthesis, Whisper recognition, cancellation, and fresh
 listening are verified. Both MAI and Whisper/Kokoro complete a real browser
 conversation through OpenCode and the user's authorized GitHub Copilot (the provider
 used for the real checks so far),
 with saved replies and actual spoken playback. A real six-turn conversation
 check covers follow-ups, a correction, "show me", OpenCode's real question
-and a refused command. Physical microphone/speaker, subjective voice and
-timing review, and macOS/Linux checks remain unverified.
+and a refused command. Those real-service checks predate OpenCode 2; the
+migration passed automated stand-in checks but did not rerun real model or
+Azure checks. Fresh OpenCode 2 real-service checks, physical microphone/speaker,
+subjective voice and timing review, and real macOS/Linux use remain unverified.

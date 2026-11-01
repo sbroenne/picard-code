@@ -5,11 +5,12 @@ import { createServer } from "node:net";
 import { delimiter, dirname, join, extname } from "node:path";
 import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { makeClient } from "./engine.js";
 import { CREW_UNAVAILABLE, crewConfiguration, loadedAgents, verifiedCrew } from "./crew.js";
 
 const execute = promisify(execFile);
+const require = createRequire(import.meta.url);
 
 export async function projectDirectory(path: string): Promise<string> {
   const directory = await realpath(path);
@@ -48,28 +49,48 @@ export async function openCodeCommand(): Promise<{ command: string; prefix: stri
       ? { command: process.execPath, prefix: [file] }
       : { command: file, prefix: [] };
   }
-  // Prefer the copy installed with Picard Code; it is the version Picard Code was checked against.
-  const paths = [
-    fileURLToPath(new URL("../../node_modules/.bin/", import.meta.url)),
-    ...(process.env.PATH ?? "").split(delimiter),
-  ];
-  for (const path of paths) {
+  // An OpenCode 2 already installed comes first; the copy included with Picard Code is the fallback.
+  const installed = await installedOpenCode();
+  if (installed) return { command: installed, prefix: [] };
+  const bundled = bundledOpenCode();
+  if (bundled && await exists(bundled)) return { command: bundled, prefix: [] };
+  throw new Error("OpenCode was not found. Picard Code includes it for Windows, macOS and Linux on x64 and arm64 processors; if this computer is one of those, install Picard Code again. Otherwise install OpenCode 2 from https://opencode.ai, then restart your terminal.");
+}
+
+async function installedOpenCode() {
+  for (const path of (process.env.PATH ?? "").split(delimiter)) {
     const directory = path.replace(/^"|"$/g, "");
-    if (process.platform !== "win32") {
-      const entry = join(directory, "opencode");
-      if (await exists(entry)) return { command: entry, prefix: [] };
-      continue;
-    }
-    if (await exists(join(directory, "opencode.exe"))) return { command: join(directory, "opencode.exe"), prefix: [] };
-    // npm's Windows .cmd wrapper cannot be safely spawned without a shell.
-    for (const entry of [
+    const entries = process.platform !== "win32" ? [join(directory, "opencode")] : [
+      join(directory, "opencode.exe"),
+      // npm's Windows .cmd wrapper cannot be safely spawned without a shell.
       join(directory, "node_modules", "@opencode", "cli", "bin", "opencode.exe"),
       join(directory, "..", "@opencode", "cli", "bin", "opencode.exe"),
-    ]) {
-      if (await exists(entry)) return { command: entry, prefix: [] };
+    ];
+    for (const entry of entries) {
+      if (await exists(entry) && await isOpenCode2(entry)) return entry;
     }
   }
-  throw new Error("OpenCode is not installed or is not on PATH. Run npm install in the Picard Code folder, or install OpenCode 2 from https://opencode.ai, then restart your terminal.");
+  return undefined;
+}
+
+/** An older OpenCode on PATH is skipped, so it does not stop Picard Code from using its own copy. */
+async function isOpenCode2(file: string) {
+  try { return /^(?:opencode )?v?2\./.test((await execute(file, ["--version"], { timeout: 10000 })).stdout.trim()); }
+  catch { return false; }
+}
+
+/**
+ * OpenCode's program for this computer, from the matching @opencode/cli-* package in optionalDependencies.
+ * Picard Code depends on these directly: the @opencode/cli wrapper needs a setup script that npx blocks.
+ * On x64 only the baseline build is listed, because it runs on every x64 processor.
+ */
+export function bundledOpenCode(platform = process.platform, arch = process.arch) {
+  try { return join(dirname(require.resolve(`${openCodePackage(platform, arch)}/package.json`)), "bin", platform === "win32" ? "opencode.exe" : "opencode"); }
+  catch { return undefined; }
+}
+
+export function openCodePackage(platform: string, arch: string) {
+  return `@opencode/cli-${platform === "win32" ? "windows" : platform}-${arch}${arch === "x64" ? "-baseline" : ""}`;
 }
 
 export async function stopOwnedProcess(child: ChildProcess): Promise<void> {

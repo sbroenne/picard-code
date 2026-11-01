@@ -14,3 +14,7 @@ __pycache__/
 .picard-test-*/
 .picard-live-check-*/
 .impeccable/hook.cache.json
+video/assets/
+video/out/
+video/.hyperframes/
+.DS_Store

@@ -8,7 +8,7 @@ import { addressed, interruptsSpeech, voiceCommand } from "../shared/wake.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
 import type { FormField, FormRequest } from "../shared/types.js";
 import { speakingDocument } from "../server/azure-speech.js";
-import { DEFAULT_MAI_VOICE } from "../server/speech.js";
+import { DEFAULT_MAI_VOICE, speechFromSettings } from "../server/speech.js";
 import { attachSpeech } from "../server/speech-bridge.js";
 import { speechFixture } from "./speech-fixture.js";
 
@@ -249,6 +249,12 @@ test("spoken question answers match only clear, offered choices and keep the use
   assert.equal(canAskAloud(form(question, { ...question, key: "q1" })), false);
   assert.equal(canAskAloud(form({ ...question, when: [{ key: "x", op: "eq", value: "y" }] } as FormField)), false);
   assert.equal(canAskAloud(form(question, { ...question, key: "q1", hidden: true })), true);
+});
+
+test("speech runs on this computer unless Azure is chosen", async () => {
+  const missing = { localPython: "picard-missing-python" };
+  await assert.rejects(speechFromSettings(missing), /local speech file is missing\. Run npx picard-code setup-speech/);
+  await assert.rejects(speechFromSettings({ ...missing, listening: "mai", speaking: "mai" }), /valid subscription/);
 });
 
 test("MAI speaking uses the British default voice with its neutral style unless configured otherwise", () => {

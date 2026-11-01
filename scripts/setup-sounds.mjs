@@ -1,7 +1,8 @@
-// Downloads computer sounds into the ignored .picard-sounds folder.
+// Downloads computer sounds into .picard-code/sounds in the user's home folder.
 // The recordings are not part of this repository; see THIRD_PARTY_NOTICES.md.
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -12,7 +13,7 @@ const sounds = [
   { name: "request-failed", source: "https://www.trekcore.com/audio/computer/denybeep1.mp3", checksum: "d6f29d6df17d72eec41e500f9114d186c83f72210ce9f1e6fcac61ba195558e0" },
   { name: "tribute-fact", source: "https://www.trekcore.com/audio/tricorder/tng_tricorder_open.mp3", checksum: "2f3df1597c1770dded181b2d1b415f2c0bb6f9af9244c573dd8c042215eeaaac" },
 ];
-export const soundFolder = fileURLToPath(new URL("../.picard-sounds/", import.meta.url));
+export const soundFolder = join(homedir(), ".picard-code", "sounds");
 
 export async function setupSounds(folder = soundFolder, signal, download = fetch) {
   await mkdir(folder, { recursive: true });

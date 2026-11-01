@@ -16,6 +16,19 @@ export async function wikipediaFixture(subject: WikipediaArticle["subject"]): Pr
 import { crewConfiguration } from "../server/crew.js";
 import type { AgentInfo, PermissionRule } from "../server/opencode.js";
 
+/** A staged example answer for the project website screenshot; no model wrote it and no project was examined. */
+const EXAMPLE_ANSWER = "The settings test fails because the default voice replaces the saved choice when the app starts.\n\n"
+  + "In `src/settings.ts`, apply the defaults first and the saved settings second:\n\n"
+  + "```ts\nconst settings = { ...defaults, ...saved };\n```\n\n"
+  + "Shall I make that change and run the test again?";
+// Staged officer answers for the website screenshot, written in each officer's manner.
+const DATA_EXAMPLE = "Captain, there is one cause. The shield level is rounded before the warning check, so 99.6% reads as full.\n\n"
+  + "In `src/tactical/shields.ts`, the warning must use the exact reading:\n\n"
+  + "```ts\nconst failing = reading.level < 100;\nconst shown = Math.round(reading.level);\n```\n\n"
+  + "I have not changed any files.";
+const RIKER_EXAMPLE = "Captain, I'd fix it now. A false shield reading is the last thing we need before Starbase 74. "
+  + "Let Data make the change and run the tests.";
+
 /**
  * A local stand-in for OpenCode 2's server, shaped after real OpenCode 2.2.5 behaviour.
  * It does not call a model or run tools.
@@ -271,6 +284,10 @@ export async function startFixture(project: string) {
                 : "Test stand-in: the briefing reports are collected. No command was run.", generation);
             });
             later(() => publish(directory, "permission.asked", permission), 50);
+          } else if (session.agent === "picard-data" && text.includes("shields")) {
+            reply(sessionID, DATA_EXAMPLE, generation);
+          } else if (session.agent === "picard-riker" && text.includes("Starbase")) {
+            reply(sessionID, RIKER_EXAMPLE, generation);
           } else if (session.agent === "picard-data" && /\ban answer from Data\b/i.test(text)) {
             reply(sessionID, "Test stand-in: Captain, the cache is stale. No command was run.", generation);
           } else if (session.agent === "picard-data" && /\bnews from Data\b/i.test(text)) {
@@ -327,7 +344,8 @@ export async function startFixture(project: string) {
               finish(sessionID, "failed", { type: "provider.no-route", message: "The test model cannot be reached." });
             }, 100);
           } else {
-            later(() => reply(sessionID, text.includes("unsafe") ? "<img src=x onerror=alert('unsafe')>\n```js\nconst safe = true;\n```\n\n## Result\n\nThis is **bold**, *emphasis* and `code`.\n\n- first\n- second\n\n| Name | Value |\n| --- | --- |\n| a | 1 |\n\n[Docs](https://example.com) [Bad](javascript:alert(1)) ![Picture](https://example.com/p.png)" : undefined, generation), text.includes("very") ? 20_000 : text.includes("slow") ? 5000 : 100);
+            later(() => reply(sessionID, text.includes("unsafe") ? "<img src=x onerror=alert('unsafe')>\n```js\nconst safe = true;\n```\n\n## Result\n\nThis is **bold**, *emphasis* and `code`.\n\n- first\n- second\n\n| Name | Value |\n| --- | --- |\n| a | 1 |\n\n[Docs](https://example.com) [Bad](javascript:alert(1)) ![Picture](https://example.com/p.png)"
+              : text.includes("settings test") ? EXAMPLE_ANSWER : undefined, generation), text.includes("very") ? 20_000 : text.includes("slow") ? 5000 : 100);
           }
         } else send(404, { message: `Unimplemented fixture path ${path}` });
         return;

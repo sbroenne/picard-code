@@ -513,7 +513,11 @@ function renderText(container: HTMLElement, text: string, role: ChatMessage["rol
 function renderMessages() {
   const nearBottom = readingArea.scrollHeight - readingArea.scrollTop - readingArea.clientHeight < 100;
   const container = element("messages");
+  // The list is rebuilt on every update, so keyboard focus on a link or button inside it is put back afterwards.
+  const focusable = () => [...container.querySelectorAll<HTMLElement>("a[href], button, summary")];
+  const focused = focusable().indexOf(document.activeElement as HTMLElement);
   container.replaceChildren();
+  queueMicrotask(() => { if (focused >= 0 && document.activeElement === document.body) focusable()[focused]?.focus({ preventScroll: true }); });
   // The latest request and its reply fill the screen; earlier ones stay small above.
   const list = shown();
   const latest = list.findLastIndex((message) => message.role === "user");

@@ -1,22 +1,47 @@
 {
   "name": "picard-code",
   "version": "0.1.0",
-  "private": true,
-  "description": "An unofficial computer-display-inspired local browser interface for OpenCode.",
+  "description": "Speak to OpenCode the way Captain Picard spoke to the ship's computer. An unofficial, voice-only tribute that runs on your own computer.",
+  "keywords": [
+    "opencode",
+    "voice",
+    "speech",
+    "whisper",
+    "kokoro",
+    "star-trek",
+    "picard",
+    "coding-agent"
+  ],
+  "homepage": "https://sbroenne.github.io/picard-code/",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sbroenne/picard-code.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sbroenne/picard-code/issues"
+  },
   "type": "module",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=24"
   },
   "bin": {
     "picard-code": "./dist/server/cli.js"
   },
+  "files": [
+    "dist/server/",
+    "dist/shared/",
+    "web-dist/",
+    "scripts/",
+    "THIRD_PARTY_NOTICES.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build",
     "start": "node dist/server/cli.js",
     "test": "node --test dist/tests/*.test.js",
     "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json",
     "test:browser": "playwright test",
-    "opencode": "opencode",
+    "opencode": "node dist/server/cli.js opencode",
     "test:live": "node dist/tests/live-check.js",
     "test:crew:live": "node dist/tests/crew-live-check.js",
     "test:speech:live": "node dist/tests/speech-live-check.js",
@@ -24,25 +49,27 @@
     "test:conversation:live": "node dist/tests/conversation-live-check.js",
     "test:behavior:live": "node dist/tests/behavior-live-check.js",
     "setup:sounds": "node scripts/setup-sounds.mjs",
-    "setup:speech": "node scripts/setup-speech.mjs"
+    "setup:speech": "node scripts/setup-speech.mjs",
+    "prepack": "npm run build"
   },
   "dependencies": {
-    "dompurify": "^3.4.17",
-    "marked": "18.1.1",
     "ws": "^8.22.0"
   },
+  "optionalDependencies": {
+    "@opencode/cli-darwin-arm64": "^2.1.4",
+    "@opencode/cli-darwin-x64-baseline": "^2.1.4",
+    "@opencode/cli-linux-arm64": "^2.1.4",
+    "@opencode/cli-linux-x64-baseline": "^2.1.4",
+    "@opencode/cli-windows-arm64": "^2.1.4",
+    "@opencode/cli-windows-x64-baseline": "^2.1.4"
+  },
   "devDependencies": {
-    "@opencode/cli": "2.1.4",
     "@playwright/test": "^1.58.0",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.18.1",
+    "dompurify": "^3.4.17",
+    "marked": "^18.1.1",
     "typescript": "^5.9.3",
     "vite": "^8.0.0"
-  },
-  "overrides": {
-    "rolldown": "1.2.15"
-  },
-  "allowScripts": {
-    "@opencode/cli@2.1.4": true
   }
 }

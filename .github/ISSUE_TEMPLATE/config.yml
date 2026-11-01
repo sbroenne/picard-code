@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and open-ended ideas
+    url: https://github.com/sbroenne/picard-code/discussions
+    about: Ask for setup help or discuss the computer's direction.
+  - name: Sensitive security reports
+    url: https://github.com/sbroenne/picard-code/blob/main/SECURITY.md
+    about: Read the private reporting guidance. Do not post credentials or private project data.

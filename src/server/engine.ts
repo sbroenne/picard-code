@@ -24,7 +24,7 @@ export function makeClient(baseUrl: string, password: string, username = "openco
 /** Picard Code speaks OpenCode 2's interface; older servers answer differently. */
 export async function checkVersion(client: OpenCode) {
   const { version } = await client.info();
-  if (!/^2\./.test(version)) throw new Error(`Picard Code needs OpenCode 2, but this OpenCode is version ${version}. Run npm install in the Picard Code folder, or update OpenCode.`);
+  if (!/^2\./.test(version)) throw new Error(`Picard Code needs OpenCode 2, but this OpenCode is version ${version}. Update it from https://opencode.ai, or set PICARD_OPENCODE_PATH to an OpenCode 2 program.`);
   return version;
 }
 

@@ -14,9 +14,13 @@ export const DEFAULT_MAI_VOICE = "en-GB-Emily:MAI-Voice-2.1-Flash";
 /** Settings that the browser may read and change. Keys and passwords are never part of these. */
 export const SETTING_NAMES = ["subscription", "resourceGroup", "resourceName", "region", "deployment", "voice", "voiceStyle", "kokoroVoice"] as const;
 const NAME = /^[a-zA-Z0-9_.:-]{1,150}$/;
-/** Local speech files live in the Picard Code folder, never in the user's project. */
 const PICARD_FOLDER = fileURLToPath(new URL("../../", import.meta.url));
-const VOICE_FOLDER = resolve(PICARD_FOLDER, ".picard-voice");
+/**
+ * Settings and downloads live in .picard-code in the user's home folder, never in their project,
+ * and not beside the app, which npx keeps in a cache that each update replaces.
+ */
+export const PICARD_HOME = join(homedir(), ".picard-code");
+const VOICE_FOLDER = join(PICARD_HOME, "voice");
 const LOCAL_PATHS = {
   localPython: resolve(VOICE_FOLDER, process.platform === "win32" ? "Scripts" : "bin", process.platform === "win32" ? "python.exe" : "python"),
   whisperModel: resolve(VOICE_FOLDER, "models", "whisper-tiny.en"),
@@ -42,7 +46,7 @@ export function canSetUpLocalSpeech(record: Record<string, unknown> | undefined)
   return (Object.keys(LOCAL_PATHS) as (keyof typeof LOCAL_PATHS)[]).every((key) => localPath(record, key) === LOCAL_PATHS[key]);
 }
 
-/** Runs the same steps as npm run setup:speech, reporting each step as it starts. Stopping the signal ends the download and everything it started. */
+/** Runs the same steps as npx picard-code setup-speech, reporting each step as it starts. Stopping the signal ends the download and everything it started. */
 export function setUpLocalSpeech(onStep: (step: string) => void, signal?: AbortSignal) {
   return new Promise<void>((done, fail) => {
     if (signal?.aborted) { fail(new Error("The local speech setup was stopped because Picard Code is closing.")); return; }
@@ -53,7 +57,7 @@ export function setUpLocalSpeech(onStep: (step: string) => void, signal?: AbortS
         const text = line.trim();
         if (!text) continue;
         last = text;
-        if (/^(Creating|Installing|Downloading|uv is not installed|That step failed)/.test(text)) onStep(text.replace(/\.+$/, ""));
+        if (/^(Creating|Installing|Downloading|That step failed)/.test(text)) onStep(text.replace(/\.+$/, ""));
       }
     };
     // The setup starts its own programs (uv, pip), so stop the whole group, not just the script.
@@ -116,8 +120,8 @@ export async function readSpeechSettings(file: string): Promise<Record<string, u
 export function describeSpeechSettings(record: Record<string, unknown> | undefined): SpeechSettings {
   const text = (key: string, fallback = "") => typeof record?.[key] === "string" ? record[key] as string : fallback;
   return {
-    listening: record?.listening === "whisper" ? "whisper" : "mai",
-    speaking: record?.speaking === "kokoro" ? "kokoro" : "mai",
+    listening: record?.listening === "mai" ? "mai" : "whisper",
+    speaking: record?.speaking === "mai" ? "mai" : "kokoro",
     subscription: text("subscription"), resourceGroup: text("resourceGroup"), resourceName: text("resourceName"),
     region: text("region"), deployment: text("deployment"), voice: text("voice", DEFAULT_MAI_VOICE),
     voiceStyle: text("voiceStyle", "neutral"), kokoroVoice: text("kokoroVoice", "bf_emma"),
@@ -147,13 +151,14 @@ export async function saveSpeechSettings(file: string, record: Record<string, un
 
 export async function loadSpeech(overrides: { listening?: string; speaking?: string } = {}, signal?: AbortSignal, file?: string): Promise<SpeechService | undefined> {
   const record = await readSpeechSettings(file ?? await speechSettingsFile());
-  if (!record && !overrides.listening && !overrides.speaking) return undefined;
+  // With nothing chosen, speech on this computer starts only once its download is already there.
+  if (!record && !overrides.listening && !overrides.speaking && !await localSpeechReady(undefined)) return undefined;
   return speechFromSettings(record ?? {}, overrides, signal);
 }
 
 export async function speechFromSettings(record: Record<string, unknown>, overrides: { listening?: string; speaking?: string } = {}, signal?: AbortSignal): Promise<SpeechService> {
-  const listening = overrides.listening ?? record.listening ?? "mai";
-  const speaking = overrides.speaking ?? record.speaking ?? "mai";
+  const listening = overrides.listening ?? record.listening ?? "whisper";
+  const speaking = overrides.speaking ?? record.speaking ?? "kokoro";
   if (listening !== "mai" && listening !== "whisper") throw new Error("Choose mai or whisper for listening. Speech services are never substituted silently.");
   if (speaking !== "mai" && speaking !== "kokoro") throw new Error("Choose mai or kokoro for speaking. Speech services are never substituted silently.");
   const selection: SpeechSelection = { listening, speaking };

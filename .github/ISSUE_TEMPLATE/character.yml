@@ -1,0 +1,35 @@
+name: Help shape the computer
+description: Propose an improvement to the computer's character, wording, or timing.
+labels: ["enhancement", "character"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep the voice-only Captain Picard experience, plain TNG terms, and original wording.
+        Do not include show dialogue, copied recordings, or performer voice cloning.
+  - type: textarea
+    id: need
+    attributes:
+      label: What needs to improve?
+      description: For example, a follow-up, correction, pronunciation, or uncomfortable pause.
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Original example
+      description: Show the spoken request, current reply, and proposed reply or timing. Use no private project content.
+    validations:
+      required: true
+  - type: textarea
+    id: spirit
+    attributes:
+      label: How does this fit the computer's character?
+      description: Explain how it stays concise, useful, and truthful rather than adding catchphrases.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: How could we judge the improvement?
+      description: Suggest a small check or listening comparison, and note the limits of any research.

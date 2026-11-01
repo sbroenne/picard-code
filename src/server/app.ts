@@ -180,7 +180,7 @@ export async function startApp(options: AppOptions) {
     closeSpeech.disconnect();
     try { await previous?.close?.(); }
     catch (error) { console.error(`Could not fully stop the previous speech service: ${errorMessage(error)}`); }
-    return { settings: describeSpeechSettings(record), file: speechFile, localReady: true, speech: { configured: true, listening: next.selection?.listening ?? "mai", speaking: next.selection?.speaking ?? "mai" } };
+    return { settings: describeSpeechSettings(record), file: speechFile, localReady: true, speech: { configured: true, listening: next.selection?.listening ?? "whisper", speaking: next.selection?.speaking ?? "kokoro" } };
   };
 
   // OpenCode reports only whether work runs; a scheduled retry is remembered from its event.
@@ -275,8 +275,8 @@ export async function startApp(options: AppOptions) {
       })),
       crew: { available: verifiedCrew(agents), activity },
       speech: { configured: !!speech,
-        listening: speech?.selection?.listening ?? "mai",
-        speaking: speech?.selection?.speaking ?? "mai",
+        listening: speech?.selection?.listening ?? "whisper",
+        speaking: speech?.selection?.speaking ?? "kokoro",
         ...(speechError ? { error: speechError } : {}) },
     };
   };

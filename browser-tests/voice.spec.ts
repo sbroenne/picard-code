@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { mkdir, writeFile, rm } from "node:fs/promises";
+import { copyFile, mkdir, writeFile, rm } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { spawn } from "node:child_process";
 import { TRIBUTE_ENTRIES } from "../src/shared/tribute-data";
@@ -37,7 +37,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "officer" | "news" | "interrupt" | "interrupt-room" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech") {
+async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "officer" | "news" | "interrupt" | "interrupt-room" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -96,11 +96,11 @@ function status(page: import("@playwright/test").Page) {
   return page.getByRole("status");
 }
 
-/** Listening starts by itself; if the browser wants a click before playing sound, one click on the computer panel gives it. */
+/** Listening starts by itself; if the browser wants a click before playing sound, one click on the visible status text gives it. */
 async function startListening(page: import("@playwright/test").Page) {
   await expect.poll(async () => `${await status(page).textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 15000 })
     .toMatch(/Standing by|Listening|Understanding|Click anywhere/);
-  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#messages").click();
+  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#status-detail").click();
   await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
 }
 
@@ -395,10 +395,7 @@ test("listening stays on; “Computer” starts a task, follow-ups need no “Co
   // The app always opens with the microphone on, even after it was switched off. The browser may want one click first.
   await page.reload();
   await expect(page.locator("#drawer-settings")).toBeHidden();
-  await expect.poll(async () => `${await status(page).textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 15000 })
-    .toMatch(/Standing by|Listening|Understanding|Click anywhere/);
-  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#messages").click();
-  await expect(status(page)).toHaveText(/Standing by|Listening|Understanding/, { timeout: 15000 });
+  await startListening(page);
   await expect(page.locator(".message[data-role=user]")).toHaveCount(2);
 });
 
@@ -484,6 +481,7 @@ test(`${subject} facts have LCARS headings and a real, stable Stardate`, async (
   await expect(fact.locator("a")).toBeFocused();
   await expect(fact.locator("a")).toHaveAttribute("href", /^https:/);
   await page.screenshot({ path: testInfo.outputPath(`${subject}-record.png`), fullPage: true });
+  if (process.env.PICARD_SITE_CAPTURE === "1" && subject === "stewart") await fact.screenshot({ path: "video/assets/stewart.png" });
   await page.setViewportSize({ width: 1000, height: 900 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const bounds = await fact.boundingBox();
@@ -919,4 +917,48 @@ test("“Stop listening”, even without “Computer”, is acknowledged and ret
   await page.getByRole("button", { name: "Switch microphone on" }).click();
   await expect(status(page)).toHaveText(/Standing by|Listening|Understanding|Speaking/, { timeout: 15000 });
   await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("an everyday answer is spoken briefly while the exact code stays on screen", async ({ page }, info) => {
+  const spoken = spokenText(page);
+  await launch(page, "example");
+  await startListening(page);
+  const answer = page.locator(".message[data-role=assistant]");
+  await expect(answer).toHaveCount(1, { timeout: 15000 });
+  await expect(answer.locator("pre code")).toHaveText("const settings = { ...defaults, ...saved };");
+  await expect.poll(() => spoken[0], { timeout: 15000 })
+    .toBe("The settings test fails because the default voice replaces the saved choice when the app starts.");
+  await expect(status(page)).not.toHaveText("Speaking", { timeout: 15000 });
+  await expect(status(page)).toHaveText(/Standing by|Listening/, { timeout: 15000 });
+  await page.screenshot({ path: info.outputPath("example-answer.png"), fullPage: true });
+});
+
+test("the website example: Data and Riker answer, then a Picard personnel file appears", async ({ page }, info) => {
+  await page.addInitScript(() => { Math.random = () => 0; });
+  const spoken = spokenText(page);
+  const capture = process.env.PICARD_SITE_CAPTURE === "1";
+  // The website video uses the real interface; the local project name is removed.
+  const hideProject = () => page.locator("#readout-project").evaluate((node) => {
+    node.textContent = "Example project";
+    node.removeAttribute("title");
+  });
+  await launch(page, "showcase");
+  await startListening(page);
+  const speakers = page.locator(".message[data-role=assistant] .message-header strong");
+  await expect(speakers).toHaveText(["Data"], { timeout: 30000 });
+  await expect(page.locator(".message[data-role=assistant]").first()).toContainText("I have not changed any files.", { timeout: 15000 });
+  if (capture) { await hideProject(); await page.screenshot({ path: "video/assets/data.png" }); }
+  await expect(speakers).toHaveText(["Data", "Riker"], { timeout: 30000 });
+  const fact = page.locator("#messages > .tribute-fact[data-subject=picard]");
+  await expect(fact).toHaveCount(1, { timeout: 15000 });
+  await expect(fact.locator(".tribute-record-title small")).toHaveText("Personnel file");
+  await expect(status(page)).toHaveText(/Standing by|Listening/, { timeout: 15000 });
+  await page.screenshot({ path: info.outputPath("site-example.png"), fullPage: true });
+  expect(spoken).toHaveLength(2);
+  if (capture) {
+    await hideProject();
+    await page.screenshot({ path: "site/assets/console.png", fullPage: true });
+    await copyFile("site/assets/console.png", "video/assets/console.png");
+    await writeFile("video/assets/spoken.json", `${JSON.stringify(spoken, null, 2)}\n`);
+  }
 });

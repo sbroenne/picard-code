@@ -35,6 +35,8 @@ const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there",
   : process.argv.includes("--choose") ? ["Computer, ask a question and let me choose", ""]
   : process.argv.includes("--unsafe") ? ["Computer, show unsafe output", ""]
   : process.argv.includes("--fresh") ? ["Computer, hello there", "New log entry", "Is anyone there"]
+  : process.argv.includes("--showcase") ? ["Computer, Mr. Data, why do the shields read full when they are failing?", "Computer, Number One, fix it now or after we reach Starbase 74?", ""]
+  : process.argv.includes("--example") ? ["Computer, why is the settings test failing?", ""]
   : ["Computer, hello there", "Hello again", ""];
 const speech = process.argv.includes("--speech") ? speechFixture(phrases,
   process.argv.some((arg) => arg.startsWith("--interrupt")) ? 20 : 1, !process.argv.includes("--interrupt-final")).service : undefined;

@@ -590,7 +590,8 @@ test("speech settings change while the app runs; a failing choice leaves the wor
   const file = join(context.temporary, "speech.json");
   const empty = await (await context.request("settings")).json() as { settings: SpeechSettings; file: string };
   assert.equal(empty.file, file);
-  assert.equal(empty.settings.listening, "mai");
+  assert.equal(empty.settings.listening, "whisper");
+  assert.equal(empty.settings.speaking, "kokoro");
 
   const choice = { listening: "mai", speaking: "kokoro", subscription: "sub-1", resourceGroup: "group", resourceName: "name", region: "swedencentral", deployment: "listen", voice: "", voiceStyle: "", kokoroVoice: "bf_emma" };
   assert.equal((await context.request("settings", { ...choice, listening: "other" })).status, 400);

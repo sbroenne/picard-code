@@ -7,8 +7,9 @@ Rules for people and coding agents who change this repository. Read
 
 A small local browser app. Spoken conversation is the only way to make
 requests; there is no typing. OpenCode does the coding with any model provider it
-supports, using the user's own sign-in. Azure MAI is the preferred listening and speaking service; local
-Whisper listening and Kokoro speaking can be chosen instead, each side on its
+supports, using the user's own sign-in. Local Whisper listening and Kokoro
+speaking are the default, so anyone can run it without a cloud account; Azure
+MAI can be chosen instead, each side on its
 own. It is an unofficial tribute to Sir Patrick Stewart's Jean-Luc Picard with an
 original TNG-inspired look.
 
@@ -58,11 +59,13 @@ original TNG-inspired look.
   boundaries must survive unchanged.
 - **No copied franchise material in the repository.** No show artwork,
   dialogue, voice cloning or recordings are committed. The five TrekCore
-  sounds are downloaded at startup (or by `npm run setup:sounds`) into the
-  ignored `.picard-sounds` folder; keep them out of git and keep their
-  attribution and permission limits in `THIRD_PARTY_NOTICES.md`.
-- **Downloaded models, Python environments and samples stay out of git**
-  (`.picard-voice`). Keep license notices for anything downloaded.
+  sounds are downloaded at startup (or by `npm run setup:sounds`) into
+  `~/.picard-code/sounds`; keep them out of git and keep their attribution and
+  permission limits in `THIRD_PARTY_NOTICES.md`.
+- **Downloads stay outside the repository.** Speech setup keeps the models
+  in `~/.picard-code`; live-check samples go to the ignored
+  `.picard-voice/samples`. Keep license notices for anything downloaded or
+  included in the npm package.
 
 ## How the computer talks
 
@@ -164,11 +167,7 @@ matching real check from the README (`test:live`, `test:speech:live`,
 these make real model requests and some make small Azure charges. Report
 plainly which real checks ran and which could not.
 
-If a local speech check needs missing Whisper or Kokoro files, run
-`npm run setup:speech` in this checkout before retrying it. Install `uv` first
-if it is missing. This downloads the models and Python packages into the
-ignored `.picard-voice` folder; never commit them or change the owner's saved
-speech choices just to run a check.
+Never change the owner's saved speech choices just to run a check.
 
 Still not checked anywhere: a physical microphone and speakers (room noise,
 echo), macOS and Linux, and the owner's subjective review of voice and timing.
@@ -176,4 +175,11 @@ echo), macOS and Linux, and the owner's subjective review of voice and timing.
 ## Git
 
 Commit to the working branch with a clear plain-English message. Do not force
-push. Do not publish the npm package.
+push. Only the owner publishes to npm, by creating a GitHub release (see
+[docs/RELEASING.md](docs/RELEASING.md)); coding agents never publish.
+
+Maintainers and coding agents: before opening a pull request, review the
+complete branch diff with the Ponytail review skill in
+`.github/skills/ponytail-review`. Fix what it finds, or say in the pull request
+why a finding does not apply. Outside contributors may run it too; it is not
+required of them, because Copilot code review on GitHub can use the same skill.
