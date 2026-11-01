@@ -33,15 +33,20 @@ agents never do.
 2. **Let GitHub publish later versions.** On npmjs.com, open the package's
    **Settings → Trusted publishing**, choose **GitHub Actions**, and enter
    owner `sbroenne`, repository `picard-code`, workflow `release.yml` and
-   environment `npm`. In GitHub **Settings → Environments**, create the `npm`
-   environment and, if you like, require your own approval. No npm token is
-   stored anywhere.
+   environment `npm`. Under **Allowed actions**, leave only
+   `npm stage publish`; npm advises against letting it publish directly or
+   change dist-tags. In GitHub **Settings → Environments**, create the `npm`
+   environment and, under **Deployment branches and tags**, allow only the
+   tag rule `v*`. No npm token is stored anywhere.
 3. **Each later version.** In a pull request, raise `version` in
    `package.json` (for example `npm version 0.2.0 --no-git-tag-version`) and
    merge it. Then create a GitHub release with the tag `v0.2.0`. The
    **Publish to npm** workflow checks that the tag matches, runs the checks,
-   and publishes with provenance (a public record that GitHub built it from
-   this repository).
+   and stages the version on npm with provenance (a public record that GitHub
+   built it from this repository). Staged versions are not public yet. Approve
+   it on npmjs.com, or run `npm stage list` and then
+   `npm stage approve <id>`; npm asks for your second sign-in step. Then
+   check from an empty folder that `npx picard-code@0.2.0 --help` works.
 
 ## The launch video and YouTube channel
 

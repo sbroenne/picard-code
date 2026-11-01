@@ -360,6 +360,8 @@ test("a slow arrival sound never interrupts a spoken request", async ({ page }) 
 });
 
 test("listening stays on; “Computer” starts a task, follow-ups need no “Computer”; the app always opens listening", async ({ page }, info) => {
+  // A random tribute fact could follow the second answer and add its sound.
+  await page.addInitScript(() => localStorage.setItem("picard-tribute-enabled", "false"));
   await launch(page);
   await expect(page.getByRole("button", { name: "Start listening" })).toHaveCount(0);
   await expect(page.getByRole("textbox")).toHaveCount(0);
