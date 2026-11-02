@@ -156,11 +156,15 @@ never instead of the written or spoken explanation:
 
 ## Checks
 
-For changes only to documentation, the project website (`site/`), or
-`browser-tests/site.spec.ts`, run `npx playwright test browser-tests/site.spec.ts`
-before committing. This checks the website at desktop and phone widths and
-its documentation links, without building or testing the app. Release note
-text in `.changeset/*.md` can accompany these changes.
+For changes only to documentation, the project website (`site/`),
+development-only tools (`tools/`), or `browser-tests/site.spec.ts`, run
+`npx playwright test browser-tests/site.spec.ts` before committing. This checks
+the website at desktop and phone widths and its documentation links, without
+building or testing the app. For tool code changes, also run the checks that
+cover the changed tool. Tools are not shipped with the app and do not need
+the full app checks unless the change also touches app code, shared
+dependencies, setup scripts or check configuration. Release note text in
+`.changeset/*.md` can accompany these changes.
 Documentation here means root-level Markdown files, `LICENSE`, `docs/`,
 `.github/copilot-instructions.md`, `.github/PULL_REQUEST_TEMPLATE.md` and
 `.github/ISSUE_TEMPLATE/`. Other paths still need full checks.
@@ -179,9 +183,9 @@ npx playwright test
 When changing the changed-file rules, also run
 `node --test .github/scripts/check-scope.test.mjs`.
 GitHub uses the same split for pull requests and pushes to main. The required
-server checks are skipped for documentation and website changes; the required
-browser check runs only the website tests. Unknown paths and manual runs use
-the full checks. A failed changed-file check blocks merging.
+server checks are skipped for documentation, website and development-only tool
+changes; the required browser check runs only the website tests. Unknown paths
+and manual runs use the full checks. A failed changed-file check blocks merging.
 
 The browser checks use a labeled test stand-in for OpenCode, a fake
 microphone and silent stand-in sounds. When you change OpenCode, speech or conversation behavior, also run the

@@ -7,13 +7,16 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { needsFullChecks } from "./check-scope.mjs";
 
-test("documentation and website changes use the lighter checks", () => {
+test("documentation, website and development-only tool changes use the lighter checks", () => {
   assert.equal(needsFullChecks([
     "README.md", "AGENTS.md", "CONTRIBUTING.md", "LICENSE",
     "docs/research/bridge-crew-voices.md", ".changeset/modern-foxes-love.md",
     ".github/copilot-instructions.md", ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/ISSUE_TEMPLATE/bug.yml", "site/index.html", "site/assets/console.png",
     "browser-tests/site.spec.ts",
+    "tools/README.md", "tools/voice-match/match.py",
+    "tools/voice-match/render-samples.mjs", "tools/voice-match/pyproject.toml",
+    "tools/voice-match/uv.lock", "tools/voice-match/test_match.py",
   ]), false);
   assert.equal(needsFullChecks([]), false);
 });
@@ -28,12 +31,13 @@ test("app, setup, dependency and check changes always use full checks", () => {
     "browser-tests/app.spec.ts", "browser-tests/voice.spec.ts", "unknown-file",
     "web/README.md", "README.md\nsrc/server/app.ts",
   ]) {
-    assert.equal(needsFullChecks(["README.md", "site/index.html", file]), true, file);
+    assert.equal(needsFullChecks(["README.md", "site/index.html", "tools/voice-match/match.py", file]), true, file);
   }
 });
 
 test("moving app code to documentation still checks the removed app path", () => {
   assert.equal(needsFullChecks(["src/server/app.ts", "docs/app.ts"]), true);
+  assert.equal(needsFullChecks(["src/server/app.ts", "tools/app.ts"]), true);
 });
 
 test("Git comparisons select light checks, while manual runs and comparison failures cannot skip full checks", (t) => {
