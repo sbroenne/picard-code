@@ -7,6 +7,7 @@ import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../
 import { addressed, voiceCommand } from "../src/shared/wake";
 import { VoiceConversation, type FollowOn } from "./voice";
 import { renderMarkdown } from "./markdown";
+import { markMedia, reconcile, ReplyPlayers } from "./media";
 import { formatStardate } from "../src/shared/stardate";
 import { TRIBUTE_ENTRIES, type TributeEntry } from "../src/shared/tribute-data";
 import { TributeCycle, tributeMode, declinedReply, storyOfferAllowed, storyAcceptance, explicitStorySubject, tributeQuestion, tributeSubject, randomIndex, storyInvitation, type ExecutionOutcome } from "../src/shared/tribute";
@@ -81,7 +82,9 @@ const voice = new VoiceConversation({
   error: (message) => { cancelTributeSpeech(); notice(message); },
   transcript: heard,
   canListen: () => !!state?.models.length && connected,
+  beforeSpeak: () => players.stop(),
 });
+const players = new ReplyPlayers({ paused: (value) => { if (value) cancelTributeSpeech(); voice.pauseForMedia(value); } });
 
 function logEntryID(request: PermissionRequest | FormRequest) {
   return request.logEntryID ?? request.sessionID;
@@ -210,6 +213,7 @@ function consoleStatus(): [string, string] {
   if (!state) return ["Starting up", ""];
   if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open."];
   if (!state.models.length) return ["Setup needed", "Sign in to a model provider: open Provider."];
+  if (voice.mediaPaused) return ["Listening paused", "Pause the video or close its player to listen again."];
   if (voice.phase === "speaking") return ["Speaking", voice.microphone ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."];
   if (voice.phase === "cue") return ["Standing by", "A new tribute fact is on screen."];
   if (voice.speechPending) return ["Preparing reply", ""];
@@ -565,16 +569,17 @@ function renderText(container: HTMLElement, text: string, role: ChatMessage["rol
   if (role === "user") { container.append(make("p", "message-text", text)); return; }
   const node = make("div", "message-text markdown");
   node.append(renderMarkdown(text));
+  markMedia(node);
   container.append(node);
 }
 
 function renderMessages() {
   const nearBottom = readingArea.scrollHeight - readingArea.scrollTop - readingArea.clientHeight < 100;
   const container = element("messages");
+  const wanted = document.createDocumentFragment();
   // The list is rebuilt on every update, so keyboard focus on a link or button inside it is put back afterwards.
   const focusable = () => [...container.querySelectorAll<HTMLElement>("a[href], button, summary")];
   const focused = focusable().indexOf(document.activeElement as HTMLElement);
-  container.replaceChildren();
   queueMicrotask(() => { if (focused >= 0 && document.activeElement === document.body) focusable()[focused]?.focus({ preventScroll: true }); });
   // The latest request and its reply fill the screen; earlier ones stay small above.
   const list = shown();
@@ -582,32 +587,50 @@ function renderMessages() {
   list.forEach((message, index) => {
     // A failed final action stays visible even when the officer wrote part of a report.
     const texts = message.parts.filter((part) => part.type === "text" && part.text.trim());
+    const media = message.parts.filter((part) => part.type === "media");
     const failures = texts.length && !failedReport(message) ? [] : message.parts.filter((part) => part.type === "tool" && part.status === "error");
-    if (message.role === "assistant" && !texts.length && !failures.length && !message.error) return;
+    if (message.role === "assistant" && !texts.length && !media.length && !failures.length && !message.error) return;
     if (isHeldBack(message)) return;
-    if (repeatsOfficer(list, index)) return;
-    if (!texts.length && !message.error && message.role === "assistant" && recovered(list, index)) {
+    if (!media.length && repeatsOfficer(list, index)) return;
+    if (!texts.length && !media.length && !message.error && message.role === "assistant" && recovered(list, index)) {
       // A step that failed before the answer arrived stays readable, folded away, without looking like the answer failed.
-      const previous = container.lastElementChild;
+      const previous = wanted.lastElementChild;
       const note = previous?.classList.contains("step-failures") ? previous as HTMLDetailsElement : make("details", "step-failures");
-      if (note !== previous) { note.append(make("summary")); container.append(note); }
+      if (note !== previous) { note.append(make("summary")); wanted.append(note); }
       for (const part of failures) note.append(make("p", "step-failure", part.text));
       const count = note.querySelectorAll(".step-failure").length;
       note.querySelector("summary")!.textContent = `${count} step${count === 1 ? "" : "s"} did not work`;
       return;
     }
     const article = make("article", `message ${message.background ? "crew-report " : ""}${index >= latest ? "current" : "earlier"}`);
+    article.dataset.keep = message.id;
+    article.dataset.messageId = message.id;
+    article.dataset.sessionId = message.sourceSessionID ?? selected;
     article.dataset.role = message.role;
     const header = make("div", "message-header");
     header.append(make("strong", undefined, message.role === "user" ? "Picard" : crewMember(message.speaker)?.name ?? "Computer"));
     if (message.background && !message.speaker) header.append(make("small", undefined, "Supporting report"));
     const copy = button("Copy", "copy-button", async () => {
-      await navigator.clipboard.writeText(message.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n"));
+      const current = shown().find((item) => item.id === message.id) ?? message;
+      await navigator.clipboard.writeText(current.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n"));
       copy.textContent = "Copied";
     });
     header.append(copy);
     article.append(header);
-    for (const part of texts) renderText(article, part.text, message.role);
+    for (const part of texts) {
+      renderText(article, part.text, message.role);
+      const textNode = article.lastElementChild as HTMLElement;
+      textNode.dataset.keep = part.id;
+      textNode.dataset.mediaReady = String(messages.find((item) => item.id === message.id)?.parts.some((item) => item.id === part.id && item.text === part.text) ?? false);
+    }
+    for (const part of media) {
+      const item = make("span", "reply-media", part.text);
+      item.dataset.mediaHref = part.href;
+      item.dataset.mediaImage = String(part.mime?.startsWith("image/") ?? false);
+      item.dataset.keep = part.id;
+      item.dataset.mediaReady = "true";
+      article.append(item);
+    }
     for (const part of failures) article.append(make("p", "message-error", part.text));
     if (message.error) article.append(make("p", "message-error", message.error));
     const extra = tributeDisplay.get(`${selected}:${message.id}`);
@@ -622,7 +645,7 @@ function renderMessages() {
       source.append(sourceLink(extra.reference));
       article.append(source);
     }
-    container.append(article);
+    wanted.append(article);
     if (extra?.fact) {
       const fact = make("aside", "tribute-fact");
       const picard = extra.fact.subject === "Picard";
@@ -641,9 +664,11 @@ function renderMessages() {
       const body = make("div", "tribute-record-body");
       body.append(make("p", undefined, extra.fact.text), tributeSource(extra.fact));
       fact.append(heading, bars, body);
-      container.append(fact);
+      wanted.append(fact);
     }
   });
+  reconcile(container, wanted);
+  players.mount(container, state?.project ?? "");
   controls();
   if (nearBottom && window.matchMedia("(min-width: 701px)").matches) readingArea.scrollTop = readingArea.scrollHeight;
 }
@@ -1040,6 +1065,7 @@ function openEvents() {
 }
 
 async function selectConversation(id: string) {
+  players.stop();
   cancelTributeSpeech();
   if (selected && id !== selected) { voiceTurn = undefined; spokenQuestionID = undefined; voice.close(); }
   selected = id;
@@ -1060,6 +1086,7 @@ async function selectConversation(id: string) {
 
 /** Clears the screen for a new task. The next request starts a new log, named after that request. */
 function startFresh() {
+  players.stop();
   freshEntryStarted = Date.now();
   cancelTributeSpeech();
   voiceTurn = undefined;
@@ -1297,6 +1324,7 @@ element("project-form").addEventListener("submit", (event) => {
   void perform(async () => {
     cancelTributeSpeech();
     const next = await api<AppState>("project", { path: element<HTMLInputElement>("project-path").value });
+    players.stop();
     voiceTurn = undefined;
     spokenQuestionID = undefined;
     voice.close();
@@ -1371,6 +1399,6 @@ element("bridge-toggle").addEventListener("change", () => {
   element("bridge-status").textContent = bridgeEnabled ? "The Bridge crew is on." : "The Bridge crew is off. The computer answers every request.";
 });
 for (const name of ["pointerdown", "keydown"] as const) document.addEventListener(name, () => voice.unlock(), true);
-window.addEventListener("beforeunload", () => { events?.close(); voice.close(); });
+window.addEventListener("beforeunload", () => { players.stop(); events?.close(); voice.close(); });
 loadTribute();
 void perform(async () => { await route(); await boot(); await route(); });

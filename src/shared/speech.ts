@@ -96,7 +96,7 @@ export function stripUnderscoreEmphasis(text: string) {
 /** Builds a complete short spoken answer from a written reply; detail stays on screen. */
 export function spokenSummary(text: string) {
   const prose = stripUnderscoreEmphasis(text.replace(/```[\s\S]*?(?:```|$)/g, "")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/!?\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/`([^`\n]+)`/g, (_whole, code: string) => speakableCode(code))
     .replace(/`/g, "")
     .replace(/\*+/g, ""))

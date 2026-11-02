@@ -34,10 +34,12 @@ export interface SessionInfo {
 
 export interface OpenCodeError { type: string; message: string }
 
+export type ToolContent = { type: "text"; text: string } | { type: "file"; uri: string; mime: string; name?: string | null };
+
 export type ContentItem =
   | { type: "text"; text: string }
   | { type: "reasoning"; text: string }
-  | { type: "tool"; id: string; name: string; state: { status: string; input?: unknown; content?: { type: string; text?: string }[]; error?: OpenCodeError } };
+  | { type: "tool"; id: string; name: string; state: { status: string; input?: unknown; content?: ToolContent[]; error?: OpenCodeError } };
 
 export type SessionMessage =
   | { id: string; type: "user"; text: string; time: { created: number } }

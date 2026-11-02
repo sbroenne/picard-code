@@ -388,6 +388,45 @@ error rather than switching to another model or provider.
 
 ## Use it
 
+### Images and videos in replies
+
+The computer can show images and videos it creates or finds, with descriptions
+and an **Open source** link. This displays real results; it does not add a new
+image or video creation service. Your chosen OpenCode model and tools still
+decide what can be created or found. Requests remain spoken.
+
+Supported Project files are PNG, JPEG, GIF, and WebP images, and MP4 and WebM
+videos. The browser must also support the video's encoding. Files are read
+only when an actual reply refers to them, through the same protected local
+connection as the log entry. Files outside the selected Project are not shown.
+Nothing is copied into your Project. Reopening a log entry reads the original
+sources again; moved or deleted files and unavailable website media show an
+error, not a replacement.
+
+Website images and direct video files load automatically from public HTTPS
+addresses. This contacts the media host, which can see your network address
+and apply its own cookies and privacy rules. Picard Code does not send it
+your Project files, reply text, settings, or launch key. Links and redirects
+are controlled by outside websites; automatic loading is not a privacy
+guarantee. Local hostnames, IP-address URLs, and unsupported references are not
+accepted as media sources, but an outside hostname or redirect can still lead
+elsewhere.
+
+Videos never start playing automatically. Direct video files use the browser's
+play and pause controls. YouTube and Vimeo links offer **Open player** and
+**Close player**; other video-site pages remain links. YouTube uses its
+privacy-enhanced player and receives only the local app origin as its required
+referrer, not a Project path or launch key. Vimeo receives no referrer.
+Website players may show their own sign-in, availability, or embedding errors;
+use **Open source** if they refuse playback. No website player scripts run
+in the main Picard Code page.
+
+Listening pauses during direct video playback, and for as long as a YouTube
+or Vimeo player is open. Pause a direct video or close the website player to
+listen again. Starting another player stops the previous one; a new spoken
+reply stops video playback first. The microphone stays off if you switched it
+off yourself. These controls do not change your saved speech choices.
+
 ### Ask about your repository
 
 Say "Computer, what does our repo do?", "Where is speech handled?" or

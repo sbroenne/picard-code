@@ -5,6 +5,8 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { AppState, BrowserEvent, FormField, FormValue } from "../shared/types.js";
 import { chatMessages, availableModels, errorMessage } from "./engine.js";
 import { partID } from "./history.js";
+import { mediaReferences, replyMedia } from "../shared/media.js";
+import { MediaError, serveMedia } from "./media.js";
 import type { OpenCode, OpenCodeEvent, SessionInfo } from "./opencode.js";
 import { projectDirectory } from "./process.js";
 import { computerManner, crewChoice } from "./instructions.js";
@@ -349,7 +351,7 @@ export async function startApp(options: AppOptions) {
       response.setHeader("Cache-Control", "no-store");
       response.setHeader("X-Content-Type-Options", "nosniff");
       response.setHeader("Referrer-Policy", "no-referrer");
-      response.setHeader("Content-Security-Policy", `default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' ${origin.replace("http:", "ws:")}; worker-src 'self'; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`);
+      response.setHeader("Content-Security-Policy", `default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' ${origin.replace("http:", "ws:")}; worker-src 'self'; img-src 'self' data: https:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`);
       response.setHeader("Permissions-Policy", "microphone=(self), camera=()");
       if (request.headers.host !== new URL(origin).host) throw new HttpError(403, "Use the local address printed by Picard Code.");
       if (request.headers.origin && request.headers.origin !== origin) throw new HttpError(403, "Requests from other websites are not allowed.");
@@ -466,6 +468,19 @@ export async function startApp(options: AppOptions) {
           const data = await body(request);
           const result = await client.createSession(project, typeof data.title === "string" ? data.title.trim().slice(0, 120) || "New log entry" : "New log entry");
           json(response, 201, { id: result.id, title: result.title, created: result.time.created, updated: result.time.updated });
+          return;
+        }
+        const media = /^\/api\/conversations\/([^/]+)\/media\/([^/]+)$/.exec(path);
+        if (media && (method === "GET" || method === "HEAD")) {
+          if (url.searchParams.get("project") !== project) throw new HttpError(403, "That media belongs to another Project.");
+          const sessionID = decodeURIComponent(media[1]!);
+          if (!await rootSession(sessionID, project)) throw new HttpError(403, "That media belongs to another Project.");
+          const message = chatMessages(await client.messages(sessionID, project)).find((item) => item.id === decodeURIComponent(media[2]!) && item.role === "assistant");
+          const href = url.searchParams.get("href");
+          const references = message?.parts.flatMap((part) => part.type === "text" ? mediaReferences(part.text)
+            : part.type === "media" && part.href ? [replyMedia(part.href, part.text)].filter((item) => item !== undefined) : []) ?? [];
+          if (!href || !references.some((item) => item.local && item.href === href)) throw new HttpError(403, "That media is not part of this reply.");
+          await serveMedia(request, response, project, href);
           return;
         }
         const match = /^\/api\/conversations\/([^/]+)\/(messages|send|stop|delete)$/.exec(path);
@@ -592,8 +607,8 @@ export async function startApp(options: AppOptions) {
       response.end(method === "HEAD" ? undefined : content);
     })().catch((error: unknown) => {
       if (response.headersSent) { response.destroy(); return; }
-      json(response, error instanceof HttpError ? error.status : 502, {
-        error: error instanceof HttpError ? error.message : `OpenCode could not complete this request. ${errorMessage(error)}`,
+      json(response, error instanceof HttpError || error instanceof MediaError ? error.status : 502, {
+        error: error instanceof HttpError || error instanceof MediaError ? error.message : `OpenCode could not complete this request. ${errorMessage(error)}`,
       });
     }).finally(() => {
       if (ownsMutation) mutationBusy = false;

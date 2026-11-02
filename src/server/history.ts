@@ -14,16 +14,20 @@ type Tool = Extract<ContentItem, { type: "tool" }>;
 function toolPart(messageID: string, item: Tool): ChatPart {
   const { state } = item;
   const detail = state.status === "error" ? state.error?.message ?? "The action failed."
-    : state.status === "completed" ? (state.content ?? []).map((piece) => piece.text ?? "").join("\n")
+    : state.status === "completed" ? (state.content ?? []).flatMap((piece) => piece.type === "text" ? [piece.text] : []).join("\n")
     : JSON.stringify(state.input ?? {}, null, 2);
   return { id: partID(messageID, "tool", item.id), type: "tool", text: `${item.name}\n${detail}`, status: state.status === "streaming" ? "pending" : state.status };
 }
 
 function parts(messageID: string, content: ContentItem[]) {
   const count = { text: 0, reasoning: 0 };
-  return content.map((item): ChatPart => item.type === "tool"
-    ? toolPart(messageID, item)
-    : { id: partID(messageID, item.type, count[item.type]++), type: item.type, text: item.text });
+  return content.flatMap((item): ChatPart[] => {
+    if (item.type !== "tool") return [{ id: partID(messageID, item.type, count[item.type]++), type: item.type, text: item.text }];
+    const files: ChatPart[] = item.state.status !== "completed" ? [] : (item.state.content ?? []).flatMap((piece, index) =>
+      piece.type === "file" && /^(?:image|video)\//.test(piece.mime)
+        ? [{ id: `${messageID}:file:${item.id}:${index}`, type: "media", text: piece.name || "Media file", href: piece.uri, mime: piece.mime }] : []);
+    return [toolPart(messageID, item), ...files];
+  });
 }
 
 function failedTool(message: ChatMessage) {
