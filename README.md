@@ -515,7 +515,7 @@ on-screen button.
   a stray click never starts listening. Saying "Computer, microphone off" (or
   "Computer, mute") also switches it off. Reloading the page switches it back
   on. Switching it off and back on keeps the current log entry; follow-ups
-  still need no "Computer".
+  still need no "Computer". Saying "Computer" again also continues that entry.
 - The microphone stays on. While the room is quiet, the console shows
   **Standing by** and nothing leaves your computer. When someone starts
   talking, that speech (including the half second before it, so the first word
@@ -532,16 +532,19 @@ on-screen button.
   "stop listening".
 - **"Stop listening"** (or "stand by", "that will be all") is always
   understood, with or without "Computer". The computer beeps, says "Standing
-  by.", ends the task and waits for "Computer" again. Work already running
-  carries on, and the microphone stays on.
+  by." and waits for "Computer" again. The next addressed request continues
+  the log entry on screen. Work already running carries on, and the microphone
+  stays on.
 - **"Belay that"** (or "stop", "cancel that", "never mind"; with "Computer"
   before a task) cancels the current work, the same as the **Belay that** button.
 - There is one current log entry. **"Computer, new log entry"** (or "new
-  task", "start over") clears the screen, the same as the **New log entry**
-  button. The opening screen shows its Stardate without speaking it aloud.
-  Every request that starts a task with "Computer" begins a new log
-  entry; follow-ups within the task join it. Earlier entries stay in the
-  **Captain’s log**. Requests made while work is
+  starlog entry", "new task", "start over") clears the screen, the same as the
+  **New log entry** button. The opening screen shows its Stardate without
+  speaking it aloud.
+  Only an explicit spoken request for a new entry or the **New log entry**
+  tile starts a new entry. Otherwise requests continue the entry on screen,
+  including after a page refresh or reopening it from the **Captain’s log**.
+  Earlier entries stay in the **Captain’s log**. Requests made while work is
   running, a question is waiting, or a decision is needed are not sent: with
   "Computer" you get a short spoken reminder; without it, a "Not sent"
   line on screen and the not-understood sound.

@@ -25,6 +25,7 @@ const STOP = new Set([
 // Like the ship's computer, there is one ongoing conversation until the captain starts afresh.
 const FRESH = new Set([
   "new log entry", "a new log entry", "begin a new log entry", "begin new log entry", "start a new log entry", "new log", "begin log entry",
+  "new starlog entry", "start a new starlog entry", "new star log entry", "start a new star log entry",
   "new task", "a new task", "start a new task", "next task", "new conversation", "start a new conversation",
   "start over", "start again", "start fresh", "fresh start", "clear", "clear the screen",
 ]);

@@ -37,7 +37,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome") {
+async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "fresh-starlog" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -623,6 +623,39 @@ for (const prefixed of [false, true]) {
   }
 }
 
+for (const action of ["reload", "reopen", "new entry tile"] as const) {
+  test(`${action} ${action === "new entry tile" ? "starts a new" : "keeps the current"} log entry for the next addressed request`, async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem("picard-tribute-enabled", "false"));
+    const entries: string[] = [];
+    page.on("request", (request) => {
+      if (request.method() === "POST" && /\/api\/conversations\/[^/]+\/send$/.test(request.url())) entries.push(request.url());
+    });
+    await launch(page, "resume");
+    await startListening(page);
+    await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+    await expect(page.getByRole("button", { name: "Stop speaking", exact: true })).toBeHidden({ timeout: 15000 });
+    if (action === "new entry tile") {
+      await page.getByRole("button", { name: "New log entry", exact: true }).click();
+      await page.getByRole("button", { name: "Switch microphone on" }).click();
+    } else {
+      await page.reload();
+      await startListening(page);
+      if (action === "reopen") {
+        await page.getByRole("link", { name: "Captain’s log" }).click();
+        await page.locator("#conversations .conversation-button", { hasText: "hello there" }).click();
+      }
+    }
+    await startListening(page);
+    await expect.poll(() => entries.length, { timeout: 20000 }).toBe(2);
+    if (action === "new entry tile") expect(entries[1]).not.toBe(entries[0]);
+    else expect(entries[1]).toBe(entries[0]);
+    await expect(page.locator(".message[data-role=user]")).toHaveCount(action === "new entry tile" ? 1 : 2);
+    await expect(page.locator(".message[data-role=user]").last()).toContainText("Computer, hello again");
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+  });
+}
+
 test("facts vary within one log, are separate from copied answers, and the navigation switch stops future facts", async ({ page }, testInfo) => {
   await page.addInitScript(() => { Math.random = () => 0; });
   const spoken = spokenText(page);
@@ -1077,49 +1110,55 @@ test("replies show code safely, and the conversation reopens after reload", asyn
   await page.screenshot({ path: info.outputPath("conversation-screen.png"), fullPage: true });
 });
 
-test("“New log entry” clears the screen and ends the task; the earlier conversation stays in the captain’s log with its stardate and can be deleted", async ({ page }) => {
-  const spoken = spokenText(page);
-  await launch(page, "fresh");
-  await startListening(page);
-  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
-  await expect(status(page)).toHaveText("Speaking");
-  await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
-  await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toBe("Standing by for a new log entry.");
-  await expect(page.locator(".message")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
-  await expect(page.locator("#entry-stardate")).toBeVisible();
-  await expect(page.locator("#entry-stardate")).toHaveText(/^Stardate -?\d+\.\d$/);
-  expect(spoken.some((text) => /stardate/i.test(text))).toBe(false);
-  // After the task ends, speech needs "Computer" again.
-  await expect(page.locator("#voice-partial")).toHaveText("Not sent: “Is anyone there” Start with “Computer”.", { timeout: 20000 });
-  await expect(page.locator(".message")).toHaveCount(0);
-  await page.getByRole("button", { name: "Switch microphone off" }).click();
-  await page.getByRole("link", { name: "Captain’s log" }).click();
-  await expect(page.locator("#conversations")).toContainText("hello there");
-  await expect(page.locator("#conversations .log-stardate")).toHaveText(/^Stardate -?\d+\.\d$/);
-  // Deleting asks first; "Keep" leaves the entry alone.
-  await page.getByRole("button", { name: /^Delete .*hello there/ }).click();
-  await expect(page.locator("#conversations")).toContainText("permanently? This cannot be undone.");
-  await page.getByRole("button", { name: "Keep" }).click();
-  await expect(page.locator("#conversations .conversation-button")).toHaveCount(1);
-  await page.getByRole("button", { name: /^Delete .*hello there/ }).click();
-  await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await expect(page.locator("#conversations")).toHaveText("Your log entries will appear here.");
-  // The panel stays open after deleting.
-  await expect(page.locator("#drawer-records")).toBeVisible();
-});
+for (const mode of ["fresh", "fresh-starlog"] as const) {
+  test(`“${mode === "fresh" ? "New log entry" : "New starlog entry"}” clears the screen and ends the task; the earlier conversation stays in the captain’s log with its stardate and can be deleted`, async ({ page }) => {
+    const spoken = spokenText(page);
+    await launch(page, mode);
+    await startListening(page);
+    await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
+    await expect(status(page)).toHaveText("Speaking");
+    await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
+    await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toBe("Standing by for a new log entry.");
+    await expect(page.locator(".message")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
+    await expect(page.locator("#entry-stardate")).toBeVisible();
+    await expect(page.locator("#entry-stardate")).toHaveText(/^Stardate -?\d+\.\d$/);
+    expect(spoken.some((text) => /stardate/i.test(text))).toBe(false);
+    // After the task ends, speech needs "Computer" again.
+    await expect(page.locator("#voice-partial")).toHaveText("Not sent: “Is anyone there” Start with “Computer”.", { timeout: 20000 });
+    await expect(page.locator(".message")).toHaveCount(0);
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+    await page.getByRole("link", { name: "Captain’s log" }).click();
+    await expect(page.locator("#conversations")).toContainText("hello there");
+    await expect(page.locator("#conversations .log-stardate")).toHaveText(/^Stardate -?\d+\.\d$/);
+    // Deleting asks first; "Keep" leaves the entry alone.
+    await page.getByRole("button", { name: /^Delete .*hello there/ }).click();
+    await expect(page.locator("#conversations")).toContainText("permanently? This cannot be undone.");
+    await page.getByRole("button", { name: "Keep" }).click();
+    await expect(page.locator("#conversations .conversation-button")).toHaveCount(1);
+    await page.getByRole("button", { name: /^Delete .*hello there/ }).click();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(page.locator("#conversations")).toHaveText("Your log entries will appear here.");
+    // The panel stays open after deleting.
+    await expect(page.locator("#drawer-records")).toBeVisible();
+  });
+}
 
-test("after a task ends, the next “Computer” request starts its own log entry", async ({ page }) => {
+test("after “Stop listening”, the next “Computer” request continues the current log entry", async ({ page }) => {
+  const entries: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && /\/api\/conversations\/[^/]+\/send$/.test(request.url())) entries.push(request.url());
+  });
   await launch(page, "separate");
   await startListening(page);
-  await expect(page.locator(".message[data-role=user]")).toContainText(["Computer, show unsafe output"], { timeout: 40000 });
-  await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
+  await expect(page.locator(".message[data-role=user]")).toContainText(["Computer, hello there", "Computer, show unsafe output"], { timeout: 40000 });
+  expect(entries).toHaveLength(2);
+  expect(entries[1]).toBe(entries[0]);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   await page.getByRole("link", { name: "Captain’s log" }).click();
-  await expect(page.locator("#conversations .log-title")).toHaveCount(2);
+  await expect(page.locator("#conversations .log-title")).toHaveCount(1);
   await page.locator("#conversations .conversation-button", { hasText: "hello there" }).click();
-  await expect(page.locator(".message[data-role=user]")).toContainText(["Computer, hello there"]);
-  await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
+  await expect(page.locator(".message[data-role=user]")).toContainText(["Computer, hello there", "Computer, show unsafe output"]);
 });
 
 test("“Stop listening”, even without “Computer”, is acknowledged and returns to standing by; only the microphone button switches the microphone", async ({ page }) => {

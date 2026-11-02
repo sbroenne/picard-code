@@ -49,6 +49,8 @@ and the recovery step.
 The microphone switches on when speech is ready, subject to browser permission
 and sound restrictions. "Computer" starts a task; follow-ups within it need no
 prefix. Standing by still listens; the microphone button or M key stops capture.
+Only an explicit spoken request or the New log entry tile starts a new entry.
+Microphone changes, standing by and page refreshes do not start a new entry.
 Requests heard during work or a pending decision are not sent. Live understood
 words and "Not sent" feedback remain visible without a routine Send step.
 Microphone off, Stop speaking, and Belay that (stop work) are separate controls.

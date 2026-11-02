@@ -47,7 +47,7 @@ test("only speech that starts with Computer is addressed; stop commands are whol
   assert.equal(addressed("Hello computer"), undefined);
   for (const words of ["stop", "Stop.", "Cancel that, please.", "belay that", "Never mind", "abort", "stop work"]) assert.equal(voiceCommand(words), "stop", words);
   for (const words of ["stop the server from crashing", "don't stop", "cancel the subscription code", "", "explain the stop button"]) assert.equal(voiceCommand(words), undefined, words);
-  for (const words of ["New log entry.", "Begin a new log entry", "New task.", "start over", "Start a new conversation, please", "clear"]) assert.equal(voiceCommand(words), "new", words);
+  for (const words of ["New log entry.", "Begin a new log entry", "New starlog entry.", "Start a new star log entry, please", "New task.", "start over", "Start a new conversation, please", "clear"]) assert.equal(voiceCommand(words), "new", words);
   for (const words of ["Stop listening.", "stand by", "go to sleep, please", "That will be all."]) assert.equal(voiceCommand(words), "standby", words);
   for (const words of ["mute", "Microphone off."]) assert.equal(voiceCommand(words), "mute", words);
   for (const words of ["add a new task to the list", "write a new log entry function", "stop listening to the socket", "mute the test output", "clear the cache", "start over the build"]) assert.equal(voiceCommand(words), undefined, words);

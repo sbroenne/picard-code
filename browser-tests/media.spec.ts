@@ -268,11 +268,9 @@ test("a new spoken decision stops an open player before the computer speaks", as
     await utterance();
     await expect.poll(() => context.speech.said.length).toBeGreaterThan(0);
     await expect(page.locator("#status")).toHaveText("Standing by");
-    const session = [...context.fixture.sessions.values()].find((item) => item.title.includes("hello there"))!;
-    const answer = context.fixture.messages.get(session.id)!.find((item) => item.type === "assistant" && "content" in item);
-    if (!answer || !("content" in answer)) throw new Error("The first test reply was not saved.");
-    answer.content = [{ type: "text", text: context.text }];
-    context.fixture.publish(context.project, "session.step.ended", { sessionID: session.id });
+    const session = context.session;
+    expect(context.fixture.sessions.size).toBe(1);
+    await expect(page.locator(".message[data-role=user]").last()).toContainText("hello there");
     await expect(page.getByRole("button", { name: "Open player: YouTube example" })).toBeVisible();
     await utterance();
     await expect(page.locator(".message[data-role=user]").last()).toContainText("take a very slow look");
