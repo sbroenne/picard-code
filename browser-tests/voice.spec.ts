@@ -37,7 +37,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome") {
+async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -220,6 +220,12 @@ test("Riker has the last word in a briefing without a repeated computer close", 
   await launch(page, "briefing");
   await startListening(page);
   await expect(page.locator(".message.current[data-role=assistant]")).toHaveCount(3, { timeout: 20000 });
+  const officerNames = page.locator(".crew-report .message-header strong");
+  await expect(officerNames).toHaveCount(2);
+  await expect(officerNames.filter({ hasText: /^Data$/ })).toHaveCount(1);
+  await expect(officerNames.filter({ hasText: /^Riker$/ })).toHaveCount(1);
+  await expect(page.locator(".crew-report .message-header small")).toHaveCount(0);
+  await expect(page.locator(".crew-report .copy-button")).toHaveCount(2);
   await expect.poll(() => spoken.at(-1), { timeout: 15000 }).toEqual([
     { text: "Test stand-in: Data found a small repair.", speaker: "picard-data" },
     { text: "Test stand-in: I recommend the smaller repair, Captain. Shall I proceed?", speaker: "picard-riker" },
@@ -590,6 +596,32 @@ test("listening stays on; “Computer” starts a task, follow-ups need no “Co
   await startListening(page);
   await expect(page.locator(".message[data-role=user]")).toHaveCount(2);
 });
+
+for (const prefixed of [false, true]) {
+  for (const keyboard of [false, true]) {
+    test(`microphone ${keyboard ? "keyboard" : "button"} switching keeps ${prefixed ? "an addressed request" : "a follow-up"} in the current log entry`, async ({ page }) => {
+      await page.addInitScript(() => localStorage.setItem("picard-tribute-enabled", "false"));
+      const entries: string[] = [];
+      page.on("request", (request) => {
+        if (request.method() === "POST" && /\/api\/conversations\/[^/]+\/send$/.test(request.url())) entries.push(request.url());
+      });
+      await launch(page, prefixed ? "resume" : undefined);
+      await startListening(page);
+      await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+      if (keyboard) await page.keyboard.press("m");
+      else await page.getByRole("button", { name: "Switch microphone off" }).click();
+      await expect(status(page)).toHaveText("Microphone off");
+      await expect(page.getByRole("button", { name: "Stop speaking", exact: true })).toBeHidden({ timeout: 15000 });
+      if (keyboard) await page.keyboard.press("m");
+      else await page.getByRole("button", { name: "Switch microphone on" }).click();
+      await expect(page.locator(".message[data-role=user]")).toHaveCount(2, { timeout: 20000 });
+      expect(entries).toHaveLength(2);
+      expect(entries[1]).toBe(entries[0]);
+      await expect(page.locator(".message[data-role=user]").last()).toContainText(prefixed ? "Computer, hello again" : "Hello again");
+      await page.getByRole("button", { name: "Switch microphone off" }).click();
+    });
+  }
+}
 
 test("facts vary within one log, are separate from copied answers, and the navigation switch stops future facts", async ({ page }, testInfo) => {
   await page.addInitScript(() => { Math.random = () => 0; });
@@ -1052,6 +1084,9 @@ test("“New log entry” clears the screen and ends the task; the earlier conve
   await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toBe("Standing by for a new log entry.");
   await expect(page.locator(".message")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
+  await expect(page.locator("#entry-stardate")).toBeVisible();
+  await expect(page.locator("#entry-stardate")).toHaveText(/^Stardate -?\d+\.\d$/);
+  expect(spoken.some((text) => /stardate/i.test(text))).toBe(false);
   // After the task ends, speech needs "Computer" again.
   await expect(page.locator("#voice-partial")).toHaveText("Not sent: “Is anyone there” Start with “Computer”.", { timeout: 20000 });
   await expect(page.locator(".message")).toHaveCount(0);

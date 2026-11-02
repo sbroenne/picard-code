@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { formatStardate } from "../src/shared/stardate";
 
 const { version } = JSON.parse(readFileSync("package.json", "utf8")) as { version: string };
 
@@ -43,6 +44,19 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
   await expect(page.locator("#readout-speech")).toHaveText("Not set up");
   await expect(page.locator("#readout-version")).toHaveText(version);
   await page.screenshot({ path: testInfo.outputPath("empty-screen.png"), fullPage: true });
+});
+
+test("a new log entry shows its Stardate and keeps it stable until another entry starts", async ({ page }) => {
+  const first = await page.locator("#entry-stardate").textContent();
+  expect(first).toMatch(/^Stardate -?\d+\.\d$/);
+  const later = new Date("2027-01-02T12:00:00Z");
+  await page.clock.setFixedTime(later);
+  await page.getByRole("link", { name: "Captain’s log" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#entry-stardate")).toHaveText(first!);
+  await page.getByRole("button", { name: "New log entry" }).click();
+  await expect(page.locator("#entry-stardate")).toBeVisible();
+  await expect(page.locator("#entry-stardate")).toHaveText(`Stardate ${formatStardate(later)}`);
 });
 
 test("the main screen shows only the conversation; the side panel tiles open their own settings", async ({ page }, testInfo) => {

@@ -149,6 +149,20 @@ npm run build
 npm start
 ```
 
+For live browser updates while developing, use `npm run dev` instead of
+`npm start`. For Azure MAI on both sides, run
+`npm run dev -- --listening mai --speaking mai`. Vite updates browser code
+and styles automatically; changes to the page itself reload it. Restart the
+command after changing server code. This development mode stays on
+`127.0.0.1`, uses the real app and its normal sign-in checks, and does not
+change the normal launch or your saved speech choices.
+If the browser cannot open, the servers keep running so you can open the
+printed live-updates address yourself. Windows shutdown stops the app's
+child processes too.
+After building, `node --test tools/dev.test.mjs tools/dev-server.test.mjs`
+checks launcher failures and shutdown, live style updates and the development
+server's local connection checks.
+
 Choose speech in the app as described in [Get started](#get-started).
 If you prefer to download local speech from the terminal before starting,
 `npm run setup:speech` is optional. These use the same `.picard-code` folder.
@@ -461,7 +475,8 @@ on-screen button.
   status says **Microphone off**) and on again. Nothing else switches it on, so
   a stray click never starts listening. Saying "Computer, microphone off" (or
   "Computer, mute") also switches it off. Reloading the page switches it back
-  on.
+  on. Switching it off and back on keeps the current log entry; follow-ups
+  still need no "Computer".
 - The microphone stays on. While the room is quiet, the console shows
   **Standing by** and nothing leaves your computer. When someone starts
   talking, that speech (including the half second before it, so the first word
@@ -484,7 +499,8 @@ on-screen button.
   before a task) cancels the current work, the same as the **Belay that** button.
 - There is one current log entry. **"Computer, new log entry"** (or "new
   task", "start over") clears the screen, the same as the **New log entry**
-  button. Every request that starts a task with "Computer" begins a new log
+  button. The opening screen shows its Stardate without speaking it aloud.
+  Every request that starts a task with "Computer" begins a new log
   entry; follow-ups within the task join it. Earlier entries stay in the
   **Captain’s log**. Requests made while work is
   running, a question is waiting, or a decision is needed are not sent: with
