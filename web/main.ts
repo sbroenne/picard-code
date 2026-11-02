@@ -335,7 +335,7 @@ function completeVoiceReply() {
   }
   if (display.fact || display.invitation || display.story || display.reference) {
     tributeDisplay.set(key, display);
-    renderMessages();
+    scheduleRender();
   }
   voice.speak(spokenParts(reply, answer, successful ? reports : [], { failed: failures, repeated }), failed, tail);
 }

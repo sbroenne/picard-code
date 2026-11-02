@@ -10,8 +10,13 @@ const written = (message: ChatMessage) => message.parts.filter((part) => part.ty
 export function closingQuestion(text: string) {
   const plain = text.replace(/```[\s\S]*?(?:```|$)/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[`*_>#]/g, "").trim();
   const last = plain.split(/\n\s*\n/).at(-1)?.replace(/\s+/g, " ").trim() ?? "";
-  const question = last.match(/(?:^|[.!?]\s+)([^.!?]+\?)$/)?.[1]?.trim();
-  return question && question.length <= 160 ? speakable(question) : "";
+  let remaining = last;
+  let question = "";
+  while (remaining) {
+    question = firstSentence(remaining);
+    remaining = remaining.slice(question.length).trimStart();
+  }
+  return question.endsWith("?") && question.length <= 160 ? speakable(question) : "";
 }
 
 function failureReason(message: ChatMessage) {

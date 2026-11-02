@@ -70,3 +70,29 @@ test("a closing question is found only at the end of a report", () => {
   const repeated = message("riker", "Shall I make it so?", "picard-riker");
   assert.equal(spokenParts(close, close, [repeated]).at(-1)!.text, "Shall I make it so?", "the question is not said twice");
 });
+
+test("Riker's closing question keeps filenames, versions and titles intact", () => {
+  for (const [question, spoken] of [
+    ["Shall I update example.ts?", "Shall I update example dot ts?"],
+    ["Shall I use version 2.1?", "Shall I use version 2.1?"],
+    ["Shall I contact Dr. Crusher?", "Shall I contact Dr. Crusher?"],
+    ["Dr. Crusher agrees. Shall I update `example.ts`?", "Shall I update example dot ts?"],
+  ] as const) {
+    const report = `I recommend the smaller repair, Captain.\n\n${question}`;
+    assert.equal(closingQuestion(report), spoken, question);
+    const rikerQuestion = message("riker-question", report, "picard-riker");
+    const part = spokenParts(close, close, [data, rikerQuestion]).at(-1);
+    assert.deepEqual(part, { text: `I recommend the smaller repair, Captain. ${spoken}`, speaker: "picard-riker" });
+    const copied = message("copy", "I recommend the smaller repair, Captain.");
+    assert.deepEqual(spokenParts(copied, rikerQuestion, [rikerQuestion], { repeated: true }), [part]);
+  }
+});
+
+test("closing questions keep their length limit and do not include earlier sentences", () => {
+  const maximum = `Shall I ${"x".repeat(151)}?`;
+  assert.equal(maximum.length, 160);
+  assert.equal(closingQuestion(`A short finding. ${maximum}`), maximum);
+  assert.equal(closingQuestion(`${maximum.slice(0, -1)}x?`), "");
+  assert.equal(closingQuestion("Shall I update example.ts? The repair is ready."), "");
+  assert.equal(closingQuestion("I recommend it. Dr. Crusher agrees. Shall I proceed?"), "Shall I proceed?");
+});

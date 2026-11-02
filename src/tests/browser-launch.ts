@@ -19,6 +19,8 @@ const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there",
   : process.argv.includes("--briefing-failure-only") ? ["Computer, have Data and Riker brief me when Data's action is denied but no computer close", ""]
   : process.argv.includes("--briefing-failure-copy") ? ["Computer, have Data and Riker brief me when Data's action is denied with a repeated close", ""]
   : process.argv.includes("--briefing-copy") ? ["Computer, have Data and Riker brief me with a repeated close", ""]
+  : process.argv.includes("--briefing-filename") ? ["Computer, have Data and Riker brief me about changing example.ts", ""]
+  : process.argv.includes("--briefing-late-failure") ? ["Computer, have Data and Riker brief me when Data's action is denied after a successful step", ""]
   : process.argv.includes("--briefing-repeat") ? ["Computer, have Data and Riker brief me when Data's action is denied but a second succeeds", ""]
   : process.argv.includes("--briefing-failure") ? ["Computer, have Data and Riker brief me when Data's action is denied", ""]
   : process.argv.includes("--briefing-recovered") ? ["Computer, have Data and Riker brief me after a recovered action", ""]

@@ -283,6 +283,9 @@ export async function startFixture(project: string) {
               if (!current(sessionID, generation)) return;
               const data = createSession(directory, "Data investigation", sessionID, "picard-data");
               data.model = session.model;
+              if (denied && text.includes("after a successful step")) {
+                assistant(data.id, [{ type: "text", text: "Test stand-in: Data completed an earlier step." }]);
+              }
               if (denied || text.includes("recovered action")) {
                 assistant(data.id, [
                   ...denied ? [{ type: "text" as const, text: "Test stand-in: Data began an investigation." }] : [],
@@ -297,7 +300,8 @@ export async function startFixture(project: string) {
               }
               const riker = createSession(directory, "Riker recommendation", sessionID, "picard-riker");
               riker.model = session.model;
-              assistant(riker.id, [{ type: "text", text: "Test stand-in: I recommend the smaller repair, Captain.\n\nShall I proceed?" }]);
+              const question = text.includes("example.ts") ? "Shall I update example.ts?" : "Shall I proceed?";
+              assistant(riker.id, [{ type: "text", text: `Test stand-in: I recommend the smaller repair, Captain.\n\n${question}` }]);
               if (noClose || parentDenied) finish(sessionID, parentDenied ? "interrupted" : "succeeded");
             }, 50);
           } else if (manner.includes("Hold a briefing") && /\bData and Geordi\b/.test(text)) {
