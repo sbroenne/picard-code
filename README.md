@@ -156,8 +156,12 @@ and styles automatically; changes to the page itself reload it. Restart the
 command after changing server code. This development mode stays on
 `127.0.0.1`, uses the real app and its normal sign-in checks, and does not
 change the normal launch or your saved speech choices.
-After building, `node --test tools/dev-server.test.mjs` checks live style
-updates and the development server's local connection checks.
+If the browser cannot open, the servers keep running so you can open the
+printed live-updates address yourself. Windows shutdown stops the app's
+child processes too.
+After building, `node --test tools/dev.test.mjs tools/dev-server.test.mjs`
+checks launcher failures and shutdown, live style updates and the development
+server's local connection checks.
 
 Choose speech in the app as described in [Get started](#get-started).
 If you prefer to download local speech from the terminal before starting,
