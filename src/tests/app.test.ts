@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, writeFile, rm, realpath, symlink } from "node:fs/promises";
+import fs, { mkdtemp, mkdir, readFile, writeFile, rm, realpath, symlink, rename } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { request as httpRequest } from "node:http";
@@ -109,6 +110,40 @@ test("reply media is authenticated, confined to its Project, validated, and seek
   assert.equal((await head.arrayBuffer()).byteLength, 0);
   context.fixture.sessions.delete(root.id);
   assert.notEqual((await context.request(path())).status, 200, "deleted entries cannot serve old references");
+});
+
+test("a parent-directory swap cannot serve media from outside the Project", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  const session = context.fixture.createSession(context.directory, "Changing media");
+  const folder = join(context.directory, "pictures");
+  await mkdir(folder);
+  const bytes = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.alloc(40)]);
+  await writeFile(join(folder, "image.png"), bytes);
+  await writeFile(join(context.other, "image.png"), Buffer.concat([bytes, Buffer.from("outside")]));
+  context.fixture.messages.get(session.id)!.push({
+    id: "media-reply", type: "assistant", time: { created: 1 },
+    content: [{ type: "text", text: "![Picture](pictures/image.png)" }],
+  });
+  await context.login();
+  const originalOpen = fs.open;
+  let swapped = false;
+  const opening = t.mock.method(fs, "open", async (...args: Parameters<typeof fs.open>) => {
+    if (args[0] === join(folder, "image.png") && !swapped) {
+      swapped = true;
+      await rename(folder, join(context.directory, "original-pictures"));
+      await symlink(context.other, folder, "junction");
+    }
+    return originalOpen(...args);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { opening.mock.restore(); syncBuiltinESMExports(); });
+  const response = await context.request(`conversations/${session.id}/media/media-reply?${new URLSearchParams({
+    href: "pictures/image.png", project: context.directory,
+  })}`);
+  assert.equal(swapped, true);
+  assert.equal(response.status, 403);
+  assert.match((await response.json()).error, /changed while it was being opened/);
 });
 
 test("direct crew requests keep words and models unchanged; missing crew fails explicitly", async (t) => {

@@ -225,6 +225,29 @@ test("streamed local references wait for saved history, and structured officer m
   } finally { await context.cleanup(); }
 });
 
+test("a computer reply keeps its unique media when its text repeats an officer report", async ({ page }) => {
+  const context = await setup(page);
+  try {
+    const text = "An original media result.";
+    const officer = context.fixture.createSession(context.project, "Officer report", context.session.id, "picard-data");
+    context.fixture.messages.get(officer.id)!.push({
+      id: "officer-text", type: "assistant", agent: "picard-data", time: { created: 2 },
+      content: [{ type: "text", text }],
+    });
+    context.fixture.messages.get(context.session.id)!.push({
+      id: "computer-media", type: "assistant", time: { created: 3 }, content: [
+        { type: "text", text },
+        { type: "tool", id: "video", name: "test-only", state: { status: "completed", content: [
+          { type: "file", uri: "demo.webm", mime: "video/webm", name: "Unique computer video" },
+        ] } },
+      ],
+    });
+    context.fixture.publish(context.project, "session.step.ended", { sessionID: context.session.id });
+    await expect(page.locator(".crew-report strong")).toHaveText("Data");
+    await expect(page.getByLabel("Unique computer video", { exact: true })).toBeVisible();
+  } finally { await context.cleanup(); }
+});
+
 test("a new spoken decision stops an open player before the computer speaks", async ({ page }) => {
   const context = await setup(page, ["Computer, hello there", "take a very slow look"]);
   try {

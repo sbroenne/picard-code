@@ -16,7 +16,7 @@ export interface ReplyMedia {
 function publicUrl(href: string): URL | undefined {
   let url: URL;
   try { url = new URL(href); } catch { return undefined; }
-  const host = url.hostname;
+  const host = url.hostname.replace(/\.+$/, "");
   // Remote media needs a public HTTPS name, not a local service or an IP literal.
   if (url.protocol !== "https:" || url.username || url.password || url.port
     || !host.includes(".") || /[:[\]]|^[\d.]+$/.test(host)

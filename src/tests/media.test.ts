@@ -21,6 +21,8 @@ test("unsafe URLs and unsupported local files cannot become players", () => {
   for (const href of [
     "https://127.0.0.1/a.png", "https://2130706433/a.png", "https://0x7f000001/a.png",
     "https://[::1]/a.png", "https://host.local/a.png", "https://localhost/a.png",
+    "https://localhost./private.png", "https://device.local./private.png", "https://host.internal./private.png",
+    "https://host.lan./private.png", "https://host.home./private.png",
     "https://user:password@example.com/a.png", "https://example.com:8080/a.mp4",
     "http://example.com/a.png", "//example.com/a.png", "\\\\server\\a.png",
     "data:image/png;base64,abc", "javascript:alert(1)", "../a.png", "%2e%2e/a.png", "a%00.png",

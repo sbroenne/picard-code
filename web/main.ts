@@ -591,7 +591,7 @@ function renderMessages() {
     const failures = texts.length && !failedReport(message) ? [] : message.parts.filter((part) => part.type === "tool" && part.status === "error");
     if (message.role === "assistant" && !texts.length && !media.length && !failures.length && !message.error) return;
     if (isHeldBack(message)) return;
-    if (repeatsOfficer(list, index)) return;
+    if (!media.length && repeatsOfficer(list, index)) return;
     if (!texts.length && !media.length && !message.error && message.role === "assistant" && recovered(list, index)) {
       // A step that failed before the answer arrived stays readable, folded away, without looking like the answer failed.
       const previous = wanted.lastElementChild;

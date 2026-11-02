@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { open, realpath } from "node:fs/promises";
+import { open, realpath, stat } from "node:fs/promises";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
@@ -36,7 +36,11 @@ export async function serveMedia(request: IncomingMessage, response: ServerRespo
     const root = await realpath(project);
     const path = href.startsWith("file:///") ? fileURLToPath(href) : decodeURIComponent(href);
     if (path.split(/[\\/]/).includes("..")) throw new MediaError(403, "That media file is outside this Project.");
-    const target = await realpath(resolve(root, path));
+    const requested = resolve(root, path);
+    // Keep the file identity from before path checking, then verify the opened handle before reading.
+    const expected = await stat(requested);
+    if (!expected.isFile()) throw new MediaError(415, "That media reference is not a file.");
+    const target = await realpath(requested);
     const inside = relative(root, target);
     if (!inside || inside === ".." || inside.startsWith(`..${sep}`) || isAbsolute(inside)) {
       throw new MediaError(403, "That media file is outside this Project.");
@@ -44,22 +48,24 @@ export async function serveMedia(request: IncomingMessage, response: ServerRespo
     const mime = MEDIA_TYPES.get(extname(target).slice(1).toLowerCase());
     if (!mime) throw new MediaError(415, "This media format cannot be shown. Use PNG, JPEG, GIF, WebP, MP4, or WebM.");
     file = await open(target, constants.O_RDONLY | constants.O_NOFOLLOW);
-    const stat = await file.stat();
-    if (!stat.isFile()) throw new MediaError(415, "That media reference is not a file.");
-    const bytes = Buffer.alloc(Math.min(stat.size, 4096));
+    const opened = await file.stat();
+    if (opened.dev !== expected.dev || opened.ino !== expected.ino || await realpath(requested) !== target) {
+      throw new MediaError(403, "That media file changed while it was being opened. Ask for it again.");
+    }
+    const bytes = Buffer.alloc(Math.min(opened.size, 4096));
     await file.read(bytes, 0, bytes.length, 0);
     if (!matchesType(bytes, mime)) throw new MediaError(415, "The media file does not match its format.");
     response.setHeader("Content-Type", mime);
     response.setHeader("Accept-Ranges", "bytes");
-    const range = request.headers.range ? byteRange(request.headers.range, stat.size) : undefined;
+    const range = request.headers.range ? byteRange(request.headers.range, opened.size) : undefined;
     if (request.headers.range && !range) {
-      response.writeHead(416, { "Content-Range": `bytes */${stat.size}`, "Content-Length": "0" });
+      response.writeHead(416, { "Content-Range": `bytes */${opened.size}`, "Content-Length": "0" });
       response.end();
       return;
     }
-    const start = range?.start ?? 0, end = range?.end ?? stat.size - 1;
+    const start = range?.start ?? 0, end = range?.end ?? opened.size - 1;
     response.setHeader("Content-Length", end - start + 1);
-    if (range) response.setHeader("Content-Range", `bytes ${start}-${end}/${stat.size}`);
+    if (range) response.setHeader("Content-Range", `bytes ${start}-${end}/${opened.size}`);
     response.writeHead(range ? 206 : 200);
     if (request.method === "HEAD") { response.end(); return; }
     await pipeline(file.createReadStream({ start, end, autoClose: false }), response);
