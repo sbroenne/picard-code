@@ -34,6 +34,7 @@ const model = element<HTMLSelectElement>("model");
 const readingArea = element("reading-area");
 let state: AppState | undefined;
 let selected: string | undefined;
+let freshEntryStarted = Date.now();
 let messages: ChatMessage[] = [];
 let events: EventSource | undefined;
 let connected = false;
@@ -465,6 +466,8 @@ function controls() {
   element<HTMLButtonElement>("new-conversation").disabled = !state || submitting;
   element("setup").hidden = !state || !!state.models.length;
   element("welcome").hidden = !!messages.length || !!selected && historyLoading || !!state && !state.models.length;
+  const entryStarted = state?.conversations.find((entry) => entry.id === selected)?.created ?? freshEntryStarted;
+  element("entry-stardate").textContent = `Stardate ${formatStardate(new Date(entryStarted))}`;
   element("provider-status").textContent = !state ? "Checking" : state.models.length
     ? `Connected: ${[...new Set(state.models.map((choice) => choice.provider))].join(", ")}. ${state.models.length} model${state.models.length === 1 ? "" : "s"} available.` : "Not connected";
   readouts();
@@ -1057,6 +1060,7 @@ async function selectConversation(id: string) {
 
 /** Clears the screen for a new task. The next request starts a new log, named after that request. */
 function startFresh() {
+  freshEntryStarted = Date.now();
   cancelTributeSpeech();
   voiceTurn = undefined;
   spokenQuestionID = undefined;
@@ -1314,7 +1318,6 @@ element("project-form").addEventListener("submit", (event) => {
 });
 function muteMicrophone() {
   cancelTributeSpeech();
-  engagedWith = undefined;
   setMuted(true);
   voice.microphoneOff();
   controls();
