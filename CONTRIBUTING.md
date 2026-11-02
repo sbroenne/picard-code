@@ -71,15 +71,18 @@ Fork the repository, create a branch, and follow
 OpenCode 2 is required; `npm install` brings the tested copy.
 
 Before each commit, choose the checks that match the change.
-For changes only to documentation, the project website (`site/`), or
-`browser-tests/site.spec.ts`, run:
+For changes only to documentation, the project website (`site/`),
+development-only tools (`tools/`), or `browser-tests/site.spec.ts`, run:
 
 ```sh
 npx playwright test browser-tests/site.spec.ts
 ```
 
 This checks desktop and phone layouts and documentation links without building
-or testing the app. Release note text can accompany these changes.
+or testing the app. For tool code changes, also run the checks that cover the
+changed tool. Tools are not shipped with the app and do not need the full app
+checks unless the change also touches app code, shared dependencies, setup
+scripts or check configuration. Release note text can accompany these changes.
 
 For app code, dependencies, setup scripts, check configuration, or any other
 files, run the full checks:

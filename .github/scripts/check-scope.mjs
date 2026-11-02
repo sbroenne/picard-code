@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 export function needsFullChecks(files) {
   return files.some((file) =>
-    !/^(?:[^/]+\.md|LICENSE|docs\/.*|\.changeset\/[^/]+\.md|\.github\/(?:copilot-instructions\.md|PULL_REQUEST_TEMPLATE\.md|ISSUE_TEMPLATE\/.*)|site\/.*|browser-tests\/site\.spec\.ts)$/.test(file));
+    !/^(?:[^/]+\.md|LICENSE|docs\/.*|tools\/.*|\.changeset\/[^/]+\.md|\.github\/(?:copilot-instructions\.md|PULL_REQUEST_TEMPLATE\.md|ISSUE_TEMPLATE\/.*)|site\/.*|browser-tests\/site\.spec\.ts)$/.test(file));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
