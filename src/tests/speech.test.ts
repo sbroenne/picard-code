@@ -256,9 +256,17 @@ test("spoken question answers match only clear, offered choices and keep the use
   assert.equal(canAskAloud(form(question, { ...question, key: "q1", hidden: true })), true);
 });
 
-test("speech runs on this computer unless Azure is chosen", async () => {
+test("Nemotron is the default and saved Whisper choices are preserved", async () => {
+  assert.equal(describeSpeechSettings(undefined).listening, "nemotron");
+  assert.equal(describeSpeechSettings({ listening: "whisper" }).listening, "whisper");
+  assert.equal(describeSpeechSettings({ listening: "mai" }).listening, "mai");
+  assert.equal(mergeSpeechSettings({ listening: "whisper", whisperModel: "/custom/model" }, { listening: "nemotron", speaking: "kokoro" }).listening, "nemotron");
+  assert.equal(mergeSpeechSettings(undefined, { listening: "whisper", speaking: "mai" }).listening, "whisper");
+  assert.throws(() => mergeSpeechSettings(undefined, { listening: "unknown", speaking: "kokoro" }), /Choose Nemotron, Whisper or Azure MAI/);
   const missing = { localPython: "picard-missing-python" };
   await assert.rejects(speechFromSettings(missing), /local speech file is missing\. Run npx picard-code setup-speech/);
+  await assert.rejects(speechFromSettings({ listening: "nemotron", speaking: "mai" }), /valid subscription/);
+  await assert.rejects(speechFromSettings({ listening: "other", speaking: "kokoro" }), /never substituted silently/);
   await assert.rejects(speechFromSettings({ ...missing, listening: "mai", speaking: "mai" }), /valid subscription/);
 });
 

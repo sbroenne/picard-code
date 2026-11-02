@@ -47,12 +47,12 @@ export interface AppState {
   permissions: PermissionRequest[];
   questions: FormRequest[];
   crew: { available: boolean; activity: { sessionID: string; logEntryID: string; officer?: CrewID; status: "busy" | "retry"; message?: string }[] };
-  speech?: { configured: boolean; listening: "mai" | "whisper"; speaking: "mai" | "kokoro"; error?: string };
+  speech?: { configured: boolean; listening: "mai" | "whisper" | "nemotron"; speaking: "mai" | "kokoro"; error?: string };
 }
 
 /** Speech choices the settings page can change. Keys are never included. */
 export interface SpeechSettings {
-  listening: "mai" | "whisper";
+  listening: "mai" | "whisper" | "nemotron";
   speaking: "mai" | "kokoro";
   subscription: string;
   resourceGroup: string;

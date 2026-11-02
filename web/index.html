@@ -123,10 +123,11 @@
           <p id="speech-current" class="readout-line">Checking</p>
           <form id="speech-form" class="field-grid">
             <label for="setting-listening">Listening</label>
-            <select id="setting-listening" name="listening"><option value="whisper">On this computer (Whisper)</option><option value="mai">Azure, your own resource</option></select>
+            <select id="setting-listening" name="listening"><option value="nemotron">On this computer (Nemotron, default)</option><option value="whisper">On this computer (Whisper, smaller download)</option><option value="mai">Azure, your own resource</option></select>
             <label for="setting-speaking">Speaking</label>
             <select id="setting-speaking" name="speaking"><option value="kokoro">On this computer (Kokoro)</option><option value="mai">Azure, your own resource</option></select>
-            <p id="local-note" class="muted span" hidden>Speech on this computer needs a one-time download, about 750 MB on disk. Save and apply starts it; it can take a few minutes.</p>
+            <p id="local-note" class="muted span" hidden></p>
+            <p id="nemotron-upgrade" class="muted span" hidden>Whisper is selected. Nemotron is now the default for new installations and shows words while you speak. To switch, choose Nemotron and Save and apply. Its model download is about 700 MB; Whisper remains available.</p>
             <p class="muted span">The computer and each bridge officer have fixed voices. The computer speaks with Alloy on this computer or Iris on Azure.</p>
             <fieldset id="azure-fields" class="field-grid nested">
               <legend>Your Azure resource</legend>

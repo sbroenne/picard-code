@@ -251,7 +251,7 @@ function voiceControls() {
   element("voice-partial").classList.toggle("not-sent", voice.phase !== "listening" && voice.phase !== "thinking" && !!notSent);
   element("voice-setup-hint").hidden = !state || !!state.speech?.configured;
   element("voice-setup-text").textContent = state?.speech?.error ? "Speech did not start." : "Speech is not set up.";
-  const cloudListening = state?.speech?.listening !== "whisper";
+  const cloudListening = state?.speech?.listening === "mai";
   const cloudSpeaking = state?.speech?.speaking !== "kokoro";
   element("speech-current").textContent = state?.speech?.configured
     ? `In use: ${cloudListening ? "Azure" : "this computer"} listens, ${cloudSpeaking ? "Azure" : "this computer"} speaks`
@@ -458,7 +458,7 @@ function readouts() {
   readout("model", state?.models.length ? model.selectedOptions[0]?.textContent ?? "—" : "None");
   const speech = state?.speech;
   readout("speech", !speech?.configured ? "Not set up"
-    : `${speech.listening === "whisper" ? "Whisper" : "Azure MAI"} · ${speech.speaking === "kokoro" ? "Kokoro" : "Azure MAI"}`);
+    : `${speech.listening === "mai" ? "Azure MAI" : speech.listening === "whisper" ? "Whisper" : "Nemotron"} · ${speech.speaking === "kokoro" ? "Kokoro" : "Azure MAI"}`);
 }
 
 function controls() {
@@ -1172,21 +1172,26 @@ async function boot() {
 
 const speechFields = ["listening", "speaking", "subscription", "resourceGroup", "resourceName", "region", "deployment"] as const;
 function speechInput(name: typeof speechFields[number]) { return element<HTMLInputElement | HTMLSelectElement>(`setting-${name}`); }
-/** Whether the local Whisper and Kokoro files are already on this computer. */
-let localSpeechReady = false;
+let localFiles = { nemotron: false, whisper: false, kokoro: false };
 function speechFieldVisibility() {
-  const azureListening = speechInput("listening").value === "mai";
+  const listening = speechInput("listening").value;
+  const azureListening = listening === "mai";
   const azureSpeaking = speechInput("speaking").value === "mai";
   element("azure-fields").hidden = !azureListening && !azureSpeaking;
-  element("local-note").hidden = (azureListening && azureSpeaking) || localSpeechReady;
+  const missingListener = listening === "nemotron" ? !localFiles.nemotron : listening === "whisper" ? !localFiles.whisper : false;
+  const missingSpeaker = !azureSpeaking && !localFiles.kokoro;
+  const megabytes = (missingListener ? listening === "nemotron" ? 710 : 78 : 0) + (missingSpeaker ? 354 : 0);
+  element("local-note").hidden = !megabytes;
+  element("local-note").textContent = `The selected speech services need a one-time model and runtime download of about ${megabytes >= 1000 ? `${(megabytes / 1000).toFixed(2)} GB` : `${megabytes} MB`}, plus Python packages if needed. Save and apply starts it. Nothing changes until the new services work.`;
   const show = (selector: string, visible: boolean) => document.querySelectorAll<HTMLElement>(selector).forEach((node) => { node.hidden = !visible; });
   show(".azure-listening", azureListening);
 }
-type SavedSpeech = { settings: SpeechSettings; file: string; localReady: boolean; speech: AppState["speech"] };
+type SavedSpeech = { settings: SpeechSettings; file: string; localReady: boolean; localFiles: typeof localFiles; speech: AppState["speech"] };
 type SpeechSetup = { state: "running" | "done" | "failed"; step: string; error?: string; result?: SavedSpeech };
-function showSpeechSettings(result: { settings: SpeechSettings; file: string; localReady: boolean }) {
-  localSpeechReady = result.localReady;
+function showSpeechSettings(result: { settings: SpeechSettings; file: string; localFiles: typeof localFiles }) {
+  localFiles = result.localFiles;
   for (const name of speechFields) speechInput(name).value = result.settings[name];
+  element("nemotron-upgrade").hidden = result.settings.listening !== "whisper";
   element("settings-file").textContent = `Saved in ${result.file}`;
   speechFieldVisibility();
 }

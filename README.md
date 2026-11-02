@@ -51,9 +51,10 @@ screen.
 A small local browser app. OpenCode does the coding, with any model provider it
 supports, and keeps every log entry. Like the ship's computer, it
 listens all the time and acts only on requests that start with "Computer".
-By default, listening (Whisper) and speaking (Kokoro) run on this computer,
+By default, listening (Nemotron) and speaking (Kokoro) run on this computer,
 with no cloud account. Your own Azure MAI resource can be chosen instead, for
-either side or both.
+either side or both. Whisper remains available as a smaller local listening
+option. Existing speech choices are not changed automatically.
 
 ## Get started
 
@@ -63,14 +64,17 @@ You need:
 - A microphone, and speakers or headphones.
 - A model provider OpenCode can use (see
   [Connect a model provider](#connect-a-model-provider)).
-- For speech on this computer, one of these computers, with about **750 MB**
-  of free disk space:
+- For speech on this computer, one of these computers. Allow **2 GB**
+  of free disk space for the default Nemotron and Kokoro setup:
   - an Apple silicon Mac with macOS 14 or newer;
   - Windows on an x64 or ARM processor (ARM uses Intel-compatible Python
     through Windows' built-in emulation);
   - Linux on an x64 or arm64 processor, with glibc 2.28 or newer (most desktop
     Linux versions since 2019).
 
+  Nemotron's Linux runtime needs glibc 2.31 or newer. The smaller Whisper
+  option supports glibc 2.28 or newer. Windows ARM uses the Intel-compatible
+  Nemotron runtime; that path has not yet been checked on a Windows ARM machine.
   Other computers can use [Azure speech](#azure-speech-setup) instead.
 
 Then, in a terminal:
@@ -87,9 +91,9 @@ yourself. OpenCode 1 is not supported.
 
 On a fresh installation, the app opens without speech. Choose the
 **Listen · Speak** tile, keep **On this computer** for listening and speaking,
-and choose **Save and apply**. The app downloads local Whisper and Kokoro
+and choose **Save and apply**. The app downloads local Nemotron and Kokoro
 speech, shows each step, and starts speech when it is ready, without a restart
-(see [Local Whisper and Kokoro setup](#local-whisper-and-kokoro-setup)).
+(see [Local speech setup](#local-nemotron-whisper-and-kokoro-setup)).
 This is a one-time download; later starts use your saved speech choices.
 If you choose [Azure speech](#azure-speech-setup) for both listening and
 speaking, no local speech download is needed. Speech choices are separate
@@ -630,7 +634,7 @@ sends any speech it hears to Azure** to find out whether it starts with
 "Computer", even speech not meant for the computer; quiet room sound is not
 sent. "Computer" starts a task; once it starts, follow-up speech also goes to
 the model without that prefix until you return to standing by. MAI speaking
-sends reply text to Azure. Whisper and Kokoro process their audio locally.
+sends reply text to Azure. Nemotron, Whisper and Kokoro process their audio locally.
 With both local speech services, speech is processed on this computer.
 An online model provider still receives coding requests; a local model's
 own tools and network settings determine any other connections.
@@ -638,12 +642,18 @@ Say "stop listening" before conversations you do not want sent to the model,
 or switch the microphone off with its button so nothing is heard at all;
 background speech can be misunderstood.
 
-## Local Whisper and Kokoro setup
+<a id="local-whisper-and-kokoro-setup"></a>
+
+## Local Nemotron, Whisper and Kokoro setup
 
 This is the default speech setup. It needs no cloud account and keeps your
 speech on this computer.
 
-Local listening uses **faster-whisper** with the English `tiny.en` model.
+Local listening defaults to **Nemotron Speech Streaming English 0.6B**,
+using NVIDIA's native **NeMo-Speech.cpp 0.3.0** CPU runtime. Words appear
+while you speak, but the request is not sent until you finish.
+**Whisper tiny.en**, through faster-whisper, remains available in the
+Listening list as a smaller download.
 Local speaking uses **kokoro-onnx**, the standard Kokoro model, and its original
 prebuilt American English `af_alloy` voice for the computer. The computer and
 crew voices are fixed, with no voice selection. Both run on the CPU. No Azure resource, key, or login
@@ -655,42 +665,79 @@ Picard Code downloads everything in the background, shows each step, and
 starts the selected speech services when ready. No restart is needed. If the
 download fails, the real reason is shown and any working speech stays in place.
 
-The local files are needed if either listening uses Whisper or speaking uses
-Kokoro, even when the other side uses Azure. With Azure for both sides, this
-download is not needed.
+Only the selected local services are downloaded. Nemotron needs about
+**700 MB** for its English model and about **7-10 MB** for its CPU runtime.
+Whisper's model and supporting files need about **78 MB**. Kokoro's model
+and voice data need about **354 MB**. The default combination therefore
+downloads about **1.05 GB of models**, plus its runtime, Python and packages;
+Whisper and Kokoro download about **432 MB of models** instead. Download size
+is not memory use.
+
+Existing Whisper settings keep working. To switch, select **On this computer
+(Nemotron, default)** and choose **Save and apply**. The download finishes
+and the new services start before the saved choice changes. A failure keeps
+working speech and settings in place. Select Whisper to keep it or switch
+back. Azure choices and fixed speaking voices do not change.
 
 If you prefer, download local speech once from a terminal before starting
 the app (optional and safe to run again):
 
 ```sh
 npx picard-code setup-speech
+npx picard-code setup-speech --listening whisper
 ```
 
-Picard Code then uses Whisper and Kokoro whenever you start it, unless your
-saved speech settings choose Azure.
+The first command downloads Nemotron and Kokoro; the second downloads
+Whisper and Kokoro. These commands do not change saved choices. Select the
+downloaded service in the app, or use `--listening nemotron` or
+`--listening whisper` when launching. Setup also accepts `--speaking mai`
+to skip Kokoro, or `--listening mai` to skip local listening.
 
 Setup works in this order, all inside `.picard-code` in your home folder:
 
 1. It checks that this computer can run local speech (see
    [Get started](#get-started)), and stops with a plain reason if not.
-2. It uses the [uv](https://docs.astral.sh/uv/) already installed, a tool that
+2. When Whisper or Kokoro is needed, it uses the [uv](https://docs.astral.sh/uv/) already installed, a tool that
    sets up Python. If there is none, it downloads uv 0.13.6 from uv's GitHub
    release and checks it against a fixed checksum.
-3. uv finds or downloads Python 3.11 and installs the speech packages listed in
-   `scripts/requirements-speech.txt`.
-4. It downloads roughly **432 MB** of model files. The Kokoro files are checked
-   against published checksums; the public Whisper download is fixed to a
-   specific revision and uses no account token.
+3. If Whisper or Kokoro is selected, uv finds or downloads Python 3.11 and
+   installs only that combination's pinned packages. Nemotron alone does not
+   need Python.
+4. It downloads the selected models and, for Nemotron, the official CPU runtime.
+   The Nemotron runtime and model and the Kokoro files have fixed SHA-256
+   checksums. Whisper and Nemotron model downloads use fixed public revisions
+   with no account token. Licenses and notices stay with the files.
 
-Together these use about 750 MB of disk space. An installed uv keeps any
-Python it downloads in its usual place; otherwise nothing is installed
-outside that folder. Inference uses local
-files only, with up to four CPU threads per service.
+Allow 2 GB of free disk space for the default setup. Whisper and Kokoro are
+smaller, previously about 750 MB installed on the checked computer.
+An installed uv keeps any Python it downloads in its usual place; otherwise
+nothing is installed outside that folder. Recognition and speaking use local
+files only, with up to four CPU threads per service. Nemotron's local service
+binds only to `127.0.0.1`, requires a server-held connection key, and stops
+when Picard Code stops.
 
-Both paths use the same automatic listen/respond loop. Whisper starts
-recognizing after the pause; unlike MAI, it does not display live words while
-you are speaking. Stopping speech discards late audio and does not block the
-separate listening worker. No service is silently replaced if setup fails.
+All paths use the same automatic listen/respond loop. Nemotron and MAI show
+words while you speak; Whisper starts recognizing after the pause. The
+browser still decides when the complete request ends, so live words cannot
+start work or answer approvals. Stopping speech discards late audio and does
+not block the separate listening worker. No service is silently replaced if
+setup fails.
+
+Nemotron's published Linux binaries require glibc 2.31 or newer. Older
+supported Linux systems can explicitly choose Whisper instead. Windows ARM
+uses the Windows x64 Nemotron binary through Windows' compatibility support;
+that Nemotron path is not yet verified on a Windows ARM machine. Setup does
+not try a source build or silently choose another listener.
+
+On the checked Apple Silicon Mac, a real CPU check with original
+Kokoro-generated audio produced Nemotron's first live words in **441-661 ms**.
+Its final result arrived **59-216 ms after committing** the request, versus
+**203-259 ms** for Whisper on the same three generated phrases. Nemotron
+startup took **2.7 seconds**, versus **1.3 seconds** for Whisper. Both
+preserved an original command naming Computer and Data and saying "do not
+change any files", and both passed listening and speaking cancellation.
+These small synthetic checks do not establish physical microphone accuracy,
+typical speed, memory use, or Windows/Linux behavior.
 
 On Windows ARM, app startup, the OpenCode 2.1.4 connection and all six bridge
 officers have been checked on the development machine. Real local speaking
@@ -715,7 +762,7 @@ technical terms; the understood request remains visible.
 ## Azure speech setup
 
 Azure speech is optional. Choose it for either side if you have your own Azure
-resource; unlike Whisper, MAI listening shows your words live while you speak.
+resource. Like Nemotron, MAI listening shows your words live while you speak.
 
 This version uses **MAI-Transcribe-2-Streaming** for live listening and the
 prebuilt American English **Iris / MAI-Voice-2.1-Flash** voice with its **neutral**
@@ -821,18 +868,21 @@ the written log entry intact and reports what failed.
 
 ### Select either side independently
 
-Whisper and Kokoro are the default. A side uses Azure MAI only when you choose
+Nemotron and Kokoro are the default. Whisper remains a local listening
+option. A side uses Azure MAI only when you choose
 it in the **Listen · Speak** tile, in `speech.json`, or with a launch option.
 Launch options override the settings file:
 
 ```sh
 npx picard-code --listening mai --speaking kokoro
+npx picard-code --listening nemotron --speaking mai
 npx picard-code --listening whisper --speaking mai
 ```
 
 For a mixed setup, keep the Azure resource settings and set `listening` and
 `speaking`. Only MAI listening requires `deployment`. Optional local settings
-are `localPython`, `whisperModel`, `kokoroModel`, and `kokoroVoices`.
+are `localPython`, `whisperModel`, `nemotronProgram`, `nemotronModel`,
+`kokoroModel`, and `kokoroVoices`.
 The path settings are kept when you save from the **Listen · Speak** setting,
 but can only be changed in the file. File paths are resolved from the launch
 folder; if launching outside this repository, use absolute local paths. Launch
@@ -920,8 +970,10 @@ npm run test:browser
 npm run test:live
 npm run test:speech:live
 npm run test:speech:local
+npm run test:speech:local -- --listening whisper
 npm run test:conversation:live
 npm.cmd run test:conversation:live -- --local
+npm.cmd run test:conversation:live -- --local --whisper
 npm run test:behavior:live
 ```
 
@@ -950,14 +1002,18 @@ generated audio through MAI's live listening connection, checking both final
 words and live word updates. It does not capture your microphone or call
 a model.
 
-`test:speech:local` performs real CPU Kokoro synthesis and Whisper recognition,
-checks speaking cancellation followed by fresh listening, and saves an
-original sample under `.picard-voice/samples`.
+`test:speech:local` performs real CPU Kokoro synthesis and Nemotron recognition;
+`--listening whisper` checks the retained Whisper path instead. It feeds audio
+at microphone pace, checks live Nemotron words before commit, names and
+negations, and listening/speaking cancellation followed by fresh listening.
+It saves an original sample under `.picard-voice/samples` and never changes
+saved speech choices. Generated speech does not test a physical microphone.
 
 `test:conversation:live` checks the complete real MAI browser path using
 generated microphone audio, OpenCode, a real model from your signed-in provider, saved
 messages, live text updates, and real spoken playback. `--local` checks the
-same path with Whisper and Kokoro. These checks make real model requests;
+same path with Nemotron and Kokoro; add `--whisper` for Whisper and Kokoro.
+These checks make real model requests;
 the MAI variant also makes chargeable Azure requests. Earlier versions of both
 passed on the Windows development machine before the OpenCode 2 migration;
 those results do not verify the current version. They remove their own check conversations and
@@ -1026,6 +1082,8 @@ services to install newer versions.
 - [Permission rules](https://opencode.ai/v2/docs/permissions/)
 - [MAI live listening](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/mai-transcribe-2-streaming-realtime)
 - [MAI speaking voices](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/mai-voices)
+- [NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp)
+- [Nemotron Speech Streaming](https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b)
 - [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
 - [Kokoro ONNX](https://github.com/thewh1teagle/kokoro-onnx)
 

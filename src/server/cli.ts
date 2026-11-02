@@ -46,11 +46,12 @@ async function main() {
   --port          Browser port (defaults to a free local port)
   --connect       Reuse a password-protected local OpenCode server
   --no-open       Print the address without opening a browser
-  --listening     whisper (on this computer, the default) or mai (Azure)
+  --listening     nemotron (local, the default), whisper (local) or mai (Azure)
   --speaking      kokoro (on this computer, the default) or mai (Azure)
   --help, -h      Show these instructions
 
-  npx picard-code setup-speech       Download local Whisper and Kokoro speech
+  npx picard-code setup-speech       Download local Nemotron and Kokoro speech
+  npx picard-code setup-speech --listening whisper   Download Whisper instead
   npx picard-code opencode <args>    Run the OpenCode Picard Code uses
 
 Picard Code works with any model provider OpenCode supports, such as GitHub

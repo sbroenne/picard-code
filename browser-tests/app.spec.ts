@@ -104,6 +104,7 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
   await page.getByRole("link", { name: /^Listen/ }).click();
   await expect(page.getByRole("heading", { name: "Speech" })).toBeVisible();
+  await expect(page.getByLabel("Listening", { exact: true })).toHaveValue("nemotron");
   // Only the fields for the chosen services show.
   await page.getByLabel("Listening", { exact: true }).selectOption("whisper");
   await page.getByLabel("Speaking", { exact: true }).selectOption("kokoro");
@@ -120,6 +121,33 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await page.keyboard.press("Escape");
   await expect(page.getByRole("heading", { name: "Speech" })).toBeHidden();
   await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
+});
+
+test("saved Whisper stays selected and Nemotron download details follow the chosen services", async ({ page }) => {
+  let writes = 0;
+  await page.route("**/api/settings", async (route) => {
+    if (route.request().method() !== "GET") { writes++; await route.abort(); return; }
+    await route.fulfill({ json: {
+      settings: { listening: "whisper", speaking: "kokoro", subscription: "", resourceGroup: "", resourceName: "", region: "", deployment: "" },
+      file: "Labeled test stand-in settings", localReady: true,
+      localFiles: { whisper: true, nemotron: false, kokoro: true },
+    } });
+  });
+  await page.getByRole("link", { name: /^Listen/ }).click();
+  const listening = page.getByLabel("Listening", { exact: true });
+  await expect(listening).toHaveValue("whisper");
+  await expect(page.locator("#nemotron-upgrade")).toContainText("Whisper remains available");
+  await expect(page.locator("#local-note")).toBeHidden();
+  await listening.selectOption("nemotron");
+  await expect(page.locator("#local-note")).toBeVisible();
+  await expect(page.locator("#local-note")).toContainText("710 MB");
+  await expect(page.locator("#local-note")).toContainText("Nothing changes until the new services work");
+  await listening.selectOption("mai");
+  await expect(page.locator("#local-note")).toBeHidden();
+  await expect(page.getByLabel("Listening deployment")).toBeVisible();
+  await listening.selectOption("whisper");
+  await expect(page.locator("#local-note")).toBeHidden();
+  expect(writes).toBe(0);
 });
 
 test("the only Tribute toggle is a navigation tile; About explains screen-only facts", async ({ page }, testInfo) => {

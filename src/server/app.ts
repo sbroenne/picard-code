@@ -16,7 +16,7 @@ import { wikipediaReader, type WikipediaArticle } from "./wikipedia.js";
 import { addressedOfficer, chosenCrew, crewMember, type CrewID } from "../shared/crew.js";
 import { requireCrew, verifiedCrew } from "./crew.js";
 import { attachSpeech } from "./speech-bridge.js";
-import type { SpeechService } from "./speech-types.js";
+import type { SpeechSelection, SpeechService } from "./speech-types.js";
 import { canSetUpLocalSpeech, describeSpeechSettings, localSpeechReady, mergeSpeechSettings, readSpeechSettings, saveSpeechSettings, setUpLocalSpeech, speechFromSettings, speechSettingsFile } from "./speech.js";
 
 class HttpError extends Error {
@@ -136,7 +136,7 @@ export interface AppOptions {
   /** Starts speech from saved settings; replaceable in tests so no real service is called. */
   startSpeech?: (settings: Record<string, unknown>) => Promise<SpeechService>;
   localSpeechReady?: (settings: Record<string, unknown> | undefined, listening?: boolean, speaking?: boolean) => Promise<boolean>;
-  setUpLocalSpeech?: (onStep: (step: string) => void, signal?: AbortSignal) => Promise<void>;
+  setUpLocalSpeech?: (onStep: (step: string) => void, signal?: AbortSignal, selection?: SpeechSelection) => Promise<void>;
   /** Folder holding the computer sounds downloaded at startup. */
   soundFolder?: string;
   /** Reads Wikipedia for requested tribute questions; tests supply a labelled stand-in. */
@@ -159,6 +159,11 @@ export async function startApp(options: AppOptions) {
   const startSpeech = options.startSpeech ?? ((settings) => speechFromSettings(settings));
   const localReady = options.localSpeechReady ?? localSpeechReady;
   const setUpLocal = options.setUpLocalSpeech ?? setUpLocalSpeech;
+  const localFiles = async (record: Record<string, unknown> | undefined) => ({
+    nemotron: await localReady({ ...record, listening: "nemotron" }, true, false),
+    whisper: await localReady({ ...record, listening: "whisper" }, true, false),
+    kokoro: await localReady(record, false, true),
+  });
   const readWikipedia = options.readWikipedia ?? wikipediaReader();
   /** The one-time local speech download runs in the background, because it takes minutes. */
   let localSetup: { state: "running" | "done" | "failed"; step: string; error?: string; result?: unknown } | undefined;
@@ -182,7 +187,7 @@ export async function startApp(options: AppOptions) {
     closeSpeech.disconnect();
     try { await previous?.close?.(); }
     catch (error) { console.error(`Could not fully stop the previous speech service: ${errorMessage(error)}`); }
-    return { settings: describeSpeechSettings(record), file: speechFile, localReady: true, speech: { configured: true, listening: next.selection?.listening ?? "whisper", speaking: next.selection?.speaking ?? "kokoro" } };
+    return { settings: describeSpeechSettings(record), file: speechFile, localReady: true, localFiles: await localFiles(record), speech: { configured: true, listening: next.selection?.listening ?? "nemotron", speaking: next.selection?.speaking ?? "kokoro" } };
   };
 
   // OpenCode reports only whether work runs; a scheduled retry is remembered from its event.
@@ -277,7 +282,7 @@ export async function startApp(options: AppOptions) {
       })),
       crew: { available: verifiedCrew(agents), activity },
       speech: { configured: !!speech,
-        listening: speech?.selection?.listening ?? "whisper",
+        listening: speech?.selection?.listening ?? "nemotron",
         speaking: speech?.selection?.speaking ?? "kokoro",
         ...(speechError ? { error: speechError } : {}) },
     };
@@ -401,7 +406,7 @@ export async function startApp(options: AppOptions) {
         }
         if (path === "/api/settings" && method === "GET") {
           const saved = await readSpeechSettings(speechFile);
-          json(response, 200, { settings: describeSpeechSettings(saved), file: speechFile, localReady: await localReady(saved) });
+          json(response, 200, { settings: describeSpeechSettings(saved), file: speechFile, localReady: await localReady(saved), localFiles: await localFiles(saved) });
           return;
         }
         if (path === "/api/speech-setup" && method === "GET") {
@@ -414,14 +419,14 @@ export async function startApp(options: AppOptions) {
           try { record = mergeSpeechSettings(await readSpeechSettings(speechFile), data); }
           catch (error) { throw new HttpError(400, errorMessage(error)); }
           if (localSetup?.state === "running") throw new HttpError(409, "The speech download is still running. Wait for it to finish.");
-          const listening = record.listening === "whisper", speaking = record.speaking === "kokoro";
+          const listening = record.listening !== "mai", speaking = record.speaking === "kokoro";
           if ((listening || speaking) && !await localReady(record, listening, speaking)) {
             if (!canSetUpLocalSpeech(record)) throw new HttpError(400, "The new speech settings did not work, so nothing was changed. A configured local speech file is missing. Check the paths in the speech settings file.");
             const job: NonNullable<typeof localSetup> = { state: "running", step: "Starting the download" };
             localSetup = job;
             localSetupRun = (async () => {
               try {
-                await setUpLocal((step) => { job.step = step; }, closing.signal);
+                await setUpLocal((step) => { job.step = step; }, closing.signal, describeSpeechSettings(record));
                 closing.signal.throwIfAborted();
                 job.result = await applySpeech(record);
                 job.state = "done";

@@ -18,7 +18,9 @@ or invented ship status.
 especially local options. Explain installation, model licenses, hardware needs,
 data destinations, and charges. Cancellation and service errors must work;
 never switch silently to another service. See `src/server/speech-types.ts`,
-`src/server/speech.ts`, and the existing Azure and local implementations.
+`src/server/speech.ts`, and the existing Azure, Nemotron and Whisper/Kokoro
+implementations. Nemotron is the default local listener; keep Whisper selectable
+and preserve saved speech choices until the user explicitly applies a change.
 
 Other useful contributions:
 

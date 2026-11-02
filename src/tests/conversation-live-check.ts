@@ -9,7 +9,8 @@ import { loadSpeech } from "../server/speech.js";
 import type { SpeechService } from "../server/speech-types.js";
 
 const local = process.argv.includes("--local");
-const name = local ? "whisper-kokoro" : "mai";
+const localListener = process.argv.includes("--whisper") ? "whisper" : "nemotron";
+const name = local ? `${localListener}-kokoro` : "mai";
 const directory = resolve(".picard-voice", "samples");
 await mkdir(directory, { recursive: true });
 const temporary = await mkdtemp(resolve(".picard-live-check-"));
@@ -24,7 +25,7 @@ const deltas = new Map<string, number>();
 let observation: Promise<void> | undefined;
 let observationError: unknown;
 try {
-  speech = await loadSpeech(local ? { listening: "whisper", speaking: "kokoro" } : { listening: "mai", speaking: "mai" });
+  speech = await loadSpeech(local ? { listening: localListener, speaking: "kokoro" } : { listening: "mai", speaking: "mai" });
   assert.ok(speech);
   const chunks: Uint8Array[] = [];
   for await (const chunk of speech.speak("Computer, please reply with just the words, the connection is ready.", AbortSignal.timeout(60_000))) chunks.push(chunk);

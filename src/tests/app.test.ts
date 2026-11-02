@@ -687,7 +687,7 @@ test("speech settings change while the app runs; a failing choice leaves the wor
   const file = join(context.temporary, "speech.json");
   const empty = await (await context.request("settings")).json() as { settings: SpeechSettings; file: string };
   assert.equal(empty.file, file);
-  assert.equal(empty.settings.listening, "whisper");
+  assert.equal(empty.settings.listening, "nemotron");
   assert.equal(empty.settings.speaking, "kokoro");
 
   const choice = { listening: "mai", speaking: "kokoro", subscription: "sub-1", resourceGroup: "group", resourceName: "name", region: "swedencentral", deployment: "listen" };
@@ -778,6 +778,57 @@ test("closing Picard Code stops a running speech download and uses nothing from 
   cleaned = true;
   assert.equal(stopped, true, "shutdown stops the download");
   assert.equal(started, 0, "settings from a download stopped by shutdown are not applied");
+});
+
+test("switching from Whisper downloads only the chosen services and can return to Whisper", async (t) => {
+  let failDownload = true;
+  let finish!: () => void;
+  const choices: unknown[] = [];
+  let closed = 0;
+  const context = await setup({
+    speech: { ...speechFixture().service, selection: { listening: "whisper", speaking: "kokoro" }, close: async () => { closed++; } },
+    localSpeechReady: async (settings) => settings?.listening !== "nemotron",
+    setUpLocalSpeech: async (_step, _signal, selection) => {
+      choices.push(selection);
+      if (failDownload) throw new Error("The Nemotron download could not be verified.");
+      await new Promise<void>((done) => { finish = done; });
+    },
+    startSpeech: async (settings) => ({
+      ...speechFixture().service,
+      selection: { listening: settings.listening as "whisper" | "nemotron", speaking: "kokoro" },
+      close: async () => { closed++; },
+    }),
+  });
+  t.after(context.cleanup);
+  const file = join(context.temporary, "speech.json");
+  await writeFile(file, JSON.stringify({ listening: "whisper", speaking: "kokoro" }));
+  await context.login();
+  const settings = await (await context.request("settings")).json();
+  assert.equal(settings.settings.listening, "whisper");
+  assert.equal(settings.localFiles.whisper, true);
+  assert.equal(settings.localFiles.nemotron, false);
+  const choice = { listening: "nemotron", speaking: "kokoro" };
+  assert.equal((await context.request("settings", choice)).status, 202);
+  let job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") { await new Promise((done) => setTimeout(done, 5)); job = await (await context.request("speech-setup")).json(); }
+  assert.equal(job.state, "failed");
+  assert.match(job.error, /could not be verified/);
+  assert.equal(JSON.parse(await readFile(file, "utf8")).listening, "whisper");
+  assert.equal(closed, 0);
+  failDownload = false;
+  assert.equal((await context.request("settings", choice)).status, 202);
+  assert.equal(JSON.parse(await readFile(file, "utf8")).listening, "whisper", "An unfinished download must not change the saved choice.");
+  assert.deepEqual(choices.map((item) => item && typeof item === "object" && "listening" in item ? item.listening : undefined), ["nemotron", "nemotron"]);
+  finish();
+  job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") { await new Promise((done) => setTimeout(done, 5)); job = await (await context.request("speech-setup")).json(); }
+  assert.equal(job.state, "done");
+  assert.equal(JSON.parse(await readFile(file, "utf8")).listening, "nemotron");
+  assert.equal(closed, 1);
+  assert.equal((await context.request("settings", { listening: "whisper", speaking: "kokoro" })).status, 200);
+  assert.equal(JSON.parse(await readFile(file, "utf8")).listening, "whisper");
+  assert.equal(choices.length, 2, "Returning to installed Whisper needs no new download.");
+  assert.equal(closed, 2);
 });
 
 test("a failed local speech download is reported and changes nothing", async (t) => {

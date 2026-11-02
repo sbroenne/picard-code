@@ -38,9 +38,12 @@ and Belay that (stop work) have separate meanings. Decisions remain deliberate.
 Listening pauses during playback and settings changes; requests heard while
 work or a decision is pending are not sent.
 
-Listening and speaking share small, separate interfaces. Real CPU Whisper
+Listening and speaking share small, separate interfaces. Real CPU Nemotron
 listening and Kokoro speaking are the default, so anyone can run Picard Code
-without a cloud account. The supported MAI live listening and prebuilt MAI
+without a cloud account. Whisper remains a smaller local listening option;
+existing choices are kept until the user explicitly applies a change.
+Nemotron shows words during speech, but only a complete request is sent.
+The supported MAI live listening and prebuilt MAI
 speaking services can be chosen instead, each side on its own.
 Azure listening receives detected speech before deciding whether "Computer"
 was said, including speech not meant for the model. Processing can occur

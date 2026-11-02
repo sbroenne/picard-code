@@ -1,12 +1,17 @@
-// Sets up local Whisper listening and Kokoro speaking in .picard-code/voice in the user's home folder.
-// Uses the uv already installed, or else downloads a fixed, checked copy. uv brings Python 3.11 and
-// the speech packages, then about 432 MB of models are downloaded into .picard-code/voice.
+// Downloads only the selected local speech services, inside .picard-code.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { access, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { homedir, release } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
+import { nemotronArchive, setupNemotron } from "./setup-nemotron.mjs";
+
+const { values } = parseArgs({ args: process.argv.slice(process.argv[2] === "setup-speech" ? 3 : 2), options: {
+  listening: { type: "string", default: "nemotron" }, speaking: { type: "string", default: "kokoro" },
+} });
+const { listening, speaking } = values;
 
 const scripts = fileURLToPath(new URL(".", import.meta.url));
 const home = join(homedir(), ".picard-code");
@@ -80,14 +85,22 @@ function run(command, args, step) {
 }
 
 try {
+  if (!["nemotron", "whisper", "mai"].includes(listening) || !["kokoro", "mai"].includes(speaking)) {
+    throw new Error("Choose nemotron, whisper or mai for listening, and kokoro or mai for speaking.");
+  }
   const reason = unsupported();
   if (reason) throw new Error(`${reason} Choose Azure MAI speech in the Listen · Speak tile instead.`);
-  const program = await uv();
-  run(program, ["venv", "--allow-existing", "--python", windowsArm ? "cpython-3.11-windows-x86_64-none" : "3.11", voice],
-    `Creating the Python 3.11 environment in ${voice}${windowsArm ? " (Intel-compatible, run through Windows' emulation)" : ""}...`);
-  run(program, ["pip", "install", "--python", python, "-r", join(scripts, "requirements-speech.txt")], "Installing the speech packages...");
-  run(python, [join(scripts, "setup-local-speech.py"), join(voice, "models")], "Downloading and checking the Whisper and Kokoro models (about 432 MB)...");
-  console.log("\nLocal speech is ready. Picard Code uses Whisper and Kokoro unless your saved speech settings choose Azure.");
+  if (listening === "nemotron") nemotronArchive();
+  if (listening === "whisper" || speaking === "kokoro") {
+    const program = await uv();
+    run(program, ["venv", "--allow-existing", "--python", windowsArm ? "cpython-3.11-windows-x86_64-none" : "3.11", voice],
+      `Creating the Python 3.11 environment in ${voice}${windowsArm ? " (Intel-compatible, run through Windows' emulation)" : ""}...`);
+    const requirements = listening === "whisper" && speaking === "kokoro" ? "speech" : listening === "whisper" ? "whisper" : "kokoro";
+    run(program, ["pip", "install", "--python", python, "-r", join(scripts, `requirements-${requirements}.txt`)], "Installing the selected speech packages...");
+    run(python, [join(scripts, "setup-local-speech.py"), join(voice, "models"), listening, speaking], "Downloading and checking the selected Whisper and Kokoro model files...");
+  }
+  if (listening === "nemotron") await setupNemotron(home);
+  console.log(`\nThe selected speech files are ready (${listening} listening, ${speaking} speaking). Saved speech choices have not changed.`);
 } catch (error) {
   console.error(error instanceof Error ? `${error.message}${error.cause instanceof Error ? ` ${error.cause.message}` : ""}` : String(error));
   process.exitCode = 1;
