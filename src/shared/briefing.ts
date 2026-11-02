@@ -1,6 +1,6 @@
 import type { ChatMessage } from "./types.js";
 import { crewMember, type CrewID } from "./crew.js";
-import { firstSentence, replyFailed, speakable, spokenReply } from "./speech.js";
+import { firstSentence, replyFailed, speakable, spokenReply, stripUnderscoreEmphasis } from "./speech.js";
 
 export interface SpokenPart { text: string; speaker?: CrewID }
 
@@ -8,7 +8,8 @@ const written = (message: ChatMessage) => message.parts.filter((part) => part.ty
 
 /** The short question that ends a report, such as "Shall I make it so?", when there is one. */
 export function closingQuestion(text: string) {
-  const plain = text.replace(/```[\s\S]*?(?:```|$)/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[`*_>#]/g, "").trim();
+  const plain = stripUnderscoreEmphasis(text.replace(/```[\s\S]*?(?:```|$)/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[`*>#]/g, "")).trim();
   const last = plain.split(/\n\s*\n/).at(-1)?.replace(/\s+/g, " ").trim() ?? "";
   let remaining = last;
   let question = "";

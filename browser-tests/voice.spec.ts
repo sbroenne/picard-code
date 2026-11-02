@@ -234,10 +234,10 @@ test("Riker's spoken question keeps a filename while the screen keeps its exact 
   await startListening(page);
   await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toEqual([
     { text: "Test stand-in: Data found a small repair.", speaker: "picard-data" },
-    { text: "Test stand-in: I recommend the smaller repair, Captain. Shall I update example dot ts?", speaker: "picard-riker" },
+    { text: "Test stand-in: I recommend the smaller repair, Captain. Shall I update retry policy dot ts?", speaker: "picard-riker" },
   ]);
   const rikerReport = page.locator(".crew-report").filter({ has: page.getByText("Riker", { exact: true }) });
-  await expect(rikerReport).toContainText("Shall I update example.ts?");
+  await expect(rikerReport).toContainText("Shall I update retry_policy.ts?");
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 

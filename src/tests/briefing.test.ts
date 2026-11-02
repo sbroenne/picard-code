@@ -74,6 +74,8 @@ test("a closing question is found only at the end of a report", () => {
 test("Riker's closing question keeps filenames, versions and titles intact", () => {
   for (const [question, spoken] of [
     ["Shall I update example.ts?", "Shall I update example dot ts?"],
+    ["Shall I update retry_policy.ts?", "Shall I update retry policy dot ts?"],
+    ["Shall I update _example.ts_?", "Shall I update example dot ts?"],
     ["Shall I use version 2.1?", "Shall I use version 2.1?"],
     ["Shall I contact Dr. Crusher?", "Shall I contact Dr. Crusher?"],
     ["Dr. Crusher agrees. Shall I update `example.ts`?", "Shall I update example dot ts?"],

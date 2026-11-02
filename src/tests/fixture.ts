@@ -300,7 +300,7 @@ export async function startFixture(project: string) {
               }
               const riker = createSession(directory, "Riker recommendation", sessionID, "picard-riker");
               riker.model = session.model;
-              const question = text.includes("example.ts") ? "Shall I update example.ts?" : "Shall I proceed?";
+              const question = text.includes("retry_policy.ts") ? "Shall I update retry_policy.ts?" : "Shall I proceed?";
               assistant(riker.id, [{ type: "text", text: `Test stand-in: I recommend the smaller repair, Captain.\n\n${question}` }]);
               if (noClose || parentDenied) finish(sessionID, parentDenied ? "interrupted" : "succeeded");
             }, 50);
