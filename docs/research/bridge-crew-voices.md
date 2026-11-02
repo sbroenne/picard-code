@@ -106,6 +106,9 @@ The same measurement was run for the computer, against Majel Barrett's clips. Th
 
 ### Running it again
 
+See the [tools README](../../tools/README.md) for the full measurement method,
+requirements, output files, and limits.
+
 ```sh
 npm run build
 npm run voices:samples -- --kokoro --mai
