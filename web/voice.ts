@@ -1,9 +1,9 @@
 import { Utterance, type SpeechEvent } from "../src/shared/speech";
 import { interruptsSpeech } from "../src/shared/wake";
-import type { CrewID } from "../src/shared/crew";
+import type { SpokenPart } from "../src/shared/briefing";
 
 /** One stretch of a spoken reply; an officer's part is spoken in that officer's own voice. */
-export interface SpokenPart { text: string; speaker?: CrewID }
+export type { SpokenPart };
 
 type Cue = "startup" | "request-accepted" | "input-failed" | "request-failed" | "tribute-fact";
 // The downloaded recordings differ in loudness; these keep each one quiet.
@@ -63,6 +63,11 @@ export class VoiceConversation {
     transcript(text: string, startedAt: number): Promise<void>;
     canListen(): boolean;
   }) {}
+
+  /** True while the voice connection is open, so replies can be spoken. */
+  get connected() {
+    return this.socket?.readyState === WebSocket.OPEN;
+  }
 
   private command(data: object) {
     if (this.socket?.readyState !== WebSocket.OPEN) throw new Error("The voice connection stopped. Click the microphone button to listen again.");

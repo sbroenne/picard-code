@@ -7,6 +7,7 @@ import { startEngine, projectDirectory } from "../server/process.js";
 import { startApp } from "../server/app.js";
 import { availableModels } from "../server/engine.js";
 import { BRIDGE_CREW, crewMember, type CrewID } from "../shared/crew.js";
+import { closingQuestion } from "../shared/briefing.js";
 import type { AppState, ChatMessage } from "../shared/types.js";
 
 const temporary = await mkdtemp(join(tmpdir(), "picard-crew-check-"));
@@ -84,9 +85,17 @@ try {
   assert.ok(offDuty.messages.filter((message) => message.role === "assistant").every((message) => message.speaker === undefined), "with the Bridge crew off, the computer answers");
   await routed("Computer, review example.ts for security risks. Do not change any files or run commands.", "picard-worf");
   await routed("Computer, Walt, is it risky to log the greeting name in example.ts? Do not change any files or run commands.", "picard-worf");
-  // Everyday work outside code goes to the officer whose area it is in.
-  await routed("Computer, explain in two sentences why the sky looks blue. Do not change any files or run commands.", "picard-data");
-  await routed("Computer, write one short sentence inviting a friend to visit a museum. Do not ask questions, change any files or run commands.", "picard-troi");
+  // Everyday work, even outside code, stays with the computer, as on the Enterprise.
+  for (const request of [
+    "Computer, explain in two sentences why the sky looks blue. Do not change any files or run commands.",
+    "Computer, write one short sentence inviting a friend to visit a museum. Do not ask questions, change any files or run commands.",
+  ]) {
+    const result = await send(request);
+    const reply = result.messages.findLast((message) => message.role === "assistant" && !message.background);
+    assert.equal(reply?.speaker, undefined, `"${request}" must be answered by the computer, not ${reply?.speaker}`);
+    assert.ok(text(reply), "the computer must answer");
+    assert.equal((await engine.client.sessions(project, result.id)).length, 0, `"${request}" must not be handed to an officer`);
+  }
   await routed("Computer, Rika, should example.ts stay as one function or be split into two? Weigh both and recommend one. Do not change any files or run commands.", "picard-riker");
   const requests: Record<CrewID, { text: string; expected: RegExp }> = {
     "picard-riker": { text: "Rain is forecast. Recommend an indoor museum visit or an outdoor picnic, and give one reason.", expected: /museum|indoor/i },
@@ -128,8 +137,8 @@ try {
   if (onScreen) await api(`questions/${encodeURIComponent(onScreen.id)}`, { skip: true });
   else assert.match(text((await api<ChatMessage[]>(`conversations/${unclear.id}/messages`)).findLast((message) => message.role === "assistant")), /\?/, "with nothing proposed, the computer must ask what to carry out");
   assert.equal((await engine.client.sessions(project, unclear.id)).length, 0, "an unclear order is not handed to an officer");
-  // A request that needs several officers becomes a briefing: the computer calls each one itself.
-  const automatic = await send("Computer, review example.ts for security risks, and separately for how clear it is to a new reader. Do not change any files or run commands.");
+  // A briefing the Captain asks for: the computer picks the officers and calls each one itself.
+  const automatic = await send("Computer, I want a briefing on example.ts: its security risks, and separately how clear it is to a new reader. Do not change any files or run commands.");
   const called = (await engine.client.sessions(project, automatic.id)).map((child) => child.agent);
   assert.ok(called.includes("picard-worf") && called.some((agent) => agent === "picard-troi" || agent === "picard-data"), `The computer must brief Worf and Troi or Data itself. It called: ${called.join(", ") || "nobody"}`);
   assert.equal(text(automatic.messages.findLast((message) => message.role === "assistant" && !message.background)).length > 0, true);
@@ -145,9 +154,11 @@ try {
   }
   const summary = briefing.messages.findLast((message) => !message.background && message.role === "assistant");
   assert.equal(summary?.speaker, undefined, "the computer gives the briefing summary");
-  assert.match(text(summary), /Riker/i, `the summary includes Riker's recommendation:\n${text(summary)}`);
+  const riker = briefing.messages.findLast((message) => message.background && message.speaker === "picard-riker");
+  assert.ok(closingQuestion(text(riker)), `Riker has the last word and ends with a short question:\n${text(riker)}`);
+  assert.equal(closingQuestion(text(summary)), "", `the computer does not ask Riker's question again:\n${text(summary)}`);
   assert.deepEqual((await readdir(project)).sort(), ["example.ts", "opencode.json"]);
-  console.log("Real crew check passed: the neutral computer answering a quick fact itself, the computer answering an officer request with the Bridge crew off, Picard Code handing requests to Worf (also when misheard as Walt), to Data for an explanation, to Troi for writing and to Riker (misheard as Rika), each officer answering in the log entry without handing work on, all six non-code officer replies in their own voices (Data without contractions, Worf brief, no exclamation marks), \"Make it so\" carrying out Data's proposal, an unclear \"Make it so\" answered with a question, an automatic briefing of Worf and Troi or Data, a full briefing in which the computer itself called all six officers with the selected model and none handed work on, and the computer's summary with Riker's recommendation. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
+  console.log("Real crew check passed: the neutral computer answering a quick fact, an explanation and a piece of writing itself, the computer answering an officer request with the Bridge crew off, Picard Code handing requests to Worf (also when misheard as Walt) and to Riker (misheard as Rika), each officer answering in the log entry without handing work on, all six non-code officer replies in their own voices (Data without contractions, Worf brief, no exclamation marks), \"Make it so\" carrying out Data's proposal, an unclear \"Make it so\" answered with a question, a requested briefing of Worf and Troi or Data, a full briefing in which the computer itself called all six officers with the selected model and none handed work on, Riker ending with a short question, and the computer's summary not asking it again. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
 } finally {
   await app?.close();
   try {

@@ -952,6 +952,22 @@ test("“Stop listening”, even without “Computer”, is acknowledged and ret
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
+test("the voice leads: a spoken reply appears on screen when the voice starts saying it", async ({ page }) => {
+  // Note the console status at the moment the computer's reply first appears.
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    Object.assign(window, { replyShownDuring: seen });
+    new MutationObserver(() => {
+      if (!seen.length && document.querySelector(".message[data-role=assistant]")) seen.push(document.querySelector("#status")?.textContent ?? "");
+    }).observe(document, { childList: true, subtree: true });
+  });
+  await launch(page, "example");
+  await startListening(page);
+  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
+  expect(await page.evaluate(() => (window as unknown as { replyShownDuring: string[] }).replyShownDuring)).toEqual(["Speaking"]);
+  await expect(page.locator("#working")).toBeHidden();
+});
+
 test("an everyday answer is spoken briefly while the exact code stays on screen", async ({ page }, info) => {
   const spoken = spokenText(page);
   await launch(page, "example");

@@ -206,21 +206,24 @@ You do not have to name an officer. When you don't, Picard Code first asks the
 selected model, in a quick separate check, who should handle the request, and
 then hands it over itself. This check adds nothing to the log entry, usually
 takes a second or two, and makes one small extra model request. If it fails,
-the request is not sent and the real error is shown. Each officer has an area,
-and everyday work outside code belongs to it too:
+the request is not sent and the real error is shown.
 
-- Riker: plans, decisions, options and recommendations.
-- Data: research, news, history, science and explanations.
-- Geordi: building, fixing, setting things up and investigating failures.
-- Worf: security, safety, privacy and risks.
-- Troi: writing, clarity and usability, and questions about people and feelings.
-- Crusher: health, wellbeing, reliability and recovery.
+As on the Enterprise, the computer answers most requests itself: facts,
+look-ups, explanations, news, research, summaries, writing, finding things in
+the project, small or clear changes, small talk, questions about Picard Code,
+and questions about the Captain or Sir Patrick Stewart. An officer takes a
+request only when it needs a substantial expert judgment in their area:
 
-The computer keeps only quick facts it can give in a sentence, small talk,
-questions about Picard Code itself, and questions about the Captain or Sir
-Patrick Stewart. A request in one officer's area goes to that officer, who
-answers you directly in the log entry, just as if you had named them. A request
-that needs several officers becomes a briefing, run by the computer. The check
+- Riker: options and recommendations on a real decision.
+- Data: careful technical analysis.
+- Geordi: investigating failures and repairs.
+- Worf: security, safety and privacy.
+- Troi: how people will read or feel about something.
+- Crusher: health and wellbeing.
+
+That officer answers you directly in the log entry, just as if you had named
+them. A briefing with several officers happens only when you ask for options,
+a recommendation or a briefing, or name several officers. The check
 also recognises common mishearings, such as "Rika" for Riker or "Walt" for
 Worf, and sends a follow-up such as "Make it so" back to the officer who just
 answered.
@@ -231,10 +234,9 @@ without the check; mentioning Data or saying "do not ask Data" does not.
 A briefing works as it does on the bridge. The computer calls each officer the
 work needs, usually two or three, never the whole crew by default. Each officer
 reports to you directly, and at most one of them may change files. If you want
-a recommendation, Riker weighs their findings and recommends one course. The
-computer then gives each officer's main finding in a sentence, followed by
-Riker's recommendation, and you decide; "Make it so" carries out that
-recommendation. Each officer's full report stays on screen; if the computer
+a recommendation, Riker weighs their findings, recommends one course and asks
+whether to proceed. Each officer then gives their main finding in a sentence,
+Riker last, and you decide; "Make it so" carries out that recommendation. Each officer's full report stays on screen; if the computer
 only copies a report word for word, the copy is not shown and the report itself
 is spoken. Officers do not hand work to each other. When one needs a
 colleague, they name the officer and you can call them. Each officer called
@@ -257,8 +259,12 @@ also answers everything itself, and naming an officer reports why.
 Everyone uses the selected model and speech service. Each officer has their
 own ready-made Kokoro and Azure MAI voice, measured to sound closer to the
 actor; nothing is cloned. An officer's answer is spoken in their voice. After a
-briefing, each officer says their main finding in one sentence, Riker last, and
-the computer closes; full reports stay on screen. There is no lasting shared
+briefing, each officer says their main finding in one sentence, Riker last with
+his recommendation and question. The computer's closing summary is spoken only
+when it adds something, such as an officer whose work failed, or when Riker
+was not called; otherwise it stays on screen with the full reports. Spoken
+replies appear on screen when the voice starts saying them, so you hear the
+answer first and read the detail alongside it. There is no lasting shared
 crew memory or automatic issue watching.
 
 When Picard Code starts its own OpenCode server, it loads the crew from a
@@ -281,9 +287,10 @@ permission rules. Naming an officer then reports that the crew is unavailable.
 `npm run test:crew:live` checks real officer replies and a few measurable voice
 habits (no exclamation marks, Data without contractions, Worf brief), "Make it
 so" carrying out an officer's own proposal, an unclear "Make it so" answered
-with a question, a quick fact kept by the computer, requests handed to the
-right officer without naming them (including misheard names, an explanation to
-Data and writing to Troi) and real briefings in which the computer calls each
+with a question, a quick fact, an explanation and a piece of writing kept by the
+computer, requests needing an officer's judgment handed to the right officer
+without naming them (including misheard names) and real briefings, when
+asked for, in which the computer calls each
 officer itself. It cannot judge whether an officer sounds right; that needs
 you. It makes model requests, may incur provider charges, and never
 answers an approval itself.
