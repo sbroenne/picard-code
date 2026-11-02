@@ -1017,11 +1017,13 @@ test("skipping a question stops the work and says so", async ({ page }) => {
 });
 
 test("replies show code safely, and the conversation reopens after reload", async ({ page }, info) => {
+  await page.route("https://example.com/p.png", (route) => route.abort());
   await launch(page, "unsafe");
   await startListening(page);
   await expect(page.locator("#messages pre")).toContainText("const safe = true;", { timeout: 15000 });
   await expect(page.locator("#messages")).toContainText("<img src=x onerror=alert('unsafe')>");
-  await expect(page.locator("#messages img")).toHaveCount(0);
+  await expect(page.locator("#messages img")).toHaveCount(1);
+  await expect(page.locator("#messages img[onerror]")).toHaveCount(0);
   // OpenCode's Markdown is shown as formatting, not as symbols.
   const reply = page.locator(".message[data-role=assistant] .markdown").last();
   await expect(reply.locator("strong")).toHaveText("bold");
@@ -1033,7 +1035,8 @@ test("replies show code safely, and the conversation reopens after reload", asyn
   await expect(reply.getByRole("link", { name: "Docs" })).toHaveAttribute("href", "https://example.com");
   await expect(reply.getByRole("link", { name: "Docs" })).toHaveAttribute("rel", "noopener noreferrer");
   await expect(reply.locator("a", { hasText: "Bad" })).not.toHaveAttribute("href", /.+/);
-  await expect(reply.getByRole("link", { name: "Picture" })).toHaveAttribute("href", "https://example.com/p.png");
+  await expect(reply.getByRole("link", { name: "Open source" })).toHaveAttribute("href", "https://example.com/p.png");
+  await expect(reply).toContainText("This image could not be loaded.");
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.reload();

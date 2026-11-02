@@ -1,15 +1,20 @@
 import { Marked } from "marked";
 import DOMPurify from "dompurify";
+import { replyMedia } from "../src/shared/media";
 
 const escape = (text: string) => text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 
-// OpenCode replies in GitHub-style Markdown. Raw HTML in a reply is shown as text, and pictures
-// become links, so a reply cannot load anything from the internet by itself.
+// Model HTML stays text. Media placeholders are validated before any resource is loaded.
 const reader = new Marked({ gfm: true, async: false });
 reader.use({
   renderer: {
     html: ({ text }) => escape(text),
-    image: ({ href, text }) => `<a href="${escape(href)}">${escape(text || href)}</a>`,
+    image: ({ href, text }) => `<span data-media-href="${escape(href)}" data-media-image="true">${escape(text || "Image")}</span>`,
+    link({ href, text }) {
+      return replyMedia(href, text)
+        ? `<span data-media-href="${escape(href)}">${escape(text || "Media")}</span>`
+        : false;
+    },
   },
 });
 
@@ -22,7 +27,7 @@ purify.addHook("afterSanitizeAttributes", (node) => {
 });
 
 const ALLOWED_TAGS = ["p", "br", "strong", "em", "del", "code", "pre", "ul", "ol", "li", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6",
-  "hr", "a", "table", "thead", "tbody", "tr", "th", "td", "input"];
+  "hr", "a", "table", "thead", "tbody", "tr", "th", "td", "input", "span"];
 
 /** Turns a Markdown reply into safe page elements. Model output is never trusted as HTML. */
 export function renderMarkdown(text: string): DocumentFragment {

@@ -24,6 +24,7 @@ export class VoiceConversation {
   opening = false;
   /** True after listening stopped because of an error; it then starts again only when asked. */
   failed = false;
+  mediaPaused = false;
   private speechRevision = 0;
   private followOn?: FollowOn;
   private optionalSpeech = false;
@@ -63,6 +64,7 @@ export class VoiceConversation {
     /** Words heard in one utterance, with the time it started. Resolves when they have been handled. */
     transcript(text: string, startedAt: number): Promise<void>;
     canListen(): boolean;
+    beforeSpeak?(): void;
   }) {}
 
   /** True while the voice connection is open, so replies can be spoken. */
@@ -76,7 +78,7 @@ export class VoiceConversation {
   }
   private state(phase: ConsolePhase) {
     this.phase = phase;
-    const enabled = this.microphone && !this.handling && !this.optionalCue && (phase === "standby" || phase === "listening" || this.speechPending);
+    const enabled = !this.mediaPaused && this.microphone && !this.handling && !this.optionalCue && (phase === "standby" || phase === "listening" || this.speechPending);
     this.capture?.port.postMessage(enabled);
     if (!enabled) { this.utterance.reset(); this.preRoll = []; this.queue = undefined; }
     this.hooks.changed();
@@ -111,6 +113,7 @@ export class VoiceConversation {
   }
   /** The arrival call also works before speech is set up; no sound interrupts a request or spoken answer. */
   private canSound(context: AudioContext, revision: number, name: Cue) {
+    if (this.mediaPaused) return false;
     if (this.context !== context || revision !== this.revision || this.recording) return false;
     if (name === "startup") return context.state === "running" && !this.cueSource && !this.speechPending && !this.handling
       && (this.phase === "off" || this.phase === "standby");
@@ -251,7 +254,7 @@ export class VoiceConversation {
 
   /** One 20 ms packet of microphone audio. Nothing leaves this computer until speech starts. */
   private heard(packet: ArrayBuffer) {
-    if (!this.microphone || this.socket?.readyState !== WebSocket.OPEN) return;
+    if (this.mediaPaused || !this.microphone || this.socket?.readyState !== WebSocket.OPEN) return;
     if (this.optionalCue) return;
     if (this.handling || !this.recording && this.phase !== "standby" && !this.speechPending) return;
     if (!this.recording && (this.cueSource || performance.now() - this.cueEnded < 200)) {
@@ -436,7 +439,7 @@ export class VoiceConversation {
     if (this.speechPending) { this.state(this.phase); return; }
     if (this.recording || this.handling) { this.state(this.recording ? "listening" : "thinking"); return; }
     if (this.socket?.readyState !== WebSocket.OPEN) { this.state("off"); return; }
-    const listen = this.microphone && this.hooks.canListen();
+    const listen = !this.mediaPaused && this.microphone && this.hooks.canListen();
     if (listen && this.phase === "standby") return;
     this.command({ type: "pause" });
     this.partial = "";
@@ -445,8 +448,21 @@ export class VoiceConversation {
   /** Starts or pauses listening when the app becomes ready or stops being ready. */
   sync() {
     if (!this.microphone || this.speechPending || this.handling || this.opening) return;
-    const can = this.hooks.canListen();
+    const can = !this.mediaPaused && this.hooks.canListen();
     if (can ? this.phase === "thinking" || this.phase === "off" : this.phase === "standby" || this.phase === "listening") this.resume();
+  }
+  /** Media must never be treated as an order, including late recognition from a cancelled utterance. */
+  pauseForMedia(paused: boolean) {
+    if (this.mediaPaused === paused) return;
+    this.mediaPaused = paused;
+    if (paused) {
+      this.handling = false;
+      this.recording = false;
+      this.interruption = false;
+      this.partial = "";
+      this.stopSpeaking();
+    } else this.resume();
+    this.hooks.changed();
   }
   microphoneOff() {
     this.startupPending = false;
@@ -469,6 +485,7 @@ export class VoiceConversation {
   }
   /** Speaks a reply. A final failure or denial is preceded by the failure sound, never overlapping the speech. */
   speak(reply: string | SpokenPart[], failed = false, followOn?: FollowOn) {
+    this.hooks.beforeSpeak?.();
     const parts = typeof reply === "string" ? [{ text: reply }] : reply.filter((part) => part.text.trim());
     const text = parts.map((part) => part.text).join(" ");
     this.followOn = undefined;

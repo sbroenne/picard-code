@@ -15,9 +15,11 @@ export interface ModelChoice {
 
 export interface ChatPart {
   id: string;
-  type: "text" | "reasoning" | "tool";
+  type: "text" | "reasoning" | "tool" | "media";
   text: string;
   status?: string;
+  href?: string;
+  mime?: string;
 }
 
 export interface ChatMessage {

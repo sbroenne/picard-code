@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, writeFile, rm, realpath } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, rm, realpath, symlink } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { request as httpRequest } from "node:http";
@@ -49,6 +49,67 @@ async function setup(extra: Partial<AppOptions> = {}) {
   };
   return { app, fixture, request, login, cleanup, directory, other, temporary, wikipediaRequests };
 }
+
+test("reply media is authenticated, confined to its Project, validated, and seekable", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  const root = context.fixture.createSession(context.directory, "Media");
+  const child = context.fixture.createSession(context.directory, "Officer media", root.id, "picard-data");
+  const foreign = context.fixture.createSession(context.other, "Other Project");
+  const bytes = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.alloc(40)]);
+  await writeFile(join(context.directory, "test image.png"), bytes);
+  await writeFile(join(context.directory, "fake.png"), "<script>not a picture</script>");
+  await mkdir(join(context.directory, "folder.png"));
+  await writeFile(join(context.other, "outside.png"), bytes);
+  await symlink(context.other, join(context.directory, "escape"), "junction");
+  const refs = ["test%20image.png", "fake.png", "folder.png", "escape/outside.png", "missing.png", "../other/outside.png"];
+  for (const session of [root, child, foreign]) {
+    context.fixture.messages.get(session.id)!.push({
+      id: "media-reply", type: "assistant", time: { created: 1 },
+      content: [{ type: "text", text: refs.map((href) => `![Original test media](${href})`).join("\n") }],
+    });
+  }
+  const path = (href = refs[0]!, session = root.id, project = context.directory) =>
+    `conversations/${session}/media/media-reply?${new URLSearchParams({ href, project })}`;
+  assert.equal((await context.request(path())).status, 401);
+  await context.login();
+  let response = await context.request(path());
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "image/png");
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
+  response = await context.request(path(), undefined, { Range: "bytes=8-15" });
+  assert.equal(response.status, 206);
+  assert.equal(response.headers.get("content-range"), "bytes 8-15/48");
+  assert.equal(response.headers.get("content-length"), "8");
+  assert.equal((await response.arrayBuffer()).byteLength, 8);
+  for (const range of ["bytes=-4", "bytes=40-", "bytes=0-999"]) {
+    assert.equal((await context.request(path(), undefined, { Range: range })).status, 206, range);
+  }
+  for (const range of ["bytes=99-", "bytes=8-2", "bytes=-0", "bytes=0-1,4-5", "bytes=", "bytes=9007199254740992-"]) {
+    const invalid = await context.request(path(), undefined, { Range: range });
+    assert.equal(invalid.status, 416, range);
+    assert.equal(invalid.headers.get("content-range"), "bytes */48");
+  }
+  assert.equal((await context.request(path("fake.png"))).status, 415);
+  assert.equal((await context.request(path("folder.png"))).status, 415);
+  assert.equal((await context.request(path("escape/outside.png"))).status, 403);
+  assert.equal((await context.request(path("missing.png"))).status, 404);
+  assert.equal((await context.request(path("../other/outside.png"))).status, 403);
+  assert.equal((await context.request(path("unmentioned.png"))).status, 403);
+  assert.equal((await context.request(path(refs[0], foreign.id))).status, 403);
+  assert.equal((await context.request(path(refs[0], child.id))).status, 200);
+  assert.equal((await context.request(path(refs[0], root.id, context.other))).status, 403);
+  assert.equal((await context.request(path(), undefined, { "Sec-Fetch-Site": "cross-site" })).status, 403);
+  const login = await fetch(`${context.app.origin}/api/connect`, {
+    method: "POST", headers: { "Content-Type": "application/json", "X-Picard-Request": "1" }, body: JSON.stringify({ token: context.app.token }),
+  });
+  const head = await fetch(`${context.app.origin}/api/${path()}`, { method: "HEAD", headers: { Cookie: login.headers.get("set-cookie")!.split(";")[0]! } });
+  assert.equal(head.status, 200);
+  assert.equal(head.headers.get("content-length"), "48");
+  assert.equal((await head.arrayBuffer()).byteLength, 0);
+  context.fixture.sessions.delete(root.id);
+  assert.notEqual((await context.request(path())).status, 200, "deleted entries cannot serve old references");
+});
 
 test("direct crew requests keep words and models unchanged; missing crew fails explicitly", async (t) => {
   const context = await setup();
