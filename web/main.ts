@@ -597,7 +597,7 @@ function renderMessages() {
     article.dataset.role = message.role;
     const header = make("div", "message-header");
     header.append(make("strong", undefined, message.role === "user" ? "Picard" : crewMember(message.speaker)?.name ?? "Computer"));
-    if (message.background) header.append(make("small", undefined, message.speaker ? "Crew report" : "Supporting report"));
+    if (message.background && !message.speaker) header.append(make("small", undefined, "Supporting report"));
     const copy = button("Copy", "copy-button", async () => {
       await navigator.clipboard.writeText(message.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n"));
       copy.textContent = "Copied";

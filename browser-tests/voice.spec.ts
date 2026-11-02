@@ -220,6 +220,12 @@ test("Riker has the last word in a briefing without a repeated computer close", 
   await launch(page, "briefing");
   await startListening(page);
   await expect(page.locator(".message.current[data-role=assistant]")).toHaveCount(3, { timeout: 20000 });
+  const officerNames = page.locator(".crew-report .message-header strong");
+  await expect(officerNames).toHaveCount(2);
+  await expect(officerNames.filter({ hasText: /^Data$/ })).toHaveCount(1);
+  await expect(officerNames.filter({ hasText: /^Riker$/ })).toHaveCount(1);
+  await expect(page.locator(".crew-report .message-header small")).toHaveCount(0);
+  await expect(page.locator(".crew-report .copy-button")).toHaveCount(2);
   await expect.poll(() => spoken.at(-1), { timeout: 15000 }).toEqual([
     { text: "Test stand-in: Data found a small repair.", speaker: "picard-data" },
     { text: "Test stand-in: I recommend the smaller repair, Captain. Shall I proceed?", speaker: "picard-riker" },
