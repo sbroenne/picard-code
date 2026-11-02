@@ -46,6 +46,7 @@ const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there",
   : process.argv.includes("--choose") ? ["Computer, ask a question and let me choose", ""]
   : process.argv.includes("--unsafe") ? ["Computer, show unsafe output", ""]
   : process.argv.includes("--fresh") ? ["Computer, hello there", "New log entry", "Is anyone there"]
+  : process.argv.includes("--fresh-starlog") ? ["Computer, hello there", "New starlog entry", "Is anyone there"]
   : process.argv.includes("--showcase") ? ["Computer, Mr. Data, why do the shields read full when they are failing?", "Computer, Number One, fix it now or after we reach Starbase 74?", ""]
   : process.argv.includes("--example") ? ["Computer, why is the settings test failing?", ""]
   : process.argv.includes("--broken") ? ["Computer, the model is broken", ""]

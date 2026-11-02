@@ -71,7 +71,7 @@ let answering = false;
 // After "Computer" alone, the next words are taken as the request.
 const GO_AHEAD = 8000;
 let goAheadUntil = 0;
-// "Computer" starts a task; after that every request in the task counts, until "new log entry" or "stop listening".
+// "Computer" enables follow-ups without a prefix; stopping listening does not close the log entry.
 let engagedWith: string | undefined;
 let notSent = "";
 /** The log entry waiting for the captain to confirm its deletion. */
@@ -132,7 +132,7 @@ async function heard(text: string, startedAt: number) {
   }
 }
 
-/** "Stop listening": ends the task and waits for "Computer" again. Any work under way carries on. */
+/** "Stop listening" waits for "Computer" again, keeping the log entry and any work under way. */
 async function standBy() {
   cancelTributeSpeech();
   engagedWith = undefined;
@@ -1106,8 +1106,6 @@ async function sendMessage(spoken: string, requestedStoryID?: string) {
   controls();
   notice();
   try {
-    // A request that starts a task begins its own log entry; only follow-ups within the task join it.
-    if (selected && engagedWith !== selected) startFresh();
     if (!selected) await newConversation((addressed(text) || text).slice(0, 60));
     const id = selected!;
     const subject = explicitStorySubject(text);

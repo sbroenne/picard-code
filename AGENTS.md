@@ -57,6 +57,9 @@ original TNG-inspired look.
 - **Keep the user's words.** Do not rewrite spoken requests into
   "captain style" before sending. Negations, exact names, limits and approval
   boundaries must survive unchanged.
+- **Keep the current log entry.** "Computer" continues the entry on screen,
+  even after microphone changes, standing by or reopening it. Only an explicit
+  spoken request for a new entry or the New log entry tile starts a new one.
 - **No copied franchise material in the repository.** No show artwork,
   dialogue, voice cloning or recordings are committed. The five TrekCore
   sounds are downloaded at startup (or by `npm run setup:sounds`) into
