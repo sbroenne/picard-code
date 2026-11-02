@@ -236,9 +236,10 @@ work needs, usually two or three, never the whole crew by default. Each officer
 reports to you directly, and at most one of them may change files. If you want
 a recommendation, Riker weighs their findings, recommends one course and asks
 whether to proceed. Each officer then gives their main finding in a sentence,
-Riker last, and you decide; "Make it so" carries out that recommendation. Each officer's full report stays on screen; if the computer
-only copies a report word for word, the copy is not shown and the report itself
-is spoken. Officers do not hand work to each other. When one needs a
+Riker last, and you decide; "Make it so" carries out that recommendation. Each
+officer's full report stays on screen; if the computer only copies a report
+word for word, the copy is not shown and the officers' reports are spoken
+instead. Officers do not hand work to each other. When one needs a
 colleague, they name the officer and you can call them. Each officer called
 makes an extra model request and can increase cost.
 
@@ -264,8 +265,10 @@ his recommendation and question. The computer's closing summary is spoken only
 when it adds something, such as an officer whose work failed, or when Riker
 was not called; otherwise it stays on screen with the full reports. Spoken
 replies appear on screen when the voice starts saying them, so you hear the
-answer first and read the detail alongside it. There is no lasting shared
-crew memory or automatic issue watching.
+answer first and read the detail alongside it. If you stop speaking, switch
+the microphone off, or the voice fails, the reply is shown without waiting.
+It also appears after 20 seconds if the voice has not started. There is no
+lasting shared crew memory or automatic issue watching.
 
 When Picard Code starts its own OpenCode server, it loads the crew from a
 temporary settings folder outside your project and removes that folder on

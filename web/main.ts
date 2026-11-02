@@ -269,7 +269,7 @@ function releaseHeldBack() {
 
 function checkHeldBack() {
   if (!heldBack) return;
-  const done = heldBack.session !== selected || !voice.connected || pending()
+  const done = heldBack.session !== selected || !voice.connected || !voice.microphone || pending()
     || (heldBack.speaking ? voice.phase === "speaking" || !voice.speechPending : !voiceTurn && !submitting);
   if (done) releaseHeldBack();
   // Finished work whose reply is never spoken must still appear.
@@ -287,20 +287,25 @@ function speakHeldBack() {
 function completeVoiceReply() {
   if (!voiceTurn || voiceTurn.session !== selected || busy() || pending() || submitting || historyLoading || historyDue) return;
   const reply = messages.findLast((message) => message.role === "assistant" && !message.background && !voiceTurn!.known.has(message.id))
-    ?? messages.findLast((message) => message.background && replyFailed(message) && !voiceTurn!.known.has(message.id));
+    ?? messages.findLast((message) => message.background && failedReport(message) && !voiceTurn!.known.has(message.id));
   if (!reply) return;
   const outcome = reply.outcome ?? voiceTurn.outcome;
   if (!outcome) return;
   const turn = voiceTurn;
   voiceTurn = undefined;
-  speakHeldBack();
-  const successful = outcome === "succeeded" && !replyFailed(reply) && !declinedReply(reply);
+  const failed = failedReport(reply);
+  if (failed && heldBack) { releaseHeldBack(); renderMessages(); }
+  else speakHeldBack();
+  const successful = outcome === "succeeded" && !failed && !declinedReply(reply);
   const at = messages.indexOf(reply);
-  const reports = reply.background ? [] : reportsAround(messages, at).filter((message) => !turn.known.has(message.id));
-  const repeated = repeatsOfficer(messages, at);
+  const failures = officerFailures(messages, at, turn.known);
+  const failedSources = new Set(failures.map((message) => message.sourceSessionID ?? message.id));
+  const reports = reply.background ? [] : reportsAround(messages, at)
+    .filter((message) => !turn.known.has(message.id) && !failedSources.has(message.sourceSessionID ?? message.id));
+  const repeated = repeatsOfficer(messages, at, reports);
   const reportCopy = repeated ? reports.find((report) => repeatsReport(written(reply), written(report), crewMember(report.speaker)!.name)) : undefined;
   // Keep tribute records with the visible answer when the computer's repeated report is hidden.
-  const answer = !replyFailed(reply) && reports.length === 1 && (!written(reply).trim() || repeated) ? reports[0]! : reply;
+  const answer = !failed && reports.length === 1 && (!written(reply).trim() || repeated) ? reports[0]! : reply;
   const key = `${turn.session}:${(reportCopy ?? answer).id}`;
   const display: { fact?: TributeEntry; factShownAt?: Date; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] } = {};
   if (successful && turn.reference) display.reference = turn.reference;
@@ -332,13 +337,18 @@ function completeVoiceReply() {
     tributeDisplay.set(key, display);
     renderMessages();
   }
-  voice.speak(spokenParts(reply, answer, successful && !repeated ? reports : [], officerFailed(messages, at, turn.known)), replyFailed(reply), tail);
+  voice.speak(spokenParts(reply, answer, successful ? reports : [], { failed: failures, repeated }), failed, tail);
 }
 
-/** True when an officer called for this request failed, so the computer's close must be heard. */
-function officerFailed(list: ChatMessage[], index: number, known: Set<string>) {
+/** Failed assignments called for this request, after any recovery in the same assignment. */
+function officerFailures(list: ChatMessage[], index: number, known: Set<string>) {
   const start = list.findLastIndex((message, at) => at < index && message.role === "user");
-  return list.slice(start + 1, index).some((message) => message.background && !known.has(message.id) && crewMember(message.speaker) && replyFailed(message));
+  const next = list.findIndex((message, at) => at > index && message.role === "user");
+  const latest = new Map<string, ChatMessage>();
+  for (const message of list.slice(start + 1, next < 0 ? undefined : next)) {
+    if (message.background && !known.has(message.id) && crewMember(message.speaker)) latest.set(message.sourceSessionID ?? message.id, message);
+  }
+  return [...latest.values()].filter(failedReport);
 }
 
 function cancelTributeSpeech() {
@@ -567,9 +577,9 @@ function renderMessages() {
   const list = shown();
   const latest = list.findLastIndex((message) => message.role === "user");
   list.forEach((message, index) => {
-    // Only the written answer is shown. A reply without one still shows why an action failed or was refused.
+    // A failed final action stays visible even when the officer wrote part of a report.
     const texts = message.parts.filter((part) => part.type === "text" && part.text.trim());
-    const failures = texts.length ? [] : message.parts.filter((part) => part.type === "tool" && part.status === "error");
+    const failures = texts.length && !failedReport(message) ? [] : message.parts.filter((part) => part.type === "tool" && part.status === "error");
     if (message.role === "assistant" && !texts.length && !failures.length && !message.error) return;
     if (isHeldBack(message)) return;
     if (repeatsOfficer(list, index)) return;
@@ -817,19 +827,23 @@ function written(message: ChatMessage) {
   return message.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n");
 }
 
+function failedReport(message: ChatMessage) {
+  return message.outcome === "failed" || message.outcome === "interrupted" || replyFailed(message);
+}
+
 /** The officers' reports made for the same request as the message at this position. */
 function reportsAround(list: ChatMessage[], index: number) {
   const start = list.findLastIndex((message, at) => at < index && message.role === "user");
   const next = list.findIndex((message, at) => at > index && message.role === "user");
   return list.slice(start + 1, next < 0 ? undefined : next)
-    .filter((message) => message.background && crewMember(message.speaker) && written(message).trim() && !replyFailed(message));
+    .filter((message) => message.background && crewMember(message.speaker) && written(message).trim() && !failedReport(message));
 }
 
 /** A computer reply that only repeats an officer's report adds nothing; the report itself is the answer. */
-function repeatsOfficer(list: ChatMessage[], index: number) {
+function repeatsOfficer(list: ChatMessage[], index: number, reports?: ChatMessage[]) {
   const message = list[index]!;
-  if (message.role !== "assistant" || message.background || message.speaker || message.error || !written(message).trim()) return false;
-  return reportsAround(list, index).some((report) => repeatsReport(written(message), written(report), crewMember(report.speaker)!.name));
+  if (message.role !== "assistant" || message.background || message.speaker || failedReport(message) || !written(message).trim()) return false;
+  return (reports ?? reportsAround(list, index)).some((report) => repeatsReport(written(message), written(report), crewMember(report.speaker)!.name));
 }
 
 /** A step failed, but the same request went on: a later reply has written text, or the work is still running. */

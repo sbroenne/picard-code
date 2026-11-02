@@ -477,7 +477,7 @@ export async function startApp(options: AppOptions) {
             const history = (await Promise.all(related.map(async (entry) =>
               chatMessages(await client.messages(entry.id, project), entry.agent).filter((message) => !entry.parentID || message.role === "assistant").map((message) => ({
                 ...message,
-                ...(entry.parentID ? { background: true, speaker: message.speaker ?? crewMember(entry.agent)?.id } : {}),
+                ...(entry.parentID ? { background: true, sourceSessionID: entry.id, speaker: message.speaker ?? crewMember(entry.agent)?.id } : {}),
               }))
             ))).flat().sort((a, b) => (a.created ?? 0) - (b.created ?? 0));
             json(response, 200, history);

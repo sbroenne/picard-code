@@ -153,6 +153,7 @@ test("related crew activity, approvals and history belong to one log entry, incl
   assert.equal(history.length, 1);
   assert.equal(history[0].speaker, "picard-geordi");
   assert.equal(history[0].background, true);
+  assert.equal(history[0].sourceSessionID, child.id);
   assert.equal((await context.request("permissions/crew-approval", { reply: "always" })).status, 400);
   assert.equal((await context.request("permissions/crew-approval", { reply: "reject" })).status, 200);
   assert.equal(context.fixture.requests.at(-1)?.path, `/api/session/${child.id}/permission/crew-approval/reply`);

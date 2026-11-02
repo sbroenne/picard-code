@@ -15,6 +15,14 @@ const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there",
   : process.argv.includes("--interrupt-request") || process.argv.includes("--interrupt-final") ? ["Computer, hello there", "Computer, keep the exact name and do not change files.", ""]
   : process.argv.includes("--interrupt-room") ? ["Computer, hello there", "Hello again", ""]
   : process.argv.includes("--interrupt-approval") ? ["Computer, request an approval", "Computer, allow once", ""]
+  : process.argv.includes("--briefing-parent-failure") ? ["Computer, have Data and Riker brief me when the computer's action is denied with a repeated close", ""]
+  : process.argv.includes("--briefing-failure-only") ? ["Computer, have Data and Riker brief me when Data's action is denied but no computer close", ""]
+  : process.argv.includes("--briefing-failure-copy") ? ["Computer, have Data and Riker brief me when Data's action is denied with a repeated close", ""]
+  : process.argv.includes("--briefing-copy") ? ["Computer, have Data and Riker brief me with a repeated close", ""]
+  : process.argv.includes("--briefing-repeat") ? ["Computer, have Data and Riker brief me when Data's action is denied but a second succeeds", ""]
+  : process.argv.includes("--briefing-failure") ? ["Computer, have Data and Riker brief me when Data's action is denied", ""]
+  : process.argv.includes("--briefing-recovered") ? ["Computer, have Data and Riker brief me after a recovered action", ""]
+  : process.argv.includes("--briefing") ? ["Computer, have Data and Riker brief me on the next step", ""]
   : process.argv.includes("--crew") ? ["Computer, have Data and Geordi look at the repair", ""]
   : process.argv.includes("--officer") ? ["Computer, I wanted to have an answer from Data", ""]
   : process.argv.includes("--news") ? ["Computer, get the news from Data", ""]
@@ -37,6 +45,8 @@ const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there",
   : process.argv.includes("--fresh") ? ["Computer, hello there", "New log entry", "Is anyone there"]
   : process.argv.includes("--showcase") ? ["Computer, Mr. Data, why do the shields read full when they are failing?", "Computer, Number One, fix it now or after we reach Starbase 74?", ""]
   : process.argv.includes("--example") ? ["Computer, why is the settings test failing?", ""]
+  : process.argv.includes("--broken") ? ["Computer, the model is broken", ""]
+  : process.argv.includes("--missing-outcome") ? ["Computer, show a reply without an ending", ""]
   : ["Computer, hello there", "Hello again", ""];
 const speech = process.argv.includes("--speech") ? speechFixture(phrases,
   process.argv.some((arg) => arg.startsWith("--interrupt")) ? 20 : 1, !process.argv.includes("--interrupt-final")).service : undefined;

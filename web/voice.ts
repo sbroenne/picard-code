@@ -35,6 +35,7 @@ export class VoiceConversation {
   private sources = new Set<AudioBufferSourceNode>();
   private nextAudio = 0;
   private receivingAudio = false;
+  private audioStarted = false;
   private playbackTimer?: ReturnType<typeof setTimeout>;
   private utterance = new Utterance();
   // The last half second before speech starts, so the first word is not cut off.
@@ -83,6 +84,7 @@ export class VoiceConversation {
   private clearAudio() {
     clearTimeout(this.playbackTimer);
     this.receivingAudio = false;
+    this.audioStarted = false;
     this.stopCue();
     for (const source of this.sources) source.stop();
     this.sources.clear();
@@ -332,12 +334,12 @@ export class VoiceConversation {
           if (typeof event.data !== "string") { this.audio(event.data); return; }
           const data = JSON.parse(event.data) as SpeechEvent;
           if (data.type === "state") {
-            // The browser keeps its own listening state; the service only reports when it is ready or speaking.
+            // Listening uses the current request; speaking begins only after audio arrives.
             if (data.phase === "listening" && this.recording && this.queue && data.id === this.listenID) {
               for (const packet of this.queue) socket.send(packet);
               this.queue = undefined;
               if (this.endedEarly) this.commit();
-            } else if (data.phase === "speaking" && this.speechPending) this.state("speaking");
+            }
           }
           else if (data.type === "partial") {
             if (this.recording || this.handling) {
@@ -373,7 +375,6 @@ export class VoiceConversation {
             if (data.rate !== 24000) throw new Error("The speaking service returned an unsupported audio format.");
             this.clearAudio();
             this.receivingAudio = true;
-            this.state("speaking");
           } else if (data.type === "audio-end") {
             if (!this.speechPending || data.id !== this.speechRevision) return;
             this.playbackTimer = setTimeout(() => {
@@ -427,6 +428,7 @@ export class VoiceConversation {
     this.nextAudio += audio.duration;
     this.sources.add(source);
     source.onended = () => { this.sources.delete(source); source.disconnect(); };
+    if (!this.audioStarted) { this.audioStarted = true; this.state("speaking"); }
   }
 
   /** Returns to standby: listening on this computer for the next utterance, if listening is possible now. */
