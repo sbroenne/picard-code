@@ -8,7 +8,15 @@ import { availableModels } from "../server/engine.js";
 import { loadSpeech } from "../server/speech.js";
 import type { SpeechService } from "../server/speech-types.js";
 
+declare global {
+  interface Window {
+    interruptTestSpeech: (audio: string) => void;
+    interruptedPlayback: boolean;
+  }
+}
+
 const local = process.argv.includes("--local");
+const interrupt = process.argv.includes("--interrupt");
 const localListener = process.argv.includes("--whisper") ? "whisper" : "nemotron";
 const name = local ? `${localListener}-kokoro` : "mai";
 const directory = resolve(".picard-voice", "samples");
@@ -28,7 +36,14 @@ try {
   speech = await loadSpeech(local ? { listening: localListener, speaking: "kokoro" } : { listening: "mai", speaking: "mai" });
   assert.ok(speech);
   const chunks: Uint8Array[] = [];
-  for await (const chunk of speech.speak("Computer, please reply with just the words, the connection is ready.", AbortSignal.timeout(60_000))) chunks.push(chunk);
+  const request = interrupt
+    ? "Computer, please start your reply with the connection is ready. Then add ten short sentences about careful listening in the same paragraph. Do not use tools or change files."
+    : "Computer, please reply with just the words, the connection is ready.";
+  for await (const chunk of speech.speak(request, AbortSignal.timeout(60_000))) chunks.push(chunk);
+  const interruption: Uint8Array[] = [];
+  if (interrupt) {
+    for await (const chunk of speech.speak("Computer, keep the exact name Delta Seven and do not change any files.", AbortSignal.timeout(60_000), speech.officerVoice?.("picard-data"))) interruption.push(chunk);
+  }
   // Long silence afterwards, so the looping test microphone does not repeat the request during the check.
   const audio = Buffer.concat([Buffer.alloc(24000), ...chunks, Buffer.alloc(48000 * 180)]);
   const header = Buffer.alloc(44);
@@ -62,6 +77,11 @@ try {
   let sentAudio = 0;
   let speaking = false;
   let audioWhileSpeaking = 0;
+  let interrupting = false;
+  let interruptionAudio = 0;
+  const commands: string[] = [];
+  const stoppedWork: string[] = [];
+  page.on("request", (request) => { if (/\/conversations\/[^/]+\/stop$/.test(request.url())) stoppedWork.push(request.url()); });
   page.on("websocket", (socket) => {
     socket.on("framereceived", ({ payload }) => {
       if (typeof payload !== "string") receivedAudio += payload.length;
@@ -71,8 +91,38 @@ try {
       }
     });
     socket.on("framesent", ({ payload }) => {
-      if (typeof payload !== "string") { sentAudio += payload.length; if (speaking) audioWhileSpeaking++; }
+      if (typeof payload !== "string") {
+        sentAudio += payload.length;
+        if (speaking) audioWhileSpeaking++;
+        if (interrupting && !commands.includes("stop-speaking")) interruptionAudio += payload.length;
+      } else commands.push(JSON.parse(payload).type);
     });
+  });
+  if (interrupt) await page.addInitScript(() => {
+    const send = WebSocket.prototype.send;
+    WebSocket.prototype.send = function (data) {
+      if (typeof data === "string" && JSON.parse(data).type === "stop-speaking"
+        && document.querySelector("#status")?.textContent === "Speaking") window.interruptedPlayback = true;
+      send.call(this, data);
+    };
+    const original = AudioContext.prototype.createMediaStreamSource;
+    AudioContext.prototype.createMediaStreamSource = function (stream) {
+      const destination = this.createMediaStreamDestination();
+      original.call(this, stream).connect(destination);
+      window.interruptTestSpeech = (audio) => {
+        const bytes = Uint8Array.from(atob(audio), (character) => character.charCodeAt(0));
+        const view = new DataView(bytes.buffer);
+        const buffer = this.createBuffer(1, bytes.length / 2, 24000);
+        const samples = buffer.getChannelData(0);
+        for (let index = 0; index < samples.length; index++) samples[index] = view.getInt16(index * 2, true) / 32768;
+        const source = this.createBufferSource();
+        source.buffer = buffer;
+        source.connect(destination);
+        source.onended = () => source.disconnect();
+        source.start();
+      };
+      return original.call(this, destination.stream);
+    };
   });
   // The app opens with the microphone on. Hold this test browser's microphone back until the model is chosen,
   // so the first request uses it.
@@ -96,12 +146,23 @@ try {
   await expect(page.locator(".message[data-role=user]")).toContainText(/connection is ready/i, { timeout: 60_000 });
   await expect(page.locator(".message[data-role=assistant]")).toContainText(/connection is ready/i, { timeout: 90_000 });
   await expect(page.getByRole("status")).toHaveText("Speaking", { timeout: 30_000 });
+  if (interrupt) {
+    interrupting = true;
+    await page.evaluate((audio) => window.interruptTestSpeech(audio), Buffer.concat(interruption).toString("base64"));
+    await expect.poll(() => commands.includes("stop-speaking"), { timeout: local && localListener === "whisper" ? 15_000 : 5000 }).toBe(true);
+    assert.equal(await page.evaluate(() => window.interruptedPlayback), true, "The answer must still be playing when the interruption stops it.");
+    assert.ok(interruptionAudio >= 640, "Real microphone audio must reach the listener before playback stops.");
+    await expect(page.locator(".message[data-role=user]")).toHaveCount(2, { timeout: 30_000 });
+    await expect(page.locator(".message[data-role=user]").last()).toContainText(/Computer.*Delta (?:Seven|7).*do not change any files/i);
+    assert.deepEqual(stoppedWork, [], "Interrupting spoken playback must not stop work.");
+    await expect(page.getByRole("status")).toHaveText("Speaking", { timeout: 90_000 });
+  }
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   await expect(page.getByRole("status")).toHaveText("Microphone off", { timeout: 30_000 });
   assert.ok(sentAudio > 16000, "Actual browser microphone audio must reach the chosen listener.");
   assert.ok(receivedAudio > 16000, "Actual chosen speaking service must return audible-length audio.");
-  assert.equal(audioWhileSpeaking, 0, "Playback must not be transcribed as another user request.");
-  await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
+  if (!interrupt) assert.equal(audioWhileSpeaking, 0, "Playback must not be transcribed as another user request.");
+  await expect(page.locator(".message[data-role=user]")).toHaveCount(interrupt ? 2 : 1);
   sessionID = (await engine.client.sessions(project))[0]?.id;
   assert.ok(sessionID);
   const saved = await engine.client.messages(sessionID, project);
@@ -109,7 +170,7 @@ try {
   if (observationError) throw observationError;
   assert.ok((deltas.get(sessionID) ?? 0) > 0, "The real model answer must produce live text updates, not only a saved final reply.");
   await page.screenshot({ path: resolve(directory, `${name}-conversation.png`), fullPage: true });
-  console.log(`Real ${name} browser conversation passed: synthesized test microphone, automatic turn submission, OpenCode + ${choice.provider} ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, mute and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
+  console.log(`Real ${name} browser conversation passed: synthesized test microphone, automatic turn submission, OpenCode + ${choice.provider} ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, ${interrupt ? "a spoken interruption with the exact request preserved, " : ""}mute and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
 } finally {
   controller.abort();
   await observation;

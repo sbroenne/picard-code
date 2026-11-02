@@ -974,6 +974,7 @@ npm run test:speech:local -- --listening whisper
 npm run test:conversation:live
 npm.cmd run test:conversation:live -- --local
 npm.cmd run test:conversation:live -- --local --whisper
+npm.cmd run test:conversation:live -- --local --interrupt
 npm run test:behavior:live
 ```
 
@@ -986,7 +987,7 @@ conversations, approvals, questions, folder boundaries, browser request
 protection, safe text rendering, and the desktop layout. They do not claim
 to have called a real model or executed a shell command. Speech tests use an
 artificial browser microphone and simulated speakers, with an explicitly separate speech test service
-to check automatic turns, follow-up context, paused listening during playback,
+to check automatic turns, follow-up context, listening during playback,
 deliberate approvals, and separate stopping controls. They also use silent
 stand-in sound files to check that each computer sound plays once at the right
 moment, never while listening, and not for answers to questions or cancelled work.
@@ -1013,6 +1014,10 @@ saved speech choices. Generated speech does not test a physical microphone.
 generated microphone audio, OpenCode, a real model from your signed-in provider, saved
 messages, live text updates, and real spoken playback. `--local` checks the
 same path with Nemotron and Kokoro; add `--whisper` for Whisper and Kokoro.
+Add `--interrupt` to play a generated request into the browser's capture path
+while a real spoken answer is playing. It checks that playback stops, the
+new request keeps its name and negation, and no stop-work request is sent.
+This tests overlapping speech, not a physical microphone or speaker echo.
 These checks make real model requests;
 the MAI variant also makes chargeable Azure requests. Earlier versions of both
 passed on the Windows development machine before the OpenCode 2 migration;
