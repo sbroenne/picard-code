@@ -197,6 +197,7 @@ test("technical names are spoken understandably while the written text keeps exa
     "The token in fixtures slash session dot json expired on January 1, 2025 at midnight UTC. See src slash app dot ts, lines 3 to 5 and spoken summary.");
   assert.equal(speakable("Read README.md and package.json at https://example.com/a/b."), "Read README dot md and package dot json at the link on screen.");
   assert.equal(speakable("Set API_KEY and MAX_RETRY_COUNT on 2026-03-09 14:05."), "Set API key and max retry count on March 9, 2026 at 14:05.");
+  assert.equal(spokenSummary("Review _example.ts_ and retry_policy.ts."), "Review example dot ts and retry policy dot ts.");
   assert.equal(speakable("Use one and/or the other, version 1.2.3, e.g. this."), "Use one and/or the other, version 1.2.3, e.g. this.");
   assert.equal(spokenSummary("`src/config.ts` sets `MAX_RETRIES` to `3`."), "src slash config dot ts sets max retries to 3.");
 });

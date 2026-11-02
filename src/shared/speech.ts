@@ -89,14 +89,17 @@ function joinList(items: string[]) {
   return shown.length < 3 ? shown.join(" and ") : `${shown.slice(0, -1).join(", ")}, and ${shown.at(-1)}`;
 }
 
+export function stripUnderscoreEmphasis(text: string) {
+  return text.replace(/(^|[^\w])__?([^_\n]+?)__?(?=[^\w]|$)/g, "$1$2");
+}
+
 /** Builds a complete short spoken answer from a written reply; detail stays on screen. */
 export function spokenSummary(text: string) {
-  const prose = text.replace(/```[\s\S]*?(?:```|$)/g, "")
+  const prose = stripUnderscoreEmphasis(text.replace(/```[\s\S]*?(?:```|$)/g, "")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/`([^`\n]+)`/g, (_whole, code: string) => speakableCode(code))
     .replace(/`/g, "")
-    .replace(/\*+/g, "")
-    .replace(/(^|[^\w])__?([^_\n]+?)__?(?=[^\w]|$)/g, "$1$2")
+    .replace(/\*+/g, ""))
     .replace(/^\s{0,3}(?:#{1,6}|>)\s*/gm, "")
     .trim();
   if (!prose) return "The result is on screen.";

@@ -41,7 +41,8 @@ Picard Code now follows that pattern:
 - The computer calls each officer the work needs, separately and at the same time. Officers never hand work to each other.
 - At most one officer may change files; the others only review.
 - When the Captain wants a recommendation, Riker receives the other officers' actual findings and recommends one course.
-- When the briefing ends, each officer speaks the first sentence of their own report in their own voice, Riker last, and the computer closes in one or two sentences. Full reports stay on screen. The computer then stops so the Captain can decide. "Make it so" carries out the recommendation.
+- Briefings are deliberate, as in the show: they happen only when the Captain asks for options, a recommendation or a briefing, or names several officers. Otherwise the computer answers, as the ship's computer does for look-ups, records and routine work, and a single officer is used only for a substantial expert judgment.
+- When the briefing ends, each officer speaks the first sentence of their own report in their own voice. Riker speaks last, with his recommendation and one short question asking whether to proceed. The computer's closing lines stay on screen unless they add something, such as an officer whose work failed, or Riker was not called. Full reports stay on screen. The computer then stops so the Captain can decide. "Make it so" carries out the recommendation.
 
 Because officers no longer hand work on, Picard Code keeps OpenCode's own limit of one level of helpers instead of raising it.
 

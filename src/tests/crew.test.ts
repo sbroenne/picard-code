@@ -157,8 +157,10 @@ test("the computer relays an officer's report briefly; a word-for-word copy is r
   assert.match(briefing, /spoken aloud before you speak/);
   assert.match(briefing, /already shown on\s+screen, so do not repeat them/);
   assert.match(crewBriefing(["picard-data", "picard-riker"]), /with Riker's last/);
-  assert.match(crewBriefing(["picard-data", "picard-riker"]), /name the course Riker recommends/);
-  assert.doesNotMatch(crewBriefing(["picard-data", "picard-worf"]), /Riker recommends/);
+  assert.match(crewBriefing(["picard-data", "picard-riker"]), /ends with one short\s+question asking the Captain whether to proceed/);
+  assert.match(crewBriefing(["picard-data", "picard-riker"]), /shown on screen only unless an officer failed, so do not\s+restate Riker's recommendation/);
+  assert.doesNotMatch(crewBriefing(["picard-data", "picard-riker"]), /name the course Riker recommends/);
+  assert.doesNotMatch(crewBriefing(["picard-data", "picard-worf"]), /Riker/);
   const report = "Captain, I refused because the procedure risked losing the experiences and memories that make me who I am.";
   assert.equal(repeatsReport(`**Data:** ${report}`, report, "Data"), true);
   assert.equal(repeatsReport(`Data reports: "${report}"`, report, "Data"), true);
@@ -173,8 +175,11 @@ test("Picard Code asks who handles a request, and the computer is told the answe
   for (const officer of BRIDGE_CREW) assert.ok(question.includes(`- ${officer.id}: ${officer.name}, ${officer.duty.toLowerCase()}`));
   assert.match(question, /Do\s+not answer the request, do not use tools/);
   assert.match(question, /the ids of the officers who should handle it, separated by commas, or the\s+single word computer/);
-  assert.match(question, /news,\s+research and explanations go to picard-data; writing, rewording and questions\s+about people go to picard-troi/);
-  assert.match(question, /Choose computer only for quick facts[\s\S]*small talk[\s\S]*Picard Code itself[\s\S]*Sir Patrick Stewart/);
+  assert.match(question, /The computer answers most requests/);
+  assert.match(question, /Choose computer for facts, look-ups, explanations, news,\s+research,\s+summaries, writing[\s\S]*small talk[\s\S]*Picard Code\s+itself[\s\S]*Sir Patrick Stewart/);
+  assert.match(question, /Choose one officer only when the request asks for a substantial expert\s+judgment/);
+  assert.match(question, /When in doubt, choose computer\./);
+  assert.match(question, /Choose several officers only when the Captain asks for options,\s+recommendations or a briefing/);
   assert.match(question, /"Rika" or\s+"Ryker" for Riker, "Walt"/);
   assert.ok(question.endsWith('word for word:\n"""\nComputer, Walt, review the login code.\n"""'), "the Captain's words are passed unchanged");
   assert.doesNotMatch(question, /latest\s+reply/);

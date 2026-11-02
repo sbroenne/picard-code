@@ -1,10 +1,11 @@
 import "./style.css";
 import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings } from "../src/shared/types";
 import { errorMessage } from "../src/shared/messages";
-import { firstSentence, replyFailed, spokenReply } from "../src/shared/speech";
+import { replyFailed } from "../src/shared/speech";
+import { spokenParts } from "../src/shared/briefing";
 import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../src/shared/questions";
 import { addressed, voiceCommand } from "../src/shared/wake";
-import { VoiceConversation, type FollowOn, type SpokenPart } from "./voice";
+import { VoiceConversation, type FollowOn } from "./voice";
 import { renderMarkdown } from "./markdown";
 import { formatStardate } from "../src/shared/stardate";
 import { TRIBUTE_ENTRIES, type TributeEntry } from "../src/shared/tribute-data";
@@ -49,6 +50,14 @@ let renderScheduled = false;
 /** Reply text that is still being written, shown until the stored conversation catches up. */
 const live = new Map<string, { sessionID: string; messageID: string; partType: "text" | "reasoning"; text: string; speaker?: CrewID; background?: boolean }>();
 let voiceTurn: { session: string; known: Set<string>; request: string; storyID?: string; outcome?: ExecutionOutcome; reference?: TributeEntry["source"] } | undefined;
+/**
+ * The voice leads: replies to a spoken request stay off screen until the voice starts saying them.
+ * They appear at once when there is nothing to wait for: speech ended or failed, the work stopped
+ * without a reply, a decision or question is waiting, or the log entry changed.
+ */
+let heldBack: { session: string; known: Set<string>; speaking: boolean; timer?: ReturnType<typeof setTimeout> } | undefined;
+// Longest wait for the voice to start before the reply is shown anyway.
+const VOICE_LEAD_LIMIT = 20_000;
 let tributeEnabled = true;
 let bridgeEnabled = true;
 let tributeCycle: TributeCycle;
@@ -243,24 +252,60 @@ function voiceControls() {
     ? `In use: ${cloudListening ? "Azure" : "this computer"} listens, ${cloudSpeaking ? "Azure" : "this computer"} speaks`
     : state?.speech?.error ?? "Speech is not set up yet";
   element("stop-speaking").hidden = !voice.speechPending || voice.phase === "cue";
+  checkHeldBack();
+}
+
+function isHeldBack(message: ChatMessage) {
+  return !!heldBack && heldBack.session === selected && message.role === "assistant" && !heldBack.known.has(message.id);
+}
+
+function releaseHeldBack() {
+  if (!heldBack) return;
+  clearTimeout(heldBack.timer);
+  heldBack = undefined;
+  scheduleRender();
+  renderWorking();
+}
+
+function checkHeldBack() {
+  if (!heldBack) return;
+  const done = heldBack.session !== selected || !voice.connected || !voice.microphone || pending()
+    || (heldBack.speaking ? voice.phase === "speaking" || !voice.speechPending : !voiceTurn && !submitting);
+  if (done) releaseHeldBack();
+  // Finished work whose reply is never spoken must still appear.
+  else if (!heldBack.timer && !busy() && !submitting) heldBack.timer = setTimeout(releaseHeldBack, VOICE_LEAD_LIMIT);
+}
+
+/** Called just before a held-back reply is spoken; the text appears when the voice starts. */
+function speakHeldBack() {
+  if (!heldBack) return;
+  heldBack.speaking = true;
+  clearTimeout(heldBack.timer);
+  heldBack.timer = setTimeout(releaseHeldBack, VOICE_LEAD_LIMIT);
 }
 
 function completeVoiceReply() {
   if (!voiceTurn || voiceTurn.session !== selected || busy() || pending() || submitting || historyLoading || historyDue) return;
   const reply = messages.findLast((message) => message.role === "assistant" && !message.background && !voiceTurn!.known.has(message.id))
-    ?? messages.findLast((message) => message.background && replyFailed(message) && !voiceTurn!.known.has(message.id));
+    ?? messages.findLast((message) => message.background && failedReport(message) && !voiceTurn!.known.has(message.id));
   if (!reply) return;
   const outcome = reply.outcome ?? voiceTurn.outcome;
   if (!outcome) return;
   const turn = voiceTurn;
   voiceTurn = undefined;
-  const successful = outcome === "succeeded" && !replyFailed(reply) && !declinedReply(reply);
+  const failed = failedReport(reply);
+  if (failed && heldBack) { releaseHeldBack(); renderMessages(); }
+  else speakHeldBack();
+  const successful = outcome === "succeeded" && !failed && !declinedReply(reply);
   const at = messages.indexOf(reply);
-  const reports = reply.background ? [] : reportsAround(messages, at).filter((message) => !turn.known.has(message.id));
-  const repeated = repeatsOfficer(messages, at);
+  const failures = officerFailures(messages, at, turn.known);
+  const failedSources = new Set(failures.map((message) => message.sourceSessionID ?? message.id));
+  const reports = reply.background ? [] : reportsAround(messages, at)
+    .filter((message) => !turn.known.has(message.id) && !failedSources.has(message.sourceSessionID ?? message.id));
+  const repeated = repeatsOfficer(messages, at, reports);
   const reportCopy = repeated ? reports.find((report) => repeatsReport(written(reply), written(report), crewMember(report.speaker)!.name)) : undefined;
   // Keep tribute records with the visible answer when the computer's repeated report is hidden.
-  const answer = !replyFailed(reply) && reports.length === 1 && (!written(reply).trim() || repeated) ? reports[0]! : reply;
+  const answer = !failed && reports.length === 1 && (!written(reply).trim() || repeated) ? reports[0]! : reply;
   const key = `${turn.session}:${(reportCopy ?? answer).id}`;
   const display: { fact?: TributeEntry; factShownAt?: Date; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] } = {};
   if (successful && turn.reference) display.reference = turn.reference;
@@ -290,25 +335,20 @@ function completeVoiceReply() {
   }
   if (display.fact || display.invitation || display.story || display.reference) {
     tributeDisplay.set(key, display);
-    renderMessages();
+    scheduleRender();
   }
-  voice.speak(spokenParts(reply, answer, successful && !repeated ? reports : []), replyFailed(reply), tail);
+  voice.speak(spokenParts(reply, answer, successful ? reports : [], { failed: failures, repeated }), failed, tail);
 }
 
-/**
- * What is said aloud for a finished reply. When one officer's report is the answer, it is spoken in that
- * officer's voice instead of silence or the computer's word-for-word copy. After a successful briefing, each
- * officer gives the first sentence of their own report in their own voice, Riker last, and the computer closes.
- */
-function spokenParts(reply: ChatMessage, answer: ChatMessage, reports: ChatMessage[]): SpokenPart[] {
-  if (answer !== reply) return [{ text: spokenReply(answer), speaker: answer.speaker }];
-  const ordered = [...reports.filter((report) => report.speaker !== "picard-riker"), ...reports.filter((report) => report.speaker === "picard-riker")];
-  const findings = ordered
-    .map((report) => ({ text: firstSentence(spokenReply(report)), speaker: report.speaker }))
-    .filter((part) => !/^aye,? sir[.!]?$/i.test(part.text))
-    // The speech service takes at most eight parts; the computer's close is always the last.
-    .slice(-7);
-  return [...findings, { text: spokenReply(reply), speaker: reply.speaker }];
+/** Failed assignments called for this request, after any recovery in the same assignment. */
+function officerFailures(list: ChatMessage[], index: number, known: Set<string>) {
+  const start = list.findLastIndex((message, at) => at < index && message.role === "user");
+  const next = list.findIndex((message, at) => at > index && message.role === "user");
+  const latest = new Map<string, ChatMessage>();
+  for (const message of list.slice(start + 1, next < 0 ? undefined : next)) {
+    if (message.background && !known.has(message.id) && crewMember(message.speaker)) latest.set(message.sourceSessionID ?? message.id, message);
+  }
+  return [...latest.values()].filter(failedReport);
 }
 
 function cancelTributeSpeech() {
@@ -537,10 +577,11 @@ function renderMessages() {
   const list = shown();
   const latest = list.findLastIndex((message) => message.role === "user");
   list.forEach((message, index) => {
-    // Only the written answer is shown. A reply without one still shows why an action failed or was refused.
+    // A failed final action stays visible even when the officer wrote part of a report.
     const texts = message.parts.filter((part) => part.type === "text" && part.text.trim());
-    const failures = texts.length ? [] : message.parts.filter((part) => part.type === "tool" && part.status === "error");
+    const failures = texts.length && !failedReport(message) ? [] : message.parts.filter((part) => part.type === "tool" && part.status === "error");
     if (message.role === "assistant" && !texts.length && !failures.length && !message.error) return;
+    if (isHeldBack(message)) return;
     if (repeatsOfficer(list, index)) return;
     if (!texts.length && !message.error && message.role === "assistant" && recovered(list, index)) {
       // A step that failed before the answer arrived stays readable, folded away, without looking like the answer failed.
@@ -786,19 +827,23 @@ function written(message: ChatMessage) {
   return message.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n");
 }
 
+function failedReport(message: ChatMessage) {
+  return message.outcome === "failed" || message.outcome === "interrupted" || replyFailed(message);
+}
+
 /** The officers' reports made for the same request as the message at this position. */
 function reportsAround(list: ChatMessage[], index: number) {
   const start = list.findLastIndex((message, at) => at < index && message.role === "user");
   const next = list.findIndex((message, at) => at > index && message.role === "user");
   return list.slice(start + 1, next < 0 ? undefined : next)
-    .filter((message) => message.background && crewMember(message.speaker) && written(message).trim() && !replyFailed(message));
+    .filter((message) => message.background && crewMember(message.speaker) && written(message).trim() && !failedReport(message));
 }
 
 /** A computer reply that only repeats an officer's report adds nothing; the report itself is the answer. */
-function repeatsOfficer(list: ChatMessage[], index: number) {
+function repeatsOfficer(list: ChatMessage[], index: number, reports?: ChatMessage[]) {
   const message = list[index]!;
-  if (message.role !== "assistant" || message.background || message.speaker || message.error || !written(message).trim()) return false;
-  return reportsAround(list, index).some((report) => repeatsReport(written(message), written(report), crewMember(report.speaker)!.name));
+  if (message.role !== "assistant" || message.background || message.speaker || failedReport(message) || !written(message).trim()) return false;
+  return (reports ?? reportsAround(list, index)).some((report) => repeatsReport(written(message), written(report), crewMember(report.speaker)!.name));
 }
 
 /** A step failed, but the same request went on: a later reply has written text, or the work is still running. */
@@ -841,15 +886,18 @@ function spokenList(names: string[]) {
 
 /** A line at the end of the conversation while the server reports the request as running. */
 function renderWorking() {
+  checkHeldBack();
   const node = element("working");
   const status = selected ? state?.statuses[selected] : undefined;
-  const show = !!state && (!!status || submitting) && !pending();
+  const preparing = !!heldBack && heldBack.session === selected;
+  const show = !!state && (!!status || submitting || preparing) && !pending();
   node.hidden = !show;
   if (!show) return;
   const officers = [...new Set(state!.crew.activity
     .filter((item) => item.logEntryID === selected && item.officer)
     .map((item) => crewMember(item.officer)!.name))];
-  const text = !status ? "Sending your request."
+  const text = !status && !submitting ? "Preparing the reply."
+    : !status ? "Sending your request."
     : status.type === "retry" ? `Retrying. ${status.message ?? ""}`.trim()
     : officers.length ? `${spokenList(officers)} ${officers.length === 1 ? "is" : "are"} working on it.`
     : "Working on it.";
@@ -1063,6 +1111,8 @@ async function sendMessage(spoken: string, requestedStoryID?: string) {
     if (!requestedStoryID && subject && !stories.length) throw new Error(`No reviewed ${subject} stories are available.`);
     const storyID = requestedStoryID ?? (subject ? stories[randomIndex(stories.length, Math.random)]!.id : undefined);
     voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)), request: text, storyID };
+    releaseHeldBack();
+    if (voice.connected) heldBack = { session: id, known: voiceTurn.known, speaking: false };
     const accepted = await api<{ accepted: boolean; reference?: TributeEntry["source"] }>(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, bridge: bridgeEnabled, tribute: { mode: tributeMode(tributeEnabled), ...(storyID ? { storyID } : {}) } });
     if (voiceTurn) voiceTurn.reference = accepted.reference;
     voice.acknowledge();

@@ -216,7 +216,10 @@ export async function startFixture(project: string) {
           // Like OpenCode's one-off answer: it reads the log entry but adds nothing to it. This stand-in picks officers by fixed words.
           const request = /"""\n([\s\S]*)\n"""$/.exec(String(data.prompt ?? ""))?.[1] ?? "";
           if (crewChoices[0] === null) { crewChoices.shift(); send(500, { message: "The test model cannot be reached." }); return; }
-          const chosen = crewChoices.length ? crewChoices.shift()! : /\bData and Geordi\b/.test(request) ? "picard-data, picard-geordi" : /\bfrom Data\b/i.test(request) ? "picard-data" : "computer";
+          const chosen = crewChoices.length ? crewChoices.shift()!
+            : /\bData and Geordi\b/.test(request) ? "picard-data, picard-geordi"
+            : /\bData and Riker\b/.test(request) ? "picard-data, picard-riker"
+            : /\bfrom Data\b/i.test(request) ? "picard-data" : "computer";
           send(200, { data: { text: chosen } });
         } else if (action === "agent") {
           session.agent = String(data.agent);
@@ -263,7 +266,45 @@ export async function startFixture(project: string) {
           send(200, {});
           const manner = instructions.get(sessionID)?.["picard-manner"] ?? "";
           // The computer holds a briefing only when Picard Code has really called one.
-          if (manner.includes("Hold a briefing") && /\bData and Geordi\b/.test(text)) {
+          if (manner.includes("Hold a briefing") && /\bData and Riker\b/.test(text)) {
+            const denied = text.includes("Data's action is denied");
+            const parentDenied = text.includes("computer's action is denied");
+            const noClose = text.includes("no computer close");
+            if (parentDenied) assistant(sessionID, [
+              { type: "text", text: "Test stand-in: I recommend the smaller repair, Captain." },
+              { type: "tool", id: "call_parent", name: "shell", state: { status: "error", input: { command: "echo crew" }, error: { type: "aborted", message: "The user declined this tool call" } } },
+            ], { type: "aborted", message: "Step interrupted" });
+            else if (!noClose) reply(sessionID, text.includes("repeated close")
+              ? "Test stand-in: I recommend the smaller repair, Captain."
+              : denied
+              ? "Test stand-in: Data's action was denied. No command was run."
+              : "Test stand-in: The recommendation is waiting for your decision.", generation);
+            later(() => {
+              if (!current(sessionID, generation)) return;
+              const data = createSession(directory, "Data investigation", sessionID, "picard-data");
+              data.model = session.model;
+              if (denied && text.includes("after a successful step")) {
+                assistant(data.id, [{ type: "text", text: "Test stand-in: Data completed an earlier step." }]);
+              }
+              if (denied || text.includes("recovered action")) {
+                assistant(data.id, [
+                  ...denied ? [{ type: "text" as const, text: "Test stand-in: Data began an investigation." }] : [],
+                  { type: "tool", id: "call_test", name: "shell", state: { status: "error", input: { command: "echo crew" }, error: { type: "aborted", message: "The user declined this tool call" } } },
+                ], { type: "aborted", message: "Step interrupted" });
+              }
+              if (!denied) assistant(data.id, [{ type: "text", text: "Test stand-in: Data found a small repair." }]);
+              if (denied && text.includes("second succeeds")) {
+                const retry = createSession(directory, "Data second investigation", sessionID, "picard-data");
+                retry.model = session.model;
+                assistant(retry.id, [{ type: "text", text: "Test stand-in: Data found a small repair." }]);
+              }
+              const riker = createSession(directory, "Riker recommendation", sessionID, "picard-riker");
+              riker.model = session.model;
+              const question = text.includes("retry_policy.ts") ? "Shall I update retry_policy.ts?" : "Shall I proceed?";
+              assistant(riker.id, [{ type: "text", text: `Test stand-in: I recommend the smaller repair, Captain.\n\n${question}` }]);
+              if (noClose || parentDenied) finish(sessionID, parentDenied ? "interrupted" : "succeeded");
+            }, 50);
+          } else if (manner.includes("Hold a briefing") && /\bData and Geordi\b/.test(text)) {
             const data = createSession(directory, "Data investigation", sessionID, "picard-data");
             data.model = session.model;
             assistant(data.id, [{ type: "text", text: "Test stand-in: Data supplied an investigation report." }]);
@@ -342,6 +383,14 @@ export async function startFixture(project: string) {
             later(() => {
               if (!current(sessionID, generation)) return;
               finish(sessionID, "failed", { type: "provider.no-route", message: "The test model cannot be reached." });
+            }, 100);
+          } else if (text.includes("without an ending")) {
+            later(() => {
+              if (!current(sessionID, generation)) return;
+              assistant(sessionID, [{ type: "text", text: "Test stand-in: a saved reply without a terminal outcome." }]);
+              active.delete(sessionID);
+              publish(directory, "session.step.ended", { sessionID });
+              publish(directory, "session.created", { sessionID });
             }, 100);
           } else {
             later(() => reply(sessionID, text.includes("unsafe") ? "<img src=x onerror=alert('unsafe')>\n```js\nconst safe = true;\n```\n\n## Result\n\nThis is **bold**, *emphasis* and `code`.\n\n- first\n- second\n\n| Name | Value |\n| --- | --- |\n| a | 1 |\n\n[Docs](https://example.com) [Bad](javascript:alert(1)) ![Picture](https://example.com/p.png)"

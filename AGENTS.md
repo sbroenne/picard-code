@@ -90,8 +90,13 @@ also has fixed voices: Alloy for Kokoro and Iris for MAI. Do not add voice
 selection; listening and speaking service choices stay independent. Use only
 American, British or Australian English voices, never French or Indian
 accents. Never clone
-a voice or train on show recordings. Work that needs several officers is a briefing: the
-computer calls each officer itself, and officers never hand work to each
+a voice or train on show recordings. The computer answers by default; an officer
+is used when named or for a substantial expert judgment in their area, and a
+briefing only when the Captain asks for options, a recommendation or a
+briefing, or names several officers. In a briefing Riker speaks last and ends
+with a short question; the computer's close is spoken only when it adds
+something new. Spoken replies appear on screen when the voice starts. A briefing:
+the computer calls each officer itself, and officers never hand work to each
 other. Riker is not a coordinator. The computer stays neutral.
 Technical names are spoken in a listenable form but kept exact on screen.
 Avoid repeated catchphrases such as "Working". The user is always

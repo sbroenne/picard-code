@@ -29,6 +29,8 @@ export interface ChatMessage {
   outcome?: "succeeded" | "failed" | "interrupted";
   speaker?: CrewID;
   background?: boolean;
+  /** The related OpenCode entry that produced a background report. */
+  sourceSessionID?: string;
   created?: number;
 }
 
