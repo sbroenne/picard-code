@@ -1,5 +1,17 @@
 # Picard Code release notes
 
+## 1701.4.3
+
+### Patch Changes
+
+- [#39](https://github.com/sbroenne/picard-code/pull/39) [`18fdb3c`](https://github.com/sbroenne/picard-code/commit/18fdb3c58fbaafe65a3b5155e835fa93bc103b81) - The computer now answers most requests itself, as on the Enterprise; officers step in when named or for real expert judgment, and briefings happen only when you ask for one. In a briefing Riker speaks last with a short question, the computer no longer repeats him, and replies now appear on screen when the voice starts speaking them.
+
+- [#42](https://github.com/sbroenne/picard-code/pull/42) [`9c015d1`](https://github.com/sbroenne/picard-code/commit/9c015d19f05973c2d9ebec636e24d768afe6eef5) - Switching the microphone off and back on keeps the current log entry and its follow-ups.
+
+- [#42](https://github.com/sbroenne/picard-code/pull/42) [`9c015d1`](https://github.com/sbroenne/picard-code/commit/9c015d19f05973c2d9ebec636e24d768afe6eef5) - Officer replies now show just the officer’s name, without the repeated Crew report label.
+
+- [#42](https://github.com/sbroenne/picard-code/pull/42) [`9c015d1`](https://github.com/sbroenne/picard-code/commit/9c015d19f05973c2d9ebec636e24d768afe6eef5) - New log entries show their Stardate on the opening screen without speaking it aloud.
+
 ## 1701.4.2
 
 ### Patch Changes

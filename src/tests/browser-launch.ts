@@ -29,6 +29,7 @@ const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there",
   : process.argv.includes("--officer") ? ["Computer, I wanted to have an answer from Data", ""]
   : process.argv.includes("--news") ? ["Computer, get the news from Data", ""]
   : process.argv.includes("--tribute") ? ["Computer, multi-message answer", "Hello again", "Another answer", "One more answer", "Keep going", "The last answer", ""]
+  : process.argv.includes("--resume") ? ["Computer, hello there", "Computer, hello again", ""]
   : process.argv.includes("--picard") ? ["Computer, tell me about myself", "Yes, please.", ""]
   : process.argv.includes("--picard-decline") ? ["Computer, tell me about myself", "Not now", ""]
   : process.argv.includes("--stewart") ? ["Computer, tell me a short story about Sir Patrick Stewart", ""]

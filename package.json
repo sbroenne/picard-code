@@ -1,6 +1,6 @@
 {
   "name": "picard-code",
-  "version": "1701.4.2",
+  "version": "1701.4.3",
   "description": "Speak to OpenCode the way Captain Picard spoke to the ship's computer. An unofficial, voice-only tribute that runs on your own computer.",
   "keywords": [
     "opencode",
@@ -38,6 +38,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build",
     "start": "node dist/server/cli.js",
+    "dev": "npm run build && node tools/dev.mjs",
     "test": "node --test dist/tests/*.test.js",
     "check": "oxlint --deny-warnings && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json",
     "test:browser": "playwright test",
