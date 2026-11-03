@@ -51,9 +51,10 @@ screen.
 A small local browser app. OpenCode does the coding, with any model provider it
 supports, and keeps every log entry. Like the ship's computer, it
 listens all the time and acts only on requests that start with "Computer".
-By default, listening (Whisper) and speaking (Kokoro) run on this computer,
+By default, listening (Nemotron) and speaking (Kokoro) run on this computer,
 with no cloud account. Your own Azure MAI resource can be chosen instead, for
-either side or both.
+either side or both, under **Advanced setup**. Saved Whisper listening choices
+are upgraded to Nemotron automatically; the speaking choice stays the same.
 
 ## Get started
 
@@ -63,14 +64,15 @@ You need:
 - A microphone, and speakers or headphones.
 - A model provider OpenCode can use (see
   [Connect a model provider](#connect-a-model-provider)).
-- For speech on this computer, one of these computers, with about **750 MB**
-  of free disk space:
+- For speech on this computer, one of these computers. Allow **2 GB**
+  of free disk space for the default Nemotron and Kokoro setup:
   - an Apple silicon Mac with macOS 14 or newer;
   - Windows on an x64 or ARM processor (ARM uses Intel-compatible Python
     through Windows' built-in emulation);
-  - Linux on an x64 or arm64 processor, with glibc 2.28 or newer (most desktop
-    Linux versions since 2019).
+  - Linux on an x64 or arm64 processor, with glibc 2.31 or newer.
 
+  Nemotron's Linux runtime needs glibc 2.31 or newer. Windows ARM uses the Intel-compatible
+  Nemotron runtime; that path has not yet been checked on a Windows ARM machine.
   Other computers can use [Azure speech](#azure-speech-setup) instead.
 
 Then, in a terminal:
@@ -88,6 +90,9 @@ yourself. OpenCode 1 is not supported.
 Before the computer starts listening, choose an **AI model** in
 **Computer intelligence** and choose **Use this model**. For the best experience, choose the most capable
 model your provider offers; it may cost more or take longer to answer.
+First setup keeps AI provider connection, AI model choice and speech
+preparation in a central LCARS-style flow, with the current step highlighted.
+The side tiles open settings drawers for later changes.
 Picard Code does not rank models or choose one for you, even when free OpenCode
 models are available. If OpenCode has no connected providers and you have not
 saved a model choice, **Connect your AI provider** opens first. It recommends
@@ -101,13 +106,14 @@ and project folders, without changing OpenCode's default. Existing users also
 confirm a model once when first using this version. If that model becomes
 unavailable, choose and confirm another; Picard Code never substitutes a model.
 
-On a fresh installation, the app also opens without speech. After confirming
-your model, the speech panel opens. Choose the
-**Listen · Speak** tile, keep **On this computer** for listening and speaking,
-and choose **Save and apply**. The app downloads local Whisper and Kokoro
-speech, shows each step, and starts speech when it is ready, without a restart
-(see [Local Whisper and Kokoro setup](#local-whisper-and-kokoro-setup)).
+On a fresh installation, the app also opens without speech. After choosing
+your AI model, choose **Prepare the computer**. The app downloads
+local Nemotron and Kokoro speech, shows each real step in an LCARS-style
+display, and starts speech when it is ready, without a restart
+(see [Local speech setup](#local-nemotron-and-kokoro-setup)).
 This is a one-time download; later starts use your saved speech choices.
+The preparation screen keeps its explanation and controls together. The
+listening console appears only after speech is available, not during setup.
 If you choose [Azure speech](#azure-speech-setup) for both listening and
 speaking, no local speech download is needed. Speech choices are separate
 from the model provider OpenCode uses.
@@ -238,7 +244,8 @@ You do not have to name an officer. When you don't, Picard Code first asks the
 selected model, in a quick separate check, who should handle the request, and
 then hands it over itself. This check adds nothing to the log entry, usually
 takes a second or two, and makes one small extra model request. If it fails,
-the request is not sent and the real error is shown.
+the request is not sent and the computer says the real error, which also stays
+on screen.
 
 As on the Enterprise, the computer answers most requests itself: facts,
 look-ups, explanations, news, research, summaries, writing, finding things in
@@ -369,8 +376,9 @@ including OpenCode's permission behavior, are under **About the connection**.
 Computer intelligence labels the selector **AI model** and shows **Model saved**
 after confirmation. First-time guidance recommends a capable model; saved
 choices and recovery have their own wording rather than repeating the welcome.
-**Use this model** stays off until you choose a different model. Saving goes
-straight to speech setup, or closes the panel if speech is already set up;
+**Use this model** stays off until you choose a different model. During first
+setup, saving moves straight to the central speech preparation screen, or
+finishes setup if speech is already ready. Later changes use settings drawers;
 there is no extra confirmation screen. **About this choice**
 explains where the choice is remembered; if the saved model is unavailable,
 **Refresh connection** is offered in the same panel.
@@ -424,8 +432,9 @@ screen; there is no phone layout.
   **Computer intelligence** the AI model, **Project** the folder,
   **Listen · Speak** the speech services, and the tribute badge **About**.
   Choosing the same tile again
-  closes it. Without a saved model choice, AI provider opens first only when
-  OpenCode has no connected providers; otherwise Computer intelligence opens.
+  closes it. Without a saved model choice, the central first-run panel shows
+  AI provider first only when OpenCode has no connected providers; otherwise
+  it shows Computer intelligence. The panel then moves to speech preparation.
   An unavailable saved model opens Computer intelligence for recovery,
   without choosing a replacement. Listening stays off until an available model
   is confirmed and speech is set up. Listening pauses while a setting is open. Speech
@@ -612,8 +621,7 @@ on-screen button.
   without switching the microphone on or off.
   Listening uses the browser's echo cancellation and ignores recognized words
   repeated from the current spoken answer. If that also blocks your interruption,
-  click the panel or **Stop speaking**. Whisper recognizes the interruption
-  after you pause; services with live words can stop playback sooner.
+  click the panel or **Stop speaking**. Both listening services provide live words.
   Listening still pauses for computer sounds.
 - When OpenCode asks a single question, the computer reads it aloud with its
   choices and listens for your answer; no "Computer" is needed for the answer.
@@ -681,7 +689,7 @@ sends any speech it hears to Azure** to find out whether it starts with
 "Computer", even speech not meant for the computer; quiet room sound is not
 sent. "Computer" starts a task; once it starts, follow-up speech also goes to
 the model without that prefix until you return to standing by. MAI speaking
-sends reply text to Azure. Whisper and Kokoro process their audio locally.
+sends reply text to Azure. Nemotron and Kokoro process their audio locally.
 With both local speech services, speech is processed on this computer.
 An online model provider still receives coding requests; a local model's
 own tools and network settings determine any other connections.
@@ -689,26 +697,43 @@ Say "stop listening" before conversations you do not want sent to the model,
 or switch the microphone off with its button so nothing is heard at all;
 background speech can be misunderstood.
 
-## Local Whisper and Kokoro setup
+<a id="local-whisper-and-kokoro-setup"></a>
+<a id="local-nemotron-whisper-and-kokoro-setup"></a>
+
+## Local Nemotron and Kokoro setup
 
 This is the default speech setup. It needs no cloud account and keeps your
 speech on this computer.
 
-Local listening uses **faster-whisper** with the English `tiny.en` model.
+Local listening defaults to **Nemotron Speech Streaming English 0.6B**,
+using NVIDIA's native **NeMo-Speech.cpp 0.3.0** CPU runtime. Words appear
+while you speak, but the request is not sent until you finish.
 Local speaking uses **kokoro-onnx**, the standard Kokoro model, and its original
 prebuilt American English `af_alloy` voice for the computer. The computer and
 crew voices are fixed, with no voice selection. Both run on the CPU. No Azure resource, key, or login
 is needed when both sides are local. A model provider is still needed for coding.
 
-Start Picard Code, choose the **Listen · Speak** tile, keep
-**On this computer** for listening and speaking, and choose **Save and apply**.
-Picard Code downloads everything in the background, shows each step, and
+Start Picard Code and choose **Prepare the computer**.
+Picard Code downloads local speech in the background, shows each real step, and
 starts the selected speech services when ready. No restart is needed. If the
-download fails, the real reason is shown and any working speech stays in place.
+download fails, the real reason is shown with **Try again**, and any working
+speech stays in place. The segmented LCARS display shows that setup is running,
+not an invented percentage. Reopening the page follows the same download.
+Azure choices are under **Listen · Speak → Advanced setup** and require your
+own subscription and deployed speech models.
 
-The local files are needed if either listening uses Whisper or speaking uses
-Kokoro, even when the other side uses Azure. With Azure for both sides, this
-download is not needed.
+Only the selected local services are downloaded. Nemotron needs about
+**700 MB** for its English model and about **7-10 MB** for its CPU runtime.
+Kokoro's model
+and voice data need about **354 MB**. The default combination therefore
+downloads about **1.05 GB of models**, plus its runtime, Python and packages. Download size
+is not memory use.
+
+Whisper is no longer supported. Saved Whisper installations automatically
+prepare Nemotron, downloading it if needed. The saved listener changes only
+after the new services start successfully. A failure keeps the old settings
+for retry; old Whisper model files are not deleted. The saved speaking choice,
+including Azure, and fixed speaking voices do not change.
 
 If you prefer, download local speech once from a terminal before starting
 the app (optional and safe to run again):
@@ -717,31 +742,57 @@ the app (optional and safe to run again):
 npx picard-code setup-speech
 ```
 
-Picard Code then uses Whisper and Kokoro whenever you start it, unless your
-saved speech settings choose Azure.
+This downloads Nemotron and Kokoro without changing saved choices.
+Setup also accepts `--speaking mai`
+to skip Kokoro, or `--listening mai` to skip local listening.
 
 Setup works in this order, all inside `.picard-code` in your home folder:
 
 1. It checks that this computer can run local speech (see
    [Get started](#get-started)), and stops with a plain reason if not.
-2. It uses the [uv](https://docs.astral.sh/uv/) already installed, a tool that
+2. When Kokoro is needed, it uses the [uv](https://docs.astral.sh/uv/) already installed, a tool that
    sets up Python. If there is none, it downloads uv 0.13.6 from uv's GitHub
    release and checks it against a fixed checksum.
-3. uv finds or downloads Python 3.11 and installs the speech packages listed in
-   `scripts/requirements-speech.txt`.
-4. It downloads roughly **432 MB** of model files. The Kokoro files are checked
-   against published checksums; the public Whisper download is fixed to a
-   specific revision and uses no account token.
+3. If Kokoro is selected, uv finds or downloads Python 3.11 and
+   installs its pinned packages. Nemotron alone does not
+   need Python.
+4. It downloads the selected models and, for Nemotron, the official CPU runtime.
+   The Nemotron runtime and model and the Kokoro files have fixed SHA-256
+   checksums. Nemotron model downloads use a fixed public revision
+   with no account token. Licenses and notices stay with the files.
 
-Together these use about 750 MB of disk space. An installed uv keeps any
-Python it downloads in its usual place; otherwise nothing is installed
-outside that folder. Inference uses local
-files only, with up to four CPU threads per service.
+Allow 2 GB of free disk space for the default setup.
+An installed uv keeps any Python it downloads in its usual place; otherwise
+nothing is installed outside that folder. Recognition and speaking use local
+files only, with up to four CPU threads per service. Nemotron's local service
+binds only to `127.0.0.1`, requires a server-held connection key, and stops
+when Picard Code stops.
 
-Both paths use the same automatic listen/respond loop. Whisper starts
-recognizing after the pause; unlike MAI, it does not display live words while
-you are speaking. Stopping speech discards late audio and does not block the
-separate listening worker. No service is silently replaced if setup fails.
+All paths use the same automatic listen/respond loop. Nemotron and MAI show
+words while you speak. The
+browser still decides when the complete request ends, so live words cannot
+start work or answer approvals. Stopping speech discards late audio and does
+not block the separate listening worker. No service is silently replaced if
+setup fails.
+
+Nemotron's published Linux binaries require glibc 2.31 or newer. Computers
+that cannot run Nemotron need an explicitly chosen Azure speech resource. Windows ARM
+uses the Windows x64 Nemotron binary through Windows' compatibility support;
+that Nemotron path is not yet verified on a Windows ARM machine. Setup does
+not try a source build or silently choose another listener.
+
+On the checked Apple Silicon Mac, a real CPU check with original
+Kokoro-generated audio produced Nemotron's first live words in **441-661 ms**.
+Its final result arrived **59-216 ms after committing** the request, versus
+**203-259 ms** for Whisper on the same three generated phrases. Nemotron
+startup took **2.7 seconds**, versus **1.3 seconds** for Whisper. Both
+preserved an original command naming Computer and Data and saying "do not
+change any files", and both passed listening and speaking cancellation.
+These small synthetic checks do not establish physical microphone accuracy,
+typical speed, memory use, or Windows/Linux behavior.
+
+The following Windows measurements used the retired Whisper listener. They
+are historical evidence, not checks of Nemotron on Windows.
 
 On Windows ARM, app startup, the OpenCode 2.1.4 connection and all six bridge
 officers have been checked on the development machine. Real local speaking
@@ -766,7 +817,7 @@ technical terms; the understood request remains visible.
 ## Azure speech setup
 
 Azure speech is optional. Choose it for either side if you have your own Azure
-resource; unlike Whisper, MAI listening shows your words live while you speak.
+resource. Like Nemotron, MAI listening shows your words live while you speak.
 
 This version uses **MAI-Transcribe-2-Streaming** for live listening and the
 prebuilt American English **Iris / MAI-Voice-2.1-Flash** voice with its **neutral**
@@ -872,18 +923,19 @@ the written log entry intact and reports what failed.
 
 ### Select either side independently
 
-Whisper and Kokoro are the default. A side uses Azure MAI only when you choose
-it in the **Listen · Speak** tile, in `speech.json`, or with a launch option.
+Nemotron and Kokoro are the default. A side uses Azure MAI only when you choose
+it in **Listen · Speak → Advanced setup**, in `speech.json`, or with a launch option.
 Launch options override the settings file:
 
 ```sh
 npx picard-code --listening mai --speaking kokoro
-npx picard-code --listening whisper --speaking mai
+npx picard-code --listening nemotron --speaking mai
 ```
 
 For a mixed setup, keep the Azure resource settings and set `listening` and
 `speaking`. Only MAI listening requires `deployment`. Optional local settings
-are `localPython`, `whisperModel`, `kokoroModel`, and `kokoroVoices`.
+are `localPython`, `nemotronProgram`, `nemotronModel`,
+`kokoroModel`, and `kokoroVoices`.
 The path settings are kept when you save from the **Listen · Speak** setting,
 but can only be changed in the file. File paths are resolved from the launch
 folder; if launching outside this repository, use absolute local paths. Launch
@@ -973,6 +1025,8 @@ npm run test:speech:live
 npm run test:speech:local
 npm run test:conversation:live
 npm.cmd run test:conversation:live -- --local
+npm.cmd run test:conversation:live -- --local --interrupt
+npm.cmd run test:conversation:live -- --local --quiet-interrupt
 npm run test:behavior:live
 ```
 
@@ -985,7 +1039,7 @@ conversations, approvals, questions, folder boundaries, browser request
 protection, safe text rendering, and the desktop layout. They do not claim
 to have called a real model or executed a shell command. Speech tests use an
 artificial browser microphone and simulated speakers, with an explicitly separate speech test service
-to check automatic turns, follow-up context, paused listening during playback,
+to check automatic turns, follow-up context, listening during playback,
 deliberate approvals, and separate stopping controls. They also use silent
 stand-in sound files to check that each computer sound plays once at the right
 moment, never while listening, and not for answers to questions or cancelled work.
@@ -1001,21 +1055,30 @@ generated audio through MAI's live listening connection, checking both final
 words and live word updates. It does not capture your microphone or call
 a model.
 
-`test:speech:local` performs real CPU Kokoro synthesis and Whisper recognition,
-checks speaking cancellation followed by fresh listening, and saves an
-original sample under `.picard-voice/samples`.
+`test:speech:local` performs real CPU Kokoro synthesis and Nemotron recognition. It feeds audio
+at microphone pace, checks live Nemotron words before commit, names and
+negations, and listening/speaking cancellation followed by fresh listening.
+It saves an original sample under `.picard-voice/samples` and never changes
+saved speech choices. Generated speech does not test a physical microphone.
 
 `test:conversation:live` checks the complete real MAI browser path using
 generated microphone audio, OpenCode, a real model from your signed-in provider, saved
 messages, live text updates, and real spoken playback. `--local` checks the
-same path with Whisper and Kokoro. These checks make real model requests;
-the MAI variant also makes chargeable Azure requests. Both explicitly confirm
+same path with Nemotron and Kokoro. Both explicitly confirm
 their test model using a throwaway settings file.
 Add `--model provider/model` to choose a particular available model for the
 check, for example
 `npm run test:conversation:live -- --local --model github-copilot/gpt-5.3-codex`.
 This does not change your saved Picard Code model or speech choices.
-Earlier versions of both
+Add `--interrupt` to play a generated request into the browser's capture path
+while a real spoken answer is playing. It checks that playback stops, the
+new request keeps its name and negation, and no stop-work request is sent.
+This tests overlapping speech, not a physical microphone or speaker echo.
+Use `--quiet-interrupt` instead to check a request below the old fixed volume
+cutoff. The microphone now learns the room's quiet level so softer speech can
+start listening, including while an answer is playing.
+These checks make real model requests;
+the MAI variant also makes chargeable Azure requests. Earlier versions of both
 passed on the Windows development machine before the OpenCode 2 migration;
 those results do not verify the current version. They remove their own check conversations and
 save screenshots and generated audio in the ignored samples folder.
@@ -1091,7 +1154,8 @@ services to install newer versions.
 - [Permission rules](https://opencode.ai/v2/docs/permissions/)
 - [MAI live listening](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/mai-transcribe-2-streaming-realtime)
 - [MAI speaking voices](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/mai-voices)
-- [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
+- [NeMo-Speech.cpp](https://github.com/NVIDIA/NeMo-Speech.cpp)
+- [Nemotron Speech Streaming](https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b)
 - [Kokoro ONNX](https://github.com/thewh1teagle/kokoro-onnx)
 
 Picard Code is used daily on Windows and macOS and is built for Linux too.

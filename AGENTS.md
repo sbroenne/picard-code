@@ -7,11 +7,17 @@ Rules for people and coding agents who change this repository. Read
 
 A small local browser app. Spoken conversation is the only way to make
 requests; there is no typing. OpenCode does the coding with any model provider it
-supports, using the user's own sign-in. Local Whisper listening and Kokoro
-speaking are the default, so anyone can run it without a cloud account; Azure
+supports, using the user's own sign-in. Local Nemotron listening and Kokoro
+speaking are the default,
+so anyone can run it without a cloud account; Azure
 MAI can be chosen instead, each side on its
 own. It is an unofficial tribute to Sir Patrick Stewart's Jean-Luc Picard with an
 original TNG-inspired look.
+
+Whisper is retired. Saved Whisper listeners upgrade to Nemotron automatically,
+with visible preparation steps; save only after the new services start. Keep
+the speaking choice and existing model files. Azure speech belongs under
+Advanced setup for people with their own subscription and deployed models.
 
 - `src/server/`: local server, OpenCode connection, speech services, launcher.
 - `src/shared/`: code used by both server and browser (spoken wording, question matching, messages).
@@ -46,6 +52,8 @@ original TNG-inspired look.
   phrases like "new task" may still be understood as alternatives.
   Label the Computer intelligence selector "AI model". Address the Captain in
   the first-run welcome, not repeatedly in settings instructions.
+  First-run AI provider, AI model and speech preparation belong in the central
+  LCARS setup flow. Keep drawers for later settings and saved-model recovery.
 - **Truthful results.** Never claim work succeeded, ran, or was heard before the
   real result arrives. Never replace a real error with a vague or themed message.
   No silent fallback from one speech service to another.

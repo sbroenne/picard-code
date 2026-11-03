@@ -32,6 +32,18 @@ earlier messages are smaller. The console shows the current state and next
 step, listening lights, a microphone button, and stopping controls when needed.
 There is no typing box or phone layout.
 
+First setup uses one central LCARS flow: connect an AI provider if needed,
+choose an AI model, then prepare speech. The three-step readout follows the
+current stage, including speech downloads and retries. Reuse the same provider
+and model controls in the central panel and later settings drawers; do not
+keep separate copies or save a choice merely because the list changed.
+Speech service names, download information and Prepare the computer stay
+together. Downloads and failures show actual steps and retry beside the error.
+Hide the listening console until model selection and speech preparation are
+complete; do not show Standing by before the computer can listen.
+Keep setup controls out of the bottom console. Unavailable saved models stay
+in the settings drawer for recovery, not first-run onboarding.
+
 Captain's log and the Project, Computer intelligence, and Listen · Speak tiles
 open in a slide-out, as do AI provider in the top bar and About from the header dedication.
 Choosing it again, Current log entry, Escape, or the log entry beside it closes

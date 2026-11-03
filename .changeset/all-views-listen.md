@@ -2,4 +2,4 @@
 "picard-code": patch
 ---
 
-First setup clearly labels your AI provider and recommends connecting one only when OpenCode has none connected, with a copyable sign-in command and a clearly explained Continue without connecting option. Choose Use this model in Computer intelligence to save your AI model and continue without an extra confirmation screen; your choice is remembered and never silently replaced.
+First setup guides you through AI provider connection, an explicit AI model choice and speech preparation in a central LCARS-style flow, with real progress and errors together on screen. Your model choice is remembered and never silently replaced; settings drawers remain available for later changes.

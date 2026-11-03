@@ -11,7 +11,7 @@
     <!-- An original computer display inspired by the TNG era: black ground, rounded elbows,
     flat color blocks and short uppercase readouts. The main screen is for the spoken
     conversation; everything else slides out from the side panel when asked for. -->
-    <a class="skip-link" href="#voice-console">Skip to the computer status</a>
+    <a id="skip-to-computer" class="skip-link" href="#voice-console">Skip to the computer status</a>
     <div id="shell" class="shell" data-drawer="">
       <div class="top-rail" aria-label="Connection">
         <a class="readout peach" href="#settings/provider" title="AI provider sign-in"><small>AI provider</small><b id="readout-provider">—</b></a>
@@ -47,6 +47,39 @@
           <button id="retry" class="pill outline" type="button">Try again</button>
         </div>
         <div id="reading-area" class="reading-area">
+          <section id="first-run-setup" class="speech-preparation first-run-setup" data-state="offline" hidden tabindex="-1" aria-labelledby="first-run-title">
+            <p class="preparation-label">Computer · Initial setup</p>
+            <h2 id="first-run-title">Connect your AI provider</h2>
+            <div id="first-run-panel"></div>
+          </section>
+          <section id="speech-first-start" class="speech-preparation" data-state="offline" hidden tabindex="-1" aria-labelledby="speech-first-start-title">
+            <p class="preparation-label">Computer · Voice systems</p>
+            <h3 id="speech-first-start-title">Computer voice offline</h3>
+            <p class="preparation-step">Prepare listening and speaking on this computer.</p>
+            <dl class="preparation-readouts">
+              <div><dt>Listening</dt><dd>Nemotron</dd></div>
+              <div><dt>Speaking</dt><dd>Kokoro</dd></div>
+              <div><dt>Models</dt><dd>About 1.05 GB</dd></div>
+            </dl>
+            <p class="muted">A one-time download, plus the speech programs. Files stay on this computer. No Azure account is needed.</p>
+            <div class="preparation-actions">
+              <button id="prepare-computer" class="preparation-action" type="button">Prepare the computer</button>
+              <a href="#settings/voice/advanced">Advanced setup</a>
+            </div>
+          </section>
+          <section id="speech-preparation" class="speech-preparation" hidden tabindex="-1" aria-labelledby="speech-preparation-title">
+            <p class="preparation-label">Computer · Voice systems</p>
+            <h3 id="speech-preparation-title">Preparing the computer</h3>
+            <div id="speech-preparation-progress" class="preparation-progress" role="progressbar" aria-label="Local speech preparation" aria-describedby="speech-preparation-step">
+              <span aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+            </div>
+            <p id="speech-preparation-step" class="preparation-step" aria-live="polite"></p>
+            <p id="speech-preparation-error" class="preparation-error" role="alert" hidden></p>
+            <p class="muted">Files stay on this computer. Listening starts only when preparation finishes and microphone access is allowed.</p>
+            <div class="preparation-actions">
+              <button id="retry-speech-setup" class="preparation-action" type="button" hidden>Try again</button>
+            </div>
+          </section>
           <section id="setup" class="setup" hidden aria-labelledby="setup-title">
             <h3 id="setup-title">No model available</h3>
             <a id="open-model-setup" class="pill orange" href="#settings/provider">Open setup</a>
@@ -54,7 +87,7 @@
           <section id="welcome" class="welcome">
             <div>
               <p id="entry-stardate" class="muted"></p>
-              <h3>Please specify your request.</h3>
+              <h3 id="welcome-title">Please specify your request.</h3>
             </div>
           </section>
           <div id="messages" class="messages" aria-label="Log entry"></div>
@@ -62,7 +95,7 @@
           <div id="approvals" class="approvals" aria-live="polite"></div>
         </div>
 
-        <section id="voice-console" class="console" tabindex="-1" aria-label="Computer" data-phase="off">
+        <section id="voice-console" class="console" tabindex="-1" aria-label="Computer" data-phase="off" hidden>
           <div class="voice-side">
             <button id="listen-toggle" class="mic-button" type="button" aria-label="Switch microphone off" aria-keyshortcuts="M" hidden>
               <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/><path class="mic-slash" d="M3.5 3.5l17 17"/></svg>
@@ -73,7 +106,6 @@
             <p id="status" class="status" role="status">Starting up</p>
             <p id="status-detail" class="status-detail"></p>
             <p id="voice-partial" class="voice-partial" aria-label="Words heard"></p>
-            <p id="voice-setup-hint" class="voice-setup-hint" hidden><span id="voice-setup-text">Speech is not set up.</span> <a href="#settings/voice">Open settings</a></p>
           </div>
           <div class="console-actions">
             <button id="stop-speaking" class="pill lilac" type="button" hidden>Stop speaking</button>
@@ -153,13 +185,19 @@
 
         <section id="settings-voice" class="panel" hidden>
           <p id="speech-current" class="readout-line">Checking</p>
+          <p>Nemotron listens and Kokoro speaks on this computer. No Azure account is needed.</p>
+          <button id="prepare-local-speech" class="pill peach" type="button">Prepare the computer</button>
           <form id="speech-form" class="field-grid">
+            <p id="local-note" class="muted span" hidden></p>
+            <p class="muted span">The computer and each bridge officer have fixed voices. The computer speaks with Alloy on this computer or Iris on Azure.</p>
+            <details id="advanced-speech" class="span">
+              <summary>Advanced setup</summary>
+              <p class="muted">Azure is for experienced users with their own subscription and deployed speech models. Listening and speaking can be chosen independently.</p>
+              <div class="field-grid">
             <label for="setting-listening">Listening</label>
-            <select id="setting-listening" name="listening"><option value="whisper">On this computer (Whisper)</option><option value="mai">Azure, your own resource</option></select>
+            <select id="setting-listening" name="listening"><option value="nemotron">On this computer (Nemotron)</option><option value="mai">Azure, your own resource</option></select>
             <label for="setting-speaking">Speaking</label>
             <select id="setting-speaking" name="speaking"><option value="kokoro">On this computer (Kokoro)</option><option value="mai">Azure, your own resource</option></select>
-            <p id="local-note" class="muted span" hidden>Speech on this computer needs a one-time download, about 750 MB on disk. Save and apply starts it; it can take a few minutes.</p>
-            <p class="muted span">The computer and each bridge officer have fixed voices. The computer speaks with Alloy on this computer or Iris on Azure.</p>
             <fieldset id="azure-fields" class="field-grid nested">
               <legend>Your Azure resource</legend>
               <p class="muted span">Uses your own Azure subscription and its charges. Sign in with <code>az login</code>; the server reads the key from there, and it never reaches this page. New to this? Follow <a href="https://github.com/sbroenne/picard-code#azure-setup-step-by-step" target="_blank" rel="noreferrer">the step-by-step Azure setup</a>.</p>
@@ -170,6 +208,8 @@
               <label for="setting-deployment" class="azure-listening">Listening deployment</label><input id="setting-deployment" class="azure-listening" name="deployment" autocomplete="off" />
             </fieldset>
             <button id="save-speech" class="pill lilac" type="submit">Save and apply</button>
+              </div>
+            </details>
             <p id="speech-result" class="readout-line span" aria-live="polite"></p>
           </form>
           <p id="settings-file" class="muted"></p>

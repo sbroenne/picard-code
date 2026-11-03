@@ -1,7 +1,7 @@
 import "./style.css";
-import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings } from "../src/shared/types";
+import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings, SpeechSetupProgress } from "../src/shared/types";
 import { errorMessage } from "../src/shared/messages";
-import { replyFailed } from "../src/shared/speech";
+import { replyFailed, spokenSummary } from "../src/shared/speech";
 import { spokenParts } from "../src/shared/briefing";
 import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../src/shared/questions";
 import { addressed, voiceCommand } from "../src/shared/wake";
@@ -81,8 +81,17 @@ let confirmingDelete: string | undefined;
 const voice = new VoiceConversation({
   changed: voiceControls,
   error: (message) => { cancelTributeSpeech(); notice(message); },
-  transcript: heard,
-  canListen: () => !!state?.selectedModel && connected,
+  transcript: async (text, startedAt) => {
+    try { await heard(text, startedAt); }
+    catch (error) {
+      const message = errorMessage(error);
+      cancelTributeSpeech();
+      notice(message);
+      await voice.notSent();
+      voice.speak(spokenSummary(message));
+    }
+  },
+  canListen: () => !!state?.selectedModel && connected && state.speech?.setup?.state !== "running" && speechPreparation?.state !== "running",
   beforeSpeak: () => players.stop(),
 });
 const players = new ReplyPlayers({ paused: (value) => { if (value) cancelTributeSpeech(); voice.pauseForMedia(value); } });
@@ -205,7 +214,7 @@ function setMuted(value: boolean) {
 /** The microphone is simply on, unless muted or changing settings. */
 function autoListen() {
   if (voice.microphone || voice.opening || voice.failed || !state?.speech?.configured || !state.selectedModel || !connected
-    || muted() || openDrawer() === "settings") return;
+    || state.speech.setup?.state === "running" || speechPreparation?.state === "running" || muted() || openDrawer() === "settings") return;
   void perform(() => voice.activate());
 }
 
@@ -213,6 +222,8 @@ function autoListen() {
 function consoleStatus(): [string, string] {
   if (!state) return ["Starting up", ""];
   if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open."];
+  if (speechPreparation?.state === "running") return ["Preparing speech", speechPreparation.step];
+  if (speechPreparation?.state === "failed" && !state.speech?.configured) return ["Speech unavailable", "Read the error above, then choose Try again."];
   if (!state.models.length) return ["Setup needed", modelSetupPart() === "provider"
     ? "Connect an AI provider: open AI provider."
     : "No models are available. Open Computer intelligence to refresh the connection."];
@@ -234,12 +245,37 @@ function consoleStatus(): [string, string] {
   if (historyLoading) return ["Loading", ""];
   if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New log entry”." : "Say “Computer”, then your request."];
   if (voice.opening) return ["Starting microphone", ""];
-  if (!state.speech?.configured) return ["Standing by", ""];
+  if (!state.speech?.configured) return ["Computer voice offline", ""];
   return ["Microphone off", "Click the microphone button or press M to switch it on."];
 }
 
 function voiceControls() {
-  const ready = !!state?.speech?.configured && !!state.selectedModel && connected;
+  const ready = !!state?.speech?.configured && !!state.selectedModel && connected && speechPreparation?.state !== "running";
+  const preparing = speechPreparation?.state === "running" || state?.speech?.setup?.state === "running";
+  const offline = !!state && !state.speech?.configured;
+  const setupPart = centralSetupPart();
+  const setupPanel = element("first-run-setup");
+  setupPanel.hidden = !setupPart;
+  const panelParent = setupPart ? element("first-run-panel") : element("drawer-settings");
+  for (const part of ["provider", "model"]) {
+    const panel = element(`settings-${part}`);
+    if (panel.parentElement !== panelParent) panelParent.append(panel);
+    if (setupPart) panel.hidden = part !== setupPart;
+  }
+  if (setupPart) {
+    setupPanel.dataset.step = setupPart;
+    element("first-run-title").textContent = settingsParts[setupPart][0];
+    element("welcome").hidden = true;
+  }
+  element("setup").hidden = !!setupPart || !state || !!state.models.length;
+  element("voice-console").hidden = !state?.speech?.configured || preparing || !!setupPart;
+  element("speech-first-start").hidden = !state?.selectedModel || !offline || !!speechPreparation || preparing;
+  element("speech-preparation").hidden = !speechPreparation || !!setupPart;
+  element("main").dataset.speechSetup = String(!!setupPart || offline || !!speechPreparation || preparing);
+  showSetupProgress();
+  const skip = element<HTMLAnchorElement>("skip-to-computer");
+  skip.href = setupPart ? "#first-run-setup" : speechPreparation || preparing ? "#speech-preparation" : offline ? "#speech-first-start" : "#voice-console";
+  skip.textContent = setupPart ? "Skip to setup" : offline || preparing ? "Skip to speech setup" : "Skip to the computer status";
   const [status, detail] = consoleStatus();
   element("status").textContent = status;
   element("status-detail").textContent = detail;
@@ -253,9 +289,9 @@ function voiceControls() {
   if (voice.phase === "listening") notSent = "";
   element("voice-partial").textContent = voice.phase === "listening" || voice.phase === "thinking" ? voice.partial : notSent;
   element("voice-partial").classList.toggle("not-sent", voice.phase !== "listening" && voice.phase !== "thinking" && !!notSent);
-  element("voice-setup-hint").hidden = !state || !!state.speech?.configured;
-  element("voice-setup-text").textContent = state?.speech?.error ? "Speech did not start." : "Speech is not set up.";
-  const cloudListening = state?.speech?.listening !== "whisper";
+  element<HTMLButtonElement>("prepare-computer").disabled = speechSetupWatching;
+  element<HTMLButtonElement>("prepare-local-speech").disabled = speechSetupWatching;
+  const cloudListening = state?.speech?.listening === "mai";
   const cloudSpeaking = state?.speech?.speaking !== "kokoro";
   element("speech-current").textContent = state?.speech?.configured
     ? `In use: ${cloudListening ? "Azure" : "this computer"} listens, ${cloudSpeaking ? "Azure" : "this computer"} speaks`
@@ -462,8 +498,8 @@ function readouts() {
   readout("project", state ? state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project : "—");
   readout("model", state?.selectedModel?.name ?? (state?.savedModel ? "Unavailable" : "Not selected"));
   const speech = state?.speech;
-  readout("speech", !speech?.configured ? "Not set up"
-    : `${speech.listening === "whisper" ? "Whisper" : "Azure MAI"} · ${speech.speaking === "kokoro" ? "Kokoro" : "Azure MAI"}`);
+  readout("speech", speechPreparation?.state === "running" ? "Preparing" : !speech?.configured ? "Not set up"
+    : `${speech.listening === "mai" ? "Azure MAI" : "Nemotron"} · ${speech.speaking === "kokoro" ? "Kokoro" : "Azure MAI"}`);
 }
 
 let savingModel = false;
@@ -519,13 +555,13 @@ function controls() {
   element<HTMLButtonElement>("new-conversation").disabled = !state || submitting;
   element("setup").hidden = !state || !!state.models.length;
   element<HTMLAnchorElement>("open-model-setup").href = `#settings/${modelSetupPart()}`;
-  element("welcome").hidden = !!messages.length || !!selected && historyLoading || !!state && !state.models.length;
+  element("welcome").hidden = !!speechPreparation || !!messages.length || !!selected && historyLoading || !!state && (!state.models.length || !state.speech?.configured);
   const entryStarted = state?.conversations.find((entry) => entry.id === selected)?.created ?? freshEntryStarted;
   element("entry-stardate").textContent = `Stardate ${formatStardate(new Date(entryStarted))}`;
   element("provider-status").textContent = refreshingProvider ? "Refreshing connection"
     : !state ? "Checking"
     : `${state.hasConnectedProvider ? "AI provider connection found" : "No connected AI providers found"}. ${state.models.length} model${state.models.length === 1 ? "" : "s"} available.`;
-  element("provider-welcome").hidden = !onboarding || !!state?.hasConnectedProvider;
+  element("provider-welcome").hidden = !onboarding || !!state?.savedModel || !!state?.hasConnectedProvider;
   element("provider-guidance").textContent = state?.hasConnectedProvider
     ? "Connect another AI provider in OpenCode, or refresh after changing a connection."
     : "Connect your preferred AI provider in OpenCode for the best Picard Code experience. Then choose its most capable model.";
@@ -538,6 +574,11 @@ function controls() {
   voice.sync();
   autoListen();
   voiceControls();
+  const setup = state?.speech?.setup;
+  if (setup && !speechSetupWatching) {
+    if (setup.state === "running") void followSpeechSetup(setup);
+    else if (setup.state === "failed") showSpeechPreparation(setup);
+  }
 }
 
 let displayedModel: string | undefined;
@@ -1068,9 +1109,11 @@ async function refreshState() {
   }
   if (revision !== selectionRevision && state?.project !== next.project) return;
   const lostModel = !!state?.selectedModel && !next.selectedModel;
+  const finishedModelSetup = onboarding && !state?.selectedModel && !!next.selectedModel;
   state = next;
   renderState();
   if (lostModel) location.hash = "settings/model";
+  else if (finishedModelSetup) location.hash = "";
   completeVoiceReply();
 }
 
@@ -1228,37 +1271,131 @@ async function boot() {
     history.replaceState(null, "", location.pathname);
   }
   await refreshState();
-  onboarding = !!state && !state.savedModel;
+  onboarding = !!state && !state.modelError && (!state.savedModel || !!state.selectedModel && !state.speech?.configured);
   if (state && !state.selectedModel) location.hash = `settings/${modelSetupPart()}`;
+  controls();
   if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id);
   openEvents();
 }
 
 const speechFields = ["listening", "speaking", "subscription", "resourceGroup", "resourceName", "region", "deployment"] as const;
 function speechInput(name: typeof speechFields[number]) { return element<HTMLInputElement | HTMLSelectElement>(`setting-${name}`); }
-/** Whether the local Whisper and Kokoro files are already on this computer. */
-let localSpeechReady = false;
+let localFiles = { nemotron: false, kokoro: false };
 function speechFieldVisibility() {
-  const azureListening = speechInput("listening").value === "mai";
+  const listening = speechInput("listening").value;
+  const azureListening = listening === "mai";
   const azureSpeaking = speechInput("speaking").value === "mai";
   element("azure-fields").hidden = !azureListening && !azureSpeaking;
-  element("local-note").hidden = (azureListening && azureSpeaking) || localSpeechReady;
+  const missingListener = !azureListening && !localFiles.nemotron;
+  const missingSpeaker = !azureSpeaking && !localFiles.kokoro;
+  const megabytes = (missingListener ? 710 : 0) + (missingSpeaker ? 354 : 0);
+  element("local-note").hidden = !megabytes;
+  element("local-note").textContent = `The selected speech services need a one-time model and runtime download of about ${megabytes >= 1000 ? `${(megabytes / 1000).toFixed(2)} GB` : `${megabytes} MB`}, plus Python packages if needed. Save and apply starts it. Nothing changes until the new services work.`;
   const show = (selector: string, visible: boolean) => document.querySelectorAll<HTMLElement>(selector).forEach((node) => { node.hidden = !visible; });
   show(".azure-listening", azureListening);
 }
-type SavedSpeech = { settings: SpeechSettings; file: string; localReady: boolean; speech: AppState["speech"] };
-type SpeechSetup = { state: "running" | "done" | "failed"; step: string; error?: string; result?: SavedSpeech };
-function showSpeechSettings(result: { settings: SpeechSettings; file: string; localReady: boolean }) {
-  localSpeechReady = result.localReady;
+type SavedSpeech = { settings: SpeechSettings; file: string; localReady: boolean; localFiles: typeof localFiles; speech: AppState["speech"] };
+type SpeechSetup = SpeechSetupProgress & { result?: SavedSpeech };
+function showSpeechSettings(result: { settings: SpeechSettings; file: string; localFiles: typeof localFiles }) {
+  localFiles = result.localFiles;
   for (const name of speechFields) speechInput(name).value = result.settings[name];
   element("settings-file").textContent = `Saved in ${result.file}`;
+  element<HTMLDetailsElement>("advanced-speech").open = location.hash.endsWith("/advanced") || result.settings.listening === "mai" || result.settings.speaking === "mai";
   speechFieldVisibility();
+}
+
+let speechPreparation: SpeechSetupProgress | undefined;
+let speechSetupWatching = false;
+let lastSpeechChoice: SpeechSettings | Record<string, string> | undefined;
+
+function showSpeechPreparation(progress?: SpeechSetupProgress) {
+  speechPreparation = progress;
+  if (state?.speech) state.speech.setup = progress;
+  const panel = element("speech-preparation");
+  panel.hidden = !progress;
+  if (!progress) return;
+  element("welcome").hidden = true;
+  const failed = progress.state === "failed";
+  panel.dataset.state = progress.state;
+  element("speech-preparation-title").textContent = failed ? "Speech preparation stopped" : "Preparing the computer";
+  element("speech-preparation-step").textContent = progress.step;
+  const indicator = element("speech-preparation-progress");
+  indicator.hidden = failed;
+  indicator.setAttribute("aria-valuetext", progress.step);
+  element("speech-preparation-error").hidden = !failed;
+  element("speech-preparation-error").textContent = progress.error ?? "";
+  element("retry-speech-setup").hidden = !failed;
+  readouts();
+  voiceControls();
+}
+
+async function followSpeechSetup(pending: SpeechSetup | Promise<SavedSpeech | SpeechSetup>) {
+  speechSetupWatching = true;
+  const save = element<HTMLButtonElement>("save-speech");
+  save.disabled = true;
+  const result = element("speech-result");
+  try {
+    showSpeechPreparation({ state: "running", step: "Starting the selected speech services" });
+    let saved = await pending;
+    while ("state" in saved) {
+      showSpeechPreparation(saved);
+      if (saved.state === "failed") throw new Error(saved.error ?? "The local speech setup stopped.");
+      if (saved.state === "done" && saved.result) { saved = saved.result; break; }
+      if (saved.state !== "running") throw new Error("The local speech setup did not return its result. Try again.");
+      result.textContent = saved.step;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      saved = await api<SpeechSetup>("speech-setup");
+    }
+    showSpeechSettings(saved);
+    if (state) state.speech = saved.speech;
+    showSpeechPreparation();
+    result.textContent = "Speech settings saved and in use";
+    notice();
+  } catch (error) {
+    showSpeechPreparation({ state: "failed", step: speechPreparation?.step ?? "Preparing local speech", error: errorMessage(error) });
+    result.textContent = "Speech preparation stopped. See the error on screen.";
+  } finally {
+    speechSetupWatching = false;
+    save.disabled = false;
+    controls();
+  }
+}
+
+function prepareSelectedSpeech(data: SpeechSettings | Record<string, string>) {
+  lastSpeechChoice = data;
+  voice.close();
+  closeDrawer();
+  return followSpeechSetup(api<SavedSpeech | SpeechSetup>("settings", data));
+}
+
+for (const id of ["prepare-computer", "prepare-local-speech"]) {
+  element(id).addEventListener("click", () => {
+    void perform(async () => {
+      if (speechSetupWatching) return;
+      speechSetupWatching = true;
+      voiceControls();
+      try {
+        const saved = await api<SavedSpeech>("settings");
+        await prepareSelectedSpeech({ ...saved.settings, listening: "nemotron", speaking: "kokoro" });
+      } finally {
+        speechSetupWatching = false;
+        voiceControls();
+      }
+    });
+  });
 }
 
 const drawers = ["records", "settings"] as const;
 type Drawer = typeof drawers[number];
+function centralSetupPart(): "provider" | "model" | undefined {
+  if (!onboarding || !state || state.savedModel || state.modelError) return;
+  const [view, part] = location.hash.slice(1).split("/");
+  if (view === "settings" && part !== "provider" && part !== "model") return;
+  return part === "provider" || part === "model" ? part : modelSetupPart();
+}
 function openDrawer(): Drawer | undefined {
   const name = location.hash.slice(1).split("/")[0] ?? "";
+  if (name === "settings" && centralSetupPart()) return;
   return (drawers as readonly string[]).includes(name) ? name as Drawer : undefined;
 }
 function closeDrawer() {
@@ -1267,10 +1404,15 @@ function closeDrawer() {
 
 const settingsParts = { provider: ["Connect your AI provider", "orange"], model: ["Computer intelligence", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
 type SettingsPart = keyof typeof settingsParts;
-function showSetupProgress(part = location.hash.split("/")[1]) {
-  element("setup-progress").hidden = !onboarding || !["provider", "model", "voice"].includes(part ?? "");
+function showSetupProgress() {
+  const part = centralSetupPart();
+  const speechPanel = speechPreparation ? element("speech-preparation") : element("speech-first-start");
+  const target = part ? element("first-run-setup") : state?.selectedModel && !speechPanel.hidden ? speechPanel : undefined;
+  const progress = element("setup-progress");
+  progress.hidden = !onboarding || !target || !!openDrawer();
+  if (target && progress.parentElement !== target) target.insertBefore(progress, target.children[2] ?? null);
   document.querySelectorAll<HTMLElement>("[data-setup-step]").forEach((step) => {
-    if (step.dataset.setupStep === part) step.setAttribute("aria-current", "step");
+    if (target && step.dataset.setupStep === (part ?? "voice")) step.setAttribute("aria-current", "step");
     else step.removeAttribute("aria-current");
   });
 }
@@ -1282,7 +1424,6 @@ function showSettingsPart(requested?: string) {
   const [title, colour] = settingsParts[part];
   element("settings-title").textContent = title;
   element("settings-bar").className = `drawer-bar ${colour}`;
-  showSetupProgress(part);
 }
 
 let settingsLoaded = false;
@@ -1314,8 +1455,13 @@ async function route() {
   // Listening pauses while settings change, and starts again when Settings closes.
   if (open === "settings" && (voice.microphone || voice.opening)) voice.microphoneOff();
   controls();
-  if (open !== "settings") return;
+  if (open !== "settings") {
+    if (!open && centralSetupPart()) element("first-run-setup").focus();
+    else if (!open && onboarding && !element("speech-first-start").hidden) element("speech-first-start").focus();
+    return;
+  }
   showSettingsPart(location.hash.split("/")[1]);
+  if (location.hash.endsWith("/advanced")) element<HTMLDetailsElement>("advanced-speech").open = true;
   if (!settingsLoaded) {
     settingsLoaded = true;
     try { showSpeechSettings(await api("settings")); }
@@ -1331,12 +1477,13 @@ element("model-form").addEventListener("submit", (event) => {
     const choice = state?.models.find((choice) => modelValue(choice) === model.value);
     if (!choice) throw new Error("Choose an available model before confirming.");
     savingModel = true;
+    const firstRun = onboarding;
     controls();
     try {
       state = await api<AppState>("model", choice);
       renderState();
       notice();
-      location.hash = state.speech?.configured ? "" : "settings/voice";
+      location.hash = firstRun || state.speech?.configured ? "" : "settings/voice";
     } finally { savingModel = false; controls(); }
   });
 });
@@ -1358,34 +1505,10 @@ speechInput("listening").addEventListener("change", speechFieldVisibility);
 speechInput("speaking").addEventListener("change", speechFieldVisibility);
 element("speech-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  const result = element("speech-result");
-  const save = element<HTMLButtonElement>("save-speech");
-  void perform(async () => {
-    const data = Object.fromEntries(speechFields.map((name) => [name, speechInput(name).value.trim()]));
-    result.textContent = "Starting the selected speech services";
-    save.disabled = true;
-    // Open voice connections use the old services; close them before switching.
-    voice.close();
-    try {
-      let saved = await api<SavedSpeech | SpeechSetup>("settings", data);
-      // The first local choice downloads its files in the background; follow it until it is in use.
-      while ("state" in saved) {
-        if (saved.state === "failed") throw new Error(saved.error ?? "The local speech setup stopped.");
-        if (saved.state === "done" && saved.result) { saved = saved.result; break; }
-        result.textContent = `${saved.step}. This can take a few minutes`;
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        saved = await api<SpeechSetup>("speech-setup");
-      }
-      showSpeechSettings(saved);
-      if (state) state.speech = saved.speech;
-      result.textContent = "Speech settings saved and in use";
-      notice();
-      controls();
-    } catch (error) {
-      result.textContent = "Not changed. See the message above";
-      throw error;
-    } finally { save.disabled = false; }
-  });
+  void perform(() => prepareSelectedSpeech(Object.fromEntries(speechFields.map((name) => [name, speechInput(name).value.trim()]))));
+});
+element("retry-speech-setup").addEventListener("click", () => {
+  void perform(async () => prepareSelectedSpeech(lastSpeechChoice ?? (await api<SavedSpeech>("settings")).settings));
 });
 element("stop").addEventListener("click", () => {
   void perform(async () => {

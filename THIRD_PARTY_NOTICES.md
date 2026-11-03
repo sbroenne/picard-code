@@ -26,31 +26,35 @@ in the user's home folder.
 
 | Component | License and attribution | Source |
 | --- | --- | --- |
+| NeMo-Speech.cpp 0.3.0 CPU runtime (only for Nemotron listening) | Apache 2.0; NVIDIA Corporation; the downloaded archive retains its component licenses and notices | [Project](https://github.com/NVIDIA/NeMo-Speech.cpp), [Release](https://github.com/NVIDIA/NeMo-Speech.cpp/releases/tag/v0.3.0) |
+| Nemotron Speech Streaming English 0.6B Q8 weights | NVIDIA Open Model License, not Apache 2.0; NVIDIA Corporation. Licensed by NVIDIA Corporation under the NVIDIA Open Model License | [Model card](https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b), [License](https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/) |
 | uv 0.13.6 (sets up Python; downloaded from its GitHub release and checked against a fixed checksum, only when uv is not already installed) | MIT or Apache 2.0; Astral Software Inc. | [Project](https://github.com/astral-sh/uv) |
 | Python 3.11 (a python-build-standalone build, downloaded by uv) | Python Software Foundation License; the build includes libraries with their own notices | [Project](https://github.com/astral-sh/python-build-standalone) |
-| faster-whisper | MIT; copyright 2023 SYSTRAN | [Project](https://github.com/SYSTRAN/faster-whisper) |
-| Converted Whisper `tiny.en` weights | MIT; converted by SYSTRAN from OpenAI Whisper | [Model card](https://huggingface.co/Systran/faster-whisper-tiny.en) |
 | kokoro-onnx | MIT; copyright 2025 github.com/thewh1teagle | [Project](https://github.com/thewh1teagle/kokoro-onnx) |
 | Kokoro model and prebuilt voice data | Apache 2.0; Kokoro contributors | [Original model](https://huggingface.co/hexgrad/Kokoro-82M), [ONNX release](https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.1) |
 | phonemizer | GNU GPL version 3; phonemizer contributors | [Project](https://github.com/bootphon/phonemizer) |
 | eSpeak NG | GNU GPL version 3 or later; eSpeak NG contributors | [Project](https://github.com/espeak-ng/espeak-ng) |
 | espeakng-loader wrapper | MIT; copyright 2025 thewh1teagle; the wrapped eSpeak library has its own license | [Project](https://github.com/thewh1teagle/espeakng-loader) |
-| CTranslate2 | MIT; OpenNMT contributors | [Project](https://github.com/OpenNMT/CTranslate2) |
 | ONNX Runtime | MIT; Microsoft Corporation | [Project](https://github.com/microsoft/onnxruntime) |
-| PyAV | BSD-3-Clause; PyAV contributors; bundled FFmpeg libraries have separate notices | [Project](https://github.com/PyAV-Org/PyAV) |
 
-The complete pinned Python dependency list is in
-`scripts/requirements-speech.txt`. Other installed dependencies retain their
+The selected services determine which files are downloaded. The pinned Python
+dependencies are in `scripts/requirements-kokoro.txt`.
+Nemotron listening alone needs no Python.
+Other installed dependencies retain their
 own license files and copyright notices; the table is not a replacement for
 those files.
 
-The setup script fixes the Whisper revision and checks the published SHA-256
-hashes of the Kokoro model and voices. Downloads use public upstream sources,
+The setup script fixes the Nemotron model revision and checks
+fixed SHA-256 hashes of the Nemotron runtime, model and model-license copy,
+and of the Kokoro model and voices. The downloaded Nemotron runtime keeps
+its own license files; the models folder also holds
+`NVIDIA-Open-Model-License.html` and `NVIDIA-NOTICE.txt`.
+Downloads use public upstream sources,
 not copied franchise material or recordings.
 
 Before distributing a Python environment, native libraries, or model weights,
 review and satisfy their licenses, including the GPL source and notice
-requirements and the particular FFmpeg build's notices. Do not assume all
+requirements. Do not assume all
 local speech dependencies are MIT licensed. This repository's download setup
 does not grant permission to remove notices or bypass redistribution terms.
 

@@ -92,7 +92,8 @@ async function launch(page: import("@playwright/test").Page, mode?: "resume" | "
   await page.goto(url);
   // No note or agreement step: the main screen opens straight away.
   await expect(page.locator("#drawer-settings")).toBeHidden();
-  await expect(status(page)).not.toHaveText("Starting up", { timeout: 15000 });
+  if (mode === "no-speech") await expect(page.getByRole("heading", { name: "Computer voice offline" })).toBeVisible();
+  else await expect(status(page)).not.toHaveText("Starting up", { timeout: 15000 });
 }
 
 function status(page: import("@playwright/test").Page) {
@@ -426,6 +427,34 @@ test(`${mode}: a request spoken over an answer keeps Computer and the exact word
 });
 }
 
+test("quiet microphone speech interrupts an answer and preserves the full request", async ({ page }) => {
+  await page.addInitScript(() => {
+    const node = AudioWorkletNode;
+    window.AudioWorkletNode = class extends node {
+      constructor(...args: ConstructorParameters<typeof AudioWorkletNode>) {
+        super(...args);
+        this.port.addEventListener("message", (event: MessageEvent<ArrayBuffer>) => {
+          if (document.querySelector("#status")?.textContent !== "Speaking") return;
+          const samples = new Int16Array(event.data);
+          for (let index = 0; index < samples.length; index++) samples[index]! /= 32;
+        });
+        this.port.start();
+      }
+    };
+  });
+  const commands: string[] = [];
+  page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
+    if (typeof payload === "string") commands.push(JSON.parse(payload).type);
+  }));
+  await launch(page, "interrupt-request");
+  await startListening(page);
+  await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+  await expect(page.locator(".message[data-role=user]")).toHaveCount(2, { timeout: 15000 });
+  await expect(page.locator(".message[data-role=user]").last()).toContainText("Computer, keep the exact name and do not change files.");
+  expect(commands).toContain("stop-speaking");
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
 test("room speech during playback is ignored even within a log entry", async ({ page }) => {
   const commands: string[] = [];
   const transcripts: string[] = [];
@@ -535,9 +564,10 @@ test("the arrival call waits for a click and works before speech is set up", asy
     await launch(page, "no-speech");
     const played = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds);
     expect(await played()).toEqual([]);
-    await page.locator("#voice-console").click();
-    await expect.poll(played).toEqual(["startup: Standing by"]);
-    await expect(page.locator("#voice-setup-hint")).toBeVisible();
+    await page.locator("#speech-first-start-title").click();
+    await expect.poll(played).toEqual(["startup: Computer voice offline"]);
+    await expect(page.locator("#voice-console")).toBeHidden();
+    await expect(page.locator("#prepare-computer")).toBeVisible();
   } finally { await browser.close(); }
 });
 
@@ -1366,6 +1396,38 @@ test("a saved reply is shown after 20 seconds even if no terminal outcome arrive
   expect(spoken).toHaveLength(0);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
+
+for (const path of ["**/api/conversations", "**/api/conversations/*/send"]) {
+  test(`a spoken request rejected by ${path} speaks the real error without claiming acceptance`, async ({ page }) => {
+    const message = path.endsWith("/send")
+      ? "Could not decide which officer should handle this request. This model is not available in your country. The request was not sent."
+      : "The new log entry could not be opened. The model service cannot be reached.";
+    await page.route(path, async (route) => {
+      if (route.request().method() === "POST") await route.fulfill({ status: 502, json: { error: message } });
+      else await route.continue();
+    });
+    const spoken = spokenText(page);
+    await launch(page);
+    await startListening(page);
+    await expect(page.locator("#notice-text")).toHaveText(message, { timeout: 15000 });
+    await expect.poll(() => spoken.includes(message), { timeout: 15000 }).toBe(true);
+    await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+    const timeline = await page.evaluate(() => (window as unknown as {
+      audioTimeline: { name: string; at: number; end: number; capture: boolean }[];
+    }).audioTimeline);
+    const cue = timeline.find((item) => item.name === "input-failed")!;
+    const speech = timeline.find((item) => item.name === "speech")!;
+    expect(speech.at).toBeGreaterThanOrEqual(cue.end - 0.01);
+    expect(cue.capture).toBe(false);
+    await expect(status(page)).toHaveText(/Standing by|Listening/, { timeout: 15000 });
+    await expect(page.locator("#notice-text")).toHaveText(message);
+    expect(spoken).toEqual([message]);
+    expect((await sounds(page)).map((sound) => sound.split(":")[0])).toEqual(["input-failed"]);
+    await expect(page.locator(".message[data-role=user]")).toHaveCount(0);
+    await expect(page.locator(".message[data-role=assistant]")).toHaveCount(0);
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+  });
+}
 
 test("a failed request is visible before its failure sound", async ({ page }) => {
   await launch(page, "broken");

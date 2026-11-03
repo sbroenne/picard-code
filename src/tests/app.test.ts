@@ -18,7 +18,7 @@ import { BRIDGE_CREW } from "../shared/crew.js";
 import { saveModelSettings } from "../server/model-settings.js";
 import { CREW_KEPT, crewBriefing } from "../server/instructions.js";
 
-async function setup(extra: Partial<AppOptions> = {}) {
+async function setup(extra: Partial<AppOptions> = {}, initialSpeech?: Record<string, unknown>) {
   const temporary = await mkdtemp(resolve(".picard-test-"));
   const project = join(temporary, "project");
   const other = join(temporary, "other");
@@ -29,6 +29,7 @@ async function setup(extra: Partial<AppOptions> = {}) {
   const fixture = await startFixture(directory);
   const modelFile = extra.modelFile ?? join(temporary, "model.json");
   if (!extra.modelFile) await saveModelSettings(modelFile, { providerID: "github-copilot", modelID: "fixture-model" });
+  if (initialSpeech) await writeFile(join(temporary, "speech.json"), JSON.stringify(initialSpeech));
   const wikipediaRequests: string[] = [];
   const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot, modelFile, speechFile: join(temporary, "speech.json"),
     readWikipedia: async (subject) => { wikipediaRequests.push(subject); return wikipediaFixture(subject); }, ...extra });
@@ -837,7 +838,7 @@ test("speech settings change while the app runs; a failing choice leaves the wor
   const file = join(context.temporary, "speech.json");
   const empty = await (await context.request("settings")).json() as { settings: SpeechSettings; file: string };
   assert.equal(empty.file, file);
-  assert.equal(empty.settings.listening, "whisper");
+  assert.equal(empty.settings.listening, "nemotron");
   assert.equal(empty.settings.speaking, "kokoro");
 
   const choice = { listening: "mai", speaking: "kokoro", subscription: "sub-1", resourceGroup: "group", resourceName: "name", region: "swedencentral", deployment: "listen" };
@@ -874,25 +875,26 @@ test("choosing local speech for the first time downloads it in the background, t
   const context = await setup({
     localSpeechReady: async () => ready,
     setUpLocalSpeech: async (onStep) => {
-      onStep("Downloading and checking the Whisper and Kokoro models (about 432 MB)...");
+      onStep("Downloading and checking Nemotron and Kokoro...");
       await new Promise<void>((resolve) => { finish = resolve; });
       ready = true;
     },
     startSpeech: async (settings) => {
       started.push(settings);
-      return { ...speechFixture().service, selection: { listening: "whisper", speaking: "kokoro" } };
+      return { ...speechFixture().service, selection: { listening: "nemotron", speaking: "kokoro" } };
     },
   });
   t.after(context.cleanup);
   await context.login();
   assert.equal(((await (await context.request("settings")).json()) as { localReady: boolean }).localReady, false);
 
-  const choice = { listening: "whisper", speaking: "kokoro" };
+  const choice = { listening: "nemotron", speaking: "kokoro" };
   const accepted = await context.request("settings", choice);
   assert.equal(accepted.status, 202);
   assert.equal(((await accepted.json()) as { state: string }).state, "running");
   const running = await (await context.request("speech-setup")).json() as { state: string; step: string };
-  assert.deepEqual(running, { state: "running", step: "Downloading and checking the Whisper and Kokoro models (about 432 MB)..." });
+  assert.deepEqual(running, { state: "running", step: "Downloading and checking Nemotron and Kokoro..." });
+  assert.deepEqual((await (await context.request("state")).json()).speech.setup, running);
   assert.equal((await context.request("settings", choice)).status, 409, "a second download is not started");
   assert.equal(started.length, 0, "nothing is used before the files are there");
 
@@ -906,7 +908,7 @@ test("choosing local speech for the first time downloads it in the background, t
   assert.equal(job.result?.localReady, true);
   assert.equal(started.length, 1);
   const state = await (await context.request("state")).json() as AppState;
-  assert.deepEqual(state.speech, { configured: true, listening: "whisper", speaking: "kokoro" });
+  assert.deepEqual(state.speech, { configured: true, listening: "nemotron", speaking: "kokoro" });
 });
 
 test("closing Picard Code stops a running speech download and uses nothing from it", async (t) => {
@@ -923,12 +925,86 @@ test("closing Picard Code stops a running speech download and uses nothing from 
   let cleaned = false;
   t.after(async () => { if (!cleaned) await context.cleanup(); });
   await context.login();
-  assert.equal((await context.request("settings", { listening: "whisper", speaking: "kokoro" })).status, 202);
+  assert.equal((await context.request("settings", { listening: "nemotron", speaking: "kokoro" })).status, 202);
   await context.cleanup();
   cleaned = true;
   assert.equal(stopped, true, "shutdown stops the download");
   assert.equal(started, 0, "settings from a download stopped by shutdown are not applied");
 });
+
+test("saved Whisper switches automatically, preserves settings on failure, and can retry", async (t) => {
+  let failDownload = true;
+  let finish!: () => void;
+  const choices: unknown[] = [];
+  const legacy = { listening: "whisper", speaking: "kokoro", whisperModel: "/previous/model" };
+  const context = await setup({
+    localSpeechReady: async () => false,
+    setUpLocalSpeech: async (_step, _signal, selection) => {
+      choices.push(selection);
+      if (failDownload) throw new Error("The Nemotron download could not be verified.");
+      await new Promise<void>((done) => { finish = done; });
+    },
+    startSpeech: async () => ({
+      ...speechFixture().service,
+      selection: { listening: "nemotron", speaking: "kokoro" },
+    }),
+  }, legacy);
+  t.after(context.cleanup);
+  const file = join(context.temporary, "speech.json");
+  await context.login();
+  const settings = await (await context.request("settings")).json();
+  assert.equal(settings.settings.listening, "nemotron");
+  assert.equal("whisper" in settings.localFiles, false);
+  assert.equal(settings.localFiles.nemotron, false);
+  const choice = { listening: "nemotron", speaking: "kokoro" };
+  let job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") { await new Promise((done) => setTimeout(done, 5)); job = await (await context.request("speech-setup")).json(); }
+  assert.equal(job.state, "failed");
+  assert.match(job.error, /could not be verified/);
+  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), legacy);
+  assert.equal((await (await context.request("state")).json()).speech.setup.state, "failed");
+  failDownload = false;
+  assert.equal((await context.request("settings", choice)).status, 202);
+  assert.equal(JSON.parse(await readFile(file, "utf8")).listening, "whisper", "An unfinished download must not change the saved choice.");
+  assert.deepEqual(choices.map((item) => item && typeof item === "object" && "listening" in item ? item.listening : undefined), ["nemotron", "nemotron"]);
+  finish();
+  job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") { await new Promise((done) => setTimeout(done, 5)); job = await (await context.request("speech-setup")).json(); }
+  assert.equal(job.state, "done");
+  assert.equal(JSON.parse(await readFile(file, "utf8")).listening, "nemotron");
+  assert.equal("whisperModel" in JSON.parse(await readFile(file, "utf8")), false);
+  assert.equal((await context.request("settings", { listening: "whisper", speaking: "kokoro" })).status, 400);
+  assert.equal(JSON.parse(await readFile(file, "utf8")).listening, "nemotron");
+  assert.equal(choices.length, 2);
+});
+
+for (const speaking of ["kokoro", "mai"] as const) {
+  test(`saved Whisper starts installed Nemotron automatically and keeps ${speaking} speaking`, async (t) => {
+    let downloads = 0;
+    const records: Record<string, unknown>[] = [];
+    const context = await setup({
+      localSpeechReady: async () => true,
+      setUpLocalSpeech: async () => { downloads++; },
+      startSpeech: async (record) => {
+        records.push(record);
+        return { ...speechFixture().service, selection: { listening: "nemotron", speaking } };
+      },
+    }, { listening: "whisper", speaking, region: "swedencentral" });
+    t.after(context.cleanup);
+    await context.login();
+    let job = await (await context.request("speech-setup")).json();
+    while (job.state === "running") {
+      await new Promise((done) => setTimeout(done, 5));
+      job = await (await context.request("speech-setup")).json();
+    }
+    assert.equal(job.state, "done");
+    assert.equal(downloads, 0);
+    assert.equal(records.length, 1);
+    assert.equal(records[0]!.speaking, speaking);
+    assert.equal(records[0]!.region, "swedencentral");
+    assert.equal(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")).listening, "nemotron");
+  });
+}
 
 test("a failed local speech download is reported and changes nothing", async (t) => {
   const context = await setup({
@@ -938,7 +1014,7 @@ test("a failed local speech download is reported and changes nothing", async (t)
   });
   t.after(context.cleanup);
   await context.login();
-  assert.equal((await context.request("settings", { listening: "whisper", speaking: "mai" })).status, 202);
+  assert.equal((await context.request("settings", { listening: "nemotron", speaking: "mai" })).status, 202);
   let job: { state: string; error?: string } = { state: "running" };
   while (job.state === "running") {
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -947,6 +1023,68 @@ test("a failed local speech download is reported and changes nothing", async (t)
   assert.deepEqual(job, { state: "failed", step: "Starting the download", error: "uv is not installed." });
   const state = await (await context.request("state")).json() as AppState;
   assert.equal(state.speech?.configured, false);
+});
+
+test("automatic replacement downloads only Nemotron when custom Kokoro files already work", async (t) => {
+  const choices: unknown[] = [];
+  const context = await setup({
+    localSpeechReady: async (_record, listening = true) => !listening,
+    setUpLocalSpeech: async (_step, _signal, selection) => { choices.push(selection); },
+    startSpeech: async () => ({ ...speechFixture().service, selection: { listening: "nemotron", speaking: "kokoro" } }),
+  }, { listening: "whisper", speaking: "kokoro", localPython: "/custom/existing/python" });
+  t.after(context.cleanup);
+  await context.login();
+  let job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") {
+    await new Promise((done) => setTimeout(done, 5));
+    job = await (await context.request("speech-setup")).json();
+  }
+  assert.equal(job.state, "done");
+  assert.deepEqual(choices, [{ listening: "nemotron", speaking: "mai" }], "MAI here skips a local download; it does not change the saved speaker.");
+  assert.equal(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")).localPython, "/custom/existing/python");
+});
+
+test("shutdown cancels speech startup and never saves the replacement", { timeout: 5000 }, async (t) => {
+  let closed = 0;
+  const context = await setup({
+    localSpeechReady: async () => false,
+    setUpLocalSpeech: async () => {},
+    startSpeech: async (_record, signal) => {
+      assert.ok(signal);
+      await new Promise<void>((done) => signal.addEventListener("abort", () => done(), { once: true }));
+      return { ...speechFixture().service, close: async () => {
+        closed++;
+        await assert.rejects(readFile(join(context.temporary, "speech.json")), { code: "ENOENT" });
+      } };
+    },
+  });
+  let cleaned = false;
+  t.after(async () => { if (!cleaned) await context.cleanup(); });
+  await context.login();
+  assert.equal((await context.request("settings", { listening: "nemotron", speaking: "kokoro" })).status, 202);
+  await context.cleanup();
+  cleaned = true;
+  assert.equal(closed, 1, "the new service is released without saving or installing it");
+});
+
+test("automatic listener replacement does not save a temporary speaking override", async (t) => {
+  const context = await setup({
+    speechOverrides: { speaking: "mai" },
+    localSpeechReady: async () => true,
+    startSpeech: async (record) => {
+      assert.equal(record.speaking, "mai");
+      return { ...speechFixture().service, selection: { listening: "nemotron", speaking: "mai" } };
+    },
+  }, { listening: "whisper", speaking: "kokoro" });
+  t.after(context.cleanup);
+  await context.login();
+  let job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") {
+    await new Promise((done) => setTimeout(done, 5));
+    job = await (await context.request("speech-setup")).json();
+  }
+  assert.equal(job.state, "done");
+  assert.deepEqual(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")), { listening: "nemotron", speaking: "kokoro" });
 });
 
 test("speech settings live in the user's home folder, and earlier settings are copied there once", async (t) => {
