@@ -32,32 +32,75 @@ earlier messages are smaller. The console shows the current state and next
 step, listening lights, a microphone button, and stopping controls when needed.
 There is no typing box or phone layout.
 
-Before speech is prepared, one central LCARS panel owns the main screen.
-Its service names, download information and Prepare the computer control stay
-together. Downloads and failures use the same panel, with actual setup steps
-and retry beside the error. The listening console is hidden while speech is
-unavailable or being prepared; do not show Standing by before it can listen.
+First setup uses one central LCARS flow: connect an AI provider if needed,
+choose an AI model, then prepare speech. The three-step readout follows the
+current stage, including speech downloads and retries. Reuse the same provider
+and model controls in the central panel and later settings drawers; do not
+keep separate copies or save a choice merely because the list changed.
+Speech service names, download information and Prepare the computer stay
+together. Downloads and failures show actual steps and retry beside the error.
+Keep AI provider and AI model errors inside the same first-run frame.
+Hide the listening console until model selection and speech preparation are
+complete; do not show Standing by before the computer can listen.
+Keep setup controls out of the bottom console. Unavailable saved models stay
+in the settings drawer for recovery, not first-run onboarding.
 Keep Belay that available when work is running, even while the listening
 console is hidden. Keep the current log entry without letting its scrolling
 hide preparation or retry. After a reload, Try again repeats the failed speech
 choice, not the previously saved choice.
-Keep setup controls out of the bottom console.
+Keep open pages in sync when preparation starts, finishes or fails, including
+when installed speech starts without a download.
 
-Captain's log and the Project, Model, and Listen · Speak tiles open in a
-slide-out, as do Provider in the top bar and About from the header dedication.
+Captain's log and the Project, Computer intelligence, and Listen · Speak tiles
+open in a slide-out, as do AI provider in the top bar and About from the header dedication.
 Choosing it again, Current log entry, Escape, or the log entry beside it closes
 the slide-out. The Tribute tile is an On/Off switch, not a slide-out. Stardate
 shows the fan-formula date, with the ordinary date on hover.
 
 ## States and access
 
-The Provider setting tells the truth when no model is available.
-Connection readiness means OpenCode is connected and a model is available.
+The AI provider setting, headed Connect your AI provider, uses a Captain-facing
+LCARS connection frame with a copyable terminal command, a clear Refresh
+connection action, and real
+connection results. OpenCode owns sign-in. On first setup, show Connect first
+only when no providers are connected; already-connected providers go straight
+to Computer intelligence, even when no usable models are listed. Detect
+connections from OpenCode's provider and connection information, not the model list; a failed
+lookup is an error, not an empty connection list. Keep credentials and account
+details on the server. Default OpenCode models remain an explicit optional
+path through a secondary LCARS-style Continue without connecting button.
+Explain that it offers OpenCode's default models and recommend connecting a
+provider for the best experience. Hide both the button and explanation when
+that path is unavailable. A saved OpenCode choice does not prompt connection
+onboarding again.
+The first setup shows Connect AI provider, Choose AI model, and Set up speech,
+highlighting only the current step. Supporting connection and permission
+information stays under About the connection. Computer intelligence also
+links to Connect so the Captain can add providers later.
+The Computer intelligence setting labels its selector AI model and requires
+an explicit confirmed choice, even when OpenCode offers free models.
+Recommend the most capable model available without
+inventing a ranking, and explain the possible cost and speed trade-off.
+The confirmed choice is saved on this computer for every Project, separately
+from OpenCode's default. An unavailable choice needs a confirmed replacement,
+never an automatic switch. Keep unavailable saved choices in Computer
+intelligence for recovery, not first-run onboarding.
+Address the Captain in the first-run welcome only, not in every settings
+instruction. Computer intelligence gives brief guidance for the actual state:
+first selection, saved choice, an unconfirmed change, or recovery. It uses an
+LCARS-style control frame and a colored status readout. A saved choice is
+clearly marked, and Use this model stays off until the choice changes.
+That action saves the choice and opens speech setup, or closes settings if
+speech is already set up. There is no separate confirmation screen.
+Unavailable models have a direct Refresh connection action. Supporting details
+stay under About this choice, not in the main setup steps.
+Connection readiness means OpenCode is connected and the confirmed model is available.
 Standing by, listening, understanding, working, speaking, reconnecting, unanswered
 questions, and approval requests have visible labels. Errors name the problem
 and the recovery step.
 
-The microphone switches on when speech is ready, subject to browser permission
+The microphone switches on when speech is ready and an available model has
+been confirmed, subject to browser permission
 and sound restrictions. "Computer" starts a task; follow-ups within it need no
 prefix. Standing by still listens; the microphone button or M key stops capture.
 Only an explicit spoken request or the New log entry tile starts a new entry.

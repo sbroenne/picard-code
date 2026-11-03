@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { startFixture, wikipediaFixture } from "./fixture.js";
@@ -6,9 +6,18 @@ import { startApp } from "../server/app.js";
 import { makeClient } from "../server/engine.js";
 import { projectDirectory } from "../server/process.js";
 import { speechFixture } from "./speech-fixture.js";
+import { saveModelSettings } from "../server/model-settings.js";
 
 const project = await projectDirectory(process.cwd());
 const fixture = await startFixture(project);
+if (process.argv.includes("--free-models")) {
+  fixture.setModels([{ id: "free-model", providerID: "opencode", name: "Free test model", enabled: true }]);
+  fixture.setProviders([{ id: "opencode", name: "OpenCode", integrationID: "opencode" }]);
+}
+if (process.argv.includes("--no-models")) fixture.setModels([]);
+if (process.argv.includes("--no-providers")) fixture.setProviders([]);
+if (process.argv.includes("--provider-error")) fixture.setProviderError("Test provider lookup failed.");
+if (process.argv.includes("--opencode-account")) fixture.setIntegrations([{ id: "opencode", connections: [{ type: "credential" }] }]);
 // Each utterance hears the next phrase; the last one repeats. Within a task everything said is sent,
 // so most end in silence ("").
 const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there", "Computer", "Keep the exact name and do not change files.", ""]
@@ -57,8 +66,25 @@ const speech = process.argv.includes("--speech") ? speechFixture(phrases,
 const soundIndex = process.argv.indexOf("--sounds");
 const soundFolder = soundIndex > 0 ? process.argv[soundIndex + 1] : undefined;
 // A throwaway settings file, so checks never read or change the owner's real speech settings.
-const speechFile = join(await mkdtemp(join(tmpdir(), "picard-browser-")), "speech.json");
-const app = await startApp({ client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"), speech, soundFolder, speechFile, readWikipedia: wikipediaFixture });
+const settingsFolder = await mkdtemp(join(tmpdir(), "picard-browser-"));
+const speechFile = join(settingsFolder, "speech.json");
+const modelFileIndex = process.argv.indexOf("--model-file");
+const modelFile = modelFileIndex > 0 ? process.argv[modelFileIndex + 1]! : join(settingsFolder, "model.json");
+if (!process.argv.includes("--model-setup") || process.argv.includes("--model-unavailable")) {
+  await saveModelSettings(modelFile, { providerID: "github-copilot", modelID: process.argv.includes("--model-unavailable") ? "missing-model" : "fixture-model" });
+}
+const settingsStandIn = process.argv.includes("--speech-settings");
+const app = await startApp({ client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"), speech, soundFolder, speechFile, modelFile, readWikipedia: wikipediaFixture,
+  localSpeechReady: settingsStandIn ? async () => true : undefined,
+  startSpeech: settingsStandIn ? async (settings) => {
+    if (settings.region === "broken") throw new Error("Test speech service could not start.");
+    return { ...speechFixture([""]).service, selection: {
+      listening: settings.listening === "mai" ? "mai" : "nemotron",
+      speaking: settings.speaking === "mai" ? "mai" : "kokoro",
+    } };
+  } : undefined,
+});
 console.log(app.url);
-process.once("SIGTERM", () => { void app.close().then(() => fixture.close()); });
-process.once("SIGINT", () => { void app.close().then(() => fixture.close()); });
+const close = () => { void app.close().then(() => fixture.close()).then(() => rm(settingsFolder, { recursive: true })); };
+process.once("SIGTERM", close);
+process.once("SIGINT", close);

@@ -18,7 +18,8 @@ export interface ModelInfo {
   enabled?: boolean;
 }
 
-export interface ProviderInfo { id: string; name: string }
+export interface ProviderInfo { id: string; name: string; integrationID?: string }
+export interface IntegrationInfo { id: string; connections: { type: "credential" | "env" }[] }
 export interface PermissionRule { action: string; resource: string; effect: "allow" | "deny" | "ask" }
 export interface AgentInfo { id: string; mode: "primary" | "subagent" | "all"; system?: string; model?: unknown; permissions: PermissionRule[] }
 
@@ -108,6 +109,10 @@ export class OpenCode {
 
   async providers(directory: string) {
     return (await this.call<{ data: ProviderInfo[] }>("GET", "/api/provider", { directory })).data;
+  }
+
+  async integrations(directory: string) {
+    return (await this.call<{ data: IntegrationInfo[] }>("GET", "/api/integration", { directory })).data;
   }
 
   async agents(directory: string) {

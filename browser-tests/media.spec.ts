@@ -5,6 +5,7 @@ import { startFixture } from "../src/tests/fixture";
 import { startApp } from "../src/server/app";
 import { makeClient } from "../src/server/engine";
 import { speechFixture } from "../src/tests/speech-fixture";
+import { saveModelSettings } from "../src/server/model-settings";
 
 // Original canvas pixels and recordings, not downloaded media.
 const folder = resolve(`.picard-test-media-microphone-${process.pid}`);
@@ -92,7 +93,9 @@ async function setup(page: Page, phrase: string | string[] = "") {
   sound.writeUInt32LE(24000, 24); sound.writeUInt32LE(48000, 28); sound.writeUInt16LE(2, 32); sound.writeUInt16LE(16, 34);
   sound.write("data", 36); sound.writeUInt32LE(4800, 40);
   for (const name of ["startup", "request-accepted", "input-failed", "request-failed", "tribute-fact"]) await writeFile(join(project, `${name}.mp3`), sound);
-  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"), speech: speech.service, soundFolder: project, speechFile: join(project, "unused-settings.json") });
+  const modelFile = join(project, "model.json");
+  await saveModelSettings(modelFile, { providerID: "github-copilot", modelID: "fixture-model" });
+  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"), speech: speech.service, soundFolder: project, speechFile: join(project, "unused-settings.json"), modelFile });
   await page.route("https://media.example.com/**", async (route) => {
     if (route.request().url().endsWith(".webm")) await route.fulfill({ contentType: "video/webm", body: Buffer.from(videoBytes) });
     else await route.fulfill({ contentType: "image/png", body: pixel });

@@ -30,10 +30,11 @@ export async function checkVersion(client: OpenCode) {
 
 /** Every model OpenCode can use right now, from any provider. OpenCode lists only providers it can reach. */
 export async function availableModels(client: OpenCode, directory: string) {
-  const [all, preferred, providers] = await Promise.all([
+  const [all, preferred, providers, integrations] = await Promise.all([
     client.models(directory),
     client.defaultModel(directory).catch(() => null),
-    client.providers(directory).catch(() => []),
+    client.providers(directory),
+    client.integrations(directory),
   ]);
   // Only provider names are kept: OpenCode's provider settings can hold keys.
   const providerName = new Map(providers.map((provider) => [provider.id, provider.name]));
@@ -42,5 +43,10 @@ export async function availableModels(client: OpenCode, directory: string) {
     .map((model) => ({ providerID: model.providerID, provider: providerName.get(model.providerID) ?? model.providerID, modelID: model.id, name: model.name }));
   models.sort((a, b) => a.provider.localeCompare(b.provider) || a.name.localeCompare(b.name));
   const defaultModel = models.find((model) => model.providerID === preferred?.providerID && model.modelID === preferred.id) ?? models[0];
-  return { models, defaultModel };
+  // OpenCode's keyless catalog is available without a connection. Local providers
+  // can be configured without credentials; unrelated connections (such as MCP) do not count.
+  const hasConnectedProvider = providers.some((provider) => provider.id !== "opencode")
+    || integrations.some((integration) => integration.connections.length > 0
+      && providers.some((provider) => (provider.integrationID ?? provider.id) === integration.id));
+  return { models, defaultModel, hasConnectedProvider };
 }

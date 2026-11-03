@@ -2,9 +2,10 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readFile, realpath } from "node:fs/promises";
 import { resolve, sep, extname } from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import type { AppState, BrowserEvent, FormField, FormValue } from "../shared/types.js";
+import type { AppState, BrowserEvent, FormField, FormValue, ModelSelection } from "../shared/types.js";
 import { chatMessages, availableModels, errorMessage } from "./engine.js";
 import { partID } from "./history.js";
+import { modelSettingsFile, readModelSettings, saveModelSettings, modelSelection } from "./model-settings.js";
 import { mediaReferences, replyMedia } from "../shared/media.js";
 import { MediaError, serveMedia } from "./media.js";
 import type { OpenCode, OpenCodeEvent, SessionInfo } from "./opencode.js";
@@ -134,6 +135,7 @@ export interface AppOptions {
   speechOverrides?: { listening?: string; speaking?: string };
   /** Where speech settings are read and saved. Defaults to the usual settings file. */
   speechFile?: string;
+  modelFile?: string;
   /** Starts speech from saved settings; replaceable in tests so no real service is called. */
   startSpeech?: (settings: Record<string, unknown>, signal?: AbortSignal) => Promise<SpeechService>;
   localSpeechReady?: (settings: Record<string, unknown> | undefined, listening?: boolean, speaking?: boolean) => Promise<boolean>;
@@ -151,12 +153,16 @@ export async function startApp(options: AppOptions) {
   const token = randomBytes(32).toString("hex");
   const cookie = randomBytes(32).toString("hex");
   const streams = new Set<ServerResponse>();
+  const notifyState = () => {
+    for (const stream of streams) stream.write(`data: ${JSON.stringify({ type: "state" })}\n\n`);
+  };
   let mutationBusy = false;
   let origin = "";
   const webRoot = await realpath(options.webRoot);
   let speech = options.speech;
   let speechError = options.speechError;
   const speechFile = options.speechFile ?? await speechSettingsFile();
+  const modelFile = options.modelFile ?? modelSettingsFile;
   const savedSpeech = !speech && !speechError ? await readSpeechSettings(speechFile) : undefined;
   const startSpeech = options.startSpeech ?? ((settings, signal) => speechFromSettings(settings, {}, signal));
   const localReady = options.localSpeechReady ?? localSpeechReady;
@@ -211,6 +217,7 @@ export async function startApp(options: AppOptions) {
     const job: NonNullable<typeof localSetup> = { state: "running", step: download ? "Starting the download" : "Starting local speech" };
     localSetup = job;
     localSetupChoice = { record, savedRecord };
+    notifyState();
     localSetupRun = (async () => {
       try {
         if (download) {
@@ -227,6 +234,8 @@ export async function startApp(options: AppOptions) {
         job.state = "failed";
         job.error = errorMessage(error);
         if (!speech) speechError = job.error;
+      } finally {
+        notifyState();
       }
     })();
     return job;
@@ -308,10 +317,16 @@ export async function startApp(options: AppOptions) {
       };
     }
     for (const id of retrying.keys()) if (!active.includes(id)) retrying.delete(id);
+    let savedModel: ModelSelection | undefined;
+    let modelError: string | undefined;
+    try { savedModel = await readModelSettings(modelFile); }
+    catch (error) { modelError = errorMessage(error); }
+    const selectedModel = models.models.find((model) => model.providerID === savedModel?.providerID && model.modelID === savedModel.modelID);
     return {
       project,
       version: info.version,
       ...models,
+      savedModel, selectedModel, modelError,
       conversations: conversations.map((session) => ({ id: session.id, title: session.title, created: session.time.created, updated: session.time.updated })),
       statuses,
       permissions: permissions.filter((request) => entries.has(request.sessionID)).map((request) => ({
@@ -432,6 +447,21 @@ export async function startApp(options: AppOptions) {
           json(response, 200, await state(project));
           return;
         }
+        if (path === "/api/model" && method === "POST") {
+          const data = await body(request);
+          let choice;
+          try { choice = modelSelection(data); }
+          catch (error) { throw new HttpError(400, errorMessage(error)); }
+          if ((await working(project)).length) throw new HttpError(409, "Stop the current work before changing the model.");
+          const { models } = await availableModels(client, project);
+          if (!models.some((model) => model.providerID === choice.providerID && model.modelID === choice.modelID)) {
+            throw new HttpError(400, "That model is not available. Refresh the provider connection and choose an available model.");
+          }
+          await saveModelSettings(modelFile, choice);
+          notifyState();
+          json(response, 200, await state(project));
+          return;
+        }
         const soundName = /^\/api\/sounds\/(startup|request-accepted|input-failed|request-failed|tribute-fact)$/.exec(path)?.[1];
         if (soundName && method === "GET") {
           let sound: Buffer;
@@ -479,6 +509,7 @@ export async function startApp(options: AppOptions) {
           const result = await applySpeech(record);
           localSetup = undefined;
           localSetupChoice = undefined;
+          notifyState();
           json(response, 200, result);
           return;
         }
@@ -581,7 +612,19 @@ export async function startApp(options: AppOptions) {
             }
             const { models } = await availableModels(client, project);
             if (!models.some((model) => model.providerID === providerID && model.modelID === modelID)) {
+              notifyState();
               throw new HttpError(400, "Sign in to a model provider in OpenCode and choose an available model.");
+            }
+            let confirmed;
+            try { confirmed = await readModelSettings(modelFile); }
+            catch (error) { notifyState(); throw error; }
+            if (!confirmed) {
+              notifyState();
+              throw new HttpError(409, "Open Computer intelligence and confirm a model before sending a request.");
+            }
+            if (confirmed.providerID !== providerID || confirmed.modelID !== modelID) {
+              notifyState();
+              throw new HttpError(409, "The model choice has changed or is unavailable. Open Computer intelligence and confirm the model before sending a request.");
             }
             const related = await family(session, project);
             const active = await client.active(project);

@@ -24,7 +24,7 @@ try {
   const { models, defaultModel } = await availableModels(engine.client, project);
   const model = models.find((item) => item.modelID === "gpt-5-mini") ?? defaultModel;
   assert.ok(model, "A model provider must be connected to run the real crew check.");
-  app = await startApp({ client: engine.client, project, prepareCrew: engine.prepareCrew, webRoot: resolve("web-dist"), speechFile: join(project, "speech.json") });
+  app = await startApp({ client: engine.client, project, prepareCrew: engine.prepareCrew, webRoot: resolve("web-dist"), speechFile: join(project, "speech.json"), modelFile: join(project, "model.json") });
   const connected = await fetch(`${app.origin}/api/connect`, {
     method: "POST", headers: { "Content-Type": "application/json", "X-Picard-Request": "1" }, body: JSON.stringify({ token: app.token }),
   });
@@ -40,6 +40,7 @@ try {
     assert.equal(response.ok, true, result.error);
     return result as T;
   };
+  await api("model", model);
   const answered = (history: ChatMessage[]) => history.filter((message) => message.role === "assistant" && !message.background && (message.error || message.parts.some((part) => part.type === "text" && part.text.trim()))).length;
   // Waits for a new reply. A question the computer asks on screen ends the wait only when allowed.
   const settle = async (id: string, earlier = 0, questionAllowed = false) => {

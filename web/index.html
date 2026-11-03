@@ -14,7 +14,7 @@
     <a id="skip-to-computer" class="skip-link" href="#voice-console">Skip to the computer status</a>
     <div id="shell" class="shell" data-drawer="">
       <div class="top-rail" aria-label="Connection">
-        <a class="readout peach" href="#settings/provider" title="Provider sign-in"><small>Provider</small><b id="readout-provider">—</b></a>
+        <a class="readout peach" href="#settings/provider" title="AI provider sign-in"><small>AI provider</small><b id="readout-provider">—</b></a>
         <span class="block lilac grow" title="Picard Code version"><i><span class="visually-hidden">Picard Code version </span><span id="readout-version">%PICARD_VERSION%</span></i></span>
       </div>
       <header class="header">
@@ -36,7 +36,7 @@
         <span id="tribute-status" class="visually-hidden" aria-live="polite"></span>
         <label class="rail-button blue rail-switch bridge-switch"><input id="bridge-toggle" type="checkbox" role="switch" aria-label="Bridge crew" checked /><b id="bridge-toggle-state" aria-hidden="true">On</b><span>Bridge crew</span></label>
         <span id="bridge-status" class="visually-hidden" aria-live="polite"></span>
-        <span class="rail-fill"><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Model"><small>Model</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a></span>
+        <span class="rail-fill"><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Computer intelligence"><small>Computer intelligence</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a></span>
         <span id="rail-end" class="readout blue"><small>Stardate</small><b id="readout-stardate">—</b></span>
       </nav>
 
@@ -47,6 +47,11 @@
           <button id="retry" class="pill outline" type="button">Try again</button>
         </div>
         <div id="reading-area" class="reading-area">
+          <section id="first-run-setup" class="speech-preparation first-run-setup" data-state="offline" hidden tabindex="-1" aria-labelledby="first-run-title">
+            <p class="preparation-label">Computer · Initial setup</p>
+            <h2 id="first-run-title">Connect your AI provider</h2>
+            <div id="first-run-panel"></div>
+          </section>
           <section id="speech-first-start" class="speech-preparation" data-state="offline" hidden tabindex="-1" aria-labelledby="speech-first-start-title">
             <p class="preparation-label">Computer · Voice systems</p>
             <h3 id="speech-first-start-title">Computer voice offline</h3>
@@ -77,7 +82,7 @@
           </section>
           <section id="setup" class="setup" hidden aria-labelledby="setup-title">
             <h3 id="setup-title">No model available</h3>
-            <a class="pill orange" href="#settings/provider">Open setup</a>
+            <a id="open-model-setup" class="pill orange" href="#settings/provider">Open setup</a>
           </section>
           <section id="welcome" class="welcome">
             <div>
@@ -117,25 +122,57 @@
 
       <section id="drawer-settings" class="drawer wide" hidden tabindex="-1" aria-labelledby="settings-title">
         <div id="settings-bar" class="drawer-bar blue"><h2 id="settings-title">Settings</h2></div>
+        <ol id="setup-progress" class="setup-progress" aria-label="Setup progress" hidden>
+          <li data-setup-step="provider"><span aria-hidden="true">01</span> Connect AI provider</li>
+          <li data-setup-step="model"><span aria-hidden="true">02</span> Choose AI model</li>
+          <li data-setup-step="voice"><span aria-hidden="true">03</span> Set up speech</li>
+        </ol>
         <section id="settings-provider" class="panel" hidden>
-          <p id="provider-status" class="readout-line">Checking</p>
-          <p id="workspace-caption" class="muted"></p>
-          <p>Picard Code works with any model provider OpenCode supports, such as GitHub Copilot, Anthropic, OpenAI or a model on this computer.</p>
-          <ol>
-            <li>In a terminal, run <code>npx picard-code opencode auth login</code>.</li>
-            <li>Choose your provider from the list and follow its sign-in.</li>
-            <li>Choose <strong>Refresh connection</strong> below.</li>
-          </ol>
-          <p class="muted">Sign-ins and keys stay with OpenCode. Nothing is entered here.</p>
-          <button id="refresh-provider" class="pill orange" type="button">Refresh connection</button>
+          <p id="provider-welcome" class="setup-welcome" hidden>Welcome aboard, Captain.</p>
+          <p id="provider-guidance">Connect your preferred AI provider in OpenCode for the best Picard Code experience. Then choose its most capable model.</p>
+          <div class="provider-connection">
+            <p class="connection-label">Connect through OpenCode</p>
+            <p class="muted">Run this command in a terminal, choose your AI provider and follow OpenCode's sign-in.</p>
+            <div class="provider-command">
+              <code id="provider-command">npx picard-code opencode auth login</code>
+              <button id="copy-provider-command" class="pill outline" type="button">Copy command</button>
+            </div>
+            <p id="provider-copy-result" class="copy-result" aria-live="polite"></p>
+            <p class="muted">Return here after sign-in. Repeat the command to connect more AI providers.</p>
+            <button id="refresh-provider" class="pill orange" type="button">Refresh connection</button>
+            <p id="provider-status" class="connection-status" aria-live="polite" aria-atomic="true">Checking</p>
+          </div>
+          <div id="use-opencode-models" class="provider-alternative" hidden>
+            <a class="pill outline" href="#settings/model" aria-describedby="default-model-guidance">Continue without connecting</a>
+            <p id="default-model-guidance" class="muted">Choose from OpenCode's default models. For the best experience, connect your own AI provider.</p>
+          </div>
+          <details class="setup-details">
+            <summary>About the connection</summary>
+            <p class="muted">Picard Code works with any AI provider OpenCode supports, including a model on this computer. Configure local models in OpenCode, then refresh here. An available model is not a guarantee that a request will succeed.</p>
+            <p class="muted">Sign-ins and keys stay with OpenCode. Nothing is entered here.</p>
+            <p class="muted">OpenCode's own rules decide which actions ask first. Out of the box it changes files and runs commands without asking. When it asks, choose Allow once or Deny on screen.</p>
+            <p id="workspace-caption" class="muted"></p>
+          </details>
         </section>
 
         <section id="settings-model" class="panel" hidden>
-          <div class="field-grid">
-            <label for="model">Model</label>
-            <select id="model" disabled><option>Waiting for OpenCode</option></select>
-            <p class="muted span">OpenCode's own rules decide which actions ask first. Out of the box it changes files and runs commands without asking. When it asks, choose Allow once or Deny on screen.</p>
-          </div>
+          <p id="model-guidance">Choose the most capable AI model available for the best answers. It may cost more or take longer.</p>
+          <p id="model-problem" class="muted" hidden></p>
+          <form id="model-form" class="field-grid model-selection">
+            <label for="model">AI model</label>
+            <select id="model" aria-describedby="model-guidance model-problem" disabled><option>Waiting for OpenCode</option></select>
+            <div class="model-actions">
+              <button id="confirm-model" class="pill blue" type="submit" disabled>Use this model</button>
+              <button id="refresh-model" class="pill outline" type="button" hidden>Refresh connection</button>
+              <a class="connect-provider" href="#settings/provider">Connect an AI provider</a>
+            </div>
+            <p id="model-status" class="model-status" aria-live="polite" aria-atomic="true"></p>
+          </form>
+          <details class="model-details setup-details">
+            <summary>About this choice</summary>
+            <p class="muted">Your confirmed choice is remembered on this computer for every Project. OpenCode's own default is not changed. If your model becomes unavailable, the computer asks you to choose again; it never switches models for you.</p>
+            <p class="muted">Models are grouped by AI provider, not ranked by capability.</p>
+          </details>
         </section>
 
         <section id="settings-project" class="panel" hidden>
@@ -181,7 +218,7 @@
 
         <section id="settings-about" class="panel" hidden>
           <p>A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard. Unofficial, made with deep respect and gratitude.</p>
-          <p class="muted">It runs on this computer and does its coding through OpenCode, with the model provider you choose.</p>
+          <p class="muted">It runs on this computer and does its coding through OpenCode, with the AI provider you choose.</p>
           <p>The Tribute switch in the left navigation controls occasional sourced facts, gentle humour about the Captain, and offers of Picard or Patrick Stewart stories. Picard stories describe fictional adventures; Stewart stories describe the actor's career. Turning it off keeps Picard's identity and stories you explicitly request.</p>
           <p class="muted">Automatic facts appear on screen with a quiet tricorder sound after the answer finishes. Requested answers and story invitations are still spoken.</p>
           <p>The Bridge crew switch in the left navigation brings the six bridge officers on or off duty. When it is off, the computer answers every request itself.</p>

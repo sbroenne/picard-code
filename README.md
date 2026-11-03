@@ -87,7 +87,27 @@ Picard Code and a copy of the official OpenCode 2
 instead. You do not need to install OpenCode, Python or anything else
 yourself. OpenCode 1 is not supported.
 
-On a fresh installation, choose **Prepare the computer**. The app downloads
+Before the computer starts listening, choose an **AI model** in
+**Computer intelligence** and choose **Use this model**. For the best experience, choose the most capable
+model your provider offers; it may cost more or take longer to answer.
+First setup keeps AI provider connection, AI model choice and speech
+preparation in a central LCARS-style flow, with the current step highlighted.
+The side tiles open settings drawers for later changes.
+Picard Code does not rank models or choose one for you, even when free OpenCode
+models are available. If OpenCode has no connected providers and you have not
+saved a model choice, **Connect your AI provider** opens first. It recommends
+connecting your preferred AI provider, with **Copy command** for OpenCode's
+sign-in command and **Refresh connection** when you return.
+**Continue without connecting** opens model selection without signing in.
+If a provider is already connected, you go straight to model selection.
+
+Your confirmed model is remembered on this computer, across restarts, browsers
+and project folders, without changing OpenCode's default. Existing users also
+confirm a model once when first using this version. If that model becomes
+unavailable, choose and confirm another; Picard Code never substitutes a model.
+
+On a fresh installation, the app also opens without speech. After choosing
+your AI model, choose **Prepare the computer**. The app downloads
 local Nemotron and Kokoro speech, shows each real step in an LCARS-style
 display, and starts speech when it is ready, without a restart
 (see [Local speech setup](#local-nemotron-and-kokoro-setup)).
@@ -131,6 +151,7 @@ Everything Picard Code downloads or saves is kept in one folder,
 `.picard-code` in your home folder (on Windows, `C:\Users\you\.picard-code`):
 
 - `speech.json`: your speech settings (no keys or passwords);
+- `model.json`: the provider and model you explicitly confirmed (no keys or passwords);
 - `voice`: local speech and its Python environment;
 - `uv` and `python`: only if uv was not already installed, the uv that set up speech and its Python;
 - `sounds`: the computer sounds, downloaded at the first start.
@@ -332,9 +353,39 @@ To sign in to a provider:
 2. Choose your provider from the list and follow its sign-in. For GitHub
    Copilot, that is GitHub's device sign-in: check you are signed in to the
    right account, enter the code OpenCode shows, and approve it yourself.
-3. Return to Picard Code, choose the **Provider** tile and then
-   **Refresh connection**. Pick a model with the **Model** tile; models are
-   grouped by provider.
+3. Return to Picard Code, choose the **AI provider** tile and then
+   **Refresh connection**. Once a provider connection is found,
+   **Computer intelligence** opens if no model has been confirmed. Models
+   are grouped by provider: pick one and choose **Use this model**. The
+   **Computer intelligence** tile lets you change it later; changing the list
+   alone does not save or activate a choice.
+
+The Connect screen addresses you as the Captain and shows the first setup
+steps: connect an AI provider, choose an AI model, and set up speech. It does not ask
+you to sign in again when OpenCode already has a connected provider. The
+secondary **Continue without connecting** button lets you choose from
+OpenCode's default models when available; a saved OpenCode model does not
+trigger connection onboarding again.
+You can add providers later through **Connect an AI provider** in Computer
+intelligence. Local providers remain supported without an online account.
+A provider with no available models opens Computer intelligence so you can
+check OpenCode's model settings and refresh, rather than being sent through
+sign-in again. Supporting explanations,
+including OpenCode's permission behavior, are under **About the connection**.
+
+Computer intelligence labels the selector **AI model** and shows **Model saved**
+after confirmation. First-time guidance recommends a capable model; saved
+choices and recovery have their own wording rather than repeating the welcome.
+**Use this model** stays off until you choose a different model. During first
+setup, saving moves straight to the central speech preparation screen, or
+finishes setup if speech is already ready. Later changes use settings drawers;
+there is no extra confirmation screen. **About this choice**
+explains where the choice is remembered; if the saved model is unavailable,
+**Refresh connection** is offered in the same panel.
+
+Choose the most capable model your provider offers for the best experience.
+More capable models may cost more or take longer to answer. Picard Code does
+not rank the models or select OpenCode's default for you.
 
 `npx picard-code opencode auth list` shows which providers are signed in.
 
@@ -377,11 +428,16 @@ screen; there is no phone layout.
   permanently, after you confirm; an entry that is still working cannot be
   deleted until it is stopped.
 - **Settings** (`#settings/…`): there is no Settings button. Each tile in the
-  side panel opens its own setting: **Provider** the sign-in steps,
-  **Model** the model, **Project** the folder, **Listen · Speak** the speech
-  services, and the tribute badge **About**. Choosing the same tile again
-  closes it. If no model is available when the app opens, the Provider
-  setting is shown first. Listening pauses while a setting is open. Speech
+  side panel opens its own setting: **AI provider** the sign-in steps,
+  **Computer intelligence** the AI model, **Project** the folder,
+  **Listen · Speak** the speech services, and the tribute badge **About**.
+  Choosing the same tile again
+  closes it. Without a saved model choice, the central first-run panel shows
+  AI provider first only when OpenCode has no connected providers; otherwise
+  it shows Computer intelligence. The panel then moves to speech preparation.
+  An unavailable saved model opens Computer intelligence for recovery,
+  without choosing a replacement. Listening stays off until an available model
+  is confirmed and speech is set up. Listening pauses while a setting is open. Speech
   changes apply without restarting.
 
 OpenCode owns every sign-in; no provider key or password is entered into this
@@ -1008,7 +1064,12 @@ saved speech choices. Generated speech does not test a physical microphone.
 `test:conversation:live` checks the complete real MAI browser path using
 generated microphone audio, OpenCode, a real model from your signed-in provider, saved
 messages, live text updates, and real spoken playback. `--local` checks the
-same path with Nemotron and Kokoro.
+same path with Nemotron and Kokoro. Both explicitly confirm
+their test model using a throwaway settings file.
+Add `--model provider/model` to choose a particular available model for the
+check, for example
+`npm run test:conversation:live -- --local --model github-copilot/gpt-5.3-codex`.
+This does not change your saved Picard Code model or speech choices.
 Add `--interrupt` to play a generated request into the browser's capture path
 while a real spoken answer is playing. It checks that playback stops, the
 new request keeps its name and negation, and no stop-work request is sent.
@@ -1047,7 +1108,15 @@ and repeat the browser checks.
   terminal, including its temporary key. It must use `127.0.0.1`, not a different
   hostname. Do not share that address.
 - **No model available:** sign in to a provider as described above, then
-  refresh the connection while no work is running.
+  refresh the connection while no work is running, choose a model, and choose
+  **Use this model**.
+- **Saved model unavailable:** open **Computer intelligence** to see the saved
+  provider and model. Refresh the provider connection to check its availability, or choose
+  and confirm another model. Picard Code keeps your saved choice until you
+  confirm a replacement and never switches automatically.
+- **Model choice could not be saved or read:** Computer intelligence shows the error.
+  Check access to `~/.picard-code/model.json`, then confirm your choice again.
+  An invalid settings file can be replaced by confirming an available model.
 - **Live updates stop:** keep the terminal open. The browser reconnects and
   reloads saved messages and pending approvals. Use **Try again** if needed.
 - **OpenCode cannot start:** run `npx picard-code opencode` directly to see its setup
@@ -1057,7 +1126,7 @@ and repeat the browser checks.
 - **Microphone will not start:** use a current browser at the printed local
   address, click the microphone button, allow microphone access,
   and check the input
-  device. The selected speech setup and an available model are required.
+  device. Speech must be set up and an available model explicitly confirmed.
 - **Azure rejects speech:** check resource access, the deployed live listening
   model, supported region and voice, and service quota. A speech error does
   not mean OpenCode stopped; use **Belay that** separately when needed.

@@ -40,6 +40,8 @@ Advanced setup for people with their own subscription and deployed models.
   | log entry | conversation, chat, session, task |
   | New log entry | New task, New chat |
   | Current log entry (the main screen) | Conversation, Home |
+  | Computer intelligence (the AI model setting) | Model (the panel or tile name) |
+  | AI provider | Provider (the tile name or connection wording) |
   | Stardate | date or time; dates and times are always shown and spoken as stardates |
   | Standing by | Idle, Ready |
   | Belay that | Stop work, Cancel (the button that cancels running work) |
@@ -48,6 +50,10 @@ Advanced setup for people with their own subscription and deployed models.
   Code names (such as `conversations` in the API) may stay as they are. Error
   messages stay exact and plain; never trade clarity for flavour. Spoken
   phrases like "new task" may still be understood as alternatives.
+  Label the Computer intelligence selector "AI model". Address the Captain in
+  the first-run welcome, not repeatedly in settings instructions.
+  First-run AI provider, AI model and speech preparation belong in the central
+  LCARS setup flow. Keep drawers for later settings and saved-model recovery.
 - **Truthful results.** Never claim work succeeded, ran, or was heard before the
   real result arrives. Never replace a real error with a vague or themed message.
   No silent fallback from one speech service to another.

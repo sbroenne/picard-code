@@ -75,8 +75,8 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.locator("#voice-console")).toBeHidden();
   await expect(page.locator("#speech-first-start")).toBeVisible();
   await expect(page.locator("#listen-toggle")).toBeHidden();
-  for (const name of ["Project folder", "Provider sign-in"]) await expect(page.getByRole("heading", { name })).toBeHidden();
-  await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
+  for (const name of ["Project folder", "Connect your AI provider"]) await expect(page.getByRole("heading", { name })).toBeHidden();
+  await expect(page.getByRole("combobox", { name: "AI model" })).toBeHidden();
   await expect(page.locator("#conversations")).toBeHidden();
 
   // There is no Settings or Options button: each side panel tile opens its own part.
@@ -85,32 +85,35 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("tab")).toHaveCount(0);
   const conversation = page.getByRole("link", { name: "Current log entry", exact: true });
   await expect(conversation).toHaveAttribute("aria-current", "page");
-  await page.getByRole("link", { name: /^Model/ }).click();
+  await page.getByRole("link", { name: /^Computer intelligence/ }).click();
   await expect(conversation).not.toHaveAttribute("aria-current", "page");
   await expect(page).toHaveURL(/#settings\/model$/);
-  await expect(page.getByRole("heading", { name: "Model" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "Model" })).toBeVisible();
-  await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Computer intelligence" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "AI model" })).toBeVisible();
+  await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Connect your AI provider" })).toBeHidden();
   await expect(page.getByLabel("Mode", { exact: true })).toHaveCount(0);
   // Choosing the same tile again closes it; so do the Conversation tile and a click on the conversation.
-  await page.getByRole("link", { name: /^Model/ }).click();
-  await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
-  await page.getByRole("link", { name: /^Model/ }).click();
+  await page.getByRole("link", { name: /^Computer intelligence/ }).click();
+  await expect(page.getByRole("combobox", { name: "AI model" })).toBeHidden();
+  await page.getByRole("link", { name: /^Computer intelligence/ }).click();
   await conversation.click();
-  await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
+  await expect(page.getByRole("combobox", { name: "AI model" })).toBeHidden();
   await expect(conversation).toHaveAttribute("aria-current", "page");
-  await page.getByRole("link", { name: /^Model/ }).click();
-  await expect(page.getByRole("combobox", { name: "Model" })).toBeVisible();
+  await page.getByRole("link", { name: /^Computer intelligence/ }).click();
+  await expect(page.getByRole("combobox", { name: "AI model" })).toBeVisible();
   // Settings is 880 pixels wide from the left; click the conversation to its right.
   await page.mouse.click(1300, 500);
-  await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
+  await expect(page.getByRole("combobox", { name: "AI model" })).toBeHidden();
 
-  await page.getByRole("link", { name: /^Provider/ }).click();
-  await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeVisible();
+  await page.getByRole("link", { name: /^AI provider/ }).click();
+  await expect(page.getByRole("heading", { name: "Connect your AI provider" })).toBeVisible();
+  await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeHidden();
+  await page.getByText("About the connection", { exact: true }).click();
+  await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeVisible();
   await page.getByRole("link", { name: /^Project/ }).click();
   await expect(page.getByRole("heading", { name: "Project folder" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Connect your AI provider" })).toBeHidden();
   await page.getByRole("link", { name: /Sir Patrick Stewart/ }).click();
   await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
   await page.getByRole("link", { name: /^Listen/ }).click();

@@ -60,6 +60,11 @@ recognized coding requests still go to the chosen model.
 Any model provider OpenCode supports can be used, such as GitHub Copilot,
 Anthropic, OpenAI or a local model. Sign-ins go through OpenCode's own flow and
 stay with OpenCode; credentials from other tools must not be extracted.
+Before listening starts, the user explicitly chooses and confirms a model.
+Recommend the most capable model available for the best experience, with
+clear cost and speed considerations. Remember the choice on this computer
+across Projects and restarts, separately from OpenCode's default. If it becomes
+unavailable, ask for another choice rather than switching models automatically.
 
 ## Brand Commitments
 

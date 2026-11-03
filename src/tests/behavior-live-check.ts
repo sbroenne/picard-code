@@ -35,7 +35,7 @@ try {
   const { models, defaultModel } = await availableModels(client, project);
   const model = models.find((item) => item.modelID === "gpt-4.1") ?? models.find((item) => item.modelID === "gpt-5-mini") ?? defaultModel;
   assert.ok(model, "Sign in to a model provider in OpenCode before this real check.");
-  app = await startApp({ client, project, webRoot: resolve("web-dist") });
+  app = await startApp({ client, project, webRoot: resolve("web-dist"), modelFile: resolve(temporary, "model.json"), speechFile: resolve(temporary, "speech.json") });
   const origin = app.origin;
   const connected = await fetch(`${origin}/api/connect`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "x-picard-request": "1" }, body: JSON.stringify({ token: app.token }) });
   assert.equal(connected.status, 200);
@@ -50,6 +50,7 @@ try {
     if (!response.ok) throw new Error(`${path} failed: ${String(data.error)}`);
     return data;
   };
+  await api("/api/model", model);
   const conversation = await api("/api/conversations", { title: "New conversation" });
   const sessionID = String(conversation.id);
   transcript.push(`Model: ${model.providerID}/${model.modelID}. Project files: src/config.ts, src/retry.ts, opencode.json (shell commands and edits ask first).`, "");
