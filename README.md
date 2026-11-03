@@ -516,12 +516,11 @@ facts. Reopening the Captain's log does not generate new ones. Facts avoid
 repetition until the reviewed collection has been used, and may contain
 spoilers from Picard's appearances.
 
-Automatic facts are on screen only. A quiet tricorder-opening sound announces
-each new fact after the main answer finishes playing, before listening resumes.
-It does not repeat when the screen redraws or a log entry is reopened. There is
+Automatic facts are silent and on screen only. They do not interrupt the
+spoken answer or delay listening. There is
 no automatic-fact speech setting; an old saved speech choice has no effect.
 The Tribute choice is remembered in this browser. Turning it off stops pending
-tribute sounds and story offers without cutting off the main answer.
+story offers without cutting off the main answer.
 
 Questions such as "Computer, tell me about myself" always mean Captain
 Jean-Luc Picard's fictional life, not Patrick Stewart's biography or your
@@ -642,7 +641,7 @@ on-screen button.
 - "Stop listening" and switching the microphone off do not cancel OpenCode's work.
   **Belay that** cancels the current OpenCode request. These are separate
   controls.
-- **Computer sounds:** Picard Code downloads five short TrekCore sounds
+- **Computer sounds:** Picard Code downloads four short TrekCore sounds
   automatically on first startup (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
   Later starts use the checked local copies; missing or changed files are downloaded
   again. If a download fails, startup reports the error rather than silently
