@@ -8,18 +8,36 @@ interface SpokenPart { text: string; speaker?: CrewID }
 // A short pause when the next part has a different speaker: 0.3 seconds of 24 kHz 16-bit silence.
 const HANDOVER = Buffer.alloc(14_400);
 
-/** A spoken reply is either one text for the computer or up to eight parts, each spoken by the computer or an officer. */
+/** Keep the existing 8,000-character total budget, without limiting one speaker to 1,000 characters. */
 function spokenParts(data: object): SpokenPart[] | undefined {
-  if ("text" in data && !("parts" in data)) return typeof data.text === "string" && data.text.trim() && data.text.length <= 1000 ? [{ text: data.text.trim() }] : undefined;
-  if (!("parts" in data) || !Array.isArray(data.parts) || !data.parts.length || data.parts.length > 8) return undefined;
+  const values: unknown[] = "text" in data && !("parts" in data) ? [{ text: data.text }]
+    : "parts" in data && Array.isArray(data.parts) ? data.parts : [];
+  if (!values.length || values.length > 8) return undefined;
   const parts: SpokenPart[] = [];
-  for (const part of data.parts as unknown[]) {
-    if (!part || typeof part !== "object" || !("text" in part) || typeof part.text !== "string" || !part.text.trim() || part.text.length > 1000) return undefined;
+  let length = 0;
+  for (const part of values) {
+    if (!part || typeof part !== "object" || !("text" in part) || typeof part.text !== "string" || !part.text.trim()) return undefined;
+    length += part.text.length;
+    if (length > 8000) throw new Error("The spoken answer is too long. The written answer remains on screen.");
     const speaker = "speaker" in part ? part.speaker : undefined;
     if (speaker !== undefined && (typeof speaker !== "string" || !crewMember(speaker))) return undefined;
     parts.push({ text: part.text.trim(), ...speaker === undefined ? {} : { speaker: speaker as CrewID } });
   }
   return parts;
+}
+
+function speechChunks(text: string) {
+  const chunks: string[] = [];
+  let rest = text.trim();
+  while (rest.length > 1000) {
+    const start = rest.slice(0, 1001);
+    let end = start.match(/^.*[.!?](?=\s)/s)?.[0].length ?? start.search(/\s+\S*$/);
+    if (end <= 0) end = /[\uD800-\uDBFF]/.test(rest[999]!) ? 999 : 1000;
+    chunks.push(rest.slice(0, end).trim());
+    rest = rest.slice(end).trim();
+  }
+  if (rest) chunks.push(rest);
+  return chunks;
 }
 
 /**
@@ -113,18 +131,21 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
           if (part.speaker && !voice) throw new Error("This speaking service has no officer voices.");
           if (previous && previous.speaker !== part.speaker) play(HANDOVER);
           previous = part;
-          let remainder = Buffer.alloc(0);
-          let produced = false;
-          for await (const bytes of chosen.speak(part.text, signal, voice, speed)) {
+          for (const chunk of speechChunks(part.text)) {
             if (speechEpoch !== current || socket.readyState !== WebSocket.OPEN) return;
-            const joined = Buffer.concat([remainder, bytes]);
-            const end = joined.length - joined.length % 2;
-            if (end) { produced = true; play(joined.subarray(0, end)); }
-            remainder = Buffer.from(joined.subarray(end));
+            let remainder = Buffer.alloc(0);
+            let produced = false;
+            for await (const bytes of chosen.speak(chunk, signal, voice, speed)) {
+              if (speechEpoch !== current || socket.readyState !== WebSocket.OPEN) return;
+              const joined = Buffer.concat([remainder, bytes]);
+              const end = joined.length - joined.length % 2;
+              if (end) { produced = true; play(joined.subarray(0, end)); }
+              remainder = Buffer.from(joined.subarray(end));
+            }
+            if (speechEpoch !== current) return;
+            if (remainder.length) throw new Error("The speaking service returned incomplete audio. The written answer remains on screen.");
+            if (!produced) throw new Error("No spoken audio was produced. The written answer remains on screen.");
           }
-          if (speechEpoch !== current) return;
-          if (remainder.length) throw new Error("The speaking service returned incomplete audio. The written answer remains on screen.");
-          if (!produced) throw new Error("No spoken audio was produced. The written answer remains on screen.");
         }
         send({ type: "audio-end", id });
         // Remain paused until the browser finishes playing its queued audio.

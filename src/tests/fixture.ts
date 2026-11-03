@@ -18,14 +18,14 @@ import type { AgentInfo, PermissionRule } from "../server/opencode.js";
 
 /** A staged example answer for the project website screenshot; no model wrote it and no project was examined. */
 const EXAMPLE_ANSWER = "The settings test fails because the default voice replaces the saved choice when the app starts.\n\n"
+  + "Shall I make that change and run the test again?\n\n### On screen\n\n"
   + "In `src/settings.ts`, apply the defaults first and the saved settings second:\n\n"
-  + "```ts\nconst settings = { ...defaults, ...saved };\n```\n\n"
-  + "Shall I make that change and run the test again?";
+  + "```ts\nconst settings = { ...defaults, ...saved };\n```";
 // Staged officer answers for the website screenshot, written in each officer's manner.
 const DATA_EXAMPLE = "Captain, there is one cause. The shield level is rounded before the warning check, so 99.6% reads as full.\n\n"
+  + "I have not changed any files.\n\n### On screen\n\n"
   + "In `src/tactical/shields.ts`, the warning must use the exact reading:\n\n"
-  + "```ts\nconst failing = reading.level < 100;\nconst shown = Math.round(reading.level);\n```\n\n"
-  + "I have not changed any files.";
+  + "```ts\nconst failing = reading.level < 100;\nconst shown = Math.round(reading.level);\n```";
 const RIKER_EXAMPLE = "Captain, I'd fix it now. A false shield reading is the last thing we need before Starbase 74. "
   + "Let Data make the change and run the tests.";
 
@@ -271,8 +271,8 @@ export async function startFixture(project: string) {
           publish(directory, "session.execution.started", { sessionID });
           send(200, {});
           const manner = instructions.get(sessionID)?.["picard-manner"] ?? "";
-          // The computer holds a briefing only when Picard Code has really called one.
-          if (manner.includes("Hold a briefing") && /\bData and Riker\b/.test(text)) {
+          // A briefing exists only when Picard Code really requested the officer calls.
+          if (manner.includes("The Captain leads this briefing") && /\bData and Riker\b/.test(text)) {
             const denied = text.includes("Data's action is denied");
             const parentDenied = text.includes("computer's action is denied");
             const noClose = text.includes("no computer close");
@@ -284,9 +284,17 @@ export async function startFixture(project: string) {
               ? "Test stand-in: I recommend the smaller repair, Captain."
               : denied
               ? "Test stand-in: Data's action was denied. No command was run."
-              : "Test stand-in: The recommendation is waiting for your decision.", generation);
+              : "The reports are on screen.", generation);
             later(() => {
               if (!current(sessionID, generation)) return;
+              const rikerReport = () => {
+                const riker = createSession(directory, "Riker recommendation", sessionID, "picard-riker");
+                riker.model = session.model;
+                const question = text.includes("retry_policy.ts") ? "\n\nShall I update retry_policy.ts?" : "";
+                const report = assistant(riker.id, [{ type: "text", text: `Test stand-in: I recommend the smaller repair, Captain.${question}` }]);
+                report.time.created += text.includes("Riker first") ? -1 : 1;
+              };
+              if (text.includes("Riker first")) rikerReport();
               const data = createSession(directory, "Data investigation", sessionID, "picard-data");
               data.model = session.model;
               if (denied && text.includes("after a successful step")) {
@@ -304,13 +312,10 @@ export async function startFixture(project: string) {
                 retry.model = session.model;
                 assistant(retry.id, [{ type: "text", text: "Test stand-in: Data found a small repair." }]);
               }
-              const riker = createSession(directory, "Riker recommendation", sessionID, "picard-riker");
-              riker.model = session.model;
-              const question = text.includes("retry_policy.ts") ? "Shall I update retry_policy.ts?" : "Shall I proceed?";
-              assistant(riker.id, [{ type: "text", text: `Test stand-in: I recommend the smaller repair, Captain.\n\n${question}` }]);
+              if (!text.includes("Riker first")) rikerReport();
               if (noClose || parentDenied) finish(sessionID, parentDenied ? "interrupted" : "succeeded");
             }, 50);
-          } else if (manner.includes("Hold a briefing") && /\bData and Geordi\b/.test(text)) {
+          } else if (manner.includes("The Captain leads this briefing") && /\bData and Geordi\b/.test(text)) {
             const data = createSession(directory, "Data investigation", sessionID, "picard-data");
             data.model = session.model;
             assistant(data.id, [{ type: "text", text: "Test stand-in: Data supplied an investigation report." }]);
@@ -328,7 +333,7 @@ export async function startFixture(project: string) {
               else { completeTool(geordi.id, "shell", "Test stand-in: no command was run."); finish(geordi.id, "succeeded"); }
               reply(sessionID, answer.decision === "reject"
                 ? "Test stand-in: Geordi's action was denied. No command was run."
-                : "Test stand-in: the briefing reports are collected. No command was run.", generation);
+                : "The reports are on screen.", generation);
             });
             later(() => publish(directory, "permission.asked", permission), 50);
           } else if (session.agent === "picard-data" && text.includes("shields")) {
@@ -348,6 +353,8 @@ export async function startFixture(project: string) {
               completeTool(sessionID, "websearch", "Test stand-in: no web search was made.");
               reply(sessionID, "Test stand-in: Captain, no real news was searched.", generation);
             }, 4000);
+          } else if (text.includes("full spoken answer")) {
+            reply(sessionID, `Test stand-in: Here is the full explanation.\n\n${"A pause between paragraphs should not end the answer. ".repeat(24)}\n\nThe final point is to hear the complete explanation.\n\n### On screen\n\nAPPENDIX_SENTINEL is a technical detail.\n\n\`\`\`ts\nconst value = 42;\n\`\`\`\n\n| Setting | Value |\n| --- | --- |\n| count | 42 |`, generation);
           } else if (text.includes("multi-message")) {
             assistant(sessionID, [{ type: "text", text: "An intermediate test reply, not a finished answer." }]);
             publish(directory, "session.text.ended", { sessionID });

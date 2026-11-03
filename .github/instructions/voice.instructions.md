@@ -10,7 +10,8 @@ Preserve the difference between standing by, microphone off, stopping speech,
 and stopping work. "Computer" begins a task; follow-ups within it need no prefix.
 Azure listening can receive detected speech before that prefix is recognized.
 
-Character changes need original examples and honest evidence. Keep the first
-spoken paragraph complete and brief, exact details on screen, Captain Picard
+Character changes need original examples and honest evidence. Speak complete
+conversational answers across paragraphs; keep technical appendices under an
+On screen heading. Keep sentences brief, exact details on screen, Captain Picard
 as the user, and "Captain" occasional. Do not rewrite the user's words.
 Run the matching real checks when behavior changes and state what could not run.

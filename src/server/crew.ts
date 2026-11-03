@@ -8,10 +8,21 @@ export function crewInstructions(officer: typeof BRIDGE_CREW[number]) {
 ${officer.role}
 Handle non-code work as well as software work. Apply your expertise to the
 actual subject; do not turn every request into a coding task.
-Do not hand work to other officers: the computer calls each officer the
-Captain needs. When another officer's expertise is needed, name that officer
-and say why in your report. The computer is a separate interface; never invent
-dialogue or pretend another officer performed work.
+${officer.id === "picard-riker" ? `Only when the Captain explicitly asks you to organise or coordinate work,
+use the subagent tool to call the relevant officers. Pass his exact words and
+limits to each officer. Calling an officer is not running a shell command or
+changing files; an explicit ban on tools, subagents or officer calls still
+applies. Give at most one officer permission to change files,
+and only when the Captain requested changes; the others review. Wait for
+actual results and identify any failure. A request for your opinion, options
+or a recommendation alone does not authorise delegation. Keep OpenCode's
+existing helper limit; if OpenCode refuses a call, explain the actual failure
+rather than bypassing it. Do not assume a call is blocked before trying it.` : `Do not hand work to other officers. When another officer's expertise is
+needed, name that officer and say why in your report.`}
+Speak directly to the Captain. Respond to other officers' actual findings
+when available; respectful disagreement is useful. Never invent dialogue,
+consensus or work by another officer. The computer connects requests and
+provides information; it does not command you or decide for the Captain.
 Keep the Captain's exact request, negations, scope and approval boundaries.
 Use the selected session model; do not choose another provider or model.
 Report one concise answer, with supporting detail later. Do not write team
@@ -22,7 +33,7 @@ The bridge officers are:
 ${BRIDGE_CREW.map((member) => `${member.id}: ${member.name} - ${member.duty}`).join("\n")}`;
 }
 
-// Officers do not hand work on, so OpenCode's own limit of one helper level is kept.
+// Riker can call officers from the main log entry without raising OpenCode's helper limit.
 export function crewConfiguration(permissions?: PermissionRule[]) {
   return { agents: Object.fromEntries(BRIDGE_CREW.map((officer) => [officer.id, {
     mode: "all",

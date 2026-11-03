@@ -85,9 +85,14 @@ Advanced setup for people with their own subscription and deployed models.
 ## How the computer talks
 
 Conversation rules live in `src/server/instructions.ts` (sent to the model)
-and `src/shared/speech.ts` (what is spoken aloud). Keep replies brief, precise
-and neutral; acknowledge only when true; say clearly when information is not
-available. Spoken answers are complete short sentences, with detail on screen.
+and `src/shared/speech.ts` (what is spoken aloud). Keep the computer brief,
+precise and neutral; officers stay brief and precise in their own manner.
+Acknowledge only when true; say clearly when information is not available.
+Speak complete conversational answers, including later paragraphs of stories,
+explanations and officer reports. Keep sentences brief. Put technical appendices,
+source links, code, tables and lengthy check output under an **On screen**
+heading; do not put conversational conclusions, important warnings or questions
+there. The speech code skips that appendix, code blocks and tables.
 The computer handles non-code questions, writing, research and planning too.
 The six bridge officers speak in their own TNG voices, as Starfleet officers
 reporting to their Captain, alongside their responsibilities: Riker confident,
@@ -99,7 +104,10 @@ live in `src/shared/crew.ts` and `src/server/instructions.ts`; see
 `docs/research/bridge-crew-voices.md`. "Make it so" carries out only what was
 just proposed, asks when that is unclear, and never answers an approval. The
 officers do not invent results, copy television dialogue, mention famous
-scenes or imitate actors. An officer does not know about events after their
+scenes or imitate actors. They may use known character backgrounds and
+relationships when relevant, including in answers to direct questions; admit
+uncertainty and keep character trivia out of unrelated work answers.
+An officer does not know about events after their
 own fictional death, not the actor's death. They say they do not know, without
 answering through later accounts, lookups or a return from death. Do not invent
 death dates or add a TNG-only cutoff; Star Trek: Picard is included.
@@ -112,11 +120,16 @@ accents. Never clone
 a voice or train on show recordings. The computer answers by default; an officer
 is used when named or for a substantial expert judgment in their area, and a
 briefing only when the Captain asks for options, a recommendation or a
-briefing, or names several officers. In a briefing Riker speaks last and ends
-with a short question; the computer's close is spoken only when it adds
-something new. Spoken replies appear on screen when the voice starts. A briefing:
-the computer calls each officer itself, and officers never hand work to each
-other. Riker is not a coordinator. The computer stays neutral.
+briefing, or names several officers. The Captain leads a briefing and decides;
+officers report directly, may disagree, and have no fixed closing speaker or
+compulsory question. The computer connects their requests rather than taking
+command. Riker may call other officers only when explicitly asked to organise
+or coordinate work, not merely for an opinion or recommendation. Keep
+OpenCode's existing helper limit and permission rules. Other officers name
+any additional expertise needed rather than handing work on.
+Spoken replies appear on screen when the voice starts. Each officer's complete
+conversational answer is spoken in report order; routine computer receipts stay
+on screen. Real failures must still be explained aloud. The computer stays neutral.
 Technical names are spoken in a listenable form but kept exact on screen.
 Avoid repeated catchphrases such as "Working". The user is always
 Captain Jean-Luc Picard: their lines are labelled "Picard" on screen, and the
@@ -216,6 +229,13 @@ matching real check from the README (`test:live`, `test:speech:live`,
 `test:speech:local`, `test:conversation:live`, `test:behavior:live`). Most of
 these make real model requests and some make small Azure charges. Report
 plainly which real checks ran and which could not.
+
+For development work and real-model checks, use only current-generation AI
+models. Check the provider's available models before choosing one; do not
+reuse an older generation from an earlier check when a newer one is available.
+If current availability cannot be confirmed, say so rather than choosing an
+older model. This rule does not limit the models offered by the app or
+authorise changing the owner's saved model or speech choices.
 
 Never change the owner's saved speech choices just to run a check.
 
