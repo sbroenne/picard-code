@@ -25,7 +25,7 @@ export async function readModelSettings(file = modelSettingsFile): Promise<Model
     throw new Error(`Could not read the saved model choice. ${errorMessage(error)}`);
   }
   try { return modelSelection(JSON.parse(text)); }
-  catch { throw new Error("The saved model choice is not valid. Open Model and confirm a model to replace it."); }
+  catch { throw new Error("The saved model choice is not valid. Open Computer intelligence and confirm a model to replace it."); }
 }
 
 export async function saveModelSettings(file: string, value: ModelSelection) {

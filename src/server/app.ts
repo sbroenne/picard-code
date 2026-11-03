@@ -570,11 +570,11 @@ export async function startApp(options: AppOptions) {
             catch (error) { notifyState(); throw error; }
             if (!confirmed) {
               notifyState();
-              throw new HttpError(409, "Open Model and confirm a model before sending a request.");
+              throw new HttpError(409, "Open Computer intelligence and confirm a model before sending a request.");
             }
             if (confirmed.providerID !== providerID || confirmed.modelID !== modelID) {
               notifyState();
-              throw new HttpError(409, "The model choice has changed or is unavailable. Open Model and confirm the model before sending a request.");
+              throw new HttpError(409, "The model choice has changed or is unavailable. Open Computer intelligence and confirm the model before sending a request.");
             }
             const related = await family(session, project);
             const active = await client.active(project);

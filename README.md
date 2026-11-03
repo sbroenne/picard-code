@@ -85,8 +85,8 @@ Picard Code and a copy of the official OpenCode 2
 instead. You do not need to install OpenCode, Python or anything else
 yourself. OpenCode 1 is not supported.
 
-Before the computer starts listening, choose a model in the **Model** panel
-and choose **Confirm model**. For the best experience, choose the most capable
+Before the computer starts listening, choose an **AI model** in
+**Computer intelligence** and choose **Confirm model**. For the best experience, choose the most capable
 model your provider offers; it may cost more or take longer to answer.
 Picard Code does not rank models or choose one for you, even when free OpenCode
 models are available. If OpenCode has no connected providers and you have not
@@ -347,24 +347,28 @@ To sign in to a provider:
    Copilot, that is GitHub's device sign-in: check you are signed in to the
    right account, enter the code OpenCode shows, and approve it yourself.
 3. Return to Picard Code, choose the **Provider** tile and then
-   **Refresh connection**. Once a provider connection is found, the **Model**
-   panel opens if no model has been confirmed. Models are grouped by provider: pick one and choose
-   **Confirm model**. The **Model** tile lets you change it later; changing
-   the list alone does not save or activate a choice.
+   **Refresh connection**. Once a provider connection is found,
+   **Computer intelligence** opens if no model has been confirmed. Models
+   are grouped by provider: pick one and choose **Confirm model**. The
+   **Computer intelligence** tile lets you change it later; changing the list
+   alone does not save or activate a choice.
 
 The Connect screen addresses you as the Captain and shows the first setup
 steps: connect a provider, choose a model, and set up speech. It does not ask
 you to sign in again when OpenCode already has a connected provider. The
 optional OpenCode-model path stays available when only its default models are
 available; a saved OpenCode model does not trigger connection onboarding again.
-You can add providers later through **Connect a provider** in the Model panel.
-Local providers remain supported without an online account. A provider with
-no available models opens Model so you can check OpenCode's model settings and
-refresh, rather than being sent through sign-in again. Supporting explanations,
+You can add providers later through **Connect a provider** in Computer
+intelligence. Local providers remain supported without an online account.
+A provider with no available models opens Computer intelligence so you can
+check OpenCode's model settings and refresh, rather than being sent through
+sign-in again. Supporting explanations,
 including OpenCode's permission behavior, are under **About the connection**.
 
-The Model panel shows **Model saved** after confirmation. The confirmation
-button stays off until you choose a different model. **About this choice**
+Computer intelligence labels the selector **AI model** and shows **Model saved**
+after confirmation. First-time guidance recommends a capable model; saved
+choices and recovery have their own wording rather than repeating the welcome.
+The confirmation button stays off until you choose a different model. **About this choice**
 explains where the choice is remembered; if the saved model is unavailable,
 **Refresh connection** is offered in the same panel.
 
@@ -414,12 +418,13 @@ screen; there is no phone layout.
   deleted until it is stopped.
 - **Settings** (`#settings/…`): there is no Settings button. Each tile in the
   side panel opens its own setting: **Provider** the sign-in steps,
-  **Model** the model, **Project** the folder, **Listen · Speak** the speech
-  services, and the tribute badge **About**. Choosing the same tile again
+  **Computer intelligence** the AI model, **Project** the folder,
+  **Listen · Speak** the speech services, and the tribute badge **About**.
+  Choosing the same tile again
   closes it. Without a saved model choice, Provider opens first only when
-  OpenCode has no connected providers; otherwise Model opens.
-  An unavailable saved model opens Model for recovery, without choosing a
-  replacement. Listening stays off until an available model
+  OpenCode has no connected providers; otherwise Computer intelligence opens.
+  An unavailable saved model opens Computer intelligence for recovery,
+  without choosing a replacement. Listening stays off until an available model
   is confirmed and speech is set up. Listening pauses while a setting is open. Speech
   changes apply without restarting.
 
@@ -1039,11 +1044,11 @@ and repeat the browser checks.
 - **No model available:** sign in to a provider as described above, then
   refresh the connection while no work is running, choose a model, and choose
   **Confirm model**.
-- **Saved model unavailable:** open **Model** to see the saved provider and
-  model. Refresh the provider connection to check its availability, or choose
+- **Saved model unavailable:** open **Computer intelligence** to see the saved
+  provider and model. Refresh the provider connection to check its availability, or choose
   and confirm another model. Picard Code keeps your saved choice until you
   confirm a replacement and never switches automatically.
-- **Model choice could not be saved or read:** the Model panel shows the error.
+- **Model choice could not be saved or read:** Computer intelligence shows the error.
   Check access to `~/.picard-code/model.json`, then confirm your choice again.
   An invalid settings file can be replaced by confirming an available model.
 - **Live updates stop:** keep the terminal open. The browser reconnects and

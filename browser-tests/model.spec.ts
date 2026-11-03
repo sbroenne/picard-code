@@ -42,7 +42,9 @@ test("first use requires a confirmed choice, not OpenCode's default or a dropdow
   await expect(page.getByRole("status")).toHaveText("Setup needed");
   await expect(page.locator("#model")).toHaveValue("");
   await expect(page.getByRole("button", { name: "Confirm model" })).toBeDisabled();
-  await expect(page.locator("#model-guidance")).toContainText("Captain, choose the most capable model");
+  await expect(page.getByRole("heading", { name: "Computer intelligence" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "AI model" })).toBeVisible();
+  await expect(page.locator("#model-guidance")).toHaveText("Choose the most capable AI model available for the best answers. It may cost more or take longer.");
   await expect(page.locator("#model-status")).toHaveText("Awaiting your selection");
   await expect(page.locator(".model-details")).not.toHaveAttribute("open", "");
   await expect(page.getByText("Models are grouped by provider", { exact: false })).toBeHidden();
@@ -52,10 +54,10 @@ test("first use requires a confirmed choice, not OpenCode's default or a dropdow
   await expect(page.locator("#model optgroup")).toHaveCount(2);
   await page.selectOption("#model", other);
   await expect(page.locator("#model-status")).toHaveText("Awaiting confirmation");
-  await expect(page.locator("#readout-model")).toHaveText("Choose a model");
+  await expect(page.locator("#readout-model")).toHaveText("Not selected");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("status")).toHaveText("Setup needed");
-  await page.getByRole("link", { name: /^Model/ }).click();
+  await page.getByRole("link", { name: /^Computer intelligence/ }).click();
   await page.getByRole("button", { name: "Confirm model" }).click();
   await expect(page.locator("#readout-model")).toHaveText("Other model");
   await expect(page).toHaveURL(/#settings\/voice$/);
@@ -71,7 +73,8 @@ test("only default models open connection onboarding with an explicit optional m
   await expect(page.getByRole("heading", { name: "Connect your provider" })).toBeVisible();
   await expect(page.locator("#provider-welcome")).toHaveText("Welcome aboard, Captain.");
   await expect(page.locator("#provider-welcome")).toBeVisible();
-  await expect(page.locator("#provider-guidance")).toContainText("connect your preferred provider in OpenCode");
+  await expect(page.locator("#provider-guidance")).toContainText("Connect your preferred provider in OpenCode");
+  await expect(page.locator("#provider-guidance")).not.toContainText("Captain");
   await expect(page.locator("#provider-status")).toHaveText("No connected providers found. 1 model available.");
   await expect(page.locator('[data-setup-step="provider"]')).toHaveAttribute("aria-current", "step");
   await expect(page.locator("#readout-provider")).toHaveText("OpenCode models");
@@ -92,7 +95,7 @@ test("only default models open connection onboarding with an explicit optional m
   await expect(page.locator("#drawer-settings")).toBeHidden();
   await expect(page.locator("#setup-progress")).toBeHidden();
   await expect(page.locator("#readout-model")).toHaveText("Free test model");
-  await page.getByRole("link", { name: /^Model/ }).click();
+  await page.getByRole("link", { name: /^Computer intelligence/ }).click();
   await page.getByRole("link", { name: "Connect a provider" }).click();
   await expect(page.getByRole("heading", { name: "Connect your provider" })).toBeVisible();
   await expect(page.locator("#provider-welcome")).toBeHidden();
@@ -112,6 +115,7 @@ test("a connected provider with no usable models opens model recovery rather tha
   await expect(page).toHaveURL(/#settings\/model$/);
   await expect(page.locator("#model-problem")).toContainText("Check your models in OpenCode");
   await expect(page.locator("#model-status")).toHaveText("No models available");
+  await expect(page.locator("#model-guidance")).toHaveText("Check model availability in OpenCode before choosing an AI model.");
   await expect(page.locator("#model")).toBeDisabled();
   await expect(page.getByRole("button", { name: "Confirm model" })).toBeDisabled();
   await page.getByRole("button", { name: "Refresh connection" }).click();
@@ -135,7 +139,7 @@ test("refreshing after connecting a provider advances to explicit model selectio
   await page.getByRole("button", { name: "Refresh connection" }).click();
   await expect(page).toHaveURL(/#settings\/model$/);
   await expect(page.locator("#model")).toHaveValue("");
-  await expect(page.locator("#readout-model")).toHaveText("Choose a model");
+  await expect(page.locator("#readout-model")).toHaveText("Not selected");
   await expect(page.getByRole("button", { name: "Confirm model" })).toBeDisabled();
 });
 
@@ -190,6 +194,7 @@ test("missing saved models are named without selecting a replacement", async ({ 
   await launch(page, ["--model-unavailable"]);
   await expect(page.locator("#model")).toHaveValue("");
   await expect(page.locator("#model-status")).toHaveText("Model unavailable");
+  await expect(page.locator("#model-guidance")).toHaveText("Your saved choice is kept until you confirm a replacement.");
   await expect(page.locator("#model-problem")).toContainText("missing-model");
   await expect(page.locator("#readout-model")).toHaveText("Unavailable");
   await page.getByRole("button", { name: "Refresh connection" }).click();
@@ -219,9 +224,10 @@ test("the saved LCARS readout is clear and only a changed choice can be confirme
   await page.selectOption("#model", first);
   await page.getByRole("button", { name: "Confirm model" }).click();
   await expect(page.locator("#settings-voice")).toBeVisible();
-  await page.getByRole("link", { name: /^Model/ }).click();
+  await page.getByRole("link", { name: /^Computer intelligence/ }).click();
   const confirm = page.getByRole("button", { name: "Confirm model" });
   await expect(page.locator("#model-status")).toHaveText("Model saved · GitHub Copilot");
+  await expect(page.locator("#model-guidance")).toHaveText("This AI model is used for your requests and bridge crew reports.");
   await expect(page.locator("#model-status")).toHaveAttribute("data-state", "saved");
   await expect(page.locator("#model-status")).toHaveAttribute("aria-live", "polite");
   await expect(confirm).toBeDisabled();
@@ -234,13 +240,15 @@ test("the saved LCARS readout is clear and only a changed choice can be confirme
   await page.selectOption("#model", other);
   await expect(confirm).toBeEnabled();
   await expect(page.locator("#model-status")).toHaveText("New choice not saved. Copilot test model is still in use.");
+  await expect(page.locator("#model-guidance")).toHaveText("Confirm to use the new AI model. Your saved model stays in use until then.");
   await expect(page.locator("#readout-model")).toHaveText("Copilot test model");
   await page.selectOption("#model", first);
   await expect(confirm).toBeDisabled();
   await expect(page.locator("#model-status")).toHaveText("Model saved · GitHub Copilot");
+  await expect(page.locator("#model-guidance")).toHaveText("This AI model is used for your requests and bridge crew reports.");
 });
 
-test("a failed refresh from Model preserves the saved choice and offers a retry", async ({ page }) => {
+test("a failed refresh from Computer intelligence preserves the saved choice and offers a retry", async ({ page }) => {
   await launch(page, ["--model-unavailable"]);
   await page.route("**/api/refresh", (route) => route.fulfill({
     status: 502, contentType: "application/json", body: JSON.stringify({ error: "Test provider connection failed." }),
@@ -271,7 +279,7 @@ test("closing setup and pressing M cannot start the microphone before confirmati
   await page.keyboard.press("m");
   expect(await page.evaluate(() => (window as unknown as { microphoneRequests: number }).microphoneRequests)).toBe(0);
   expect(sends).toBe(0);
-  await page.getByRole("link", { name: /^Model/ }).click();
+  await page.getByRole("link", { name: /^Computer intelligence/ }).click();
   await page.getByRole("button", { name: "Confirm model" }).click();
   await expect(page.locator("#drawer-settings")).toBeHidden();
   await expect.poll(() => page.evaluate(() => (window as unknown as { microphoneRequests: number }).microphoneRequests)).toBe(1);
@@ -290,7 +298,7 @@ test("confirmation updates other open pages and an unconfirmed change stays only
   await expect(second.locator("#readout-model")).toHaveText("Other model");
   await second.reload();
   await expect(second.locator("#readout-model")).toHaveText("Other model");
-  await second.getByRole("link", { name: /^Model/ }).click();
+  await second.getByRole("link", { name: /^Computer intelligence/ }).click();
   await expect(second.locator("#model")).toHaveValue(other);
 });
 
@@ -303,7 +311,7 @@ test("confirmation failures remain visible and do not activate the selected mode
   await page.getByRole("button", { name: "Confirm model" }).click();
   await expect(page.getByRole("alert")).toContainText("Could not save the model choice. Test disk is full.");
   await expect(page.getByRole("status")).toHaveText("Setup needed");
-  await expect(page.locator("#readout-model")).toHaveText("Choose a model");
+  await expect(page.locator("#readout-model")).toHaveText("Not selected");
   await expect(page.getByRole("button", { name: "Confirm model" })).toBeEnabled();
 });
 
@@ -351,7 +359,7 @@ test("the confirmed choice survives a full app restart", async ({ page }) => {
     secondApp = await launch(page, args);
     await expect(page.locator("#readout-model")).toHaveText("Other model");
     await expect(page.locator("#drawer-settings")).toBeHidden();
-    await page.getByRole("link", { name: /^Model/ }).click();
+    await page.getByRole("link", { name: /^Computer intelligence/ }).click();
     await expect(page.locator("#model")).toHaveValue(other);
   } finally {
     await firstApp.close();

@@ -215,8 +215,8 @@ function consoleStatus(): [string, string] {
   if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open."];
   if (!state.models.length) return ["Setup needed", modelSetupPart() === "provider"
     ? "Connect a model provider: open Provider."
-    : "No models are available. Open Model to refresh the connection."];
-  if (!state.selectedModel) return ["Setup needed", "Open Model, choose a model, and confirm your choice."];
+    : "No models are available. Open Computer intelligence to refresh the connection."];
+  if (!state.selectedModel) return ["Setup needed", "Open Computer intelligence, choose an AI model, and confirm your choice."];
   if (voice.mediaPaused) return ["Listening paused", "Pause the video or close its player to listen again."];
   if (voice.phase === "speaking") return ["Speaking", voice.microphone ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."];
   if (voice.phase === "cue") return ["Standing by", "A new tribute fact is on screen."];
@@ -460,7 +460,7 @@ function readouts() {
   readout("provider", !state ? "Checking" : !connected ? "Reconnecting" : state.hasConnectedProvider ? "Connected"
     : state.models.length ? "OpenCode models" : "Not connected");
   readout("project", state ? state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project : "—");
-  readout("model", state?.selectedModel?.name ?? (state?.savedModel ? "Unavailable" : "Choose a model"));
+  readout("model", state?.selectedModel?.name ?? (state?.savedModel ? "Unavailable" : "Not selected"));
   const speech = state?.speech;
   readout("speech", !speech?.configured ? "Not set up"
     : `${speech.listening === "whisper" ? "Whisper" : "Azure MAI"} · ${speech.speaking === "kokoro" ? "Kokoro" : "Azure MAI"}`);
@@ -483,6 +483,13 @@ function controls() {
   confirm.disabled = model.disabled || !model.value || unchanged;
   confirm.textContent = savingModel ? "Saving model" : "Confirm model";
   const unavailable = !!savedModel && !selectedModel;
+  let guidance = "Choose the most capable AI model available for the best answers. It may cost more or take longer.";
+  if (state?.modelError || unavailable) guidance = "Your saved choice is kept until you confirm a replacement.";
+  else if (state && !state.models.length) guidance = "Check model availability in OpenCode before choosing an AI model.";
+  else if (selectedModel) guidance = unchanged
+    ? "This AI model is used for your requests and bridge crew reports."
+    : "Confirm to use the new AI model. Your saved model stays in use until then.";
+  element("model-guidance").textContent = guidance;
   const problem = state?.modelError ?? (unavailable
     ? `The saved model ${savedModel.providerID} / ${savedModel.modelID} is unavailable. Refresh the connection or choose a replacement.`
     : state && !state.models.length ? state.hasConnectedProvider
@@ -520,8 +527,8 @@ function controls() {
     : `${state.hasConnectedProvider ? "Provider connection found" : "No connected providers found"}. ${state.models.length} model${state.models.length === 1 ? "" : "s"} available.`;
   element("provider-welcome").hidden = !onboarding || !!state?.hasConnectedProvider;
   element("provider-guidance").textContent = state?.hasConnectedProvider
-    ? "Captain, connect another provider in OpenCode, or refresh after changing a connection."
-    : "Captain, connect your preferred provider in OpenCode for the best Picard Code experience. Then choose its most capable model.";
+    ? "Connect another provider in OpenCode, or refresh after changing a connection."
+    : "Connect your preferred provider in OpenCode for the best Picard Code experience. Then choose its most capable model.";
   element("use-opencode-models").hidden = !state || state.hasConnectedProvider || !state.models.some((choice) => choice.providerID === "opencode");
   if (state?.selectedModel && state.speech?.configured) onboarding = false;
   showSetupProgress();
@@ -542,7 +549,7 @@ function renderState() {
   const currentModel = displayedModel === savedValue ? model.value : savedValue;
   displayedModel = savedValue;
   model.replaceChildren();
-  const prompt = make("option", undefined, state.models.length ? "Choose a model" : "No models available");
+  const prompt = make("option", undefined, state.models.length ? "Choose an AI model" : "No models available");
   prompt.value = "";
   model.append(prompt);
   const groups = new Map<string, HTMLOptGroupElement>();
@@ -1185,7 +1192,7 @@ async function sendMessage(spoken: string, requestedStoryID?: string) {
   const text = spoken.trim();
   if (!text) return;
   const choice = state.selectedModel;
-  if (!choice) throw new Error("Open Model and confirm a model before sending a request.");
+  if (!choice) throw new Error("Open Computer intelligence and confirm a model before sending a request.");
   submitting = true;
   controls();
   notice();
@@ -1258,7 +1265,7 @@ function closeDrawer() {
   if (openDrawer()) location.hash = "";
 }
 
-const settingsParts = { provider: ["Connect your provider", "orange"], model: ["Model", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
+const settingsParts = { provider: ["Connect your provider", "orange"], model: ["Computer intelligence", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
 type SettingsPart = keyof typeof settingsParts;
 function showSetupProgress(part = location.hash.split("/")[1]) {
   element("setup-progress").hidden = !onboarding || !["provider", "model", "voice"].includes(part ?? "");

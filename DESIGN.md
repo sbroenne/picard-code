@@ -32,8 +32,8 @@ earlier messages are smaller. The console shows the current state and next
 step, listening lights, a microphone button, and stopping controls when needed.
 There is no typing box or phone layout.
 
-Captain's log and the Project, Model, and Listen · Speak tiles open in a
-slide-out, as do Provider in the top bar and About from the header dedication.
+Captain's log and the Project, Computer intelligence, and Listen · Speak tiles
+open in a slide-out, as do Provider in the top bar and About from the header dedication.
 Choosing it again, Current log entry, Escape, or the log entry beside it closes
 the slide-out. The Tribute tile is an On/Off switch, not a slide-out. Stardate
 shows the fan-formula date, with the ordinary date on hover.
@@ -44,23 +44,26 @@ The Provider setting uses a Captain-facing LCARS connection frame with a
 copyable terminal command, a clear Refresh connection action, and real
 connection results. OpenCode owns sign-in. On first setup, show Connect first
 only when no providers are connected; already-connected providers go straight
-to Model, even when no usable models are listed. Detect connections from
-OpenCode's provider and connection information, not the model list; a failed
+to Computer intelligence, even when no usable models are listed. Detect
+connections from OpenCode's provider and connection information, not the model list; a failed
 lookup is an error, not an empty connection list. Keep credentials and account
 details on the server. Default OpenCode models remain an explicit optional
 path, and a saved OpenCode choice does not prompt connection onboarding again.
-The first setup shows Connect provider, Choose model, and Set up speech,
+The first setup shows Connect provider, Choose AI model, and Set up speech,
 highlighting only the current step. Supporting connection and permission
-information stays under About the connection. Model also links to Connect so
-the Captain can add providers later.
-The Model setting requires an explicit confirmed choice, even when OpenCode
-offers free models. Recommend the most capable model available without
+information stays under About the connection. Computer intelligence also
+links to Connect so the Captain can add providers later.
+The Computer intelligence setting labels its selector AI model and requires
+an explicit confirmed choice, even when OpenCode offers free models.
+Recommend the most capable model available without
 inventing a ranking, and explain the possible cost and speed trade-off.
 The confirmed choice is saved on this computer for every Project, separately
 from OpenCode's default. An unavailable choice needs a confirmed replacement,
-never an automatic switch. Keep unavailable saved choices in Model recovery,
-not first-run onboarding.
-The Model panel addresses the Captain, keeps its guidance short, and uses an
+never an automatic switch. Keep unavailable saved choices in Computer
+intelligence for recovery, not first-run onboarding.
+Address the Captain in the first-run welcome only, not in every settings
+instruction. Computer intelligence gives brief guidance for the actual state:
+first selection, saved choice, an unconfirmed change, or recovery. It uses an
 LCARS-style control frame and a colored status readout. A saved choice is
 clearly marked, and confirmation stays off until the choice changes.
 Unavailable models have a direct Refresh connection action. Supporting details

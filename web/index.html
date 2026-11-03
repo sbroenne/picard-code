@@ -36,7 +36,7 @@
         <span id="tribute-status" class="visually-hidden" aria-live="polite"></span>
         <label class="rail-button blue rail-switch bridge-switch"><input id="bridge-toggle" type="checkbox" role="switch" aria-label="Bridge crew" checked /><b id="bridge-toggle-state" aria-hidden="true">On</b><span>Bridge crew</span></label>
         <span id="bridge-status" class="visually-hidden" aria-live="polite"></span>
-        <span class="rail-fill"><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Model"><small>Model</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a></span>
+        <span class="rail-fill"><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Computer intelligence"><small>Computer intelligence</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a></span>
         <span id="rail-end" class="readout blue"><small>Stardate</small><b id="readout-stardate">—</b></span>
       </nav>
 
@@ -91,12 +91,12 @@
         <div id="settings-bar" class="drawer-bar blue"><h2 id="settings-title">Settings</h2></div>
         <ol id="setup-progress" class="setup-progress" aria-label="Setup progress" hidden>
           <li data-setup-step="provider"><span aria-hidden="true">01</span> Connect provider</li>
-          <li data-setup-step="model"><span aria-hidden="true">02</span> Choose model</li>
+          <li data-setup-step="model"><span aria-hidden="true">02</span> Choose AI model</li>
           <li data-setup-step="voice"><span aria-hidden="true">03</span> Set up speech</li>
         </ol>
         <section id="settings-provider" class="panel" hidden>
           <p id="provider-welcome" class="setup-welcome" hidden>Welcome aboard, Captain.</p>
-          <p id="provider-guidance">Captain, connect your preferred provider in OpenCode for the best Picard Code experience. Then choose its most capable model.</p>
+          <p id="provider-guidance">Connect your preferred provider in OpenCode for the best Picard Code experience. Then choose its most capable model.</p>
           <div class="provider-connection">
             <p class="connection-label">Connect through OpenCode</p>
             <p class="muted">Run this command in a terminal, choose your provider and follow OpenCode's sign-in.</p>
@@ -120,10 +120,10 @@
         </section>
 
         <section id="settings-model" class="panel" hidden>
-          <p id="model-guidance">Captain, choose the most capable model available for the best answers. It may cost more or take longer.</p>
+          <p id="model-guidance">Choose the most capable AI model available for the best answers. It may cost more or take longer.</p>
           <p id="model-problem" class="muted" hidden></p>
           <form id="model-form" class="field-grid model-selection">
-            <label for="model">Model</label>
+            <label for="model">AI model</label>
             <select id="model" aria-describedby="model-guidance model-problem" disabled><option>Waiting for OpenCode</option></select>
             <div class="model-actions">
               <button id="confirm-model" class="pill blue" type="submit" disabled>Confirm model</button>
