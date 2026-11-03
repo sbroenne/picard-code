@@ -49,7 +49,7 @@
         <div id="reading-area" class="reading-area">
           <section id="setup" class="setup" hidden aria-labelledby="setup-title">
             <h3 id="setup-title">No model available</h3>
-            <a class="pill orange" href="#settings/provider">Open setup</a>
+            <a id="open-model-setup" class="pill orange" href="#settings/provider">Open setup</a>
           </section>
           <section id="welcome" class="welcome">
             <div>
@@ -89,29 +89,54 @@
 
       <section id="drawer-settings" class="drawer wide" hidden tabindex="-1" aria-labelledby="settings-title">
         <div id="settings-bar" class="drawer-bar blue"><h2 id="settings-title">Settings</h2></div>
+        <ol id="setup-progress" class="setup-progress" aria-label="Setup progress" hidden>
+          <li data-setup-step="provider"><span aria-hidden="true">01</span> Connect provider</li>
+          <li data-setup-step="model"><span aria-hidden="true">02</span> Choose model</li>
+          <li data-setup-step="voice"><span aria-hidden="true">03</span> Set up speech</li>
+        </ol>
         <section id="settings-provider" class="panel" hidden>
-          <p id="provider-status" class="readout-line">Checking</p>
-          <p id="workspace-caption" class="muted"></p>
-          <p>Picard Code works with any model provider OpenCode supports, such as GitHub Copilot, Anthropic, OpenAI or a model on this computer.</p>
-          <ol>
-            <li>In a terminal, run <code>npx picard-code opencode auth login</code>.</li>
-            <li>Choose your provider from the list and follow its sign-in.</li>
-            <li>Choose <strong>Refresh connection</strong> below.</li>
-          </ol>
-          <p class="muted">Sign-ins and keys stay with OpenCode. Nothing is entered here.</p>
-          <button id="refresh-provider" class="pill orange" type="button">Refresh connection</button>
+          <p id="provider-welcome" class="setup-welcome" hidden>Welcome aboard, Captain.</p>
+          <p id="provider-guidance">Captain, connect your preferred provider in OpenCode for the best Picard Code experience. Then choose its most capable model.</p>
+          <div class="provider-connection">
+            <p class="connection-label">Connect through OpenCode</p>
+            <p class="muted">Run this command in a terminal, choose your provider and follow OpenCode's sign-in.</p>
+            <div class="provider-command">
+              <code id="provider-command">npx picard-code opencode auth login</code>
+              <button id="copy-provider-command" class="pill outline" type="button">Copy command</button>
+            </div>
+            <p id="provider-copy-result" class="copy-result" aria-live="polite"></p>
+            <p class="muted">Return here after sign-in. Repeat the command to connect more providers.</p>
+            <button id="refresh-provider" class="pill orange" type="button">Refresh connection</button>
+            <p id="provider-status" class="connection-status" aria-live="polite" aria-atomic="true">Checking</p>
+          </div>
+          <a id="use-opencode-models" class="provider-alternative" href="#settings/model" hidden>Use OpenCode models instead</a>
+          <details class="setup-details">
+            <summary>About the connection</summary>
+            <p class="muted">Picard Code works with any provider OpenCode supports, including a model on this computer. Configure local models in OpenCode, then refresh here. An available model is not a guarantee that a request will succeed.</p>
+            <p class="muted">Sign-ins and keys stay with OpenCode. Nothing is entered here.</p>
+            <p class="muted">OpenCode's own rules decide which actions ask first. Out of the box it changes files and runs commands without asking. When it asks, choose Allow once or Deny on screen.</p>
+            <p id="workspace-caption" class="muted"></p>
+          </details>
         </section>
 
         <section id="settings-model" class="panel" hidden>
-          <p>For the best experience, choose the most capable model your provider offers. More capable models may cost more or take longer to answer. Picard Code does not rank models for you.</p>
-          <p id="model-status" class="readout-line"></p>
-          <form id="model-form" class="field-grid">
+          <p id="model-guidance">Captain, choose the most capable model available for the best answers. It may cost more or take longer.</p>
+          <p id="model-problem" class="muted" hidden></p>
+          <form id="model-form" class="field-grid model-selection">
             <label for="model">Model</label>
-            <select id="model" disabled><option>Waiting for OpenCode</option></select>
-            <button id="confirm-model" class="pill blue" type="submit" disabled>Confirm model</button>
-            <p class="muted span">Your confirmed choice is remembered on this computer for every Project. OpenCode's own default is not changed. If your model becomes unavailable, choose another; the computer never switches models for you.</p>
-            <p class="muted span">OpenCode's own rules decide which actions ask first. Out of the box it changes files and runs commands without asking. When it asks, choose Allow once or Deny on screen.</p>
+            <select id="model" aria-describedby="model-guidance model-problem" disabled><option>Waiting for OpenCode</option></select>
+            <div class="model-actions">
+              <button id="confirm-model" class="pill blue" type="submit" disabled>Confirm model</button>
+              <button id="refresh-model" class="pill outline" type="button" hidden>Refresh connection</button>
+              <a class="connect-provider" href="#settings/provider">Connect a provider</a>
+            </div>
+            <p id="model-status" class="model-status" aria-live="polite" aria-atomic="true"></p>
           </form>
+          <details class="model-details setup-details">
+            <summary>About this choice</summary>
+            <p class="muted">Your confirmed choice is remembered on this computer for every Project. OpenCode's own default is not changed. If your model becomes unavailable, the computer asks you to choose again; it never switches models for you.</p>
+            <p class="muted">Models are grouped by provider, not ranked by capability.</p>
+          </details>
         </section>
 
         <section id="settings-project" class="panel" hidden>

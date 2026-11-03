@@ -34,6 +34,7 @@ function button(text: string, className: string, action: () => Promise<void> | v
 const model = element<HTMLSelectElement>("model");
 const readingArea = element("reading-area");
 let state: AppState | undefined;
+let onboarding = false;
 let selected: string | undefined;
 let freshEntryStarted = Date.now();
 let messages: ChatMessage[] = [];
@@ -212,7 +213,9 @@ function autoListen() {
 function consoleStatus(): [string, string] {
   if (!state) return ["Starting up", ""];
   if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open."];
-  if (!state.models.length) return ["Setup needed", "Sign in to a model provider: open Provider."];
+  if (!state.models.length) return ["Setup needed", modelSetupPart() === "provider"
+    ? "Connect a model provider: open Provider."
+    : "No models are available. Open Model to refresh the connection."];
   if (!state.selectedModel) return ["Setup needed", "Open Model, choose a model, and confirm your choice."];
   if (voice.mediaPaused) return ["Listening paused", "Pause the video or close its player to listen again."];
   if (voice.phase === "speaking") return ["Speaking", voice.microphone ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."];
@@ -454,7 +457,8 @@ function readout(name: string, value: string) {
 
 /** The side panel's readouts show what the computer is connected to right now. */
 function readouts() {
-  readout("provider", !state ? "Checking" : !connected ? "Reconnecting" : state.models.length ? "Connected" : "Not connected");
+  readout("provider", !state ? "Checking" : !connected ? "Reconnecting" : state.hasConnectedProvider ? "Connected"
+    : state.models.length ? "OpenCode models" : "Not connected");
   readout("project", state ? state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project : "—");
   readout("model", state?.selectedModel?.name ?? (state?.savedModel ? "Unavailable" : "Choose a model"));
   const speech = state?.speech;
@@ -463,21 +467,64 @@ function readouts() {
 }
 
 let savingModel = false;
+let refreshingProvider = false;
+function modelSetupPart(current = state): "model" | "provider" {
+  return current && !current.savedModel && !current.modelError && !current.hasConnectedProvider ? "provider" : "model";
+}
 function controls() {
   const working = busy() || submitting;
   const ready = !!state?.models.length && connected && !historyLoading;
-  model.disabled = !ready || working || savingModel || Object.keys(state?.statuses ?? {}).length > 0;
-  element<HTMLButtonElement>("confirm-model").disabled = model.disabled || !model.value;
+  const activeWork = working || Object.keys(state?.statuses ?? {}).length > 0;
+  model.disabled = !ready || activeWork || savingModel || refreshingProvider;
+  const selectedModel = state?.selectedModel;
+  const savedModel = state?.savedModel;
+  const unchanged = !!selectedModel && model.value === modelValue(selectedModel);
+  const confirm = element<HTMLButtonElement>("confirm-model");
+  confirm.disabled = model.disabled || !model.value || unchanged;
+  confirm.textContent = savingModel ? "Saving model" : "Confirm model";
+  const unavailable = !!savedModel && !selectedModel;
+  const problem = state?.modelError ?? (unavailable
+    ? `The saved model ${savedModel.providerID} / ${savedModel.modelID} is unavailable. Refresh the connection or choose a replacement.`
+    : state && !state.models.length ? state.hasConnectedProvider
+      ? "No models are available. Check your models in OpenCode, then refresh the connection."
+      : "No models are available. Connect a provider in OpenCode, then refresh the connection." : "");
+  element("model-problem").textContent = problem;
+  element("model-problem").hidden = !problem;
+  element("refresh-model").hidden = !unavailable && !state?.modelError && !!state?.models.length;
+  for (const id of ["refresh-provider", "refresh-model"]) {
+    const refresh = element<HTMLButtonElement>(id);
+    refresh.disabled = !state || !connected || activeWork || savingModel || refreshingProvider;
+    refresh.textContent = refreshingProvider ? "Refreshing connection" : "Refresh connection";
+  }
+  const modelStatus = element("model-status");
+  modelStatus.dataset.state = unavailable || state?.modelError ? "unavailable" : unchanged ? "saved" : "pending";
+  modelStatus.textContent = savingModel ? "Saving your choice"
+    : refreshingProvider ? "Refreshing connection"
+    : state?.modelError ? "Model choice needs attention"
+    : unavailable ? "Model unavailable"
+    : state && !state.models.length ? "No models available"
+    : unchanged ? `Model saved · ${selectedModel.provider}`
+    : selectedModel ? `New choice not saved. ${selectedModel.name} is still in use.`
+    : model.value ? "Awaiting confirmation" : "Awaiting your selection";
   if (!state?.selectedModel && (voice.microphone || voice.opening)) voice.microphoneOff();
   element("stop").hidden = !busy();
   element<HTMLButtonElement>("stop").disabled = submitting;
   element<HTMLButtonElement>("new-conversation").disabled = !state || submitting;
   element("setup").hidden = !state || !!state.models.length;
+  element<HTMLAnchorElement>("open-model-setup").href = `#settings/${modelSetupPart()}`;
   element("welcome").hidden = !!messages.length || !!selected && historyLoading || !!state && !state.models.length;
   const entryStarted = state?.conversations.find((entry) => entry.id === selected)?.created ?? freshEntryStarted;
   element("entry-stardate").textContent = `Stardate ${formatStardate(new Date(entryStarted))}`;
-  element("provider-status").textContent = !state ? "Checking" : state.models.length
-    ? `Connected: ${[...new Set(state.models.map((choice) => choice.provider))].join(", ")}. ${state.models.length} model${state.models.length === 1 ? "" : "s"} available.` : "Not connected";
+  element("provider-status").textContent = refreshingProvider ? "Refreshing connection"
+    : !state ? "Checking"
+    : `${state.hasConnectedProvider ? "Provider connection found" : "No connected providers found"}. ${state.models.length} model${state.models.length === 1 ? "" : "s"} available.`;
+  element("provider-welcome").hidden = !onboarding || !!state?.hasConnectedProvider;
+  element("provider-guidance").textContent = state?.hasConnectedProvider
+    ? "Captain, connect another provider in OpenCode, or refresh after changing a connection."
+    : "Captain, connect your preferred provider in OpenCode for the best Picard Code experience. Then choose its most capable model.";
+  element("use-opencode-models").hidden = !state || state.hasConnectedProvider || !state.models.some((choice) => choice.providerID === "opencode");
+  if (state?.selectedModel && state.speech?.configured) onboarding = false;
+  showSetupProgress();
   readouts();
   renderWorking();
   element("voice-console").dataset.working = String(working);
@@ -495,7 +542,7 @@ function renderState() {
   const currentModel = displayedModel === savedValue ? model.value : savedValue;
   displayedModel = savedValue;
   model.replaceChildren();
-  const prompt = make("option", undefined, state.models.length ? "Choose a model" : "Sign in to a model provider");
+  const prompt = make("option", undefined, state.models.length ? "Choose a model" : "No models available");
   prompt.value = "";
   model.append(prompt);
   const groups = new Map<string, HTMLOptGroupElement>();
@@ -512,10 +559,6 @@ function renderState() {
     group.append(option);
   }
   model.value = state.models.some((choice) => modelValue(choice) === currentModel) ? currentModel : "";
-  element("model-status").textContent = state.modelError
-    ?? (state.selectedModel ? `In use: ${state.selectedModel.provider} · ${state.selectedModel.name}`
-      : state.savedModel ? `The saved model ${state.savedModel.providerID} / ${state.savedModel.modelID} is not available. Choose and confirm another model, or refresh the provider connection.`
-      : "Choose and confirm a model before the computer starts listening.");
   const list = element("conversations");
   list.replaceChildren();
   if (confirmingDelete && !state.conversations.some((item) => item.id === confirmingDelete)) confirmingDelete = undefined;
@@ -1020,7 +1063,7 @@ async function refreshState() {
   const lostModel = !!state?.selectedModel && !next.selectedModel;
   state = next;
   renderState();
-  if (lostModel) location.hash = next.models.length ? "settings/model" : "settings/provider";
+  if (lostModel) location.hash = "settings/model";
   completeVoiceReply();
 }
 
@@ -1178,7 +1221,8 @@ async function boot() {
     history.replaceState(null, "", location.pathname);
   }
   await refreshState();
-  if (state && !state.selectedModel) location.hash = state.models.length ? "settings/model" : "settings/provider";
+  onboarding = !!state && !state.savedModel;
+  if (state && !state.selectedModel) location.hash = `settings/${modelSetupPart()}`;
   if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id);
   openEvents();
 }
@@ -1214,16 +1258,24 @@ function closeDrawer() {
   if (openDrawer()) location.hash = "";
 }
 
-const settingsParts = { provider: ["Provider sign-in", "orange"], model: ["Model", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
+const settingsParts = { provider: ["Connect your provider", "orange"], model: ["Model", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
 type SettingsPart = keyof typeof settingsParts;
+function showSetupProgress(part = location.hash.split("/")[1]) {
+  element("setup-progress").hidden = !onboarding || !["provider", "model", "voice"].includes(part ?? "");
+  document.querySelectorAll<HTMLElement>("[data-setup-step]").forEach((step) => {
+    if (step.dataset.setupStep === part) step.setAttribute("aria-current", "step");
+    else step.removeAttribute("aria-current");
+  });
+}
 /** Each side panel tile opens its own part, for example #settings/voice. Without one, open what still needs doing. */
 function showSettingsPart(requested?: string) {
   const part = requested && requested in settingsParts ? requested as SettingsPart
-    : state && !state.models.length ? "provider" : !state?.selectedModel ? "model" : "voice";
+    : !state?.selectedModel ? modelSetupPart() : "voice";
   for (const name of Object.keys(settingsParts) as SettingsPart[]) element(`settings-${name}`).hidden = name !== part;
   const [title, colour] = settingsParts[part];
   element("settings-title").textContent = title;
   element("settings-bar").className = `drawer-bar ${colour}`;
+  showSetupProgress(part);
 }
 
 let settingsLoaded = false;
@@ -1268,7 +1320,7 @@ model.addEventListener("change", controls);
 element("model-form").addEventListener("submit", (event) => {
   event.preventDefault();
   void perform(async () => {
-    if (savingModel) return;
+    if (savingModel || state?.selectedModel && model.value === modelValue(state.selectedModel)) return;
     const choice = state?.models.find((choice) => modelValue(choice) === model.value);
     if (!choice) throw new Error("Choose an available model before confirming.");
     savingModel = true;
@@ -1341,14 +1393,33 @@ element("stop").addEventListener("click", () => {
   });
 });
 element("retry").addEventListener("click", () => { void perform(async () => { await route(); await boot(); await route(); }); });
-element("refresh-provider").addEventListener("click", () => {
-  void perform(async () => {
+async function refreshProvider() {
+  if (refreshingProvider) return;
+  refreshingProvider = true;
+  controls();
+  try {
     await api("refresh", {});
     await refreshState();
-    if (!state?.selectedModel) location.hash = state?.models.length ? "settings/model" : "settings/provider";
+    notice();
+    if (!state?.selectedModel) location.hash = `settings/${modelSetupPart()}`;
     openEvents();
-  });
-});
+  } finally { refreshingProvider = false; controls(); }
+}
+for (const id of ["refresh-provider", "refresh-model"]) {
+  element(id).addEventListener("click", () => { void perform(refreshProvider); });
+}
+element("copy-provider-command").addEventListener("click", () => { void perform(async () => {
+  const copy = element<HTMLButtonElement>("copy-provider-command");
+  if (copy.disabled) return;
+  copy.disabled = true;
+  element("provider-copy-result").textContent = "";
+  try {
+    if (!navigator.clipboard) throw new Error("The browser cannot copy the command. Select and copy it from the screen.");
+    await navigator.clipboard.writeText(element("provider-command").innerText);
+    element("provider-copy-result").textContent = "Command copied";
+    notice();
+  } finally { copy.disabled = false; }
+}); });
 element("project-form").addEventListener("submit", (event) => {
   event.preventDefault();
   void perform(async () => {
@@ -1365,7 +1436,7 @@ element("project-form").addEventListener("submit", (event) => {
     live.clear();
     messages = [];
     state = next;
-    location.hash = !next.selectedModel ? next.models.length ? "settings/model" : "settings/provider" : "";
+    location.hash = !next.selectedModel ? `settings/${modelSetupPart(next)}` : "";
     renderState();
     renderMessages();
     if (next.conversations[0]) await selectConversation(next.conversations[0].id);

@@ -40,13 +40,31 @@ shows the fan-formula date, with the ordinary date on hover.
 
 ## States and access
 
-The Provider setting tells the truth when no model is available.
+The Provider setting uses a Captain-facing LCARS connection frame with a
+copyable terminal command, a clear Refresh connection action, and real
+connection results. OpenCode owns sign-in. On first setup, show Connect first
+only when no providers are connected; already-connected providers go straight
+to Model, even when no usable models are listed. Detect connections from
+OpenCode's provider and connection information, not the model list; a failed
+lookup is an error, not an empty connection list. Keep credentials and account
+details on the server. Default OpenCode models remain an explicit optional
+path, and a saved OpenCode choice does not prompt connection onboarding again.
+The first setup shows Connect provider, Choose model, and Set up speech,
+highlighting only the current step. Supporting connection and permission
+information stays under About the connection. Model also links to Connect so
+the Captain can add providers later.
 The Model setting requires an explicit confirmed choice, even when OpenCode
 offers free models. Recommend the most capable model available without
 inventing a ranking, and explain the possible cost and speed trade-off.
 The confirmed choice is saved on this computer for every Project, separately
 from OpenCode's default. An unavailable choice needs a confirmed replacement,
-never an automatic switch.
+never an automatic switch. Keep unavailable saved choices in Model recovery,
+not first-run onboarding.
+The Model panel addresses the Captain, keeps its guidance short, and uses an
+LCARS-style control frame and a colored status readout. A saved choice is
+clearly marked, and confirmation stays off until the choice changes.
+Unavailable models have a direct Refresh connection action. Supporting details
+stay under About this choice, not in the main setup steps.
 Connection readiness means OpenCode is connected and the confirmed model is available.
 Standing by, listening, understanding, working, speaking, reconnecting, unanswered
 questions, and approval requests have visible labels. Errors name the problem

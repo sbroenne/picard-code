@@ -42,6 +42,7 @@ export interface ChatMessage {
 export interface AppState {
   project: string;
   version: string;
+  hasConnectedProvider: boolean;
   models: ModelChoice[];
   defaultModel?: ModelChoice;
   savedModel?: ModelSelection;

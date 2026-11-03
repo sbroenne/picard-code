@@ -64,7 +64,7 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("status")).toHaveText("Standing by");
   await expect(page.locator("#voice-setup-hint")).toBeVisible();
   await expect(page.locator("#listen-toggle")).toBeHidden();
-  for (const name of ["Project folder", "Provider sign-in"]) await expect(page.getByRole("heading", { name })).toBeHidden();
+  for (const name of ["Project folder", "Connect your provider"]) await expect(page.getByRole("heading", { name })).toBeHidden();
   await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
   await expect(page.locator("#conversations")).toBeHidden();
 
@@ -79,8 +79,8 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page).toHaveURL(/#settings\/model$/);
   await expect(page.getByRole("heading", { name: "Model" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Model" })).toBeVisible();
-  await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeHidden();
+  await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Connect your provider" })).toBeHidden();
   await expect(page.getByLabel("Mode", { exact: true })).toHaveCount(0);
   // Choosing the same tile again closes it; so do the Conversation tile and a click on the conversation.
   await page.getByRole("link", { name: /^Model/ }).click();
@@ -96,10 +96,13 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
 
   await page.getByRole("link", { name: /^Provider/ }).click();
-  await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Connect your provider" })).toBeVisible();
+  await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeHidden();
+  await page.getByText("About the connection", { exact: true }).click();
+  await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeVisible();
   await page.getByRole("link", { name: /^Project/ }).click();
   await expect(page.getByRole("heading", { name: "Project folder" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Provider sign-in" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Connect your provider" })).toBeHidden();
   await page.getByRole("link", { name: /Sir Patrick Stewart/ }).click();
   await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
   await page.getByRole("link", { name: /^Listen/ }).click();

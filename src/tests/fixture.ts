@@ -1,7 +1,7 @@
 import { createServer, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import type { FormRequest, PermissionRequest } from "../shared/types.js";
-import type { ContentItem, ModelInfo, SessionInfo, SessionMessage } from "../server/opencode.js";
+import type { ContentItem, IntegrationInfo, ModelInfo, ProviderInfo, SessionInfo, SessionMessage } from "../server/opencode.js";
 import type { WikipediaArticle } from "../server/wikipedia.js";
 
 export async function wikipediaFixture(subject: WikipediaArticle["subject"]): Promise<WikipediaArticle> {
@@ -51,6 +51,10 @@ export async function startFixture(project: string) {
   const crewChoices: (string | null)[] = [];
   let signedIn = true;
   let listedModels: ModelInfo[] | undefined;
+  let listedProviders: ProviderInfo[] | undefined;
+  let listedIntegrations: IntegrationInfo[] = [];
+  let providerError: string | undefined;
+  let integrationError: string | undefined;
   const buildPermissions: PermissionRule[] = [{ action: "*", resource: "*", effect: "allow" }, { action: "read", resource: "*.env", effect: "ask" }];
   const agents: AgentInfo[] = [
     { id: "build", mode: "primary", permissions: buildPermissions },
@@ -154,15 +158,16 @@ export async function startFixture(project: string) {
         { id: "other", modelID: "other", providerID: "other-provider", name: "Other model", status: "active", enabled: true },
         { id: "old", modelID: "old", providerID: "other-provider", name: "Retired model", status: "deprecated", enabled: true },
       ] : [];
-      const providers = [
+      const providers = signedIn ? listedProviders ?? [
         { id: "github-copilot", name: "GitHub Copilot", settings: { baseURL: "https://api.githubcopilot.com" } },
         { id: "other-provider", name: "Other Provider", settings: { apiKey: "provider-key-must-never-reach-browser" } },
-      ];
+      ] : [];
       if (path === "/api/info") { send(200, { version: "2.2.5-fixture" }); return; }
       if (path === "/api/location") { send(200, { directory, project: { id: "global", directory, canonical: directory } }); return; }
       if (path === "/api/location/reload") { send(204); return; }
       if (path === "/api/model") { send(200, { data: models }); return; }
-      if (path === "/api/provider") { send(200, { data: providers }); return; }
+      if (path === "/api/provider") { send(providerError ? 502 : 200, providerError ? { message: providerError } : { data: providers }); return; }
+      if (path === "/api/integration") { send(integrationError ? 502 : 200, integrationError ? { message: integrationError } : { data: listedIntegrations }); return; }
       if (path === "/api/agent") { send(200, { data: agents }); return; }
       if (path === "/api/model/default") { send(200, { data: models[0] }); return; }
       if (path === "/api/event") {
@@ -413,6 +418,10 @@ export async function startFixture(project: string) {
     publish,
     setSignedIn: (ready: boolean) => { signedIn = ready; },
     setModels: (models: ModelInfo[]) => { listedModels = models; },
+    setProviders: (providers: ProviderInfo[]) => { listedProviders = providers; },
+    setIntegrations: (integrations: IntegrationInfo[]) => { listedIntegrations = integrations; },
+    setProviderError: (message?: string) => { providerError = message; },
+    setIntegrationError: (message?: string) => { integrationError = message; },
     close: async () => {
       for (const timer of timers) clearTimeout(timer);
       for (const listener of listeners) listener.end();

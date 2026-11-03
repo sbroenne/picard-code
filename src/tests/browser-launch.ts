@@ -12,7 +12,12 @@ const project = await projectDirectory(process.cwd());
 const fixture = await startFixture(project);
 if (process.argv.includes("--free-models")) {
   fixture.setModels([{ id: "free-model", providerID: "opencode", name: "Free test model", enabled: true }]);
+  fixture.setProviders([{ id: "opencode", name: "OpenCode", integrationID: "opencode" }]);
 }
+if (process.argv.includes("--no-models")) fixture.setModels([]);
+if (process.argv.includes("--no-providers")) fixture.setProviders([]);
+if (process.argv.includes("--provider-error")) fixture.setProviderError("Test provider lookup failed.");
+if (process.argv.includes("--opencode-account")) fixture.setIntegrations([{ id: "opencode", connections: [{ type: "credential" }] }]);
 // Each utterance hears the next phrase; the last one repeats. Within a task everything said is sent,
 // so most end in silence ("").
 const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there", "Computer", "Keep the exact name and do not change files.", ""]

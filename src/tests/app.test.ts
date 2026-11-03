@@ -85,6 +85,52 @@ test("available models, including free models, never count as a confirmed model 
   assert.equal(context.fixture.sessions.get(session.id)?.model?.id, "free");
 });
 
+test("connection setup distinguishes default OpenCode models, connected accounts, and configured local providers", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  context.fixture.setProviders([{ id: "opencode", name: "OpenCode", integrationID: "opencode" }]);
+  context.fixture.setModels([{ providerID: "opencode", id: "default", name: "Default test model" }]);
+  context.fixture.setIntegrations([{ id: "unrelated-mcp", connections: [{ type: "credential" }] }]);
+  const state = async () => {
+    const response = await context.request("state");
+    assert.equal(response.status, 200);
+    return await response.json() as AppState;
+  };
+  assert.equal((await state()).hasConnectedProvider, false, "keyless models and unrelated connections do not count");
+  const connections = [{ id: "opencode", connections: [{ type: "credential" as const, label: "account-must-never-reach-browser" }] }];
+  context.fixture.setIntegrations(connections);
+  const connected = await state();
+  assert.equal(connected.hasConnectedProvider, true, "an OpenCode account counts even when only default models are available");
+  assert.doesNotMatch(JSON.stringify(connected), /account-must-never-reach-browser|connections|integrationID/);
+  context.fixture.setModels([]);
+  assert.equal((await state()).hasConnectedProvider, true, "no usable models does not mean no connected account");
+  context.fixture.setIntegrations([]);
+  context.fixture.setProviders([{ id: "local-example", name: "Local example" }]);
+  assert.equal((await state()).hasConnectedProvider, true, "a configured local provider does not require credentials");
+  context.fixture.setProviders([]);
+  assert.equal((await state()).hasConnectedProvider, false);
+});
+
+test("provider discovery failures stay errors rather than becoming an empty connection list", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  context.fixture.setProviderError("Test provider lookup failed.");
+  let response = await context.request("state");
+  assert.equal(response.status, 502);
+  assert.equal((await response.json()).error, "OpenCode could not complete this request. Test provider lookup failed.");
+  context.fixture.setProviderError();
+  context.fixture.setIntegrationError("Test connection lookup failed.");
+  response = await context.request("state");
+  assert.equal(response.status, 502);
+  assert.equal((await response.json()).error, "OpenCode could not complete this request. Test connection lookup failed.");
+  context.fixture.setIntegrationError();
+  const state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.hasConnectedProvider, true);
+  assert.equal(state.selectedModel?.modelID, "fixture-model");
+});
+
 test("a confirmed choice is shared by independent app starts and Project changes, not OpenCode's default", async (t) => {
   const context = await setup();
   t.after(context.cleanup);
@@ -122,6 +168,7 @@ test("unavailable and stale choices block requests, preserve saved IDs, and need
   context.fixture.setSignedIn(false);
   state = await (await context.request("state")).json() as AppState;
   assert.deepEqual(state.models, []);
+  assert.equal(state.hasConnectedProvider, false);
   assert.equal(state.selectedModel, undefined);
   assert.deepEqual(state.savedModel, { providerID: "other-provider", modelID: "other" });
   context.fixture.setSignedIn(true);
