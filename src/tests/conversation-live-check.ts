@@ -10,13 +10,14 @@ import type { SpeechService } from "../server/speech-types.js";
 
 declare global {
   interface Window {
-    interruptTestSpeech: (audio: string) => void;
+    interruptTestSpeech: (audio: string, quiet: boolean) => void;
     interruptedPlayback: boolean;
   }
 }
 
 const local = process.argv.includes("--local");
-const interrupt = process.argv.includes("--interrupt");
+const quiet = process.argv.includes("--quiet-interrupt");
+const interrupt = quiet || process.argv.includes("--interrupt");
 const localListener = process.argv.includes("--whisper") ? "whisper" : "nemotron";
 const name = local ? `${localListener}-kokoro` : "mai";
 const directory = resolve(".picard-voice", "samples");
@@ -57,6 +58,7 @@ try {
   const models = await availableModels(engine.client, project);
   const choice = models.models.find((model) => model.modelID === "gpt-4.1")
     ?? models.models.find((model) => model.modelID === "gpt-5-mini")
+    ?? models.models.find((model) => model.providerID === "github-copilot" && model.modelID === "gpt-6.1-terra")
     ?? models.defaultModel;
   assert.ok(choice, "Sign in to a model provider in OpenCode before this real conversation check.");
   const events = engine.client.events(controller.signal);
@@ -109,12 +111,24 @@ try {
     AudioContext.prototype.createMediaStreamSource = function (stream) {
       const destination = this.createMediaStreamDestination();
       original.call(this, stream).connect(destination);
-      window.interruptTestSpeech = (audio) => {
+      window.interruptTestSpeech = (audio, quiet) => {
         const bytes = Uint8Array.from(atob(audio), (character) => character.charCodeAt(0));
         const view = new DataView(bytes.buffer);
         const buffer = this.createBuffer(1, bytes.length / 2, 24000);
         const samples = buffer.getChannelData(0);
         for (let index = 0; index < samples.length; index++) samples[index] = view.getInt16(index * 2, true) / 32768;
+        if (quiet) {
+          // Even overlapping 20 ms frames stay below the old 0.012 volume cutoff.
+          let peak = 0;
+          for (let start = 0; start < samples.length; start += 480) {
+            let energy = 0;
+            const end = Math.min(start + 480, samples.length);
+            for (let index = start; index < end; index++) energy += samples[index]! ** 2;
+            peak = Math.max(peak, Math.sqrt(energy / (end - start)));
+          }
+          if (!peak) throw new Error("The generated interruption contains no sound.");
+          for (let index = 0; index < samples.length; index++) samples[index]! *= 0.006 / peak;
+        }
         const source = this.createBufferSource();
         source.buffer = buffer;
         source.connect(destination);
@@ -148,7 +162,7 @@ try {
   await expect(page.getByRole("status")).toHaveText("Speaking", { timeout: 30_000 });
   if (interrupt) {
     interrupting = true;
-    await page.evaluate((audio) => window.interruptTestSpeech(audio), Buffer.concat(interruption).toString("base64"));
+    await page.evaluate(({ audio, quiet }) => window.interruptTestSpeech(audio, quiet), { audio: Buffer.concat(interruption).toString("base64"), quiet });
     await expect.poll(() => commands.includes("stop-speaking"), { timeout: local && localListener === "whisper" ? 15_000 : 5000 }).toBe(true);
     assert.equal(await page.evaluate(() => window.interruptedPlayback), true, "The answer must still be playing when the interruption stops it.");
     assert.ok(interruptionAudio >= 640, "Real microphone audio must reach the listener before playback stops.");
@@ -170,7 +184,7 @@ try {
   if (observationError) throw observationError;
   assert.ok((deltas.get(sessionID) ?? 0) > 0, "The real model answer must produce live text updates, not only a saved final reply.");
   await page.screenshot({ path: resolve(directory, `${name}-conversation.png`), fullPage: true });
-  console.log(`Real ${name} browser conversation passed: synthesized test microphone, automatic turn submission, OpenCode + ${choice.provider} ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, ${interrupt ? "a spoken interruption with the exact request preserved, " : ""}mute and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
+  console.log(`Real ${name} browser conversation passed: synthesized test microphone, automatic turn submission, OpenCode + ${choice.provider} ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, ${interrupt ? `${quiet ? "a quiet" : "a"} spoken interruption with the exact request preserved, ` : ""}mute and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
 } finally {
   controller.abort();
   await observation;

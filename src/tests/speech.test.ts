@@ -35,6 +35,29 @@ test("an utterance starts with a short run of voice, ends after a real pause, an
   assert.equal(detector.update(0.02, 20), "end", "Endless sound is ended after a minute.");
 });
 
+test("quiet speech is detected above a quiet room without dropping its tail or learning it as noise", () => {
+  const detector = new Utterance();
+  for (let index = 0; index < 50; index++) assert.equal(detector.update(0.0003, 20), undefined);
+  assert.equal(detector.update(0.004, 60), "start");
+  for (let index = 0; index < 100; index++) assert.equal(detector.update(0.004, 20), undefined);
+  assert.equal(detector.update(0.0003, 899), undefined);
+  assert.equal(detector.update(0.0003, 1), "end");
+  detector.reset();
+  assert.equal(detector.update(0.004, 60), "start", "Returning to listening keeps the room's learned quiet level.");
+  assert.equal(detector.update(0.0003, 900), "drop", "A brief quiet click is still dropped.");
+});
+
+test("the volume cutoff stays above room noise and never falls below its quiet limit", () => {
+  const noisy = new Utterance();
+  for (let index = 0; index < 100; index++) assert.equal(noisy.update(0.008, 20), undefined);
+  assert.equal(noisy.update(0.009, 1000), undefined);
+  assert.equal(noisy.update(0.02, 60), "start");
+  const quiet = new Utterance();
+  for (let index = 0; index < 100; index++) assert.equal(quiet.update(0, 20), undefined);
+  for (let index = 0; index < 100; index++) assert.equal(quiet.update(0.0015, 20), undefined);
+  assert.equal(quiet.active, false);
+});
+
 test("only speech that starts with Computer is addressed; stop commands are whole short phrases", () => {
   assert.equal(addressed("Computer, explain this project."), "explain this project.");
   assert.equal(addressed("computer what files are here"), "what files are here");

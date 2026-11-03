@@ -975,6 +975,7 @@ npm run test:conversation:live
 npm.cmd run test:conversation:live -- --local
 npm.cmd run test:conversation:live -- --local --whisper
 npm.cmd run test:conversation:live -- --local --interrupt
+npm.cmd run test:conversation:live -- --local --quiet-interrupt
 npm run test:behavior:live
 ```
 
@@ -1018,6 +1019,9 @@ Add `--interrupt` to play a generated request into the browser's capture path
 while a real spoken answer is playing. It checks that playback stops, the
 new request keeps its name and negation, and no stop-work request is sent.
 This tests overlapping speech, not a physical microphone or speaker echo.
+Use `--quiet-interrupt` instead to check a request below the old fixed volume
+cutoff. The microphone now learns the room's quiet level so softer speech can
+start listening, including while an answer is playing.
 These checks make real model requests;
 the MAI variant also makes chargeable Azure requests. Earlier versions of both
 passed on the Windows development machine before the OpenCode 2 migration;

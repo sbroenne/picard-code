@@ -426,6 +426,34 @@ test(`${mode}: a request spoken over an answer keeps Computer and the exact word
 });
 }
 
+test("quiet microphone speech interrupts an answer and preserves the full request", async ({ page }) => {
+  await page.addInitScript(() => {
+    const node = AudioWorkletNode;
+    window.AudioWorkletNode = class extends node {
+      constructor(...args: ConstructorParameters<typeof AudioWorkletNode>) {
+        super(...args);
+        this.port.addEventListener("message", (event: MessageEvent<ArrayBuffer>) => {
+          if (document.querySelector("#status")?.textContent !== "Speaking") return;
+          const samples = new Int16Array(event.data);
+          for (let index = 0; index < samples.length; index++) samples[index]! /= 32;
+        });
+        this.port.start();
+      }
+    };
+  });
+  const commands: string[] = [];
+  page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
+    if (typeof payload === "string") commands.push(JSON.parse(payload).type);
+  }));
+  await launch(page, "interrupt-request");
+  await startListening(page);
+  await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+  await expect(page.locator(".message[data-role=user]")).toHaveCount(2, { timeout: 15000 });
+  await expect(page.locator(".message[data-role=user]").last()).toContainText("Computer, keep the exact name and do not change files.");
+  expect(commands).toContain("stop-speaking");
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
 test("room speech during playback is ignored even within a log entry", async ({ page }) => {
   const commands: string[] = [];
   const transcripts: string[] = [];

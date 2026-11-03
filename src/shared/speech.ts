@@ -18,14 +18,18 @@ const VOICE_LEVEL = 0.012;
  */
 export class Utterance {
   active = false;
+  private noiseLevel = VOICE_LEVEL / 3;
   private run = 0;
   private voiced = 0;
   private silence = 0;
   private length = 0;
   reset() { this.active = false; this.run = 0; this.voiced = 0; this.silence = 0; this.length = 0; }
   update(level: number, milliseconds: number): "start" | "end" | "drop" | undefined {
-    const voice = level >= VOICE_LEVEL;
+    const threshold = Math.max(0.002, Math.min(VOICE_LEVEL, this.noiseLevel * 3));
+    const voice = level >= threshold;
     if (!this.active) {
+      // Learn the room's quiet level without learning a spoken request as background noise.
+      if (!voice) this.noiseLevel += (level - this.noiseLevel) * (1 - Math.exp(-milliseconds / 250));
       this.run = voice ? this.run + milliseconds : 0;
       if (this.run < 60) return undefined;
       this.active = true;
