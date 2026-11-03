@@ -1384,7 +1384,15 @@ element("speech-form").addEventListener("submit", (event) => {
   void perform(() => prepareSelectedSpeech(Object.fromEntries(speechFields.map((name) => [name, speechInput(name).value.trim()]))));
 });
 element("retry-speech-setup").addEventListener("click", () => {
-  void perform(async () => prepareSelectedSpeech(lastSpeechChoice ?? (await api<SavedSpeech>("settings")).settings));
+  void perform(async () => {
+    if (speechSetupWatching) return;
+    speechSetupWatching = true;
+    try {
+      const setup = await api<SpeechSetup | { state: "none" }>("speech-setup");
+      if (setup.state === "running") await followSpeechSetup(setup);
+      else await prepareSelectedSpeech(lastSpeechChoice ?? (await api<SavedSpeech>("settings")).settings);
+    } finally { speechSetupWatching = false; voiceControls(); }
+  });
 });
 element("stop").addEventListener("click", () => {
   void perform(async () => {

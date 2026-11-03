@@ -171,6 +171,7 @@ test("local speech preparation shows real steps, reports failure and retries wit
   await page.route("**/api/settings", async (route) => {
     if (route.request().method() === "POST") {
       writes++;
+      phase = "running";
       expect(route.request().postDataJSON()).toMatchObject({ listening: "nemotron", speaking: "kokoro" });
       await route.fulfill({ status: 202, json: { state: "running", step } });
     } else await route.fulfill({ json: { ...saved, localReady: false, speech: { configured: false }, localFiles: { nemotron: false, kokoro: false } } });
@@ -196,13 +197,42 @@ test("local speech preparation shows real steps, reports failure and retries wit
   await expect(page.getByRole("progressbar")).toBeHidden();
   await expect(page.locator("#listen-toggle")).toBeHidden();
   await page.screenshot({ path: process.env.PICARD_SPEECH_CAPTURE ? ".picard-voice/samples/speech-preparation-failed.png" : testInfo.outputPath("speech-preparation-failed.png"), fullPage: true });
-  phase = "running";
   await page.locator("#retry-speech-setup").click();
   await expect(page.getByRole("progressbar")).toBeVisible();
   expect(writes).toBe(2);
   phase = "done";
   await expect(page.locator("#speech-preparation")).toBeHidden();
   await expect(page.locator("#readout-speech")).toHaveText("Nemotron · Kokoro");
+  await expect(page.locator("#voice-console")).toBeVisible();
+});
+
+test("speech setup retry rejoins a running download after a connection failure", async ({ page }) => {
+  let writes = 0;
+  let disconnected = true;
+  let done = false;
+  const step = "Downloading Nemotron — labeled test download";
+  const settings = { listening: "nemotron", speaking: "kokoro" };
+  await page.route("**/api/settings", (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    writes++;
+    return route.fulfill({ status: 202, json: { state: "running", step } });
+  });
+  await page.route("**/api/speech-setup", (route) => {
+    if (disconnected) return route.abort("connectionfailed");
+    return route.fulfill({ json: done
+      ? { state: "done", step, result: { settings, file: "Labeled test settings", localFiles: { nemotron: true, kokoro: true },
+        speech: { configured: true, ...settings } } }
+      : { state: "running", step } });
+  });
+  await page.locator("#prepare-computer").click();
+  await expect(page.locator("#retry-speech-setup")).toBeVisible();
+  await expect(page.locator("#speech-preparation-error")).not.toBeEmpty();
+  disconnected = false;
+  await page.locator("#retry-speech-setup").click();
+  await expect(page.getByRole("progressbar")).toBeVisible();
+  expect(writes).toBe(1);
+  done = true;
+  await expect(page.locator("#speech-preparation")).toBeHidden();
   await expect(page.locator("#voice-console")).toBeVisible();
 });
 
