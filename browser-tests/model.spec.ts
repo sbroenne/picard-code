@@ -488,6 +488,45 @@ test("confirmation updates other open pages and an unconfirmed change stays only
   await expect(second.locator("#model")).toHaveValue(other);
 });
 
+for (const failed of [false, true]) {
+  test(`speech prepared in another page completes first setup${failed ? " after a displayed failure" : ""}`, async ({ page, context }) => {
+    const app = await launch(page, ["--speech-settings"]);
+    await page.selectOption("#model", first);
+    await page.getByRole("button", { name: "Use this model" }).click();
+    await expect(page.locator("#speech-first-start")).toBeVisible();
+    const second = await context.newPage();
+    if (failed) {
+      await second.route("**/api/state", async (route) => {
+        const response = await route.fetch();
+        const state = await response.json();
+        if (!state.speech.configured) state.speech.setup = {
+          state: "failed", step: "Preparing speech — labeled test stand-in",
+          error: "Test speech preparation failed.",
+        };
+        await route.fulfill({ response, json: state });
+      });
+    }
+    try {
+      await second.goto(app.url);
+      await expect(second.locator(failed ? "#speech-preparation" : "#speech-first-start")).toBeVisible();
+      if (failed) await expect(second.locator("#speech-preparation-error")).toHaveText("Test speech preparation failed.");
+      await page.locator("#prepare-computer").click();
+      for (const open of [page, second]) {
+        await expect(open.locator("#voice-console")).toBeVisible();
+        await expect(open.locator("#speech-first-start")).toBeHidden();
+        await expect(open.locator("#speech-preparation")).toBeHidden();
+        await expect(open.locator("#setup-progress")).toBeHidden();
+        await expect(open.locator("#readout-model")).toHaveText("Copilot test model");
+        await expect(open.locator("#readout-speech")).toHaveText("Nemotron · Kokoro");
+      }
+    } finally {
+      await second.unrouteAll({ behavior: "wait" });
+      await second.close();
+      await app.close();
+    }
+  });
+}
+
 test("confirmation failures remain visible and do not activate the selected model", async ({ page }) => {
   await launch(page);
   await page.route("**/api/model", (route) => route.fulfill({

@@ -912,6 +912,54 @@ test("choosing local speech for the first time downloads it in the background, t
   assert.deepEqual(state.speech, { configured: true, listening: "nemotron", speaking: "kokoro" });
 });
 
+for (const outcome of ["done", "failed"] as const) {
+  test(`speech preparation notifies every open page when it starts and ${outcome === "done" ? "finishes" : "fails"}`, { timeout: 5000 }, async (t) => {
+    let ready = false;
+    let finish!: () => void;
+    let downloads = 0;
+    const context = await setup({
+      localSpeechReady: async () => ready,
+      setUpLocalSpeech: (onStep, signal) => new Promise<void>((resolve, reject) => {
+        downloads++;
+        onStep("Preparing speech — labeled test download");
+        finish = () => {
+          if (outcome === "failed") reject(new Error("Test speech download failed."));
+          else { ready = true; resolve(); }
+        };
+        signal?.addEventListener("abort", () => reject(new Error("Test download stopped.")), { once: true });
+      }),
+      startSpeech: async () => speechFixture().service,
+    });
+    t.after(context.cleanup);
+    await context.login();
+    const readers = await Promise.all([0, 1].map(async () => (await context.request("events")).body!.getReader()));
+    t.after(() => Promise.all(readers.map((reader) => reader.cancel())));
+    await Promise.all(readers.map((reader) => reader.read()));
+    const receiveUpdates = () => Promise.all(readers.map(async (reader) => {
+      let observed = "";
+      while (!observed.includes('"type":"state"')) {
+        const event = await reader.read();
+        assert.equal(event.done, false);
+        observed += new TextDecoder().decode(event.value);
+      }
+    }));
+    const choice = { listening: "nemotron", speaking: "kokoro" };
+    assert.equal((await context.request("settings", choice)).status, 202);
+    await receiveUpdates();
+    assert.equal((await (await context.request("state")).json()).speech.setup.state, "running");
+    assert.equal((await context.request("settings", choice)).status, 409);
+    assert.equal(downloads, 1);
+    finish();
+    await receiveUpdates();
+    const state = await (await context.request("state")).json() as AppState;
+    assert.equal(state.speech?.configured, outcome === "done");
+    if (outcome === "failed") {
+      assert.equal(state.speech?.setup?.state, "failed");
+      assert.equal(state.speech?.setup?.error, "Test speech download failed.");
+    } else assert.equal(state.speech?.setup, undefined);
+  });
+}
+
 test("closing Picard Code stops a running speech download and uses nothing from it", async (t) => {
   let stopped = false;
   let started = 0;

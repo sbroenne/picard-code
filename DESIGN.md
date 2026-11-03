@@ -48,6 +48,8 @@ Keep Belay that available when work is running, even while the listening
 console is hidden. Keep the current log entry without letting its scrolling
 hide preparation or retry. After a reload, Try again repeats the failed speech
 choice, not the previously saved choice.
+Keep open pages in sync when preparation starts, finishes or fails, including
+when installed speech starts without a download.
 
 Captain's log and the Project, Computer intelligence, and Listen · Speak tiles
 open in a slide-out, as do AI provider in the top bar and About from the header dedication.

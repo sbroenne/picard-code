@@ -217,6 +217,7 @@ export async function startApp(options: AppOptions) {
     const job: NonNullable<typeof localSetup> = { state: "running", step: download ? "Starting the download" : "Starting local speech" };
     localSetup = job;
     localSetupChoice = { record, savedRecord };
+    notifyState();
     localSetupRun = (async () => {
       try {
         if (download) {
@@ -233,6 +234,8 @@ export async function startApp(options: AppOptions) {
         job.state = "failed";
         job.error = errorMessage(error);
         if (!speech) speechError = job.error;
+      } finally {
+        notifyState();
       }
     })();
     return job;
@@ -506,6 +509,7 @@ export async function startApp(options: AppOptions) {
           const result = await applySpeech(record);
           localSetup = undefined;
           localSetupChoice = undefined;
+          notifyState();
           json(response, 200, result);
           return;
         }

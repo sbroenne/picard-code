@@ -1118,7 +1118,9 @@ async function refreshState() {
   if (revision !== selectionRevision && state?.project !== next.project) return;
   const lostModel = !!state?.selectedModel && !next.selectedModel;
   const finishedModelSetup = onboarding && !state?.selectedModel && !!next.selectedModel;
+  const speechBecameReady = !state?.speech?.configured && !!next.speech?.configured;
   state = next;
+  if (speechBecameReady && !speechSetupWatching) showSpeechPreparation();
   renderState();
   if (lostModel) location.hash = "settings/model";
   else if (finishedModelSetup) location.hash = "";
