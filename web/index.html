@@ -109,7 +109,10 @@
             <button id="refresh-provider" class="pill orange" type="button">Refresh connection</button>
             <p id="provider-status" class="connection-status" aria-live="polite" aria-atomic="true">Checking</p>
           </div>
-          <a id="use-opencode-models" class="provider-alternative" href="#settings/model" hidden>Use OpenCode models instead</a>
+          <div id="use-opencode-models" class="provider-alternative" hidden>
+            <a class="pill outline" href="#settings/model" aria-describedby="default-model-guidance">Continue without connecting</a>
+            <p id="default-model-guidance" class="muted">Choose from OpenCode's default models. For the best experience, connect your own provider.</p>
+          </div>
           <details class="setup-details">
             <summary>About the connection</summary>
             <p class="muted">Picard Code works with any provider OpenCode supports, including a model on this computer. Configure local models in OpenCode, then refresh here. An available model is not a guarantee that a request will succeed.</p>
@@ -126,7 +129,7 @@
             <label for="model">AI model</label>
             <select id="model" aria-describedby="model-guidance model-problem" disabled><option>Waiting for OpenCode</option></select>
             <div class="model-actions">
-              <button id="confirm-model" class="pill blue" type="submit" disabled>Confirm model</button>
+              <button id="confirm-model" class="pill blue" type="submit" disabled>Use this model</button>
               <button id="refresh-model" class="pill outline" type="button" hidden>Refresh connection</button>
               <a class="connect-provider" href="#settings/provider">Connect a provider</a>
             </div>

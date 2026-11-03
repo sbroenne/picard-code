@@ -481,14 +481,14 @@ function controls() {
   const unchanged = !!selectedModel && model.value === modelValue(selectedModel);
   const confirm = element<HTMLButtonElement>("confirm-model");
   confirm.disabled = model.disabled || !model.value || unchanged;
-  confirm.textContent = savingModel ? "Saving model" : "Confirm model";
+  confirm.textContent = savingModel ? "Saving model" : "Use this model";
   const unavailable = !!savedModel && !selectedModel;
   let guidance = "Choose the most capable AI model available for the best answers. It may cost more or take longer.";
   if (state?.modelError || unavailable) guidance = "Your saved choice is kept until you confirm a replacement.";
   else if (state && !state.models.length) guidance = "Check model availability in OpenCode before choosing an AI model.";
   else if (selectedModel) guidance = unchanged
     ? "This AI model is used for your requests and bridge crew reports."
-    : "Confirm to use the new AI model. Your saved model stays in use until then.";
+    : "Use this model to save your new choice. Your saved model stays in use until then.";
   element("model-guidance").textContent = guidance;
   const problem = state?.modelError ?? (unavailable
     ? `The saved model ${savedModel.providerID} / ${savedModel.modelID} is unavailable. Refresh the connection or choose a replacement.`

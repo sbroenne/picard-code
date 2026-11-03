@@ -86,7 +86,7 @@ instead. You do not need to install OpenCode, Python or anything else
 yourself. OpenCode 1 is not supported.
 
 Before the computer starts listening, choose an **AI model** in
-**Computer intelligence** and choose **Confirm model**. For the best experience, choose the most capable
+**Computer intelligence** and choose **Use this model**. For the best experience, choose the most capable
 model your provider offers; it may cost more or take longer to answer.
 Picard Code does not rank models or choose one for you, even when free OpenCode
 models are available. If OpenCode has no connected providers and you have not
@@ -349,15 +349,16 @@ To sign in to a provider:
 3. Return to Picard Code, choose the **Provider** tile and then
    **Refresh connection**. Once a provider connection is found,
    **Computer intelligence** opens if no model has been confirmed. Models
-   are grouped by provider: pick one and choose **Confirm model**. The
+   are grouped by provider: pick one and choose **Use this model**. The
    **Computer intelligence** tile lets you change it later; changing the list
    alone does not save or activate a choice.
 
 The Connect screen addresses you as the Captain and shows the first setup
 steps: connect a provider, choose a model, and set up speech. It does not ask
 you to sign in again when OpenCode already has a connected provider. The
-optional OpenCode-model path stays available when only its default models are
-available; a saved OpenCode model does not trigger connection onboarding again.
+secondary **Continue without connecting** button lets you choose from
+OpenCode's default models when available; a saved OpenCode model does not
+trigger connection onboarding again.
 You can add providers later through **Connect a provider** in Computer
 intelligence. Local providers remain supported without an online account.
 A provider with no available models opens Computer intelligence so you can
@@ -368,7 +369,9 @@ including OpenCode's permission behavior, are under **About the connection**.
 Computer intelligence labels the selector **AI model** and shows **Model saved**
 after confirmation. First-time guidance recommends a capable model; saved
 choices and recovery have their own wording rather than repeating the welcome.
-The confirmation button stays off until you choose a different model. **About this choice**
+**Use this model** stays off until you choose a different model. Saving goes
+straight to speech setup, or closes the panel if speech is already set up;
+there is no extra confirmation screen. **About this choice**
 explains where the choice is remembered; if the saved model is unavailable,
 **Refresh connection** is offered in the same panel.
 
@@ -1043,7 +1046,7 @@ and repeat the browser checks.
   hostname. Do not share that address.
 - **No model available:** sign in to a provider as described above, then
   refresh the connection while no work is running, choose a model, and choose
-  **Confirm model**.
+  **Use this model**.
 - **Saved model unavailable:** open **Computer intelligence** to see the saved
   provider and model. Refresh the provider connection to check its availability, or choose
   and confirm another model. Picard Code keeps your saved choice until you

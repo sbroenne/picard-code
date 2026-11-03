@@ -91,7 +91,7 @@ try {
   await expect(page.getByRole("status")).not.toHaveText("Starting up", { timeout: 30_000 });
   await page.evaluate(() => { location.hash = "settings/model"; });
   await page.selectOption("#model", JSON.stringify([choice.providerID, choice.modelID]));
-  await page.getByRole("button", { name: "Confirm model" }).click();
+  await page.getByRole("button", { name: "Use this model" }).click();
   await expect(page.locator("#drawer-settings")).toBeHidden();
   await page.evaluate(() => (window as unknown as { startTestMicrophone: () => void }).startTestMicrophone());
   await expect.poll(async () => `${await page.getByRole("status").textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 30_000 })

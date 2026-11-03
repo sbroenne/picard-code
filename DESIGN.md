@@ -48,7 +48,11 @@ to Computer intelligence, even when no usable models are listed. Detect
 connections from OpenCode's provider and connection information, not the model list; a failed
 lookup is an error, not an empty connection list. Keep credentials and account
 details on the server. Default OpenCode models remain an explicit optional
-path, and a saved OpenCode choice does not prompt connection onboarding again.
+path through a secondary LCARS-style Continue without connecting button.
+Explain that it offers OpenCode's default models and recommend connecting a
+provider for the best experience. Hide both the button and explanation when
+that path is unavailable. A saved OpenCode choice does not prompt connection
+onboarding again.
 The first setup shows Connect provider, Choose AI model, and Set up speech,
 highlighting only the current step. Supporting connection and permission
 information stays under About the connection. Computer intelligence also
@@ -65,7 +69,9 @@ Address the Captain in the first-run welcome only, not in every settings
 instruction. Computer intelligence gives brief guidance for the actual state:
 first selection, saved choice, an unconfirmed change, or recovery. It uses an
 LCARS-style control frame and a colored status readout. A saved choice is
-clearly marked, and confirmation stays off until the choice changes.
+clearly marked, and Use this model stays off until the choice changes.
+That action saves the choice and opens speech setup, or closes settings if
+speech is already set up. There is no separate confirmation screen.
 Unavailable models have a direct Refresh connection action. Supporting details
 stay under About this choice, not in the main setup steps.
 Connection readiness means OpenCode is connected and the confirmed model is available.

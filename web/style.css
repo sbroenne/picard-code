@@ -301,7 +301,8 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .provider-command .pill { flex: none; }
 .copy-result { min-height: 1.7em; margin: 4px 0 0; color: var(--lilac); }
 .connection-status { color: var(--peach); }
-.provider-alternative { display: inline-block; margin: 24px 0 0 26px; }
+.provider-alternative { margin: 24px 0 0 26px; }
+.provider-alternative p { margin: 12px 0 0; }
 .connect-provider { align-self: center; }
 
 @media (max-width: 1000px) {
