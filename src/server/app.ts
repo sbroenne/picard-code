@@ -183,6 +183,7 @@ export async function startApp(options: AppOptions) {
   const readWikipedia = options.readWikipedia ?? wikipediaReader();
   /** The one-time local speech download runs in the background, because it takes minutes. */
   let localSetup: { state: "running" | "done" | "failed"; step: string; error?: string; result?: unknown } | undefined;
+  let localSetupChoice: { record: Record<string, unknown>; savedRecord: Record<string, unknown> } | undefined;
   /** Stops a running speech download on shutdown, so it cannot keep installing or change settings afterwards. */
   const closing = new AbortController();
   let localSetupRun: Promise<void> | undefined;
@@ -209,6 +210,7 @@ export async function startApp(options: AppOptions) {
   const beginSpeechSetup = (record: Record<string, unknown>, download: boolean, savedRecord = record) => {
     const job: NonNullable<typeof localSetup> = { state: "running", step: download ? "Starting the download" : "Starting local speech" };
     localSetup = job;
+    localSetupChoice = { record, savedRecord };
     localSetupRun = (async () => {
       try {
         if (download) {
@@ -220,6 +222,7 @@ export async function startApp(options: AppOptions) {
         job.step = "Starting the selected speech services";
         job.result = await applySpeech(record, savedRecord);
         job.state = "done";
+        localSetupChoice = undefined;
       } catch (error) {
         job.state = "failed";
         job.error = errorMessage(error);
@@ -453,6 +456,14 @@ export async function startApp(options: AppOptions) {
           json(response, 200, localSetup ?? { state: "none", step: "" });
           return;
         }
+        if (path === "/api/speech-setup" && method === "POST") {
+          await body(request);
+          if (localSetup?.state !== "failed" || !localSetupChoice) throw new HttpError(409, "There is no failed speech preparation to retry.");
+          const { record, savedRecord } = localSetupChoice;
+          const download = !await localReady(record);
+          json(response, 202, beginSpeechSetup(record, download, savedRecord));
+          return;
+        }
         if (path === "/api/settings" && method === "POST") {
           const data = await body(request);
           let record: Record<string, unknown>;
@@ -467,6 +478,7 @@ export async function startApp(options: AppOptions) {
           }
           const result = await applySpeech(record);
           localSetup = undefined;
+          localSetupChoice = undefined;
           json(response, 200, result);
           return;
         }

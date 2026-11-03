@@ -37,6 +37,10 @@ Its service names, download information and Prepare the computer control stay
 together. Downloads and failures use the same panel, with actual setup steps
 and retry beside the error. The listening console is hidden while speech is
 unavailable or being prepared; do not show Standing by before it can listen.
+Keep Belay that available when work is running, even while the listening
+console is hidden. Keep the current log entry without letting its scrolling
+hide preparation or retry. After a reload, Try again repeats the failed speech
+choice, not the previously saved choice.
 Keep setup controls out of the bottom console.
 
 Captain's log and the Project, Model, and Listen · Speak tiles open in a

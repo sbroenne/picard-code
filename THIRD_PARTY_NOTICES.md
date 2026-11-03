@@ -48,7 +48,9 @@ The setup script fixes the Nemotron model revision and checks
 fixed SHA-256 hashes of the Nemotron runtime, model and model-license copy,
 and of the Kokoro model and voices. The downloaded Nemotron runtime keeps
 its own license files; the models folder also holds
-`NVIDIA-Open-Model-License.html` and `NVIDIA-NOTICE.txt`.
+`NVIDIA-Open-Model-License.pdf` and `NVIDIA-NOTICE.txt`. The license copy is
+NVIDIA's dated October 24, 2025 PDF, checked against its fixed checksum,
+rather than the changing license web page.
 Downloads use public upstream sources,
 not copied franchise material or recordings.
 
