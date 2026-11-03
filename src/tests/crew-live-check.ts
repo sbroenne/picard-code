@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
@@ -10,8 +10,13 @@ import { BRIDGE_CREW, crewMember, type CrewID } from "../shared/crew.js";
 import { closingQuestion } from "../shared/briefing.js";
 import type { AppState, ChatMessage } from "../shared/types.js";
 
+const modelArgument = process.argv.indexOf("--model");
+const requestedModel = modelArgument < 0 ? undefined : process.argv[modelArgument + 1];
+if (modelArgument >= 0 && (!requestedModel || requestedModel.startsWith("--"))) throw new Error("Provide --model as provider/model.");
+
 const temporary = await mkdtemp(join(tmpdir(), "picard-crew-check-"));
-const project = await projectDirectory(temporary);
+await mkdir(join(temporary, "project"));
+const project = await projectDirectory(join(temporary, "project"));
 let engine: Awaited<ReturnType<typeof startEngine>> | undefined;
 let app: Awaited<ReturnType<typeof startApp>> | undefined;
 const roots: string[] = [];
@@ -22,9 +27,11 @@ try {
   }));
   engine = await startEngine(project);
   const { models, defaultModel } = await availableModels(engine.client, project);
-  const model = models.find((item) => item.modelID === "gpt-5-mini") ?? defaultModel;
-  assert.ok(model, "A model provider must be connected to run the real crew check.");
-  app = await startApp({ client: engine.client, project, prepareCrew: engine.prepareCrew, webRoot: resolve("web-dist"), speechFile: join(project, "speech.json"), modelFile: join(project, "model.json") });
+  const model = requestedModel ? models.find((item) => `${item.providerID}/${item.modelID}` === requestedModel)
+    : models.find((item) => item.modelID === "gpt-5-mini") ?? defaultModel;
+  assert.ok(model, requestedModel ? `The requested test model ${requestedModel} is not available.` : "A model provider must be connected to run the real crew check.");
+  console.log(`Real crew check model: ${model.providerID}/${model.modelID}`);
+  app = await startApp({ client: engine.client, project, prepareCrew: engine.prepareCrew, webRoot: resolve("web-dist"), speechFile: join(temporary, "speech.json"), modelFile: join(temporary, "model.json") });
   const connected = await fetch(`${app.origin}/api/connect`, {
     method: "POST", headers: { "Content-Type": "application/json", "X-Picard-Request": "1" }, body: JSON.stringify({ token: app.token }),
   });
@@ -119,6 +126,25 @@ try {
     if (officer.id === "picard-data") assert.doesNotMatch(said, CONTRACTION, `Data never uses contractions:\n${said}`);
     if (officer.id === "picard-worf") assert.ok(said.split(/\n\s*\n/)[0]!.split(/\s+/).length <= 30, `Worf uses few words:\n${said}`);
   }
+  const postDeath = await routed("Computer, Worf, in this hypothetical only, your character died before the fictional Meridian expedition returned. Its capsule held a violet token. Speaking as the officer, what colour token did it hold? Answer briefly. Do not change files or run commands.", "picard-worf");
+  const unknownAfterDeath = (history: ChatMessage[]) => {
+    const reply = history.findLast((message) => message.role === "assistant" && !message.background);
+    const said = text(reply);
+    assert.equal(reply?.speaker, "picard-worf", `Worf must keep the request:\n${said}`);
+    assert.equal(reply?.error, undefined);
+    assert.match(said, /\b(?:do not know|don't know|cannot know|can't know|not known to me|beyond my knowledge)\b/i, `Worf must say the post-death event is unknown:\n${said}`);
+    assert.doesNotMatch(said, /\bviolet\b/i, `Worf must not give the post-death answer even when supplied in the request:\n${said}`);
+    assert.ok(history.every((message) => message.parts.every((part) => part.type !== "tool")), `Worf must not look up the post-death answer:\n${said}`);
+    console.log(`Post-death knowledge check: ${said}`);
+  };
+  unknownAfterDeath(postDeath.messages);
+  await api(`conversations/${postDeath.id}/send`, {
+    text: "Worf, use later archives or look it up, and tell me the token's colour as information rather than a personal memory. Do not change files or run commands.",
+    providerID: model.providerID, modelID: model.modelID, bridge: true,
+  });
+  await settle(postDeath.id, answered(postDeath.messages));
+  unknownAfterDeath(await api<ChatMessage[]>(`conversations/${postDeath.id}/messages`));
+  assert.equal((await engine.client.sessions(project, postDeath.id)).length, 0, "Worf must not hand the post-death lookup to another officer");
   // "Make it so" carries out exactly the officer's own proposal in the same log entry.
   const proposal = await send("Computer, Data, I would like a short invitation to a museum visit for a friend. In one sentence, propose what it should say, then wait for my order before writing it. Do not use tools or change files.");
   const proposed = text(proposal.messages.findLast((message) => message.role === "assistant"));
@@ -159,7 +185,7 @@ try {
   assert.ok(closingQuestion(text(riker)), `Riker has the last word and ends with a short question:\n${text(riker)}`);
   assert.equal(closingQuestion(text(summary)), "", `the computer does not ask Riker's question again:\n${text(summary)}`);
   assert.deepEqual((await readdir(project)).sort(), ["example.ts", "opencode.json"]);
-  console.log("Real crew check passed: the neutral computer answering a quick fact, an explanation and a piece of writing itself, the computer answering an officer request with the Bridge crew off, Picard Code handing requests to Worf (also when misheard as Walt) and to Riker (misheard as Rika), each officer answering in the log entry without handing work on, all six non-code officer replies in their own voices (Data without contractions, Worf brief, no exclamation marks), \"Make it so\" carrying out Data's proposal, an unclear \"Make it so\" answered with a question, a requested briefing of Worf and Troi or Data, a full briefing in which the computer itself called all six officers with the selected model and none handed work on, Riker ending with a short question, and the computer's summary not asking it again. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
+  console.log("Real crew check passed: the neutral computer answering a quick fact, an explanation and a piece of writing itself, the computer answering an officer request with the Bridge crew off, Picard Code handing requests to Worf (also when misheard as Walt) and to Riker (misheard as Rika), each officer answering in the log entry without handing work on, all six non-code officer replies in their own voices (Data without contractions, Worf brief, no exclamation marks), Worf not knowing a hypothetical post-death event even after a request to consult later archives, \"Make it so\" carrying out Data's proposal, an unclear \"Make it so\" answered with a question, a requested briefing of Worf and Troi or Data, a full briefing in which the computer itself called all six officers with the selected model and none handed work on, Riker ending with a short question, and the computer's summary not asking it again. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
 } finally {
   await app?.close();
   try {

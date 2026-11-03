@@ -98,6 +98,25 @@ test("officer personalities are supplied at registration and on each request; th
   assert.doesNotMatch(computerInstructions(now), /This reply is from Riker/);
 });
 
+test("officers do not know events after their own deaths, but the computer keeps its knowledge", () => {
+  const now = new Date("2026-10-31T12:00:00Z");
+  const configuration = crewConfiguration();
+  for (const officer of BRIDGE_CREW) {
+    for (const instructions of [configuration.agents[officer.id]!.system, computerInstructions(now, officer.id)]) {
+      assert.match(instructions, /You do not know about events after your death\./, officer.name);
+      assert.match(instructions, /fictional\s+character's death, not the actor's/);
+      assert.match(instructions, /say plainly that you do not know/);
+      assert.match(instructions, /do not supply the answer through later accounts, lookups or a return from death/);
+      assert.match(instructions, /Do not invent a death or death date/);
+      assert.match(instructions, /not a TNG-era knowledge cutoff:\s+Star Trek: Picard is included/);
+      assert.match(instructions, /Keep helping with ordinary real-world work/);
+    }
+  }
+  for (const instructions of [COMPUTER_MANNER, computerInstructions(now)]) {
+    assert.doesNotMatch(instructions, /events after your death/);
+  }
+});
+
 test("officers speak in their own bridge voices, not the computer's neutral one", () => {
   const now = new Date("2026-10-31T12:00:00Z");
   for (const officer of BRIDGE_CREW) {

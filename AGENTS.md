@@ -99,7 +99,11 @@ live in `src/shared/crew.ts` and `src/server/instructions.ts`; see
 `docs/research/bridge-crew-voices.md`. "Make it so" carries out only what was
 just proposed, asks when that is unclear, and never answers an approval. The
 officers do not invent results, copy television dialogue, mention famous
-scenes or imitate actors. Each officer speaks with a fixed ready-made voice
+scenes or imitate actors. An officer does not know about events after their
+own fictional death, not the actor's death. They say they do not know, without
+answering through later accounts, lookups or a return from death. Do not invent
+death dates or add a TNG-only cutoff; Star Trek: Picard is included.
+Each officer speaks with a fixed ready-made voice
 measured to sound closer to the actor (`src/shared/crew-voices.ts`). The computer
 also has fixed voices: Alloy for Kokoro and Iris for MAI. Do not add voice
 selection; listening and speaking service choices stay independent. Use only
