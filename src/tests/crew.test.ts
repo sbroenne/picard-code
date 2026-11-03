@@ -199,4 +199,6 @@ test("Picard Code asks who handles a request, and the computer is told the answe
   }
   const plain = computerManner("Computer, check this.", { mode: "off" });
   assert.ok(!plain.includes(CREW_KEPT) && !plain.includes("Hold a briefing"));
+  assert.ok(!plain.includes("Spoken replies currently play"), "no speed is claimed when the browser sent none");
+  assert.match(computerManner("Computer, how fast do you speak?", { mode: "off" }, undefined, { speed: 1 }), /currently play at normal speed[\s\S]*"Computer, speak faster"/);
 });

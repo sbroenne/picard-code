@@ -84,6 +84,13 @@ test("available models, including free models, never count as a confirmed model 
   assert.deepEqual(JSON.parse(await readFile(context.modelFile, "utf8")), { providerID: "opencode", modelID: "free" });
   assert.equal((await send()).status, 202);
   assert.equal(context.fixture.sessions.get(session.id)?.model?.id, "free");
+  const quiet = context.fixture.createSession(context.directory, "Speed entry");
+  const speaking = (speed: unknown) => context.request(`conversations/${quiet.id}/send`, { text: "How fast do you speak?", providerID: "opencode", modelID: "free", bridge: false, speed });
+  response = await speaking(1.5);
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, "The speaking speed must be between 0.8 and 1.2.");
+  assert.equal((await speaking(0.8)).status, 202);
+  assert.match(context.fixture.instructions.get(quiet.id)?.["picard-manner"] ?? "", /Spoken replies currently play at 0\.8 times normal speed/);
 });
 
 test("connection setup distinguishes default OpenCode models, connected accounts, and configured local providers", async (t) => {

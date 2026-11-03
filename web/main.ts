@@ -1287,7 +1287,7 @@ async function sendMessage(spoken: string, requestedStoryID?: string) {
     voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)), request: text, storyID };
     releaseHeldBack();
     if (voice.connected) heldBack = { session: id, known: voiceTurn.known, speaking: false };
-    const accepted = await api<{ accepted: boolean; reference?: TributeEntry["source"] }>(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, bridge: bridgeEnabled, tribute: { mode: tributeMode(tributeEnabled), ...(storyID ? { storyID } : {}) } });
+    const accepted = await api<{ accepted: boolean; reference?: TributeEntry["source"] }>(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, bridge: bridgeEnabled, speed: voice.speed, tribute: { mode: tributeMode(tributeEnabled), ...(storyID ? { storyID } : {}) } });
     if (voiceTurn) voiceTurn.reference = accepted.reference;
     voice.acknowledge();
     await refreshState();

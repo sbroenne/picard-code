@@ -268,7 +268,7 @@ inside literal text such as code, file contents or command output, which stays
 exactly as it is.`;
 }
 
-export function computerManner(text: string, tribute: TributeRequest, wikipedia?: WikipediaArticle, crew: { agent?: string; onDuty?: boolean; briefing?: readonly CrewID[]; offDuty?: boolean } = {}) {
+export function computerManner(text: string, tribute: TributeRequest, wikipedia?: WikipediaArticle, crew: { agent?: string; onDuty?: boolean; briefing?: readonly CrewID[]; offDuty?: boolean; speed?: number } = {}) {
   const story = tribute.storyID && TRIBUTE_ENTRIES.find((entry) => entry.id === tribute.storyID && entry.story);
   const subject = tributeSubject(text);
   const evidence = story ? [story] : subject ? TRIBUTE_ENTRIES.filter((entry) => entry.subject === subject && entry.provenance !== "production") : [];
@@ -284,6 +284,10 @@ requested. A joke is not a historical fact.`
   return `${computerInstructions(new Date(), crew.agent)}${crew.offDuty ? `\n\n${BRIDGE_OFF}` : ""}
 
 ${tone}
+${crew.speed === undefined ? "" : `Spoken replies currently play at ${crew.speed === 1 ? "normal speed" : `${crew.speed} times normal speed`}
+(the range is 0.8 to 1.2). Picard Code, not you, changes it when the Captain says
+"Computer, speak faster", "speak slower", "speak fastest", "speak slowest" or
+"normal speed". If asked about the speed, report it and these commands.`}
 Do not append unsolicited trivia or a story invitation yourself; Picard Code
 handles those separately. Do not add closing offers or assistant chatter.
 ${story ? `The Captain has explicitly requested the following ${story.subject} story.

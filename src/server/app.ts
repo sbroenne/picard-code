@@ -13,6 +13,7 @@ import { projectDirectory } from "./process.js";
 import { computerManner, crewChoice } from "./instructions.js";
 import { checkTributeRequest, explicitStorySubject, storyAcceptance, tributeSubject } from "../shared/tribute.js";
 import { TRIBUTE_ENTRIES } from "../shared/tribute-data.js";
+import { SPEAKING_SPEEDS } from "../shared/wake.js";
 import { wikipediaReader, type WikipediaArticle } from "./wikipedia.js";
 import { addressedOfficer, chosenCrew, crewMember, type CrewID } from "../shared/crew.js";
 import { requireCrew, verifiedCrew } from "./crew.js";
@@ -603,6 +604,8 @@ export async function startApp(options: AppOptions) {
             catch (error) { throw new HttpError(400, errorMessage(error)); }
             if (data.bridge !== undefined && typeof data.bridge !== "boolean") throw new HttpError(400, "Choose whether the Bridge crew is on or off.");
             const bridge = data.bridge !== false;
+            if (data.speed !== undefined && !SPEAKING_SPEEDS.includes(data.speed as typeof SPEAKING_SPEEDS[number])) throw new HttpError(400, "The speaking speed must be between 0.8 and 1.2.");
+            const speed = data.speed as number | undefined;
             if (tribute.storyID) {
               const subject = explicitStorySubject(text);
               if (!subject && !storyAcceptance(text)) throw new HttpError(400, "That response did not request a tribute story.");
@@ -652,7 +655,7 @@ export async function startApp(options: AppOptions) {
             if (agent && session.agent !== agent) await client.setAgent(id, project, agent);
             if (session.title === "New log entry" || session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
             // Picard Code's conversation manner travels with the conversation, not as a file in the project.
-            await client.setInstructions(id, project, "picard-manner", computerManner(text, tribute, wikipedia, { agent, onDuty, briefing: chosen.length > 1 ? chosen : undefined, offDuty: !bridge }));
+            await client.setInstructions(id, project, "picard-manner", computerManner(text, tribute, wikipedia, { agent, onDuty, briefing: chosen.length > 1 ? chosen : undefined, offDuty: !bridge, speed }));
             await client.prompt(id, project, text);
             json(response, 202, { accepted: true, ...(wikipedia ? { reference: { title: wikipedia.title, url: wikipedia.url } } : {}) });
             return;
