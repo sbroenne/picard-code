@@ -73,7 +73,7 @@ Advanced setup for people with their own subscription and deployed models.
   even after microphone changes, standing by or reopening it. Only an explicit
   spoken request for a new entry or the New log entry tile starts a new one.
 - **No copied franchise material in the repository.** No show artwork,
-  dialogue, voice cloning or recordings are committed. The five TrekCore
+  dialogue, voice cloning or recordings are committed. The four TrekCore
   sounds are downloaded at startup (or by `npm run setup:sounds`) into
   `~/.picard-code/sounds`; keep them out of git and keep their attribution and
   permission limits in `THIRD_PARTY_NOTICES.md`.
@@ -106,8 +106,12 @@ just proposed, asks when that is unclear, and never answers an approval. The
 officers do not invent results, copy television dialogue, mention famous
 scenes or imitate actors. They may use known character backgrounds and
 relationships when relevant, including in answers to direct questions; admit
-uncertainty and keep character trivia out of unrelated work answers. Each officer
-speaks with a fixed ready-made voice
+uncertainty and keep character trivia out of unrelated work answers.
+An officer does not know about events after their
+own fictional death, not the actor's death. They say they do not know, without
+answering through later accounts, lookups or a return from death. Do not invent
+death dates or add a TNG-only cutoff; Star Trek: Picard is included.
+Each officer speaks with a fixed ready-made voice
 measured to sound closer to the actor (`src/shared/crew-voices.ts`). The computer
 also has fixed voices: Alloy for Kokoro and Iris for MAI. Do not add voice
 selection; listening and speaking service choices stay independent. Use only
@@ -141,8 +145,8 @@ spoken Picard and Patrick Stewart story offers. Offers match the person
 being discussed; both subjects use the same acceptance and source-link flow.
 Keep Picard's fictional adventures separate from Stewart's real career.
 Off removes those extras, not Picard's
-identity or explicitly requested stories. Automatic facts are screen-only;
-About explains their quiet tricorder cue and has no automatic-speech
+identity or explicitly requested stories. Automatic facts are silent and screen-only;
+About explains this and has no automatic-speech
 preference. Never put switches inside answers.
 The navigation control is a full LCARS-style tile with an On/Off state,
 not a visible browser checkbox; preserve keyboard and screen-reader access.
@@ -185,7 +189,6 @@ never instead of the written or spoken explanation:
 | `request-accepted` | A spoken request was accepted by OpenCode, "Computer" was said on its own and the computer is waiting for the request, or "stop listening" was acknowledged. |
 | `input-failed` | Speech was not understood, could not be sent, or was not sent because it did not start with "Computer". |
 | `request-failed` | An accepted request finally failed or was denied, just before the spoken result. |
-| `tribute-fact` | A new automatic fact, after the main answer finishes playing and before listening resumes. Never on redraw or reopening a log entry. Cancel pending cues when Tribute is off or the turn is interrupted. |
 
 ## Checks
 

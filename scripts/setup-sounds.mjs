@@ -11,7 +11,6 @@ const sounds = [
   { name: "request-accepted", source: "https://www.trekcore.com/audio/computer/computer_work_beep.mp3", checksum: "7cbec756350ca677e919a033e12f4b3364e6777ad8febc5a67d6fb1ecb897c44" },
   { name: "input-failed", source: "https://www.trekcore.com/audio/computer/input_failed_clean.mp3", checksum: "fbfb2dcd0cbdcb5d76196daa4d76f87cbeb87a1ce761e303e34fdf31bfc9fbaa" },
   { name: "request-failed", source: "https://www.trekcore.com/audio/computer/denybeep1.mp3", checksum: "d6f29d6df17d72eec41e500f9114d186c83f72210ce9f1e6fcac61ba195558e0" },
-  { name: "tribute-fact", source: "https://www.trekcore.com/audio/tricorder/tng_tricorder_open.mp3", checksum: "2f3df1597c1770dded181b2d1b415f2c0bb6f9af9244c573dd8c042215eeaaac" },
 ];
 export const soundFolder = join(homedir(), ".picard-code", "sounds");
 

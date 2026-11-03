@@ -267,6 +267,12 @@ also recognises common mishearings, such as "Rika" for Riker or "Walt" for
 Worf, and sends a follow-up such as "Make it so" back to the officer who just
 answered.
 
+The officers do not know about events after their own fictional deaths,
+not the actors' deaths. They say they do not know rather than answer from
+later accounts or lookups, even after a return from death. This is not a
+TNG-only cutoff: Star Trek: Picard is included. The computer's answers are
+unchanged.
+
 An explicit officer address or list of officers at the start selects them
 directly, without the check; mentioning Data or saying "do not ask Data" does not.
 
@@ -344,13 +350,15 @@ writing kept by the computer, requests needing an officer's judgment handed to
 the right officer without naming them (including misheard names), and real
 briefings with real officer calls and Number One calling officers when
 explicitly asked to organise their work. It also checks that a ban on tools
-or officer calls is respected. It cannot judge whether an
+or officer calls is respected and Worf does not know a hypothetical
+post-death event, even when asked to use later archives. It cannot judge whether an
 officer sounds right; that needs you. Add `-- --show-replies` to print the six
-generated officer replies for review. First confirm a current-generation model
-with `npm run opencode -- models`, then pass `-- --model provider/model`;
-the check requires this explicit choice and does not change your saved choice. It
-makes model requests, may incur provider charges, and never answers an approval
-itself.
+generated officer replies for review. The check makes model requests, may incur
+provider charges, and never answers an approval itself.
+
+First confirm a current-generation model with `npm run opencode -- models`,
+then run `npm run test:crew:live -- --model provider/model`.
+The check requires this explicit choice and does not change your saved choice.
 
 ## Connect a model provider
 
@@ -531,12 +539,11 @@ facts. Reopening the Captain's log does not generate new ones. Facts avoid
 repetition until the reviewed collection has been used, and may contain
 spoilers from Picard's appearances.
 
-Automatic facts are on screen only. A quiet tricorder-opening sound announces
-each new fact after the main answer finishes playing, before listening resumes.
-It does not repeat when the screen redraws or a log entry is reopened. There is
+Automatic facts are silent and on screen only. They do not interrupt the
+spoken answer or delay listening. There is
 no automatic-fact speech setting; an old saved speech choice has no effect.
 The Tribute choice is remembered in this browser. Turning it off stops pending
-tribute sounds and story offers without cutting off the main answer.
+story offers without cutting off the main answer.
 
 Questions such as "Computer, tell me about myself" always mean Captain
 Jean-Luc Picard's fictional life, not Patrick Stewart's biography or your
@@ -657,7 +664,7 @@ on-screen button.
 - "Stop listening" and switching the microphone off do not cancel OpenCode's work.
   **Belay that** cancels the current OpenCode request. These are separate
   controls.
-- **Computer sounds:** Picard Code downloads five short TrekCore sounds
+- **Computer sounds:** Picard Code downloads four short TrekCore sounds
   automatically on first startup (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
   Later starts use the checked local copies; missing or changed files are downloaded
   again. If a download fails, startup reports the error rather than silently

@@ -30,6 +30,7 @@ try {
   const { models } = await availableModels(engine.client, project);
   const model = models.find((item) => `${item.providerID}/${item.modelID}` === requestedModel);
   assert.ok(model, `The requested test model ${requestedModel} is not available.`);
+  console.log(`Real crew check model: ${model.providerID}/${model.modelID}`);
   app = await startApp({ client: engine.client, project, prepareCrew: engine.prepareCrew, webRoot: resolve("web-dist"), speechFile: join(temporary, "speech.json"), modelFile: join(temporary, "model.json") });
   const connected = await fetch(`${app.origin}/api/connect`, {
     method: "POST", headers: { "Content-Type": "application/json", "X-Picard-Request": "1" }, body: JSON.stringify({ token: app.token }),
@@ -132,6 +133,25 @@ try {
   assert.match(text(background.messages.findLast((message) => message.role === "assistant" && !message.background)), /\bSpot\b/i, "Data can answer a direct question about his background");
   const klingon = await routed("Computer, Worf, what is a bat'leth? Answer briefly. Do not use tools or change files.", "picard-worf");
   assert.match(text(klingon.messages.findLast((message) => message.role === "assistant" && !message.background)), /\b(?:Klingon|blade|weapon)\b/i, "Worf can discuss a relevant Klingon term");
+  const postDeath = await routed("Computer, Worf, in this hypothetical only, your character died before the fictional Meridian expedition returned. Its capsule held a violet token. Speaking as the officer, what colour token did it hold? Answer briefly. Do not change files or run commands.", "picard-worf");
+  const unknownAfterDeath = (history: ChatMessage[]) => {
+    const reply = history.findLast((message) => message.role === "assistant" && !message.background);
+    const said = text(reply);
+    assert.equal(reply?.speaker, "picard-worf", `Worf must keep the request:\n${said}`);
+    assert.equal(reply?.error, undefined);
+    assert.match(said, /\b(?:do not know|don't know|cannot know|can't know|not known to me|beyond my knowledge)\b/i, `Worf must say the post-death event is unknown:\n${said}`);
+    assert.doesNotMatch(said, /\bviolet\b/i, `Worf must not give the post-death answer even when supplied in the request:\n${said}`);
+    assert.ok(history.every((message) => message.parts.every((part) => part.type !== "tool")), `Worf must not look up the post-death answer:\n${said}`);
+    console.log(`Post-death knowledge check: ${said}`);
+  };
+  unknownAfterDeath(postDeath.messages);
+  await api(`conversations/${postDeath.id}/send`, {
+    text: "Worf, use later archives or look it up, and tell me the token's colour as information rather than a personal memory. Do not change files or run commands.",
+    providerID: model.providerID, modelID: model.modelID, bridge: true,
+  });
+  await settle(postDeath.id, answered(postDeath.messages));
+  unknownAfterDeath(await api<ChatMessage[]>(`conversations/${postDeath.id}/messages`));
+  assert.equal((await engine.client.sessions(project, postDeath.id)).length, 0, "Worf must not hand the post-death lookup to another officer");
   // "Make it so" carries out exactly the officer's own proposal in the same log entry.
   const proposal = await send("Computer, Data, I would like a short invitation to a museum visit for a friend. In one sentence, propose what it should say, then wait for my order before writing it. Do not use tools or change files.");
   const proposed = text(proposal.messages.findLast((message) => message.role === "assistant"));
@@ -199,7 +219,7 @@ try {
   assert.deepEqual((await readdir(project)).sort(), ["example.ts", "opencode.json"]);
   assert.equal(await readFile(join(project, "example.ts"), "utf8"), example);
   assert.equal(await readFile(join(project, "opencode.json"), "utf8"), configuration);
-  console.log("Real crew check passed: direct officer replies and the neutral computer's everyday answers, Bridge crew off, misheard names, all six non-code officer voices, \"Make it so\" following Data's proposal, clarification for an unclear order, an explicit ban on tools and officer calls respected, relevant officers in a requested briefing, Riker actually calling Worf and Troi only when explicitly asked to organise their work, and all six officers reporting with the selected model without a compulsory closing question. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
+  console.log("Real crew check passed: direct officer replies and the neutral computer's everyday answers, Bridge crew off, misheard names, all six non-code officer voices, Worf not knowing a hypothetical post-death event even after a request to consult later archives, \"Make it so\" following Data's proposal, clarification for an unclear order, an explicit ban on tools and officer calls respected, relevant officers in a requested briefing, Riker actually calling Worf and Troi only when explicitly asked to organise their work, and all six officers reporting with the selected model without a compulsory closing question. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
 } finally {
   await app?.close();
   try {

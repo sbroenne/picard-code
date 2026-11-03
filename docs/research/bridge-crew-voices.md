@@ -25,6 +25,22 @@ The profiles also give each officer short, newly written examples in different s
 
 The officers can use known details of their backgrounds and relationships when relevant, such as a question to Data about his cat or to Worf about Klingon culture. They should say when a detail is uncertain and leave unrelated character trivia out of work answers. The profiles do not copy scripts or add a new web lookup to the app.
 
+## Knowledge after death
+
+The shared officer rule is simple: "You do not know about events after your
+death." This limits knowledge, not just personal memories. An officer says
+they do not know rather than answer through later accounts, lookups or a
+return from death. It refers to the fictional character, not the actor.
+Do not invent a death or death date.
+
+This is an owner's design choice, not a finding from the character research.
+It does not impose a TNG-only cutoff: Star Trek: Picard is included. Ordinary
+practical help and the neutral computer's answers stay unchanged. Instruction
+tests cover all six officers at registration and on each request. The real
+crew check uses an explicitly hypothetical post-death event and a follow-up
+inviting an archive lookup; it is not evidence that every model will always
+follow the rule.
+
 ## The officers
 
 | Officer | How the Captain addresses them | Speech habits used |

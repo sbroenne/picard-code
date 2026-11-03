@@ -576,7 +576,6 @@ test("computer sounds include the arrival call and require the local browser con
   const context = await setup({ soundFolder: folder });
   t.after(context.cleanup);
   await writeFile(join(folder, "startup.mp3"), "stand-in arrival call");
-  await writeFile(join(folder, "tribute-fact.mp3"), "stand-in tribute cue");
   assert.equal((await context.request("sounds/startup")).status, 401);
   assert.equal((await context.request("sounds/tribute-fact")).status, 401);
   await context.login();
@@ -584,10 +583,7 @@ test("computer sounds include the arrival call and require the local browser con
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-type"), "audio/mpeg");
   assert.equal(await response.text(), "stand-in arrival call");
-  const tribute = await context.request("sounds/tribute-fact");
-  assert.equal(tribute.status, 200);
-  assert.equal(tribute.headers.get("content-type"), "audio/mpeg");
-  assert.equal(await tribute.text(), "stand-in tribute cue");
+  assert.equal((await context.request("sounds/tribute-fact")).status, 404);
   assert.equal((await context.request("sounds/request-accepted")).status, 404);
   assert.equal((await context.request("sounds/unknown")).status, 404);
 });

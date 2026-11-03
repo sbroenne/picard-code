@@ -368,7 +368,7 @@ test("the only Tribute toggle is a navigation tile; About explains screen-only f
   await expect(toggle).not.toBeChecked();
   await page.getByRole("link", { name: /Sir Patrick Stewart/ }).click();
   await expect(page.getByLabel("Speak automatic facts", { exact: true })).toHaveCount(0);
-  await expect(page.locator("#settings-about")).toContainText("quiet tricorder sound after the answer finishes");
+  await expect(page.locator("#settings-about")).toContainText("Automatic facts appear silently on screen.");
   await expect(page.locator("#settings-about").getByRole("switch")).toHaveCount(0);
   await toggle.check();
   await toggle.uncheck();
