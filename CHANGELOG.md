@@ -1,5 +1,13 @@
 # Picard Code release notes
 
+## 1701.4.4
+
+### Patch Changes
+
+- [#45](https://github.com/sbroenne/picard-code/pull/45) [`1e5f734`](https://github.com/sbroenne/picard-code/commit/1e5f734f95dc1192fed57c5dd7547d49f7083463) - Show images and videos in replies, including Project files and YouTube or Vimeo players. Listening pauses during video playback or while a website player is open.
+
+- [#44](https://github.com/sbroenne/picard-code/pull/44) [`0553fcc`](https://github.com/sbroenne/picard-code/commit/0553fcc2f0bdbe3fe1d0ae01377da1d9176d8b89) - Keep requests in the log entry on screen after microphone changes, standing by, refreshing the page or reopening an entry. Start a new entry only with the New log entry tile or an explicit spoken request, including "new starlog entry".
+
 ## 1701.4.3
 
 ### Patch Changes
