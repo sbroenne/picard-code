@@ -93,7 +93,7 @@ async function setup(page: Page, phrase: string | string[] = "") {
   sound.writeUInt32LE(16, 16); sound.writeUInt16LE(1, 20); sound.writeUInt16LE(1, 22);
   sound.writeUInt32LE(24000, 24); sound.writeUInt32LE(48000, 28); sound.writeUInt16LE(2, 32); sound.writeUInt16LE(16, 34);
   sound.write("data", 36); sound.writeUInt32LE(4800, 40);
-  for (const name of ["startup", "request-accepted", "input-failed", "request-failed", "tribute-fact"]) await writeFile(join(project, `${name}.mp3`), sound);
+  for (const name of ["startup", "request-accepted", "input-failed", "request-failed"]) await writeFile(join(project, `${name}.mp3`), sound);
   const modelFile = join(project, "model.json");
   await saveModelSettings(modelFile, { providerID: "github-copilot", modelID: "fixture-model" });
   const app = await startApp({ client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"), speech: speech.service, soundFolder: project, speechFile: join(project, "unused-settings.json"), modelFile });
