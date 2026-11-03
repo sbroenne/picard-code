@@ -85,7 +85,20 @@ Picard Code and a copy of the official OpenCode 2
 instead. You do not need to install OpenCode, Python or anything else
 yourself. OpenCode 1 is not supported.
 
-On a fresh installation, the app opens without speech. Choose the
+Before the computer starts listening, choose a model in the **Model** panel
+and choose **Confirm model**. For the best experience, choose the most capable
+model your provider offers; it may cost more or take longer to answer.
+Picard Code does not rank models or choose one for you, even when free OpenCode
+models are available. If no models are available, the **Provider** panel opens
+with sign-in steps first.
+
+Your confirmed model is remembered on this computer, across restarts, browsers
+and project folders, without changing OpenCode's default. Existing users also
+confirm a model once when first using this version. If that model becomes
+unavailable, choose and confirm another; Picard Code never substitutes a model.
+
+On a fresh installation, the app also opens without speech. After confirming
+your model, the speech panel opens. Choose the
 **Listen · Speak** tile, keep **On this computer** for listening and speaking,
 and choose **Save and apply**. The app downloads local Whisper and Kokoro
 speech, shows each step, and starts speech when it is ready, without a restart
@@ -128,6 +141,7 @@ Everything Picard Code downloads or saves is kept in one folder,
 `.picard-code` in your home folder (on Windows, `C:\Users\you\.picard-code`):
 
 - `speech.json`: your speech settings (no keys or passwords);
+- `model.json`: the provider and model you explicitly confirmed (no keys or passwords);
 - `voice`: local speech and its Python environment;
 - `uv` and `python`: only if uv was not already installed, the uv that set up speech and its Python;
 - `sounds`: the computer sounds, downloaded at the first start.
@@ -329,8 +343,14 @@ To sign in to a provider:
    Copilot, that is GitHub's device sign-in: check you are signed in to the
    right account, enter the code OpenCode shows, and approve it yourself.
 3. Return to Picard Code, choose the **Provider** tile and then
-   **Refresh connection**. Pick a model with the **Model** tile; models are
-   grouped by provider.
+   **Refresh connection**. If no model has been confirmed, the **Model** panel
+   opens next. Models are grouped by provider: pick one and choose
+   **Confirm model**. The **Model** tile lets you change it later; changing
+   the list alone does not save or activate a choice.
+
+Choose the most capable model your provider offers for the best experience.
+More capable models may cost more or take longer to answer. Picard Code does
+not rank the models or select OpenCode's default for you.
 
 `npx picard-code opencode auth list` shows which providers are signed in.
 
@@ -377,7 +397,9 @@ screen; there is no phone layout.
   **Model** the model, **Project** the folder, **Listen · Speak** the speech
   services, and the tribute badge **About**. Choosing the same tile again
   closes it. If no model is available when the app opens, the Provider
-  setting is shown first. Listening pauses while a setting is open. Speech
+  setting is shown first. If models are available but none has been confirmed,
+  the Model setting opens instead. Listening stays off until an available model
+  is confirmed and speech is set up. Listening pauses while a setting is open. Speech
   changes apply without restarting.
 
 OpenCode owns every sign-in; no provider key or password is entered into this
@@ -958,7 +980,13 @@ original sample under `.picard-voice/samples`.
 generated microphone audio, OpenCode, a real model from your signed-in provider, saved
 messages, live text updates, and real spoken playback. `--local` checks the
 same path with Whisper and Kokoro. These checks make real model requests;
-the MAI variant also makes chargeable Azure requests. Earlier versions of both
+the MAI variant also makes chargeable Azure requests. Both explicitly confirm
+their test model using a throwaway settings file.
+Add `--model provider/model` to choose a particular available model for the
+check, for example
+`npm run test:conversation:live -- --local --model github-copilot/gpt-5.3-codex`.
+This does not change your saved Picard Code model or speech choices.
+Earlier versions of both
 passed on the Windows development machine before the OpenCode 2 migration;
 those results do not verify the current version. They remove their own check conversations and
 save screenshots and generated audio in the ignored samples folder.
@@ -988,7 +1016,15 @@ and repeat the browser checks.
   terminal, including its temporary key. It must use `127.0.0.1`, not a different
   hostname. Do not share that address.
 - **No model available:** sign in to a provider as described above, then
-  refresh the connection while no work is running.
+  refresh the connection while no work is running, choose a model, and choose
+  **Confirm model**.
+- **Saved model unavailable:** open **Model** to see the saved provider and
+  model. Refresh the provider connection to check its availability, or choose
+  and confirm another model. Picard Code keeps your saved choice until you
+  confirm a replacement and never switches automatically.
+- **Model choice could not be saved or read:** the Model panel shows the error.
+  Check access to `~/.picard-code/model.json`, then confirm your choice again.
+  An invalid settings file can be replaced by confirming an available model.
 - **Live updates stop:** keep the terminal open. The browser reconnects and
   reloads saved messages and pending approvals. Use **Try again** if needed.
 - **OpenCode cannot start:** run `npx picard-code opencode` directly to see its setup
@@ -998,7 +1034,7 @@ and repeat the browser checks.
 - **Microphone will not start:** use a current browser at the printed local
   address, click the microphone button, allow microphone access,
   and check the input
-  device. The selected speech setup and an available model are required.
+  device. Speech must be set up and an available model explicitly confirmed.
 - **Azure rejects speech:** check resource access, the deployed live listening
   model, supported region and voice, and service quota. A speech error does
   not mean OpenCode stopped; use **Belay that** separately when needed.

@@ -15,6 +15,7 @@ import type { AppOptions } from "../server/app.js";
 import { speechFixture } from "./speech-fixture.js";
 import { EARLIER_SPEECH_SETTINGS, saveSpeechSettings, speechSettingsFile } from "../server/speech.js";
 import { BRIDGE_CREW } from "../shared/crew.js";
+import { saveModelSettings } from "../server/model-settings.js";
 import { CREW_KEPT, crewBriefing } from "../server/instructions.js";
 
 async function setup(extra: Partial<AppOptions> = {}) {
@@ -26,8 +27,10 @@ async function setup(extra: Partial<AppOptions> = {}) {
   await writeFile(join(webRoot, "index.html"), "<!doctype html><title>Picard Code</title>");
   const directory = await realpath(project);
   const fixture = await startFixture(directory);
+  const modelFile = extra.modelFile ?? join(temporary, "model.json");
+  if (!extra.modelFile) await saveModelSettings(modelFile, { providerID: "github-copilot", modelID: "fixture-model" });
   const wikipediaRequests: string[] = [];
-  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot, speechFile: join(temporary, "speech.json"),
+  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot, modelFile, speechFile: join(temporary, "speech.json"),
     readWikipedia: async (subject) => { wikipediaRequests.push(subject); return wikipediaFixture(subject); }, ...extra });
   let cookie = "";
   const request = (path: string, data?: unknown, headers: Record<string, string> = {}) => fetch(`${app.origin}/api/${path}`, {
@@ -48,8 +51,107 @@ async function setup(extra: Partial<AppOptions> = {}) {
     await fixture.close();
     await rm(temporary, { recursive: true });
   };
-  return { app, fixture, request, login, cleanup, directory, other, temporary, wikipediaRequests };
+  return { app, fixture, request, login, cleanup, directory, other, temporary, modelFile, wikipediaRequests };
 }
+
+test("available models, including free models, never count as a confirmed model choice", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await rm(context.modelFile);
+  context.fixture.setModels([{ providerID: "opencode", id: "free", name: "Free model", enabled: true }]);
+  assert.equal((await context.request("model", { providerID: "opencode", modelID: "free" })).status, 401);
+  await context.login();
+  let state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.models.length, 1);
+  assert.equal(state.defaultModel?.modelID, "free");
+  assert.equal(state.selectedModel, undefined);
+  assert.equal(state.savedModel, undefined);
+  const session = context.fixture.createSession(context.directory, "Existing entry");
+  const send = () => context.request(`conversations/${session.id}/send`, { text: "Hello", providerID: "opencode", modelID: "free", bridge: false });
+  let response = await send();
+  assert.equal(response.status, 409);
+  assert.match((await response.json()).error, /confirm a model/);
+  assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/prompt")), false);
+  assert.equal((await context.request("model", { providerID: "opencode", modelID: "free" }, { "X-Picard-Request": "" })).status, 403);
+  assert.equal((await context.request("model", { providerID: "opencode", modelID: "free" }, { Origin: "https://example.invalid" })).status, 403);
+  assert.equal((await context.request("model", { providerID: "opencode", modelID: "missing" })).status, 400);
+  assert.equal((await context.request("model", { providerID: "opencode" })).status, 400);
+  response = await context.request("model", { providerID: "opencode", modelID: "free", ignored: "not-saved" });
+  assert.equal(response.status, 200);
+  state = await response.json() as AppState;
+  assert.equal(state.selectedModel?.modelID, "free");
+  assert.deepEqual(JSON.parse(await readFile(context.modelFile, "utf8")), { providerID: "opencode", modelID: "free" });
+  assert.equal((await send()).status, 202);
+  assert.equal(context.fixture.sessions.get(session.id)?.model?.id, "free");
+});
+
+test("a confirmed choice is shared by independent app starts and Project changes, not OpenCode's default", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  assert.equal((await context.request("model", { providerID: "other-provider", modelID: "other" })).status, 200);
+  const second = await setup({ modelFile: context.modelFile });
+  t.after(second.cleanup);
+  await second.login();
+  const state = await (await second.request("state")).json() as AppState;
+  assert.equal(state.defaultModel?.modelID, "fixture-model");
+  assert.equal(state.selectedModel?.modelID, "other");
+  const switched = await context.request("project", { path: context.other });
+  assert.equal(switched.status, 200);
+  assert.equal((await switched.json()).selectedModel.modelID, "other");
+  assert.equal(context.fixture.requests.some((request) => request.method !== "GET" && request.path === "/api/model/default"), false);
+});
+
+test("unavailable and stale choices block requests, preserve saved IDs, and need explicit replacement", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const session = context.fixture.createSession(context.directory, "Keep this entry");
+  await saveModelSettings(context.modelFile, { providerID: "gone", modelID: "missing" });
+  let state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.selectedModel, undefined);
+  assert.deepEqual(state.savedModel, { providerID: "gone", modelID: "missing" });
+  const send = () => context.request(`conversations/${session.id}/send`, { text: "Continue", providerID: "github-copilot", modelID: "fixture-model", bridge: false });
+  assert.equal((await send()).status, 409);
+  assert.equal(context.fixture.requests.some((request) => /\/(prompt|generate|model)$/.test(request.path) && request.method === "POST"), false);
+  context.fixture.active.add(session.id);
+  assert.equal((await context.request("model", { providerID: "other-provider", modelID: "other" })).status, 409);
+  context.fixture.active.clear();
+  assert.equal((await context.request("model", { providerID: "other-provider", modelID: "other" })).status, 200);
+  assert.equal((await send()).status, 409, "a stale browser cannot override the confirmed choice");
+  context.fixture.setSignedIn(false);
+  state = await (await context.request("state")).json() as AppState;
+  assert.deepEqual(state.models, []);
+  assert.equal(state.selectedModel, undefined);
+  assert.deepEqual(state.savedModel, { providerID: "other-provider", modelID: "other" });
+  context.fixture.setSignedIn(true);
+  assert.equal((await context.request("model", { providerID: "github-copilot", modelID: "fixture-model" })).status, 200);
+  assert.equal((await send()).status, 202);
+  assert.equal(context.fixture.sessions.size, 1, "model replacement must keep the current entry");
+});
+
+test("settings errors are visible, block sends, and never become a fallback model", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  await writeFile(context.modelFile, "{invalid");
+  let state = await (await context.request("state")).json() as AppState;
+  assert.match(state.modelError ?? "", /saved model choice is not valid/);
+  assert.equal(state.selectedModel, undefined);
+  const session = context.fixture.createSession(context.directory);
+  const response = await context.request(`conversations/${session.id}/send`, { text: "Hello", providerID: "github-copilot", modelID: "fixture-model" });
+  assert.equal(response.status, 502);
+  assert.match((await response.json()).error, /saved model choice is not valid/);
+  assert.equal((await context.request("model", { providerID: "github-copilot", modelID: "fixture-model" })).status, 200);
+  await rm(context.modelFile);
+  await mkdir(context.modelFile);
+  const failed = await context.request("model", { providerID: "other-provider", modelID: "other" });
+  assert.equal(failed.status, 502);
+  assert.match((await failed.json()).error, /Could not save the model choice/);
+  state = await (await context.request("state")).json() as AppState;
+  assert.match(state.modelError ?? "", /Could not read the saved model choice/);
+  assert.equal(state.selectedModel, undefined);
+});
 
 test("reply media is authenticated, confined to its Project, validated, and seekable", async (t) => {
   const context = await setup();
@@ -150,6 +252,7 @@ test("direct crew requests keep words and models unchanged; missing crew fails e
   const context = await setup();
   t.after(context.cleanup);
   await context.login();
+  assert.equal((await context.request("model", { providerID: "other-provider", modelID: "other" })).status, 200);
   for (const officer of BRIDGE_CREW) {
     const session = await (await context.request("conversations", {})).json();
     const text = `Computer, ${officer.name}, review this, but do not change any files.`;

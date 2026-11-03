@@ -11,6 +11,7 @@ import { startFixture } from "../dist/tests/fixture.js";
 import { speechFixture } from "../dist/tests/speech-fixture.js";
 import { makeClient } from "../dist/server/engine.js";
 import { startApp } from "../dist/server/app.js";
+import { saveModelSettings } from "../dist/server/model-settings.js";
 import { startDevelopmentServer } from "./dev-server.mjs";
 
 test("development rejects nonlocal backend addresses", async () => {
@@ -24,9 +25,11 @@ test("Vite updates styles and keeps the real app's local connection checks", { t
   t.after(() => rm(project, { recursive: true }));
   const fixture = await startFixture(project);
   t.after(() => fixture.close());
+  const modelFile = join(project, "model.json");
+  await saveModelSettings(modelFile, { providerID: "github-copilot", modelID: "fixture-model" });
   const app = await startApp({
     client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"),
-    speechFile: join(project, "speech.json"), speech: speechFixture([""]).service,
+    speechFile: join(project, "speech.json"), speech: speechFixture([""]).service, modelFile,
   });
   t.after(() => app.close());
   const dev = await startDevelopmentServer(app.origin);

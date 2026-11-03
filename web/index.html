@@ -103,11 +103,15 @@
         </section>
 
         <section id="settings-model" class="panel" hidden>
-          <div class="field-grid">
+          <p>For the best experience, choose the most capable model your provider offers. More capable models may cost more or take longer to answer. Picard Code does not rank models for you.</p>
+          <p id="model-status" class="readout-line"></p>
+          <form id="model-form" class="field-grid">
             <label for="model">Model</label>
             <select id="model" disabled><option>Waiting for OpenCode</option></select>
+            <button id="confirm-model" class="pill blue" type="submit" disabled>Confirm model</button>
+            <p class="muted span">Your confirmed choice is remembered on this computer for every Project. OpenCode's own default is not changed. If your model becomes unavailable, choose another; the computer never switches models for you.</p>
             <p class="muted span">OpenCode's own rules decide which actions ask first. Out of the box it changes files and runs commands without asking. When it asks, choose Allow once or Deny on screen.</p>
-          </div>
+          </form>
         </section>
 
         <section id="settings-project" class="panel" hidden>

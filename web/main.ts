@@ -81,7 +81,7 @@ const voice = new VoiceConversation({
   changed: voiceControls,
   error: (message) => { cancelTributeSpeech(); notice(message); },
   transcript: heard,
-  canListen: () => !!state?.models.length && connected,
+  canListen: () => !!state?.selectedModel && connected,
   beforeSpeak: () => players.stop(),
 });
 const players = new ReplyPlayers({ paused: (value) => { if (value) cancelTributeSpeech(); voice.pauseForMedia(value); } });
@@ -203,7 +203,7 @@ function setMuted(value: boolean) {
 
 /** The microphone is simply on, unless muted or changing settings. */
 function autoListen() {
-  if (voice.microphone || voice.opening || voice.failed || !state?.speech?.configured || !state.models.length || !connected
+  if (voice.microphone || voice.opening || voice.failed || !state?.speech?.configured || !state.selectedModel || !connected
     || muted() || openDrawer() === "settings") return;
   void perform(() => voice.activate());
 }
@@ -213,6 +213,7 @@ function consoleStatus(): [string, string] {
   if (!state) return ["Starting up", ""];
   if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open."];
   if (!state.models.length) return ["Setup needed", "Sign in to a model provider: open Provider."];
+  if (!state.selectedModel) return ["Setup needed", "Open Model, choose a model, and confirm your choice."];
   if (voice.mediaPaused) return ["Listening paused", "Pause the video or close its player to listen again."];
   if (voice.phase === "speaking") return ["Speaking", voice.microphone ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."];
   if (voice.phase === "cue") return ["Standing by", "A new tribute fact is on screen."];
@@ -235,7 +236,7 @@ function consoleStatus(): [string, string] {
 }
 
 function voiceControls() {
-  const ready = !!state?.speech?.configured && !!state.models.length && connected;
+  const ready = !!state?.speech?.configured && !!state.selectedModel && connected;
   const [status, detail] = consoleStatus();
   element("status").textContent = status;
   element("status-detail").textContent = detail;
@@ -455,16 +456,19 @@ function readout(name: string, value: string) {
 function readouts() {
   readout("provider", !state ? "Checking" : !connected ? "Reconnecting" : state.models.length ? "Connected" : "Not connected");
   readout("project", state ? state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project : "—");
-  readout("model", state?.models.length ? model.selectedOptions[0]?.textContent ?? "—" : "None");
+  readout("model", state?.selectedModel?.name ?? (state?.savedModel ? "Unavailable" : "Choose a model"));
   const speech = state?.speech;
   readout("speech", !speech?.configured ? "Not set up"
     : `${speech.listening === "whisper" ? "Whisper" : "Azure MAI"} · ${speech.speaking === "kokoro" ? "Kokoro" : "Azure MAI"}`);
 }
 
+let savingModel = false;
 function controls() {
   const working = busy() || submitting;
   const ready = !!state?.models.length && connected && !historyLoading;
-  model.disabled = !ready || working;
+  model.disabled = !ready || working || savingModel || Object.keys(state?.statuses ?? {}).length > 0;
+  element<HTMLButtonElement>("confirm-model").disabled = model.disabled || !model.value;
+  if (!state?.selectedModel && (voice.microphone || voice.opening)) voice.microphoneOff();
   element("stop").hidden = !busy();
   element<HTMLButtonElement>("stop").disabled = submitting;
   element<HTMLButtonElement>("new-conversation").disabled = !state || submitting;
@@ -482,12 +486,18 @@ function controls() {
   voiceControls();
 }
 
+let displayedModel: string | undefined;
 function renderState() {
   if (!state) { controls(); return; }
   if (document.activeElement !== element("project-path")) element<HTMLInputElement>("project-path").value = state.project;
   element("workspace-caption").textContent = `OpenCode ${state.version} · ${state.project}`;
-  const currentModel = model.value;
+  const savedValue = state.selectedModel ? modelValue(state.selectedModel) : "";
+  const currentModel = displayedModel === savedValue ? model.value : savedValue;
+  displayedModel = savedValue;
   model.replaceChildren();
+  const prompt = make("option", undefined, state.models.length ? "Choose a model" : "Sign in to a model provider");
+  prompt.value = "";
+  model.append(prompt);
   const groups = new Map<string, HTMLOptGroupElement>();
   for (const choice of state.models) {
     let group = groups.get(choice.provider);
@@ -501,9 +511,11 @@ function renderState() {
     option.value = modelValue(choice);
     group.append(option);
   }
-  if (!state.models.length) model.append(make("option", undefined, "Sign in to a model provider"));
-  else if (state.models.some((choice) => modelValue(choice) === currentModel)) model.value = currentModel;
-  else if (state.defaultModel) model.value = modelValue(state.defaultModel);
+  model.value = state.models.some((choice) => modelValue(choice) === currentModel) ? currentModel : "";
+  element("model-status").textContent = state.modelError
+    ?? (state.selectedModel ? `In use: ${state.selectedModel.provider} · ${state.selectedModel.name}`
+      : state.savedModel ? `The saved model ${state.savedModel.providerID} / ${state.savedModel.modelID} is not available. Choose and confirm another model, or refresh the provider connection.`
+      : "Choose and confirm a model before the computer starts listening.");
   const list = element("conversations");
   list.replaceChildren();
   if (confirmingDelete && !state.conversations.some((item) => item.id === confirmingDelete)) confirmingDelete = undefined;
@@ -1005,8 +1017,10 @@ async function refreshState() {
     if (seen === statusEvents || attempt === 2) break;
   }
   if (revision !== selectionRevision && state?.project !== next.project) return;
+  const lostModel = !!state?.selectedModel && !next.selectedModel;
   state = next;
   renderState();
+  if (lostModel) location.hash = next.models.length ? "settings/model" : "settings/provider";
   completeVoiceReply();
 }
 
@@ -1127,8 +1141,8 @@ async function sendMessage(spoken: string, requestedStoryID?: string) {
   if (submitting || busy() || !state || !connected || historyLoading) throw new Error("The spoken request was not sent. Wait for the current work or connection to finish.");
   const text = spoken.trim();
   if (!text) return;
-  const choice = state.models.find((choice) => modelValue(choice) === model.value);
-  if (!choice) throw new Error("Sign in to a model provider and choose a model first.");
+  const choice = state.selectedModel;
+  if (!choice) throw new Error("Open Model and confirm a model before sending a request.");
   submitting = true;
   controls();
   notice();
@@ -1164,8 +1178,7 @@ async function boot() {
     history.replaceState(null, "", location.pathname);
   }
   await refreshState();
-  // First run: without a model there is nothing to do on the main screen yet.
-  if (state && !state.models.length && !location.hash) location.hash = "settings/provider";
+  if (state && !state.selectedModel) location.hash = state.models.length ? "settings/model" : "settings/provider";
   if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id);
   openEvents();
 }
@@ -1206,7 +1219,7 @@ type SettingsPart = keyof typeof settingsParts;
 /** Each side panel tile opens its own part, for example #settings/voice. Without one, open what still needs doing. */
 function showSettingsPart(requested?: string) {
   const part = requested && requested in settingsParts ? requested as SettingsPart
-    : state && !state.models.length ? "provider" : "voice";
+    : state && !state.models.length ? "provider" : !state?.selectedModel ? "model" : "voice";
   for (const name of Object.keys(settingsParts) as SettingsPart[]) element(`settings-${name}`).hidden = name !== part;
   const [title, colour] = settingsParts[part];
   element("settings-title").textContent = title;
@@ -1240,7 +1253,7 @@ async function route() {
   });
   if (open) element(`drawer-${open}`).focus();
   // Listening pauses while settings change, and starts again when Settings closes.
-  if (open === "settings" && voice.microphone) voice.microphoneOff();
+  if (open === "settings" && (voice.microphone || voice.opening)) voice.microphoneOff();
   controls();
   if (open !== "settings") return;
   showSettingsPart(location.hash.split("/")[1]);
@@ -1251,7 +1264,23 @@ async function route() {
   }
 }
 
-model.addEventListener("change", readouts);
+model.addEventListener("change", controls);
+element("model-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  void perform(async () => {
+    if (savingModel) return;
+    const choice = state?.models.find((choice) => modelValue(choice) === model.value);
+    if (!choice) throw new Error("Choose an available model before confirming.");
+    savingModel = true;
+    controls();
+    try {
+      state = await api<AppState>("model", choice);
+      renderState();
+      notice();
+      location.hash = state.speech?.configured ? "" : "settings/voice";
+    } finally { savingModel = false; controls(); }
+  });
+});
 element("new-conversation").addEventListener("click", () => { void perform(async () => {
   closeDrawer();
   startFresh();
@@ -1316,6 +1345,7 @@ element("refresh-provider").addEventListener("click", () => {
   void perform(async () => {
     await api("refresh", {});
     await refreshState();
+    if (!state?.selectedModel) location.hash = state?.models.length ? "settings/model" : "settings/provider";
     openEvents();
   });
 });
@@ -1335,7 +1365,7 @@ element("project-form").addEventListener("submit", (event) => {
     live.clear();
     messages = [];
     state = next;
-    location.hash = "";
+    location.hash = !next.selectedModel ? next.models.length ? "settings/model" : "settings/provider" : "";
     renderState();
     renderMessages();
     if (next.conversations[0]) await selectConversation(next.conversations[0].id);
@@ -1349,7 +1379,7 @@ function muteMicrophone() {
   controls();
 }
 async function startListening() {
-  if (!state?.speech?.configured || !state.models.length || !connected) return;
+  if (!state?.speech?.configured || !state.selectedModel || !connected || openDrawer() === "settings") return;
   setMuted(false);
   await voice.activate();
   controls();

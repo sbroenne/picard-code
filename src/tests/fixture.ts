@@ -1,7 +1,7 @@
 import { createServer, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import type { FormRequest, PermissionRequest } from "../shared/types.js";
-import type { ContentItem, SessionInfo, SessionMessage } from "../server/opencode.js";
+import type { ContentItem, ModelInfo, SessionInfo, SessionMessage } from "../server/opencode.js";
 import type { WikipediaArticle } from "../server/wikipedia.js";
 
 export async function wikipediaFixture(subject: WikipediaArticle["subject"]): Promise<WikipediaArticle> {
@@ -50,6 +50,7 @@ export async function startFixture(project: string) {
   // Answers to Picard Code's question about who should handle a request, used before the fixed words below; null fails.
   const crewChoices: (string | null)[] = [];
   let signedIn = true;
+  let listedModels: ModelInfo[] | undefined;
   const buildPermissions: PermissionRule[] = [{ action: "*", resource: "*", effect: "allow" }, { action: "read", resource: "*.env", effect: "ask" }];
   const agents: AgentInfo[] = [
     { id: "build", mode: "primary", permissions: buildPermissions },
@@ -148,7 +149,7 @@ export async function startFixture(project: string) {
       const data = raw ? JSON.parse(raw) as Record<string, unknown> : {};
       const path = url.pathname;
       requests.push({ method: request.method ?? "GET", path, directory, data });
-      const models = signedIn ? [
+      const models = signedIn ? listedModels ?? [
         { id: "fixture-model", modelID: "fixture-model", providerID: "github-copilot", name: "Copilot test model", status: "active", enabled: true, settings: { secret: "must-never-reach-browser" } },
         { id: "other", modelID: "other", providerID: "other-provider", name: "Other model", status: "active", enabled: true },
         { id: "old", modelID: "old", providerID: "other-provider", name: "Retired model", status: "deprecated", enabled: true },
@@ -411,6 +412,7 @@ export async function startFixture(project: string) {
     createSession,
     publish,
     setSignedIn: (ready: boolean) => { signedIn = ready; },
+    setModels: (models: ModelInfo[]) => { listedModels = models; },
     close: async () => {
       for (const timer of timers) clearTimeout(timer);
       for (const listener of listeners) listener.end();

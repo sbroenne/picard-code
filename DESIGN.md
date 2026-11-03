@@ -41,12 +41,19 @@ shows the fan-formula date, with the ordinary date on hover.
 ## States and access
 
 The Provider setting tells the truth when no model is available.
-Connection readiness means OpenCode is connected and a model is available.
+The Model setting requires an explicit confirmed choice, even when OpenCode
+offers free models. Recommend the most capable model available without
+inventing a ranking, and explain the possible cost and speed trade-off.
+The confirmed choice is saved on this computer for every Project, separately
+from OpenCode's default. An unavailable choice needs a confirmed replacement,
+never an automatic switch.
+Connection readiness means OpenCode is connected and the confirmed model is available.
 Standing by, listening, understanding, working, speaking, reconnecting, unanswered
 questions, and approval requests have visible labels. Errors name the problem
 and the recovery step.
 
-The microphone switches on when speech is ready, subject to browser permission
+The microphone switches on when speech is ready and an available model has
+been confirmed, subject to browser permission
 and sound restrictions. "Computer" starts a task; follow-ups within it need no
 prefix. Standing by still listens; the microphone button or M key stops capture.
 Only an explicit spoken request or the New log entry tile starts a new entry.

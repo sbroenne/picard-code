@@ -5,11 +5,14 @@ export interface Conversation {
   updated: number;
 }
 
-export interface ModelChoice {
+export interface ModelSelection {
   providerID: string;
+  modelID: string;
+}
+
+export interface ModelChoice extends ModelSelection {
   /** The provider's display name, such as GitHub Copilot. */
   provider: string;
-  modelID: string;
   name: string;
 }
 
@@ -41,6 +44,9 @@ export interface AppState {
   version: string;
   models: ModelChoice[];
   defaultModel?: ModelChoice;
+  savedModel?: ModelSelection;
+  selectedModel?: ModelChoice;
+  modelError?: string;
   conversations: Conversation[];
   /** Conversations that are working; anything missing is idle. */
   statuses: Record<string, { type: "busy" | "retry"; message?: string }>;

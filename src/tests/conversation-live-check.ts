@@ -9,6 +9,9 @@ import { loadSpeech } from "../server/speech.js";
 import type { SpeechService } from "../server/speech-types.js";
 
 const local = process.argv.includes("--local");
+const modelArgument = process.argv.indexOf("--model");
+const requestedModel = modelArgument < 0 ? undefined : process.argv[modelArgument + 1];
+if (modelArgument >= 0 && (!requestedModel || requestedModel.startsWith("--"))) throw new Error("Provide --model as provider/model.");
 const name = local ? "whisper-kokoro" : "mai";
 const directory = resolve(".picard-voice", "samples");
 await mkdir(directory, { recursive: true });
@@ -39,10 +42,11 @@ try {
   await writeFile(recording, Buffer.concat([header, audio]));
   engine = await startEngine(project);
   const models = await availableModels(engine.client, project);
-  const choice = models.models.find((model) => model.modelID === "gpt-4.1")
+  const choice = requestedModel ? models.models.find((model) => `${model.providerID}/${model.modelID}` === requestedModel)
+    : models.models.find((model) => model.modelID === "gpt-4.1")
     ?? models.models.find((model) => model.modelID === "gpt-5-mini")
     ?? models.defaultModel;
-  assert.ok(choice, "Sign in to a model provider in OpenCode before this real conversation check.");
+  assert.ok(choice, requestedModel ? `The requested test model ${requestedModel} is not available.` : "Sign in to a model provider in OpenCode before this real conversation check.");
   const events = engine.client.events(controller.signal);
   observation = (async () => {
     for await (const event of events) {
@@ -52,7 +56,7 @@ try {
       }
     }
   })().catch((error: unknown) => { if (!controller.signal.aborted) observationError = error; });
-  app = await startApp({ client: engine.client, project, speech, webRoot: resolve("web-dist") });
+  app = await startApp({ client: engine.client, project, speech, modelFile: resolve(temporary, "model.json"), speechFile: resolve(temporary, "speech.json"), webRoot: resolve("web-dist") });
   browser = await chromium.launch({ args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream",
     "--mute-audio", `--use-file-for-fake-audio-capture=${recording}`] });
   const context = await browser.newContext({ permissions: ["microphone"], viewport: { width: 1360, height: 980 } });
@@ -87,7 +91,8 @@ try {
   await expect(page.getByRole("status")).not.toHaveText("Starting up", { timeout: 30_000 });
   await page.evaluate(() => { location.hash = "settings/model"; });
   await page.selectOption("#model", JSON.stringify([choice.providerID, choice.modelID]));
-  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Confirm model" }).click();
+  await expect(page.locator("#drawer-settings")).toBeHidden();
   await page.evaluate(() => (window as unknown as { startTestMicrophone: () => void }).startTestMicrophone());
   await expect.poll(async () => `${await page.getByRole("status").textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 30_000 })
     .toMatch(/Standing by|Listening|Understanding|Click anywhere/);
