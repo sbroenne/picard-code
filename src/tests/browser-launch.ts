@@ -23,6 +23,8 @@ if (process.argv.includes("--opencode-account")) fixture.setIntegrations([{ id: 
 const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there", "Computer", "Keep the exact name and do not change files.", ""]
   : process.argv.includes("--interrupt-request") || process.argv.includes("--interrupt-final") ? ["Computer, hello there", "Computer, keep the exact name and do not change files.", ""]
   : process.argv.includes("--interrupt-room") ? ["Computer, hello there", "Hello again", ""]
+  : process.argv.includes("--speed-follow-up") ? ["Computer, hello there", "Computer, speak slowest", "Hello again", ""]
+  : process.argv.includes("--faster") ? ["Computer, speak faster", "Computer, hello there", ""]
   : process.argv.includes("--interrupt-approval") ? ["Computer, request an approval", "Computer, allow once", ""]
   : process.argv.includes("--briefing-parent-failure") ? ["Computer, have Data and Riker brief me when the computer's action is denied with a repeated close", ""]
   : process.argv.includes("--briefing-failure-only") ? ["Computer, have Data and Riker brief me when Data's action is denied but no computer close", ""]

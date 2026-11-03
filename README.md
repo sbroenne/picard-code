@@ -577,7 +577,9 @@ on-screen button.
   on. Switching it off and back on keeps the current log entry; follow-ups
   still need no "Computer". Saying "Computer" again also continues that entry.
 - The microphone stays on. While the room is quiet, the console shows
-  **Standing by** and nothing leaves your computer. When someone starts
+  **Standing by** and nothing leaves your computer. A voice detector (Silero,
+  included with Picard Code and run inside your browser) tells speech
+  apart from steady background noise such as a fan. When someone starts
   talking, that speech (including the half second before it, so the first word
   is kept) goes to the selected listening service. A pause of about a second
   ends the turn.
@@ -597,6 +599,11 @@ on-screen button.
   stays on.
 - **"Belay that"** (or "stop", "cancel that", "never mind"; with "Computer"
   before a task) cancels the current work, the same as the **Belay that** button.
+- **"Speak faster"**, **"Speak slower"** and **"Normal speed"** (with
+  "Computer" before a task) change how fast the computer and officers speak,
+  in small steps from 0.8 to 1.2 times normal. **"Speak fastest"** and
+  **"Speak slowest"** go straight to either end. The computer confirms at the new
+  speed, and this browser remembers it.
 - There is one current log entry. **"Computer, new log entry"** (or "new
   starlog entry", "new task", "start over") clears the screen, the same as the
   **New log entry** button. The opening screen shows its Stardate without
@@ -614,8 +621,9 @@ on-screen button.
   while the screen keeps the exact text. Follow-ups, corrections and
   "show me" stay in the same log entry.
 - **Say "Computer" to interrupt an answer**, then give your request, or say
-  "Computer" and the request together. Other room speech during an answer is
-  ignored, even within a log entry. This stops spoken playback and pending
+  "Computer" and the request together. Like Alexa or Google Assistant, other
+  speech never interrupts, so the computer cannot interrupt itself if the
+  microphone hears its voice. This stops spoken playback and pending
   tribute extras, not running work. Your words are kept unchanged.
   **Stop speaking**, or clicking the computer panel, also interrupts playback
   without switching the microphone on or off.
@@ -1074,9 +1082,9 @@ Add `--interrupt` to play a generated request into the browser's capture path
 while a real spoken answer is playing. It checks that playback stops, the
 new request keeps its name and negation, and no stop-work request is sent.
 This tests overlapping speech, not a physical microphone or speaker echo.
-Use `--quiet-interrupt` instead to check a request below the old fixed volume
-cutoff. The microphone now learns the room's quiet level so softer speech can
-start listening, including while an answer is playing.
+Use `--quiet-interrupt` instead to check a softer request spoken while an
+answer is playing. The voice detector decides by how speech sounds, not by
+volume alone, so softer speech can still start listening.
 These checks make real model requests;
 the MAI variant also makes chargeable Azure requests. Earlier versions of both
 passed on the Windows development machine before the OpenCode 2 migration;

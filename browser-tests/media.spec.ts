@@ -6,6 +6,7 @@ import { startApp } from "../src/server/app";
 import { makeClient } from "../src/server/engine";
 import { speechFixture } from "../src/tests/speech-fixture";
 import { saveModelSettings } from "../src/server/model-settings";
+import { syntheticVoice } from "../src/tests/test-audio";
 
 // Original canvas pixels and recordings, not downloaded media.
 const folder = resolve(`.picard-test-media-microphone-${process.pid}`);
@@ -256,17 +257,18 @@ test("a new spoken decision stops an open player before the computer speaks", as
   try {
     await page.locator("#status-detail").click();
     await expect.poll(() => page.evaluate(() => (window as unknown as { mediaCapture: boolean }).mediaCapture)).toBe(true);
+    const voice = Array.from(syntheticVoice(1, 0.1), (value) => Math.round(value * 32767));
     const utterance = async () => {
       // These synthetic packets arrive together; let the 100 ms cue and echo guard finish first.
       await page.waitForTimeout(350);
-      await page.evaluate(() => {
+      await page.evaluate((voice) => {
         const port = (window as unknown as { mediaCapturePort: MessagePort }).mediaCapturePort;
-        for (let frame = 0; frame < 60; frame++) {
+        for (let frame = 0; frame < 110; frame++) {
           const samples = new Int16Array(320);
-          if (frame < 12) samples.fill(6000);
+          if (frame < 50) samples.set(voice.slice(frame * 320, frame * 320 + 320));
           port.dispatchEvent(new MessageEvent("message", { data: samples.buffer }));
         }
-      });
+      }, voice);
     };
     await utterance();
     await expect.poll(() => context.speech.said.length).toBeGreaterThan(0);

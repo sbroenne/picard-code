@@ -17,8 +17,8 @@ export interface SpeechListener {
 }
 export interface SpeechSpeaker {
   // Stream one channel of 16-bit little-endian audio at 24,000 samples/second.
-  // Without a voice, the computer's configured voice speaks.
-  speak(text: string, signal: AbortSignal, voice?: SpeakingVoice): AsyncIterable<Uint8Array>;
+  // Without a voice, the computer's configured voice speaks. Speed is 0.8 to 1.2 times normal; omitted is normal.
+  speak(text: string, signal: AbortSignal, voice?: SpeakingVoice, speed?: number): AsyncIterable<Uint8Array>;
 }
 export interface SpeechSelection {
   listening: "mai" | "nemotron";

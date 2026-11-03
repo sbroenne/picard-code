@@ -84,6 +84,13 @@ test("available models, including free models, never count as a confirmed model 
   assert.deepEqual(JSON.parse(await readFile(context.modelFile, "utf8")), { providerID: "opencode", modelID: "free" });
   assert.equal((await send()).status, 202);
   assert.equal(context.fixture.sessions.get(session.id)?.model?.id, "free");
+  const quiet = context.fixture.createSession(context.directory, "Speed entry");
+  const speaking = (speed: unknown) => context.request(`conversations/${quiet.id}/send`, { text: "How fast do you speak?", providerID: "opencode", modelID: "free", bridge: false, speed });
+  response = await speaking(1.5);
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error, "The speaking speed must be between 0.8 and 1.2.");
+  assert.equal((await speaking(0.8)).status, 202);
+  assert.match(context.fixture.instructions.get(quiet.id)?.["picard-manner"] ?? "", /Spoken replies currently play at 0\.8 times normal speed/);
 });
 
 test("connection setup distinguishes default OpenCode models, connected accounts, and configured local providers", async (t) => {
@@ -1227,6 +1234,34 @@ test("automatic listener replacement does not save a temporary speaking override
   assert.equal(job.state, "done");
   assert.equal(attempts, 2);
   assert.deepEqual(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")), { listening: "nemotron", speaking: "kokoro" });
+});
+
+test("older settings with no listening choice switch from Whisper to Nemotron and keep their other choices", async (t) => {
+  const legacy = { speaking: "kokoro", localPython: "/custom/existing/python", kokoroModel: "/custom/kokoro.onnx" };
+  const records: Record<string, unknown>[] = [];
+  let context: Awaited<ReturnType<typeof setup>> | undefined;
+  context = await setup({
+    speechOverrides: { speaking: "mai" },
+    localSpeechReady: async () => true,
+    startSpeech: async (record) => {
+      records.push(record);
+      while (!context) await new Promise((done) => setTimeout(done, 1));
+      assert.deepEqual(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")), legacy, "settings are saved only after the new service starts");
+      return { ...speechFixture().service, selection: { listening: "nemotron", speaking: "mai" } };
+    },
+  }, legacy);
+  t.after(context.cleanup);
+  await context.login();
+  let job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") {
+    await new Promise((done) => setTimeout(done, 5));
+    job = await (await context.request("speech-setup")).json();
+  }
+  assert.equal(job.state, "done", job.error);
+  assert.equal(records.length, 1);
+  assert.equal(records[0]!.listening, "nemotron");
+  assert.equal(records[0]!.speaking, "mai", "the temporary speaking choice is used while running");
+  assert.deepEqual(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")), { ...legacy, listening: "nemotron" });
 });
 
 test("speech settings live in the user's home folder, and earlier settings are copied there once", async (t) => {

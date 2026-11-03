@@ -51,10 +51,12 @@ function escapeXml(text: string) {
   return text.replace(/[<>&"']/g, (character) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[character]!);
 }
 
-export function speakingDocument(settings: Pick<AzureSettings, "voice" | "voiceStyle">, text: string) {
+export function speakingDocument(settings: Pick<AzureSettings, "voice" | "voiceStyle">, text: string, speed?: number) {
   const language = /^([a-z]{2}-[A-Z]{2})-/.exec(settings.voice)?.[1] ?? "en-US";
   const style = settings.voiceStyle && settings.voiceStyle !== "none" ? settings.voiceStyle : undefined;
-  const body = style ? `<mstts:express-as style="${escapeXml(style)}">${escapeXml(text)}</mstts:express-as>` : escapeXml(text);
+  const styled = style ? `<mstts:express-as style="${escapeXml(style)}">${escapeXml(text)}</mstts:express-as>` : escapeXml(text);
+  const change = speed === undefined ? 0 : Math.round((speed - 1) * 100);
+  const body = change ? `<prosody rate="${change > 0 ? "+" : ""}${change}%">${styled}</prosody>` : styled;
   return `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="${language}"><voice name="${escapeXml(settings.voice)}">${body}</voice></speak>`;
 }
 
@@ -144,12 +146,12 @@ export function azureSpeech(settings: AzureSettings, key: string): SpeechService
         }
       });
     }),
-    async *speak(text, signal, voice) {
+    async *speak(text, signal, voice, speed) {
       const response = await fetch(`https://${settings.region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
         method: "POST", signal: AbortSignal.any([signal, AbortSignal.timeout(60_000)]),
         headers: { "Ocp-Apim-Subscription-Key": key, "Content-Type": "application/ssml+xml",
           "X-Microsoft-OutputFormat": "raw-24khz-16bit-mono-pcm" },
-        body: speakingDocument(voice ? { voice: voice.name, voiceStyle: voice.style } : settings, text),
+        body: speakingDocument(voice ? { voice: voice.name, voiceStyle: voice.style } : settings, text, speed),
       });
       if (!response.ok) {
         throw new Error(voice

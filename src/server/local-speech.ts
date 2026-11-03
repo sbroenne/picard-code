@@ -148,9 +148,9 @@ export async function localSpeech(settings: LocalSettings, signal?: AbortSignal)
   }
   signal?.throwIfAborted();
   const speaker: SpeechSpeaker = {
-    async *speak(text, signal, voice) {
+    async *speak(text, signal, voice, speed) {
       let bytes = 0;
-      const request = voice ? { text, voice: voice.name, ...voice.speed === undefined ? {} : { speed: voice.speed } } : { text };
+      const request = { text, ...voice ? { voice: voice.name } : {}, ...speed === undefined ? {} : { speed } };
       for await (const result of speakerWorker.request("synthesize", request, AbortSignal.any([signal, AbortSignal.timeout(60_000)]))) {
         if (result.type === "done") break;
         if (result.type !== "audio" || typeof result.audio !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(result.audio)) throw new Error("Kokoro returned an unexpected speaking result.");

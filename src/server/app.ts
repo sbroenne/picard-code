@@ -13,12 +13,13 @@ import { projectDirectory } from "./process.js";
 import { computerManner, crewChoice } from "./instructions.js";
 import { checkTributeRequest, explicitStorySubject, storyAcceptance, tributeSubject } from "../shared/tribute.js";
 import { TRIBUTE_ENTRIES } from "../shared/tribute-data.js";
+import { SPEAKING_SPEEDS } from "../shared/wake.js";
 import { wikipediaReader, type WikipediaArticle } from "./wikipedia.js";
 import { addressedOfficer, chosenCrew, crewMember, type CrewID } from "../shared/crew.js";
 import { requireCrew, verifiedCrew } from "./crew.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechSelection, SpeechService } from "./speech-types.js";
-import { canSetUpLocalSpeech, describeSpeechSettings, localSpeechReady, mergeSpeechSettings, readSpeechSettings, saveSpeechSettings, setUpLocalSpeech, speechFromSettings, speechSettingsFile } from "./speech.js";
+import { canSetUpLocalSpeech, describeSpeechSettings, localSpeechReady, mergeSpeechSettings, needsListenerMigration, readSpeechSettings, saveSpeechSettings, setUpLocalSpeech, speechFromSettings, speechSettingsFile } from "./speech.js";
 
 class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -166,7 +167,7 @@ export async function startApp(options: AppOptions) {
   const savedSpeech = !speech && !speechError ? await readSpeechSettings(speechFile) : undefined;
   const startSpeech = options.startSpeech ?? ((settings, signal) => speechFromSettings(settings, {}, signal));
   const localReady = options.localSpeechReady ?? localSpeechReady;
-  const migrationSettings = savedSpeech?.listening === "whisper" && !options.speechOverrides?.listening
+  const migrationSettings = savedSpeech && needsListenerMigration(savedSpeech) && !options.speechOverrides?.listening
     ? mergeSpeechSettings(savedSpeech, {
       ...describeSpeechSettings(savedSpeech),
       speaking: savedSpeech.speaking ?? "kokoro",
@@ -414,7 +415,7 @@ export async function startApp(options: AppOptions) {
       response.setHeader("Cache-Control", "no-store");
       response.setHeader("X-Content-Type-Options", "nosniff");
       response.setHeader("Referrer-Policy", "no-referrer");
-      response.setHeader("Content-Security-Policy", `default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' ${origin.replace("http:", "ws:")}; worker-src 'self'; img-src 'self' data: https:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`);
+      response.setHeader("Content-Security-Policy", `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; connect-src 'self' ${origin.replace("http:", "ws:")}; worker-src 'self'; img-src 'self' data: https:; media-src 'self' https:; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`);
       response.setHeader("Permissions-Policy", "microphone=(self), camera=()");
       if (request.headers.host !== new URL(origin).host) throw new HttpError(403, "Use the local address printed by Picard Code.");
       if (request.headers.origin && request.headers.origin !== origin) throw new HttpError(403, "Requests from other websites are not allowed.");
@@ -603,6 +604,8 @@ export async function startApp(options: AppOptions) {
             catch (error) { throw new HttpError(400, errorMessage(error)); }
             if (data.bridge !== undefined && typeof data.bridge !== "boolean") throw new HttpError(400, "Choose whether the Bridge crew is on or off.");
             const bridge = data.bridge !== false;
+            if (data.speed !== undefined && !SPEAKING_SPEEDS.includes(data.speed as typeof SPEAKING_SPEEDS[number])) throw new HttpError(400, "The speaking speed must be between 0.8 and 1.2.");
+            const speed = data.speed as number | undefined;
             if (tribute.storyID) {
               const subject = explicitStorySubject(text);
               if (!subject && !storyAcceptance(text)) throw new HttpError(400, "That response did not request a tribute story.");
@@ -652,7 +655,7 @@ export async function startApp(options: AppOptions) {
             if (agent && session.agent !== agent) await client.setAgent(id, project, agent);
             if (session.title === "New log entry" || session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
             // Picard Code's conversation manner travels with the conversation, not as a file in the project.
-            await client.setInstructions(id, project, "picard-manner", computerManner(text, tribute, wikipedia, { agent, onDuty, briefing: chosen.length > 1 ? chosen : undefined, offDuty: !bridge }));
+            await client.setInstructions(id, project, "picard-manner", computerManner(text, tribute, wikipedia, { agent, onDuty, briefing: chosen.length > 1 ? chosen : undefined, offDuty: !bridge, speed }));
             await client.prompt(id, project, text);
             json(response, 202, { accepted: true, ...(wikipedia ? { reference: { title: wikipedia.title, url: wikipedia.url } } : {}) });
             return;
@@ -690,9 +693,9 @@ export async function startApp(options: AppOptions) {
       try { resolved = await realpath(file); }
       catch { throw new HttpError(404, "That page was not found."); }
       if (!resolved.startsWith(`${webRoot}${sep}`)) throw new HttpError(403, "That file is not part of Picard Code.");
-      const mime: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml" };
+      const mime: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml; charset=utf-8", ".wasm": "application/wasm" };
       const content = await readFile(resolved);
-      response.writeHead(200, { "Content-Type": `${mime[extname(file)] ?? "application/octet-stream"}; charset=utf-8` });
+      response.writeHead(200, { "Content-Type": mime[extname(file)] ?? "application/octet-stream" });
       response.end(method === "HEAD" ? undefined : content);
     })().catch((error: unknown) => {
       if (response.headersSent) { response.destroy(); return; }

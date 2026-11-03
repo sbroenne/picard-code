@@ -1,4 +1,6 @@
 import { Utterance, type SpeechEvent } from "../src/shared/speech";
+import { SPEECH_FRAME, SpeechFrames, type SpeechDetector } from "../src/shared/speech-detector";
+import { loadSpeechDetector } from "./speech-detector";
 import { interruptsSpeech } from "../src/shared/wake";
 import type { SpokenPart } from "../src/shared/briefing";
 
@@ -39,6 +41,11 @@ export class VoiceConversation {
   private audioStarted = false;
   private playbackTimer?: ReturnType<typeof setTimeout>;
   private utterance = new Utterance();
+  private detector?: SpeechDetector;
+  private frames = new SpeechFrames();
+  // Detector results arrive a moment later; this keeps them in order and drops them after a reset.
+  private detection = Promise.resolve();
+  private detectionRevision = 0;
   // The last half second before speech starts, so the first word is not cut off.
   private preRoll: ArrayBuffer[] = [];
   // Audio held while the listening service opens; undefined once it is open.
@@ -57,6 +64,8 @@ export class VoiceConversation {
   private cueEnded = 0;
   private startupPending = true;
   private startupReady = false;
+  /** How fast replies are spoken, as a multiple of normal. */
+  speed = 1;
 
   constructor(private hooks: {
     changed(): void;
@@ -80,8 +89,15 @@ export class VoiceConversation {
     this.phase = phase;
     const enabled = !this.mediaPaused && this.microphone && !this.handling && !this.optionalCue && (phase === "standby" || phase === "listening" || this.speechPending);
     this.capture?.port.postMessage(enabled);
-    if (!enabled) { this.utterance.reset(); this.preRoll = []; this.queue = undefined; }
+    if (!enabled) { this.resetDetection(); this.queue = undefined; }
     this.hooks.changed();
+  }
+  private resetDetection() {
+    this.detectionRevision++;
+    this.utterance.reset();
+    this.frames.reset();
+    this.detector?.reset();
+    this.preRoll = [];
   }
   private clearAudio() {
     clearTimeout(this.playbackTimer);
@@ -217,6 +233,8 @@ export class VoiceConversation {
       // Without a recent click the browser keeps sound suspended until the next one; do not wait for it here.
       void context.resume().catch(() => undefined);
       for (const name of Object.keys(CUE_VOLUME) as Cue[]) void this.loadCue(context, name);
+      const detecting = loadSpeechDetector();
+      detecting.catch(() => undefined);
       const media = await navigator.mediaDevices.getUserMedia({ audio: {
         channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
       } });
@@ -226,7 +244,9 @@ export class VoiceConversation {
         if (this.microphone) { this.failed = true; this.microphoneOff(); this.hooks.error("The microphone disconnected. Check your device, then click the microphone button to listen again."); }
       }; });
       await context.audioWorklet.addModule("/microphone-worklet.js");
+      this.detector = await detecting;
       if (revision !== this.revision) return;
+      this.resetDetection();
       this.capture = new AudioWorkletNode(context, "picard-microphone");
       const source = context.createMediaStreamSource(media);
       const silent = context.createGain();
@@ -259,14 +279,25 @@ export class VoiceConversation {
     if (this.handling || !this.recording && this.phase !== "standby" && !this.speechPending) return;
     if (!this.recording && (this.cueSource || performance.now() - this.cueEnded < 200)) {
       // The computer's own sound is not a request.
-      this.utterance.reset();
-      this.preRoll = [];
+      this.resetDetection();
       return;
     }
-    const view = new DataView(packet);
-    let energy = 0;
-    for (let index = 0; index < view.byteLength; index += 2) energy += (view.getInt16(index, true) / 32768) ** 2;
-    const change = this.utterance.update(Math.sqrt(energy / (view.byteLength / 2)), view.byteLength / 32);
+    const detector = this.detector;
+    if (!detector) return;
+    const revision = this.detectionRevision;
+    // A 20 ms packet completes at most one 32 ms detector frame.
+    const [frame] = this.frames.push(packet);
+    this.detection = this.detection.then(async () => {
+      const speech = frame && await detector.speech(frame);
+      if (revision !== this.detectionRevision) return;
+      this.listened(packet, speech === undefined ? undefined : this.utterance.update(speech, SPEECH_FRAME / 16));
+    }).catch((error: unknown) => {
+      if (revision === this.detectionRevision) this.fail(`The voice detector stopped working.${error instanceof Error ? ` ${error.message}` : ""} Click the microphone button to listen again.`);
+    });
+  }
+  private listened(packet: ArrayBuffer, change: ReturnType<Utterance["update"]>) {
+    if (this.mediaPaused || !this.microphone || this.socket?.readyState !== WebSocket.OPEN || this.optionalCue) return;
+    if (this.handling || !this.recording && this.phase !== "standby" && !this.speechPending) return;
     if (!this.recording) {
       if (change !== "start") {
         this.preRoll.push(packet);
@@ -469,6 +500,7 @@ export class VoiceConversation {
     this.cancelFollowOn();
     ++this.revision;
     this.microphone = false;
+    this.resetDetection();
     this.capture?.port.postMessage(false);
     this.capture?.disconnect();
     this.capture = undefined;
@@ -500,14 +532,16 @@ export class VoiceConversation {
     this.handling = false;
     this.recording = false;
     this.interruption = false;
-    this.utterance.reset();
-    this.preRoll = [];
+    this.resetDetection();
     this.queue = undefined;
     this.command({ type: "pause" });
     const id = ++this.speechRevision;
     this.state("thinking");
     const say = () => {
-      if (this.speechPending && id === this.speechRevision && this.socket?.readyState === WebSocket.OPEN) this.command(parts.length === 1 && !parts[0]!.speaker ? { type: "speak", text, id } : { type: "speak", parts, id });
+      if (this.speechPending && id === this.speechRevision && this.socket?.readyState === WebSocket.OPEN) {
+        const speed = this.speed === 1 ? {} : { speed: this.speed };
+        this.command(parts.length === 1 && !parts[0]!.speaker ? { type: "speak", text, id, ...speed } : { type: "speak", parts, id, ...speed });
+      }
     };
     if (failed) void this.sound("request-failed").then(say);
     else say();
