@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { WebSocket } from "ws";
 import { setTimeout as wait } from "node:timers/promises";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { resolve, join } from "node:path";
 import { Utterance, firstSentence, replyFailed, speakable, spokenReply, spokenSummary, type SpeechEvent } from "../shared/speech.js";
 import { addressed, interruptsSpeech, voiceCommand } from "../shared/wake.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
 import type { FormField, FormRequest } from "../shared/types.js";
 import { speakingDocument } from "../server/azure-speech.js";
-import { DEFAULT_MAI_VOICE, describeSpeechSettings, mergeSpeechSettings, speechFromSettings } from "../server/speech.js";
+import { DEFAULT_MAI_VOICE, describeSpeechSettings, mergeSpeechSettings, speechFromSettings, loadSpeech } from "../server/speech.js";
 import { attachSpeech } from "../server/speech-bridge.js";
 import { speechFixture } from "./speech-fixture.js";
 
@@ -33,6 +35,29 @@ test("an utterance starts with a short run of voice, ends after a real pause, an
   assert.equal(detector.update(0.02, 60), "start");
   for (let index = 0; index < 2996; index++) assert.equal(detector.update(0.02, 20), undefined);
   assert.equal(detector.update(0.02, 20), "end", "Endless sound is ended after a minute.");
+});
+
+test("quiet speech is detected above a quiet room without dropping its tail or learning it as noise", () => {
+  const detector = new Utterance();
+  for (let index = 0; index < 50; index++) assert.equal(detector.update(0.0003, 20), undefined);
+  assert.equal(detector.update(0.004, 60), "start");
+  for (let index = 0; index < 100; index++) assert.equal(detector.update(0.004, 20), undefined);
+  assert.equal(detector.update(0.0003, 899), undefined);
+  assert.equal(detector.update(0.0003, 1), "end");
+  detector.reset();
+  assert.equal(detector.update(0.004, 60), "start", "Returning to listening keeps the room's learned quiet level.");
+  assert.equal(detector.update(0.0003, 900), "drop", "A brief quiet click is still dropped.");
+});
+
+test("the volume cutoff stays above room noise and never falls below its quiet limit", () => {
+  const noisy = new Utterance();
+  for (let index = 0; index < 100; index++) assert.equal(noisy.update(0.008, 20), undefined);
+  assert.equal(noisy.update(0.009, 1000), undefined);
+  assert.equal(noisy.update(0.02, 60), "start");
+  const quiet = new Utterance();
+  for (let index = 0; index < 100; index++) assert.equal(quiet.update(0, 20), undefined);
+  for (let index = 0; index < 100; index++) assert.equal(quiet.update(0.0015, 20), undefined);
+  assert.equal(quiet.active, false);
 });
 
 test("only speech that starts with Computer is addressed; stop commands are whole short phrases", () => {
@@ -256,9 +281,19 @@ test("spoken question answers match only clear, offered choices and keep the use
   assert.equal(canAskAloud(form(question, { ...question, key: "q1", hidden: true })), true);
 });
 
-test("speech runs on this computer unless Azure is chosen", async () => {
+test("Nemotron is the default and retired Whisper settings describe their replacement without rewriting", async () => {
+  assert.equal(describeSpeechSettings(undefined).listening, "nemotron");
+  assert.equal(describeSpeechSettings({ listening: "whisper" }).listening, "nemotron");
+  assert.equal(describeSpeechSettings({ listening: "mai" }).listening, "mai");
+  const legacy = { listening: "whisper", whisperModel: "/custom/model", localPython: "/custom/python" };
+  assert.deepEqual(mergeSpeechSettings(legacy, { listening: "nemotron", speaking: "kokoro" }), { listening: "nemotron", speaking: "kokoro", localPython: "/custom/python" });
+  assert.equal(legacy.listening, "whisper");
+  assert.throws(() => mergeSpeechSettings(undefined, { listening: "whisper", speaking: "mai" }), /Choose Nemotron or Azure MAI/);
+  assert.throws(() => mergeSpeechSettings(undefined, { listening: "unknown", speaking: "kokoro" }), /Choose Nemotron or Azure MAI/);
   const missing = { localPython: "picard-missing-python" };
   await assert.rejects(speechFromSettings(missing), /local speech file is missing\. Run npx picard-code setup-speech/);
+  await assert.rejects(speechFromSettings({ listening: "nemotron", speaking: "mai" }), /valid subscription/);
+  await assert.rejects(speechFromSettings({ listening: "other", speaking: "kokoro" }), /never substituted silently/);
   await assert.rejects(speechFromSettings({ ...missing, listening: "mai", speaking: "mai" }), /valid subscription/);
 });
 
@@ -269,9 +304,22 @@ test("MAI computer speaking uses Iris with its neutral style", () => {
   assert.doesNotMatch(speakingDocument({ voice: "en-US-Harper:MAI-Voice-2.1-Flash", voiceStyle: "none" }, "Ready."), /express-as/);
 });
 
+test("loading retired Whisper defers replacement to the app without rewriting or starting it", async (t) => {
+  const folder = await mkdtemp(resolve(".picard-test-retired-speech-"));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const file = join(folder, "speech.json");
+  const text = JSON.stringify({ listening: "whisper", speaking: "kokoro" });
+  await writeFile(file, text);
+  assert.equal(await loadSpeech({}, undefined, file), undefined);
+  assert.equal(await loadSpeech({ speaking: "mai" }, undefined, file), undefined);
+  await assert.rejects(loadSpeech({ speaking: "invalid" }, undefined, file), /Choose mai or kokoro/);
+  await assert.rejects(loadSpeech({ listening: "whisper" }, undefined, file), /Choose nemotron or mai/);
+  assert.equal(await readFile(file, "utf8"), text);
+});
+
 test("retired voice settings are not exposed and are removed only when services are saved", () => {
   const legacy = { voice: "old", voiceStyle: "old", kokoroVoice: "old", localPython: "/custom/python" };
-  const choice = { listening: "whisper", speaking: "kokoro" };
+  const choice = { listening: "nemotron", speaking: "kokoro" };
   const described = describeSpeechSettings(legacy);
   for (const key of ["voice", "voiceStyle", "kokoroVoice"]) {
     assert.equal(key in described, false);

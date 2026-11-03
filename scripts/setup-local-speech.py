@@ -4,9 +4,6 @@ import sys
 from pathlib import Path
 import urllib.request
 
-from huggingface_hub import snapshot_download
-
-
 # The models folder, given by setup-speech.mjs.
 ROOT = Path(sys.argv[1])
 ASSETS = {
@@ -37,11 +34,4 @@ def download(name, expected):
 ROOT.mkdir(parents=True, exist_ok=True)
 for name, checksum in ASSETS.items():
     download(name, checksum)
-snapshot_download(
-    "Systran/faster-whisper-tiny.en",
-    revision="0d3d19a32d3338f10357c0889762bd8d64bbdeba",
-    local_dir=ROOT / "whisper-tiny.en",
-    allow_patterns=["model.bin", "config.json", "tokenizer.json", "vocabulary.*", "README.md"],
-    token=False,
-)
 print(f"Local speech models are ready in {ROOT}.")

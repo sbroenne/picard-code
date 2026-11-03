@@ -5,9 +5,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadAzureSpeech } from "./azure-speech.js";
 import { localSpeech } from "./local-speech.js";
+import { nemotronSpeech } from "./nemotron-speech.js";
 import type { SpeechService, SpeechSelection } from "./speech-types.js";
 import type { SpeechSettings } from "../shared/types.js";
 import { COMPUTER_VOICES, crewVoice } from "../shared/crew-voices.js";
+import { NEMOTRON_MODEL, NEMOTRON_VERSION } from "../../scripts/setup-nemotron.mjs";
 
 /** Fixed ready-made computer voices chosen from the measured comparison. */
 export const DEFAULT_MAI_VOICE = COMPUTER_VOICES.mai;
@@ -25,7 +27,8 @@ export const PICARD_HOME = join(homedir(), ".picard-code");
 const VOICE_FOLDER = join(PICARD_HOME, "voice");
 const LOCAL_PATHS = {
   localPython: resolve(VOICE_FOLDER, process.platform === "win32" ? "Scripts" : "bin", process.platform === "win32" ? "python.exe" : "python"),
-  whisperModel: resolve(VOICE_FOLDER, "models", "whisper-tiny.en"),
+  nemotronProgram: resolve(VOICE_FOLDER, "nemotron", NEMOTRON_VERSION, "bin", process.platform === "win32" ? "nemo-speech.exe" : "nemo-speech"),
+  nemotronModel: resolve(VOICE_FOLDER, "models", NEMOTRON_MODEL),
   kokoroModel: resolve(VOICE_FOLDER, "models", "kokoro-v1.0.onnx"),
   kokoroVoices: resolve(VOICE_FOLDER, "models", "voices-v1.0.bin"),
 } as const;
@@ -36,23 +39,30 @@ function localPath(record: Record<string, unknown> | undefined, key: keyof typeo
   return resolve(value);
 }
 
-/** Whether the local Whisper and Kokoro files that a choice needs are all present. */
-export async function localSpeechReady(record: Record<string, unknown> | undefined, listening = true, speaking = true) {
-  const keys: (keyof typeof LOCAL_PATHS)[] = ["localPython", ...(listening ? ["whisperModel" as const] : []), ...(speaking ? ["kokoroModel" as const, "kokoroVoices" as const] : [])];
+function localKeys(record: Record<string, unknown> | undefined, listening = record?.listening !== "mai", speaking = record?.speaking !== "mai") {
+  const keys: (keyof typeof LOCAL_PATHS)[] = [];
+  if (listening) keys.push("nemotronProgram", "nemotronModel");
+  if (speaking) keys.push("localPython", "kokoroModel", "kokoroVoices");
+  return keys;
+}
+
+/** Whether the files needed by this listening and speaking choice are present. */
+export async function localSpeechReady(record: Record<string, unknown> | undefined, listening?: boolean, speaking?: boolean) {
+  const keys = localKeys(record, listening, speaking);
   try { await Promise.all(keys.map((key) => access(localPath(record, key)))); return true; }
   catch { return false; }
 }
 
 /** Only the standard location is set up automatically; custom paths are the owner's to fill. */
-export function canSetUpLocalSpeech(record: Record<string, unknown> | undefined) {
-  return (Object.keys(LOCAL_PATHS) as (keyof typeof LOCAL_PATHS)[]).every((key) => localPath(record, key) === LOCAL_PATHS[key]);
+export function canSetUpLocalSpeech(record: Record<string, unknown> | undefined, listening?: boolean, speaking?: boolean) {
+  return localKeys(record, listening, speaking).every((key) => localPath(record, key) === LOCAL_PATHS[key]);
 }
 
 /** Runs the same steps as npx picard-code setup-speech, reporting each step as it starts. Stopping the signal ends the download and everything it started. */
-export function setUpLocalSpeech(onStep: (step: string) => void, signal?: AbortSignal) {
+export function setUpLocalSpeech(onStep: (step: string) => void, signal?: AbortSignal, selection: SpeechSelection = { listening: "nemotron", speaking: "kokoro" }) {
   return new Promise<void>((done, fail) => {
     if (signal?.aborted) { fail(new Error("The local speech setup was stopped because Picard Code is closing.")); return; }
-    const child = spawn(process.execPath, [resolve(PICARD_FOLDER, "scripts", "setup-speech.mjs")], { cwd: PICARD_FOLDER, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32" });
+    const child = spawn(process.execPath, [resolve(PICARD_FOLDER, "scripts", "setup-speech.mjs"), "--listening", selection.listening, "--speaking", selection.speaking], { cwd: PICARD_FOLDER, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], detached: process.platform !== "win32" });
     let last = "";
     const read = (chunk: Buffer) => {
       for (const line of chunk.toString("utf8").split(/[\r\n]+/)) {
@@ -122,7 +132,7 @@ export async function readSpeechSettings(file: string): Promise<Record<string, u
 export function describeSpeechSettings(record: Record<string, unknown> | undefined): SpeechSettings {
   const text = (key: string, fallback = "") => typeof record?.[key] === "string" ? record[key] as string : fallback;
   return {
-    listening: record?.listening === "mai" ? "mai" : "whisper",
+    listening: record?.listening === "mai" ? "mai" : "nemotron",
     speaking: record?.speaking === "mai" ? "mai" : "kokoro",
     subscription: text("subscription"), resourceGroup: text("resourceGroup"), resourceName: text("resourceName"),
     region: text("region"), deployment: text("deployment"),
@@ -131,10 +141,11 @@ export function describeSpeechSettings(record: Record<string, unknown> | undefin
 
 /** Checks browser-provided settings and merges them into the saved record, keeping file paths the browser cannot see. */
 export function mergeSpeechSettings(saved: Record<string, unknown> | undefined, data: Record<string, unknown>) {
-  if (data.listening !== "mai" && data.listening !== "whisper") throw new Error("Choose Azure MAI or local Whisper for listening.");
+  if (data.listening !== "mai" && data.listening !== "nemotron") throw new Error("Choose Nemotron or Azure MAI for listening.");
   if (data.speaking !== "mai" && data.speaking !== "kokoro") throw new Error("Choose Azure MAI or local Kokoro for speaking.");
   if (RETIRED_VOICE_SETTINGS.some((key) => key in data)) throw new Error("The computer and crew voices are fixed. Choose only the listening and speaking services.");
   const record: Record<string, unknown> = { ...saved, listening: data.listening, speaking: data.speaking };
+  delete record.whisperModel;
   for (const key of RETIRED_VOICE_SETTINGS) delete record[key];
   for (const key of SETTING_NAMES) {
     const value = data[key];
@@ -154,15 +165,21 @@ export async function saveSpeechSettings(file: string, record: Record<string, un
 
 export async function loadSpeech(overrides: { listening?: string; speaking?: string } = {}, signal?: AbortSignal, file?: string): Promise<SpeechService | undefined> {
   const record = await readSpeechSettings(file ?? await speechSettingsFile());
+  // The app prepares and saves the replacement in the background, with visible progress.
+  if (record?.listening === "whisper" && !overrides.listening) {
+    const speaking = overrides.speaking ?? record.speaking ?? "kokoro";
+    if (speaking !== "mai" && speaking !== "kokoro") throw new Error("Choose mai or kokoro for speaking.");
+    return undefined;
+  }
   // With nothing chosen, speech on this computer starts only once its download is already there.
   if (!record && !overrides.listening && !overrides.speaking && !await localSpeechReady(undefined)) return undefined;
   return speechFromSettings(record ?? {}, overrides, signal);
 }
 
 export async function speechFromSettings(record: Record<string, unknown>, overrides: { listening?: string; speaking?: string } = {}, signal?: AbortSignal): Promise<SpeechService> {
-  const listening = overrides.listening ?? record.listening ?? "whisper";
+  const listening = overrides.listening ?? record.listening ?? "nemotron";
   const speaking = overrides.speaking ?? record.speaking ?? "kokoro";
-  if (listening !== "mai" && listening !== "whisper") throw new Error("Choose mai or whisper for listening. Speech services are never substituted silently.");
+  if (listening !== "mai" && listening !== "nemotron") throw new Error("Choose nemotron or mai for listening. Speech services are never substituted silently.");
   if (speaking !== "mai" && speaking !== "kokoro") throw new Error("Choose mai or kokoro for speaking. Speech services are never substituted silently.");
   const selection: SpeechSelection = { listening, speaking };
   const name = (key: string, fallback?: string) => {
@@ -177,14 +194,21 @@ export async function speechFromSettings(record: Record<string, unknown>, overri
     voice: DEFAULT_MAI_VOICE,
     voiceStyle: "neutral",
   }) : undefined;
-  const local = listening === "whisper" || speaking === "kokoro" ? await localSpeech({
+  const local = speaking === "kokoro" ? await localSpeech({
     python: localPath(record, "localPython"),
-    whisperModel: localPath(record, "whisperModel"),
     kokoroModel: localPath(record, "kokoroModel"),
     kokoroVoices: localPath(record, "kokoroVoices"),
     kokoroVoice: COMPUTER_VOICES.kokoro,
-  }, listening === "whisper", speaking === "kokoro", signal) : undefined;
-  const listener = listening === "mai" ? azure! : local!.listener;
+  }, signal) : undefined;
+  let nemotron: Awaited<ReturnType<typeof nemotronSpeech>> | undefined;
+  try {
+    if (listening === "nemotron") nemotron = await nemotronSpeech({
+      program: localPath(record, "nemotronProgram"), model: localPath(record, "nemotronModel"),
+    }, signal);
+  } catch (error) { await local?.close(); throw error; }
+  const listener = listening === "mai" ? azure! : nemotron!;
   const speaker = speaking === "mai" ? azure! : local!.speaker;
-  return { selection, listen: listener.listen, speak: speaker.speak, officerVoice: (officer) => crewVoice(officer, speaking), close: local?.close };
+  return { selection, listen: listener.listen, speak: speaker.speak, officerVoice: (officer) => crewVoice(officer, speaking), close: async () => {
+    await Promise.all([local?.close(), nemotron?.close()]);
+  } };
 }

@@ -22,9 +22,8 @@ def emit(event):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--whisper-model")
-parser.add_argument("--kokoro-model")
-parser.add_argument("--kokoro-voices")
+parser.add_argument("--kokoro-model", required=True)
+parser.add_argument("--kokoro-voices", required=True)
 parser.add_argument("--kokoro-voice", default="af_alloy")
 args = parser.parse_args()
 def phonemizer_for(voice):
@@ -40,16 +39,9 @@ try:
     with contextlib.redirect_stdout(sys.stderr):
         import numpy as np
 
-        whisper = None
         kokoro = None
         phonemizers = {}
         threads = min(4, os.cpu_count() or 1)
-        if args.whisper_model:
-            from faster_whisper import WhisperModel
-            whisper = WhisperModel(
-                args.whisper_model, device="cpu", compute_type="int8",
-                cpu_threads=threads, local_files_only=True,
-            )
         if args.kokoro_model:
             from kokoro_onnx import Kokoro
             import onnxruntime as ort
@@ -76,23 +68,7 @@ def run_job(request, cancelled):
         with contextlib.redirect_stdout(sys.stderr):
             if cancelled.is_set():
                 return
-            if request["method"] == "transcribe":
-                if whisper is None:
-                    raise ValueError("Whisper listening is not enabled.")
-                pcm = base64.b64decode(request["audio"], validate=True)
-                audio = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768
-                segments, _ = whisper.transcribe(
-                    audio, language="en", beam_size=3, vad_filter=True,
-                    condition_on_previous_text=False,
-                )
-                text = ""
-                for segment in segments:
-                    if cancelled.is_set():
-                        return
-                    text += segment.text
-                    emit({"id": identifier, "type": "partial", "text": text.strip()})
-                emit({"id": identifier, "type": "done", "text": text.strip()})
-            elif request["method"] == "synthesize":
+            if request["method"] == "synthesize":
                 if kokoro is None:
                     raise ValueError("Kokoro speaking is not enabled.")
                 voice = request.get("voice", args.kokoro_voice)

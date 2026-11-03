@@ -11,7 +11,7 @@ assets = pathlib.Path(__file__).parent / "assets"
 computer = json.loads((assets / "spoken.json").read_text())
 lines = {
     "narrator-1": ("af_heart", 1.0, "This is Picard Code. You speak to your code, and an AI coding agent does the work, on a bridge inspired by Star Trek: The Next Generation."),
-    "narrator-tech": ("af_heart", 1.0, "Under the hood, OpenCode does the coding, with the model provider you choose. Listening and speaking run on your own computer with Whisper and Kokoro, or in Azure with MAI voices."),
+    "narrator-tech": ("af_heart", 1.0, "Under the hood, OpenCode does the coding, with the model provider you choose. Listening and speaking run on your own computer with Nemotron and Kokoro, or in Azure with MAI voices."),
     "narrator-2": ("af_heart", 1.0, "With the bridge crew on, you can ask an officer by name."),
     "captain-1": ("bm_lewis", 0.9, "Computer. Mister Data, why do the shields read full when they are failing?"),
     "computer-1": ("bf_emma", 1.0, computer[0]),

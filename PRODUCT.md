@@ -38,9 +38,13 @@ and Belay that (stop work) have separate meanings. Decisions remain deliberate.
 Listening pauses during playback and settings changes; requests heard while
 work or a decision is pending are not sent.
 
-Listening and speaking share small, separate interfaces. Real CPU Whisper
+Listening and speaking share small, separate interfaces. Real CPU Nemotron
 listening and Kokoro speaking are the default, so anyone can run Picard Code
-without a cloud account. The supported MAI live listening and prebuilt MAI
+without a cloud account. Whisper is retired; saved installations automatically
+prepare Nemotron, keeping their speaking choice and saving only after startup.
+Preparation shows real steps, not an invented percentage, and failures offer retry.
+Nemotron shows words during speech, but only a complete request is sent.
+The supported MAI live listening and prebuilt MAI
 speaking services can be chosen instead, each side on its own.
 Azure listening receives detected speech before deciding whether "Computer"
 was said, including speech not meant for the model. Processing can occur
@@ -83,6 +87,6 @@ side-panel tiles; earlier entries are kept in Captain's log.
 ## Evidence on Hand
 
 Real checks cover OpenCode startup, saved log entries and shutdown, Azure MAI
-and local Whisper/Kokoro speech, and a six-turn spoken conversation with
+and earlier local Whisper/Kokoro speech (before Whisper was retired), and a six-turn spoken conversation with
 follow-ups, a correction, OpenCode's own question, and a refused command. The
 owner uses Picard Code daily with a real microphone on Windows and macOS.
