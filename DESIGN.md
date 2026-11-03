@@ -33,15 +33,16 @@ step, listening lights, a microphone button, and stopping controls when needed.
 There is no typing box or phone layout.
 
 Captain's log and the Project, Computer intelligence, and Listen · Speak tiles
-open in a slide-out, as do Provider in the top bar and About from the header dedication.
+open in a slide-out, as do AI provider in the top bar and About from the header dedication.
 Choosing it again, Current log entry, Escape, or the log entry beside it closes
 the slide-out. The Tribute tile is an On/Off switch, not a slide-out. Stardate
 shows the fan-formula date, with the ordinary date on hover.
 
 ## States and access
 
-The Provider setting uses a Captain-facing LCARS connection frame with a
-copyable terminal command, a clear Refresh connection action, and real
+The AI provider setting, headed Connect your AI provider, uses a Captain-facing
+LCARS connection frame with a copyable terminal command, a clear Refresh
+connection action, and real
 connection results. OpenCode owns sign-in. On first setup, show Connect first
 only when no providers are connected; already-connected providers go straight
 to Computer intelligence, even when no usable models are listed. Detect
@@ -53,7 +54,7 @@ Explain that it offers OpenCode's default models and recommend connecting a
 provider for the best experience. Hide both the button and explanation when
 that path is unavailable. A saved OpenCode choice does not prompt connection
 onboarding again.
-The first setup shows Connect provider, Choose AI model, and Set up speech,
+The first setup shows Connect AI provider, Choose AI model, and Set up speech,
 highlighting only the current step. Supporting connection and permission
 information stays under About the connection. Computer intelligence also
 links to Connect so the Captain can add providers later.

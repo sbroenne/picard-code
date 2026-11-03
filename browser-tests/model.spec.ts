@@ -47,9 +47,9 @@ test("first use requires a confirmed choice, not OpenCode's default or a dropdow
   await expect(page.locator("#model-guidance")).toHaveText("Choose the most capable AI model available for the best answers. It may cost more or take longer.");
   await expect(page.locator("#model-status")).toHaveText("Awaiting your selection");
   await expect(page.locator(".model-details")).not.toHaveAttribute("open", "");
-  await expect(page.getByText("Models are grouped by provider", { exact: false })).toBeHidden();
+  await expect(page.getByText("Models are grouped by AI provider", { exact: false })).toBeHidden();
   await page.getByText("About this choice", { exact: true }).click();
-  await expect(page.getByText("Models are grouped by provider", { exact: false })).toBeVisible();
+  await expect(page.getByText("Models are grouped by AI provider", { exact: false })).toBeVisible();
   await page.getByText("About this choice", { exact: true }).click();
   await expect(page.locator("#model optgroup")).toHaveCount(2);
   await page.selectOption("#model", other);
@@ -70,22 +70,24 @@ test("first use requires a confirmed choice, not OpenCode's default or a dropdow
 test("only default models open connection onboarding with an explicit optional model choice", async ({ page }) => {
   await launch(page, ["--free-models"]);
   await expect(page).toHaveURL(/#settings\/provider$/);
-  await expect(page.getByRole("heading", { name: "Connect your provider" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Connect your AI provider" })).toBeVisible();
+  await expect(page.locator('[data-setup-step="provider"]')).toHaveText("01 Connect AI provider");
+  await expect(page.getByRole("link", { name: /^AI provider/ })).toBeVisible();
   await expect(page.locator("#provider-welcome")).toHaveText("Welcome aboard, Captain.");
   await expect(page.locator("#provider-welcome")).toBeVisible();
-  await expect(page.locator("#provider-guidance")).toContainText("Connect your preferred provider in OpenCode");
+  await expect(page.locator("#provider-guidance")).toContainText("Connect your preferred AI provider in OpenCode");
   await expect(page.locator("#provider-guidance")).not.toContainText("Captain");
-  await expect(page.locator("#provider-status")).toHaveText("No connected providers found. 1 model available.");
+  await expect(page.locator("#provider-status")).toHaveText("No connected AI providers found. 1 model available.");
   await expect(page.locator('[data-setup-step="provider"]')).toHaveAttribute("aria-current", "step");
   await expect(page.locator("#readout-provider")).toHaveText("OpenCode models");
   await expect(page.locator("#workspace-caption")).toBeHidden();
   await page.getByRole("button", { name: "Refresh connection" }).click();
   await expect(page.getByRole("button", { name: "Refresh connection" })).toBeEnabled();
   await expect(page).toHaveURL(/#settings\/provider$/);
-  await expect(page.locator("#provider-status")).toHaveText("No connected providers found. 1 model available.");
+  await expect(page.locator("#provider-status")).toHaveText("No connected AI providers found. 1 model available.");
   const continueWithoutConnecting = page.getByRole("link", { name: "Continue without connecting" });
   await expect(continueWithoutConnecting).toHaveClass("pill outline");
-  await expect(continueWithoutConnecting).toHaveAccessibleDescription("Choose from OpenCode's default models. For the best experience, connect your own provider.");
+  await expect(continueWithoutConnecting).toHaveAccessibleDescription("Choose from OpenCode's default models. For the best experience, connect your own AI provider.");
   await continueWithoutConnecting.focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/#settings\/model$/);
@@ -102,8 +104,8 @@ test("only default models open connection onboarding with an explicit optional m
   await expect(page.locator("#setup-progress")).toBeHidden();
   await expect(page.locator("#readout-model")).toHaveText("Free test model");
   await page.getByRole("link", { name: /^Computer intelligence/ }).click();
-  await page.getByRole("link", { name: "Connect a provider" }).click();
-  await expect(page.getByRole("heading", { name: "Connect your provider" })).toBeVisible();
+  await page.getByRole("link", { name: "Connect an AI provider" }).click();
+  await expect(page.getByRole("heading", { name: "Connect your AI provider" })).toBeVisible();
   await expect(page.locator("#provider-welcome")).toBeHidden();
   await expect(page.locator("#setup-progress")).toBeHidden();
 });
@@ -135,7 +137,7 @@ test("connection onboarding does not offer a dead continuation when no models ar
   await expect(page).toHaveURL(/#settings\/provider$/);
   await expect(page.locator("#use-opencode-models")).toBeHidden();
   await expect(page.locator("#default-model-guidance")).toBeHidden();
-  await expect(page.locator("#provider-status")).toHaveText("No connected providers found. 0 models available.");
+  await expect(page.locator("#provider-status")).toHaveText("No connected AI providers found. 0 models available.");
 });
 
 test("refreshing after connecting a provider advances to explicit model selection", async ({ page }) => {
@@ -195,7 +197,7 @@ test("connection refresh stays single and shows real progress and failures", asy
   await expect(page.getByRole("alert")).toContainText("Test provider connection failed.");
   await expect(page.getByRole("button", { name: "Refresh connection" })).toBeEnabled();
   expect(refreshes).toBe(1);
-  await expect(page.locator("#provider-status")).toHaveText("No connected providers found. 1 model available.");
+  await expect(page.locator("#provider-status")).toHaveText("No connected AI providers found. 1 model available.");
 });
 
 test("missing saved models are named without selecting a replacement", async ({ page }) => {
@@ -223,8 +225,8 @@ test("losing every provider keeps a saved choice in model recovery, not first-ru
   await page.getByRole("button", { name: "Refresh connection" }).click();
   await expect(page.getByRole("button", { name: "Refresh connection" })).toBeEnabled();
   await expect(page).toHaveURL(/#settings\/model$/);
-  await page.getByRole("link", { name: "Connect a provider" }).click();
-  await expect(page.getByRole("heading", { name: "Connect your provider" })).toBeVisible();
+  await page.getByRole("link", { name: "Connect an AI provider" }).click();
+  await expect(page.getByRole("heading", { name: "Connect your AI provider" })).toBeVisible();
   await expect(page.locator("#provider-welcome")).toBeHidden();
 });
 

@@ -35,6 +35,7 @@ original TNG-inspired look.
   | New log entry | New task, New chat |
   | Current log entry (the main screen) | Conversation, Home |
   | Computer intelligence (the AI model setting) | Model (the panel or tile name) |
+  | AI provider | Provider (the tile name or connection wording) |
   | Stardate | date or time; dates and times are always shown and spoken as stardates |
   | Standing by | Idle, Ready |
   | Belay that | Stop work, Cancel (the button that cancels running work) |

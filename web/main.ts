@@ -214,7 +214,7 @@ function consoleStatus(): [string, string] {
   if (!state) return ["Starting up", ""];
   if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open."];
   if (!state.models.length) return ["Setup needed", modelSetupPart() === "provider"
-    ? "Connect a model provider: open Provider."
+    ? "Connect an AI provider: open AI provider."
     : "No models are available. Open Computer intelligence to refresh the connection."];
   if (!state.selectedModel) return ["Setup needed", "Open Computer intelligence, choose an AI model, and confirm your choice."];
   if (voice.mediaPaused) return ["Listening paused", "Pause the video or close its player to listen again."];
@@ -494,7 +494,7 @@ function controls() {
     ? `The saved model ${savedModel.providerID} / ${savedModel.modelID} is unavailable. Refresh the connection or choose a replacement.`
     : state && !state.models.length ? state.hasConnectedProvider
       ? "No models are available. Check your models in OpenCode, then refresh the connection."
-      : "No models are available. Connect a provider in OpenCode, then refresh the connection." : "");
+      : "No models are available. Connect an AI provider in OpenCode, then refresh the connection." : "");
   element("model-problem").textContent = problem;
   element("model-problem").hidden = !problem;
   element("refresh-model").hidden = !unavailable && !state?.modelError && !!state?.models.length;
@@ -524,11 +524,11 @@ function controls() {
   element("entry-stardate").textContent = `Stardate ${formatStardate(new Date(entryStarted))}`;
   element("provider-status").textContent = refreshingProvider ? "Refreshing connection"
     : !state ? "Checking"
-    : `${state.hasConnectedProvider ? "Provider connection found" : "No connected providers found"}. ${state.models.length} model${state.models.length === 1 ? "" : "s"} available.`;
+    : `${state.hasConnectedProvider ? "AI provider connection found" : "No connected AI providers found"}. ${state.models.length} model${state.models.length === 1 ? "" : "s"} available.`;
   element("provider-welcome").hidden = !onboarding || !!state?.hasConnectedProvider;
   element("provider-guidance").textContent = state?.hasConnectedProvider
-    ? "Connect another provider in OpenCode, or refresh after changing a connection."
-    : "Connect your preferred provider in OpenCode for the best Picard Code experience. Then choose its most capable model.";
+    ? "Connect another AI provider in OpenCode, or refresh after changing a connection."
+    : "Connect your preferred AI provider in OpenCode for the best Picard Code experience. Then choose its most capable model.";
   element("use-opencode-models").hidden = !state || state.hasConnectedProvider || !state.models.some((choice) => choice.providerID === "opencode");
   if (state?.selectedModel && state.speech?.configured) onboarding = false;
   showSetupProgress();
@@ -1265,7 +1265,7 @@ function closeDrawer() {
   if (openDrawer()) location.hash = "";
 }
 
-const settingsParts = { provider: ["Connect your provider", "orange"], model: ["Computer intelligence", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
+const settingsParts = { provider: ["Connect your AI provider", "orange"], model: ["Computer intelligence", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
 type SettingsPart = keyof typeof settingsParts;
 function showSetupProgress(part = location.hash.split("/")[1]) {
   element("setup-progress").hidden = !onboarding || !["provider", "model", "voice"].includes(part ?? "");

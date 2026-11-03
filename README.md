@@ -90,11 +90,11 @@ Before the computer starts listening, choose an **AI model** in
 model your provider offers; it may cost more or take longer to answer.
 Picard Code does not rank models or choose one for you, even when free OpenCode
 models are available. If OpenCode has no connected providers and you have not
-saved a model choice, the **Provider** panel opens first. It recommends
-connecting your preferred provider, with **Copy command** for OpenCode's
-sign-in command and **Refresh connection** when you return. **Use OpenCode
-models instead** continues to model selection without signing in. If a
-provider is already connected, you go straight to model selection.
+saved a model choice, **Connect your AI provider** opens first. It recommends
+connecting your preferred AI provider, with **Copy command** for OpenCode's
+sign-in command and **Refresh connection** when you return.
+**Continue without connecting** opens model selection without signing in.
+If a provider is already connected, you go straight to model selection.
 
 Your confirmed model is remembered on this computer, across restarts, browsers
 and project folders, without changing OpenCode's default. Existing users also
@@ -346,7 +346,7 @@ To sign in to a provider:
 2. Choose your provider from the list and follow its sign-in. For GitHub
    Copilot, that is GitHub's device sign-in: check you are signed in to the
    right account, enter the code OpenCode shows, and approve it yourself.
-3. Return to Picard Code, choose the **Provider** tile and then
+3. Return to Picard Code, choose the **AI provider** tile and then
    **Refresh connection**. Once a provider connection is found,
    **Computer intelligence** opens if no model has been confirmed. Models
    are grouped by provider: pick one and choose **Use this model**. The
@@ -354,12 +354,12 @@ To sign in to a provider:
    alone does not save or activate a choice.
 
 The Connect screen addresses you as the Captain and shows the first setup
-steps: connect a provider, choose a model, and set up speech. It does not ask
+steps: connect an AI provider, choose an AI model, and set up speech. It does not ask
 you to sign in again when OpenCode already has a connected provider. The
 secondary **Continue without connecting** button lets you choose from
 OpenCode's default models when available; a saved OpenCode model does not
 trigger connection onboarding again.
-You can add providers later through **Connect a provider** in Computer
+You can add providers later through **Connect an AI provider** in Computer
 intelligence. Local providers remain supported without an online account.
 A provider with no available models opens Computer intelligence so you can
 check OpenCode's model settings and refresh, rather than being sent through
@@ -420,11 +420,11 @@ screen; there is no phone layout.
   permanently, after you confirm; an entry that is still working cannot be
   deleted until it is stopped.
 - **Settings** (`#settings/…`): there is no Settings button. Each tile in the
-  side panel opens its own setting: **Provider** the sign-in steps,
+  side panel opens its own setting: **AI provider** the sign-in steps,
   **Computer intelligence** the AI model, **Project** the folder,
   **Listen · Speak** the speech services, and the tribute badge **About**.
   Choosing the same tile again
-  closes it. Without a saved model choice, Provider opens first only when
+  closes it. Without a saved model choice, AI provider opens first only when
   OpenCode has no connected providers; otherwise Computer intelligence opens.
   An unavailable saved model opens Computer intelligence for recovery,
   without choosing a replacement. Listening stays off until an available model
