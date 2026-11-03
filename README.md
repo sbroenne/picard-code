@@ -267,6 +267,12 @@ also recognises common mishearings, such as "Rika" for Riker or "Walt" for
 Worf, and sends a follow-up such as "Make it so" back to the officer who just
 answered.
 
+The officers do not know about events after their own fictional deaths,
+not the actors' deaths. They say they do not know rather than answer from
+later accounts or lookups, even after a return from death. This is not a
+TNG-only cutoff: Star Trek: Picard is included. The computer's answers are
+unchanged.
+
 An explicit officer address at the start always selects that officer directly,
 without the check; mentioning Data or saying "do not ask Data" does not.
 
@@ -333,9 +339,14 @@ with a question, a quick fact, an explanation and a piece of writing kept by the
 computer, requests needing an officer's judgment handed to the right officer
 without naming them (including misheard names) and real briefings, when
 asked for, in which the computer calls each
-officer itself. It cannot judge whether an officer sounds right; that needs
+officer itself. It also checks that Worf does not know a hypothetical
+post-death event, even when asked to use later archives. It cannot judge
+whether an officer sounds right; that needs
 you. It makes model requests, may incur provider charges, and never
 answers an approval itself.
+
+Use `npm run test:crew:live -- --model provider/model` to choose an available
+model for this check without changing your saved model choice.
 
 ## Connect a model provider
 
