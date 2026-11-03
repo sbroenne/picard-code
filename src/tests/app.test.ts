@@ -988,6 +988,69 @@ test("closing Picard Code stops a running speech download and uses nothing from 
   assert.equal(started, 0, "settings from a download stopped by shutdown are not applied");
 });
 
+test("saved Azure choices automatically prepare pause detection, preserve settings on failure, and retry without unused speech models", async (t) => {
+  let failDownload = true;
+  let ready = false;
+  let finish!: () => void;
+  const downloads: unknown[] = [];
+  const started: Record<string, unknown>[] = [];
+  const saved = { listening: "mai", speaking: "mai", region: "swedencentral", deployment: "test-listener" };
+  const context = await setup({
+    localSpeechReady: async (_record, listening, speaking) => ready || listening !== undefined || speaking !== undefined,
+    setUpLocalSpeech: async (step, _signal, selection) => {
+      downloads.push(selection);
+      step("Downloading and checking the local pause detection model");
+      if (failDownload) throw new Error("Test-only pause model checksum failure.");
+      await new Promise<void>((done) => { finish = done; });
+      ready = true;
+    },
+    startSpeech: async (record) => {
+      started.push(record);
+      return { ...speechFixture().service, selection: { listening: "mai", speaking: "mai" } };
+    },
+  }, saved);
+  t.after(context.cleanup);
+  await context.login();
+  const file = join(context.temporary, "speech.json");
+  const modelBefore = await readFile(context.modelFile, "utf8");
+  let job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") { await new Promise((done) => setTimeout(done, 5)); job = await (await context.request("speech-setup")).json(); }
+  assert.equal(job.state, "failed");
+  assert.match(job.error, /checksum failure/);
+  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), saved);
+  assert.deepEqual(started, []);
+  failDownload = false;
+  assert.equal((await context.request("speech-setup", {})).status, 202);
+  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), saved, "Preparation must not rewrite the saved Azure choices.");
+  assert.equal((await (await context.request("state")).json()).speech.configured, false);
+  finish();
+  job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") { await new Promise((done) => setTimeout(done, 5)); job = await (await context.request("speech-setup")).json(); }
+  assert.equal(job.state, "done");
+  assert.deepEqual(downloads, [{ listening: "mai", speaking: "mai" }, { listening: "mai", speaking: "mai" }]);
+  assert.deepEqual(started, [saved]);
+  assert.deepEqual(JSON.parse(await readFile(file, "utf8")), saved);
+  assert.equal(await readFile(context.modelFile, "utf8"), modelBefore);
+});
+
+test("automatic pause preparation refuses a missing custom Python before downloading anything", async (t) => {
+  let downloads = 0;
+  const saved = { listening: "mai", speaking: "mai", localPython: resolve("picard-test-missing-custom-python") };
+  const context = await setup({
+    localSpeechReady: async () => false,
+    setUpLocalSpeech: async () => { downloads++; },
+    startSpeech: async () => { assert.fail("A missing custom Python cannot be repaired by a default download."); },
+  }, saved);
+  t.after(context.cleanup);
+  await context.login();
+  let job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") { await new Promise((done) => setTimeout(done, 5)); job = await (await context.request("speech-setup")).json(); }
+  assert.equal(job.state, "failed");
+  assert.match(job.error, /configured Python file is missing/);
+  assert.equal(downloads, 0);
+  assert.deepEqual(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")), saved);
+});
+
 test("saved Whisper switches automatically, preserves settings on failure, and can retry", async (t) => {
   let failDownload = true;
   let finish!: () => void;
@@ -1110,7 +1173,11 @@ test("a failed local speech download is reported and changes nothing", async (t)
 });
 
 test("retry uses the failed speech choice after reload, keeps private paths, and starts only one retry", { timeout: 5000 }, async (t) => {
-  const original = { listening: "mai", speaking: "mai", region: "eastus", localPython: "/existing/private/python" };
+  const custom = await mkdtemp(resolve(".picard-test-custom-python-"));
+  t.after(() => rm(custom, { recursive: true, force: true }));
+  const python = join(custom, "python");
+  await writeFile(python, "Test-only existing Python file.");
+  const original = { listening: "mai", speaking: "mai", region: "eastus", localPython: python };
   const choice = { listening: "nemotron", speaking: "mai", region: "swedencentral", deployment: "listen" };
   let downloads = 0;
   let ready = false;
@@ -1165,12 +1232,16 @@ test("retry uses the failed speech choice after reload, keeps private paths, and
 });
 
 test("automatic replacement downloads only Nemotron when custom Kokoro files already work", async (t) => {
+  const custom = await mkdtemp(resolve(".picard-test-custom-python-"));
+  t.after(() => rm(custom, { recursive: true, force: true }));
+  const python = join(custom, "python");
+  await writeFile(python, "Test-only existing Python file.");
   const choices: unknown[] = [];
   const context = await setup({
     localSpeechReady: async (_record, listening = true) => !listening,
     setUpLocalSpeech: async (_step, _signal, selection) => { choices.push(selection); },
     startSpeech: async () => ({ ...speechFixture().service, selection: { listening: "nemotron", speaking: "kokoro" } }),
-  }, { listening: "whisper", speaking: "kokoro", localPython: "/custom/existing/python" });
+  }, { listening: "whisper", speaking: "kokoro", localPython: python });
   t.after(context.cleanup);
   await context.login();
   let job = await (await context.request("speech-setup")).json();
@@ -1180,7 +1251,7 @@ test("automatic replacement downloads only Nemotron when custom Kokoro files alr
   }
   assert.equal(job.state, "done");
   assert.deepEqual(choices, [{ listening: "nemotron", speaking: "mai" }], "MAI here skips a local download; it does not change the saved speaker.");
-  assert.equal(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")).localPython, "/custom/existing/python");
+  assert.equal(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")).localPython, python);
 });
 
 test("shutdown cancels speech startup and never saves the replacement", { timeout: 5000 }, async (t) => {

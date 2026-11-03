@@ -389,7 +389,6 @@ export class VoiceConversation {
               else this.checkTurn();
             }
           }
-          else if (data.type === "turn-detection") this.utterance.smartTurn = data.enabled;
           else if (data.type === "turn-result") {
             const check = this.turnCheck;
             const revision = this.detectionRevision;

@@ -120,8 +120,10 @@ export class LocalWorker {
     this.rejectStartup?.(new Error("Local speech loading was stopped."));
     this.closing = new Promise<void>((resolve) => {
       for (const job of this.jobs.values()) { job.error = new Error("Local speech was stopped."); job.wake?.(); }
-      if (this.child.exitCode !== null || this.child.signalCode !== null) { resolve(); return; }
-      this.child.once("exit", () => resolve());
+      if (!this.child.pid || this.child.exitCode !== null || this.child.signalCode !== null) { resolve(); return; }
+      const force = setTimeout(() => { this.child.kill("SIGKILL"); }, 2000);
+      force.unref();
+      this.child.once("close", () => { clearTimeout(force); resolve(); });
       this.child.kill();
     });
     return this.closing;

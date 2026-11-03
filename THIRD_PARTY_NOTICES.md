@@ -41,7 +41,10 @@ in the user's home folder.
 
 The selected services determine which files are downloaded. The pinned Python
 dependencies are in `scripts/requirements-kokoro.txt`.
-Nemotron listening alone needs no Python.
+Every listening choice uses Python, NumPy and ONNX Runtime for the shared
+pause detector. Azure-only and Nemotron-with-Azure-speaking preparation use
+the smaller pinned set in `scripts/requirements-turn.txt`, without Kokoro's
+speaking packages or models.
 Other installed dependencies retain their
 own license files and copyright notices; the table is not a replacement for
 those files.
@@ -62,14 +65,15 @@ requirements. Do not assume all
 local speech dependencies are MIT licensed. This repository's download setup
 does not grant permission to remove notices or bypass redistribution terms.
 
-## Optional Smart Turn trial
+## Smart Turn pause detection
 
-`--smart-turn` separately downloads `smart-turn-v3.2-cpu.onnx` from
+Speech preparation downloads `smart-turn-v3.2-cpu.onnx` from
 [Pipecat Smart Turn](https://huggingface.co/pipecat-ai/smart-turn-v3).
 It is BSD-2-Clause, copyright 2024-2025 Daily. Its full license is included in
 `scripts/smart-turn-LICENSE.txt` and copied beside the downloaded model in
 `~/.picard-code/voice/models`. The download is checked against a fixed SHA-256
-checksum. No model weights or evaluation recordings are shipped with the app.
+checksum and a fixed public revision. No model weights or evaluation recordings
+are shipped with the app.
 
 The local worker uses the existing NumPy and ONNX Runtime installation.
 Its audio feature calculation is independently implemented for the model's

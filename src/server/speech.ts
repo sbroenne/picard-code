@@ -10,6 +10,8 @@ import type { SpeechService, SpeechSelection } from "./speech-types.js";
 import type { SpeechSettings } from "../shared/types.js";
 import { COMPUTER_VOICES, crewVoice } from "../shared/crew-voices.js";
 import { NEMOTRON_MODEL, NEMOTRON_NOTICES, NEMOTRON_VERSION } from "../../scripts/setup-nemotron.mjs";
+import { TURN_MODEL } from "../../scripts/setup-turn.mjs";
+import { loadTurnDetector } from "./turn-detector.js";
 
 /** Fixed ready-made computer voices chosen from the measured comparison. */
 export const DEFAULT_MAI_VOICE = COMPUTER_VOICES.mai;
@@ -51,6 +53,9 @@ export async function localSpeechReady(record: Record<string, unknown> | undefin
   const keys = localKeys(record, listening, speaking);
   try {
     await Promise.all(keys.map((key) => access(localPath(record, key))));
+    if (listening === undefined && speaking === undefined) {
+      await Promise.all([access(localPath(record, "localPython")), access(join(VOICE_FOLDER, "models", TURN_MODEL)), access(join(VOICE_FOLDER, "models", "smart-turn-LICENSE.txt"))]);
+    }
     if (keys.includes("nemotronModel") && localPath(record, "nemotronModel") === LOCAL_PATHS.nemotronModel) {
       await Promise.all(NEMOTRON_NOTICES.map((name) => access(join(VOICE_FOLDER, "models", name))));
     }
@@ -62,6 +67,19 @@ export async function localSpeechReady(record: Record<string, unknown> | undefin
 /** Only the standard location is set up automatically; custom paths are the owner's to fill. */
 export function canSetUpLocalSpeech(record: Record<string, unknown> | undefined, listening?: boolean, speaking?: boolean) {
   return localKeys(record, listening, speaking).every((key) => localPath(record, key) === LOCAL_PATHS[key]);
+}
+
+/** A download into the standard location cannot repair a missing custom Python. */
+export async function checkSpeechSetup(record: Record<string, unknown>) {
+  const python = localPath(record, "localPython");
+  if (python === LOCAL_PATHS.localPython) return;
+  try { await access(python); }
+  catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      throw new Error("Your configured Python file is missing. Check localPython in the speech settings file. Automatic setup only prepares the standard location.");
+    }
+    throw error;
+  }
 }
 
 /** Runs the same steps as npx picard-code setup-speech, reporting each step as it starts. Stopping the signal ends the download and everything it started. */
@@ -174,6 +192,14 @@ export function needsListenerMigration(record: Record<string, unknown> | undefin
   return !!record && (record.listening === undefined || record.listening === "whisper");
 }
 
+function selectedSpeech(record: Record<string, unknown> | undefined, overrides: { listening?: string; speaking?: string }): SpeechSelection {
+  const listening = overrides.listening ?? record?.listening ?? "nemotron";
+  const speaking = overrides.speaking ?? record?.speaking ?? "kokoro";
+  if (listening !== "mai" && listening !== "nemotron") throw new Error("Choose nemotron or mai for listening. Speech services are never substituted silently.");
+  if (speaking !== "mai" && speaking !== "kokoro") throw new Error("Choose mai or kokoro for speaking. Speech services are never substituted silently.");
+  return { listening, speaking };
+}
+
 export async function loadSpeech(overrides: { listening?: string; speaking?: string } = {}, signal?: AbortSignal, file?: string): Promise<SpeechService | undefined> {
   const record = await readSpeechSettings(file ?? await speechSettingsFile());
   // The app prepares and saves the replacement in the background, with visible progress.
@@ -182,17 +208,16 @@ export async function loadSpeech(overrides: { listening?: string; speaking?: str
     if (speaking !== "mai" && speaking !== "kokoro") throw new Error("Choose mai or kokoro for speaking.");
     return undefined;
   }
+  const selection = selectedSpeech(record, overrides);
   // With nothing chosen, speech on this computer starts only once its download is already there.
   if (!record && !overrides.listening && !overrides.speaking && !await localSpeechReady(undefined)) return undefined;
+  if (record && !await localSpeechReady({ ...record, ...selection })) return undefined;
   return speechFromSettings(record ?? {}, overrides, signal);
 }
 
 export async function speechFromSettings(record: Record<string, unknown>, overrides: { listening?: string; speaking?: string } = {}, signal?: AbortSignal): Promise<SpeechService> {
-  const listening = overrides.listening ?? record.listening ?? "nemotron";
-  const speaking = overrides.speaking ?? record.speaking ?? "kokoro";
-  if (listening !== "mai" && listening !== "nemotron") throw new Error("Choose nemotron or mai for listening. Speech services are never substituted silently.");
-  if (speaking !== "mai" && speaking !== "kokoro") throw new Error("Choose mai or kokoro for speaking. Speech services are never substituted silently.");
-  const selection: SpeechSelection = { listening, speaking };
+  const selection = selectedSpeech(record, overrides);
+  const { listening, speaking } = selection;
   const name = (key: string, fallback?: string) => {
     const value = record[key] ?? fallback;
     if (typeof value !== "string" || !NAME.test(value)) throw new Error(`Provide a valid ${key} in the speech settings. Do not put keys there.`);
@@ -205,21 +230,23 @@ export async function speechFromSettings(record: Record<string, unknown>, overri
     voice: DEFAULT_MAI_VOICE,
     voiceStyle: "neutral",
   }) : undefined;
-  const local = speaking === "kokoro" ? await localSpeech({
-    python: localPath(record, "localPython"),
-    kokoroModel: localPath(record, "kokoroModel"),
-    kokoroVoices: localPath(record, "kokoroVoices"),
-    kokoroVoice: COMPUTER_VOICES.kokoro,
-  }, signal) : undefined;
+  const turnDetector = await loadTurnDetector(localPath(record, "localPython"), signal);
+  let local: Awaited<ReturnType<typeof localSpeech>> | undefined;
   let nemotron: Awaited<ReturnType<typeof nemotronSpeech>> | undefined;
   try {
+    if (speaking === "kokoro") local = await localSpeech({
+      python: localPath(record, "localPython"),
+      kokoroModel: localPath(record, "kokoroModel"),
+      kokoroVoices: localPath(record, "kokoroVoices"),
+      kokoroVoice: COMPUTER_VOICES.kokoro,
+    }, signal);
     if (listening === "nemotron") nemotron = await nemotronSpeech({
       program: localPath(record, "nemotronProgram"), model: localPath(record, "nemotronModel"),
     }, signal);
-  } catch (error) { await local?.close(); throw error; }
+  } catch (error) { await Promise.all([local?.close(), turnDetector.close()]); throw error; }
   const listener = listening === "mai" ? azure! : nemotron!;
   const speaker = speaking === "mai" ? azure! : local!.speaker;
-  return { selection, listen: listener.listen, speak: speaker.speak, officerVoice: (officer) => crewVoice(officer, speaking), close: async () => {
-    await Promise.all([local?.close(), nemotron?.close()]);
+  return { selection, turnDetector, listen: listener.listen, speak: speaker.speak, officerVoice: (officer) => crewVoice(officer, speaking), close: async () => {
+    await Promise.all([local?.close(), nemotron?.close(), turnDetector.close()]);
   } };
 }

@@ -13,13 +13,12 @@ import { speechFixture } from "./speech-fixture.js";
 
 function speaking() {
   const utterance = new Utterance();
-  utterance.smartTurn = true;
   assert.equal(utterance.update(0.9, 64), "start");
   assert.equal(utterance.update(0.9, 200), undefined);
   return utterance;
 }
 
-test("the trial checks a short pause and completes only after a real prediction", () => {
+test("a short pause completes only after a real prediction", () => {
   const utterance = speaking();
   assert.equal(utterance.update(0, 199), undefined);
   assert.equal(utterance.update(0, 1), "check");
@@ -53,7 +52,6 @@ test("an incomplete prediction has a bounded wait; resets, short noises and the 
   again.reset();
   assert.equal(again.finishCheck(revision, true), false);
   const click = new Utterance();
-  click.smartTurn = true;
   assert.equal(click.update(0.9, 64), "start");
   assert.equal(click.update(0, 900), "drop");
   const long = speaking();
@@ -75,6 +73,8 @@ createInterface({input:process.stdin}).on("line", (line) => {
   if (data.method === "cancel") { clearTimeout(pending.get(data.id)); pending.delete(data.id); return; }
   const first = Buffer.from(data.audio,"base64")[0];
   if (first === 3) { send({id:data.id,type:"done"}); return; }
+  if (first === 8) { process.exit(1); return; }
+  if (first === 9) { process.on("SIGTERM",()=>{}); return; }
   const finish = () => {
     send({id:data.id,type:"turn",probability:first===2?2:first===0?0.2:first===5?0.5:first===7?null:0.9});
     if (first === 6) send({id:data.id,type:"turn",probability:0.9});
@@ -123,8 +123,32 @@ test("a checker that never becomes ready can be stopped during startup", async (
   await assert.rejects(connectTurnDetector(process.execPath, ["-e", "setInterval(() => {}, 1000)"], AbortSignal.timeout(50)), /stopped/);
 });
 
-async function transport(t: TestContext, detector?: TurnDetector) {
+test("a missing or non-executable worker fails promptly rather than hanging during cleanup", { timeout: 5000 }, async (t) => {
+  const folder = await mkdtemp(resolve(".picard-test-turn-worker-"));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  await assert.rejects(connectTurnDetector(join(folder, "missing"), []), /Could not start local speech/);
+  const program = join(folder, "not-executable");
+  await writeFile(program, "Test-only file, not a program.", { mode: 0o600 });
+  await assert.rejects(connectTurnDetector(program, []), /Could not start local speech|Local speech stopped/);
+});
+
+test("a failed worker rejects that request and a fresh worker handles a later microphone attempt", async (t) => {
+  const detector = await worker(t);
+  await assert.rejects(detector.complete(Buffer.from([8, 0]), AbortSignal.timeout(5000)), /Local speech stopped/);
+  assert.equal(await detector.complete(Buffer.from([1, 0]), AbortSignal.timeout(5000)), true);
+  await detector.close();
+  await assert.rejects(detector.complete(Buffer.from([1, 0]), AbortSignal.timeout(5000)), /stopped/);
+});
+
+test("a hung worker is killed after its deadline, never retried, and the next request can recover", { timeout: 15000 }, async (t) => {
+  const detector = await worker(t);
+  await assert.rejects(detector.complete(Buffer.from([9, 0]), AbortSignal.timeout(12000)), /did not finish within five seconds/);
+  assert.equal(await detector.complete(Buffer.from([1, 0]), AbortSignal.timeout(3000)), true);
+});
+
+async function transport(t: TestContext, detector?: TurnDetector, prepared = true) {
   const speech = speechFixture("Computer, do not change any files.");
+  if (!prepared) delete speech.service.turnDetector;
   const server = createServer();
   const close = attachSpeech(server, speech.service, () => true, detector);
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
@@ -150,7 +174,6 @@ test("pause checks retain only the latest eight seconds and never commit the sel
   const audio: Uint8Array[] = [];
   const detector: TurnDetector = { async complete(bytes) { audio.push(bytes); return true; }, async close() {} };
   const { socket, events, next, speech } = await transport(t, detector);
-  assert.deepEqual(await next("turn-detection"), { type: "turn-detection", enabled: true });
   socket.send(JSON.stringify({ type: "listen", id: 1 }));
   await next("state", "listening");
   for (let index = 0; index < 410; index++) socket.send(Buffer.alloc(640, index % 256));
@@ -196,9 +219,18 @@ for (const action of ["pause", "commit", "listen", "disconnect"] as const) test(
   assert.equal(events.some((event) => event.type === "turn-result" || event.type === "transcript"), false);
 });
 
-for (const mode of ["disabled", "empty", "invalid-id"] as const) test(`pause checks reject ${mode} requests explicitly`, async (t) => {
+test("a service without prepared pause detection cannot start capturing or silently use a fixed delay", async (t) => {
+  const { socket, events, next, speech } = await transport(t, undefined, false);
+  socket.send(JSON.stringify({ type: "listen", id: 1 }));
+  const error = await next("error");
+  assert.match(error.type === "error" ? error.message : "", /Pause detection is not ready/);
+  assert.equal(speech.audioWrites, 0);
+  assert.equal(events.some((event) => event.type === "transcript"), false);
+});
+
+for (const mode of ["empty", "invalid-id"] as const) test(`pause checks reject ${mode} requests explicitly`, async (t) => {
   const detector: TurnDetector = { async complete() { assert.fail("Invalid checks must not reach the model."); }, async close() {} };
-  const { socket, events, next } = await transport(t, mode === "disabled" ? undefined : detector);
+  const { socket, events, next } = await transport(t, detector);
   socket.send(JSON.stringify({ type: "listen", id: 1 }));
   await next("state", "listening");
   if (mode !== "empty") socket.send(Buffer.alloc(640));

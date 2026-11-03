@@ -7,7 +7,6 @@ import { startApp } from "../server/app.js";
 import { availableModels } from "../server/engine.js";
 import { loadSpeech } from "../server/speech.js";
 import type { SpeechService } from "../server/speech-types.js";
-import { loadTurnDetector, type TurnDetector } from "../server/turn-detector.js";
 
 declare global {
   interface Window {
@@ -17,7 +16,6 @@ declare global {
 }
 
 const local = process.argv.includes("--local");
-const smartTurn = process.argv.includes("--smart-turn");
 const modelArgument = process.argv.indexOf("--model");
 const requestedModel = modelArgument < 0 ? undefined : process.argv[modelArgument + 1];
 if (modelArgument >= 0 && (!requestedModel || requestedModel.startsWith("--"))) throw new Error("Provide --model as provider/model.");
@@ -31,7 +29,6 @@ await mkdir(directory, { recursive: true });
 const temporary = await mkdtemp(resolve(".picard-live-check-"));
 const project = await projectDirectory(temporary);
 let speech: SpeechService | undefined;
-let turnDetector: TurnDetector | undefined;
 let engine: Awaited<ReturnType<typeof startEngine>> | undefined;
 let app: Awaited<ReturnType<typeof startApp>> | undefined;
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
@@ -43,7 +40,6 @@ let observationError: unknown;
 try {
   speech = await loadSpeech(local ? { listening: localListener, speaking: "kokoro" } : { listening: "mai", speaking: "mai" });
   assert.ok(speech);
-  if (smartTurn) turnDetector = await loadTurnDetector(controller.signal);
   const chunks: Uint8Array[] = [];
   const request = interrupt
     ? "Computer, please start your reply with the connection is ready. Then add ten short sentences about careful listening in the same paragraph. Do not use tools or change files."
@@ -79,7 +75,7 @@ try {
       }
     }
   })().catch((error: unknown) => { if (!controller.signal.aborted) observationError = error; });
-  app = await startApp({ client: engine.client, project, speech, turnDetector, modelFile: resolve(temporary, "model.json"), speechFile: resolve(temporary, "speech.json"), webRoot: resolve("web-dist") });
+  app = await startApp({ client: engine.client, project, speech, modelFile: resolve(temporary, "model.json"), speechFile: resolve(temporary, "speech.json"), webRoot: resolve("web-dist") });
   browser = await chromium.launch({ args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream",
     "--mute-audio", `--use-file-for-fake-audio-capture=${recording}`] });
   const context = await browser.newContext({ permissions: ["microphone"], viewport: { width: 1360, height: 980 } });
@@ -185,7 +181,7 @@ try {
   await expect(page.getByRole("status")).toHaveText("Microphone off", { timeout: 30_000 });
   assert.ok(sentAudio > 16000, "Actual browser microphone audio must reach the chosen listener.");
   assert.ok(receivedAudio > 16000, "Actual chosen speaking service must return audible-length audio.");
-  if (smartTurn) assert.ok(commands.includes("check-turn"), "The real Smart Turn worker must check a browser-captured pause before the request is sent.");
+  assert.ok(commands.includes("check-turn"), "The real Smart Turn worker must check a browser-captured pause before the request is sent.");
   if (!interrupt) assert.equal(audioWhileSpeaking, 0, "Playback must not be transcribed as another user request.");
   await expect(page.locator(".message[data-role=user]")).toHaveCount(interrupt ? 2 : 1);
   sessionID = (await engine.client.sessions(project))[0]?.id;
@@ -195,7 +191,7 @@ try {
   if (observationError) throw observationError;
   assert.ok((deltas.get(sessionID) ?? 0) > 0, "The real model answer must produce live text updates, not only a saved final reply.");
   await page.screenshot({ path: resolve(directory, `${name}-conversation.png`), fullPage: true });
-  console.log(`Real ${name} browser conversation passed: synthesized test microphone, ${smartTurn ? "real local Smart Turn pause detection, " : ""}automatic turn submission, OpenCode + ${choice.provider} ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, ${interrupt ? `${quiet ? "a quiet" : "a"} spoken interruption with the exact request preserved, ` : ""}mute and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
+  console.log(`Real ${name} browser conversation passed: synthesized test microphone, real local Smart Turn pause detection, automatic turn submission, OpenCode + ${choice.provider} ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, ${interrupt ? `${quiet ? "a quiet" : "a"} spoken interruption with the exact request preserved, ` : ""}mute and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
 } finally {
   controller.abort();
   await observation;
@@ -207,7 +203,7 @@ try {
   } finally {
     try { await app?.close(); }
     finally {
-      try { await Promise.all([speech?.close?.(), turnDetector?.close()]); }
+      try { await speech?.close?.(); }
       finally {
         try { await engine?.close(); }
         finally { await rm(temporary, { recursive: true }); }

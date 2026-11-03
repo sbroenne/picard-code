@@ -41,6 +41,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
   sockets.on("connection", (socket) => {
     const chosen = service();
     if (!chosen) { socket.close(1013, "Speech is not set up."); return; }
+    const detector = turnDetector ?? chosen.turnDetector;
     let phase: VoicePhase = "off";
     let input: SpeechInput | undefined;
     let listening: AbortController | undefined;
@@ -73,14 +74,13 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
     const stopSpeaking = () => { ++speechEpoch; speaking?.abort(); speaking = undefined; };
     const stop = () => { stopListening(); stopSpeaking(); };
     const fail = (message: string) => { stop(); state("off"); send({ type: "error", message }); };
-    send({ type: "turn-detection", enabled: !!turnDetector });
     const checkTurn = async (id: number) => {
-      if (!turnDetector) throw new Error("The Smart Turn trial is not enabled.");
+      if (!detector) throw new Error("Pause detection is not ready.");
       stopTurnCheck();
       const current = turnRevision;
       turnCheck = new AbortController();
       try {
-        const complete = await turnDetector.complete(Buffer.concat(turnAudio, turnBytes), turnCheck.signal);
+        const complete = await detector.complete(Buffer.concat(turnAudio, turnBytes), turnCheck.signal);
         if (current === turnRevision && phase === "listening") send({ type: "turn-result", id, complete });
       } catch (error) {
         if (current === turnRevision) fail(`Pause detection stopped. ${error instanceof Error ? error.message : "The spoken request was not sent."}`);
@@ -90,6 +90,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
     };
     const listen = async (id?: number) => {
       stopListening();
+      if (!detector) { fail("Pause detection is not ready. Prepare speech in the Listen · Speak tile, then switch the microphone on again."); return; }
       const current = epoch;
       listening = new AbortController();
       state("thinking");
@@ -166,7 +167,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
           if (!bytes.length || bytes.length % 2 || bytes.length > 2560) throw new Error("Microphone audio must contain small, complete 16-bit audio samples.");
           audioBytes += bytes.length;
           if (audioBytes > 16000 * 2 * 3600) throw new Error("Listening reached the service's one-hour limit. Click the microphone button to listen again.");
-          if (turnDetector) {
+          if (detector) {
             turnAudio.push(bytes);
             turnBytes += bytes.length;
             while (turnBytes > 256000) {
@@ -188,7 +189,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
           void listen(id);
         }
         else if (data.type === "check-turn") {
-          if (!turnDetector || phase !== "listening" || !input || !turnBytes) throw new Error("No spoken audio is waiting for pause detection.");
+          if (!detector || phase !== "listening" || !input || !turnBytes) throw new Error("No spoken audio is waiting for pause detection.");
           const id = "id" in data ? data.id : undefined;
           if (!(typeof id === "number" && Number.isSafeInteger(id) && id > 0)) throw new Error("The pause detection request is not valid.");
           void checkTurn(id);

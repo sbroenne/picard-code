@@ -225,7 +225,7 @@ for (const mode of ["smart-turn", "smart-turn-late"] as const) {
   });
 }
 
-test("the Smart Turn trial stops visibly on checker failure without submitting an unfinished request", async ({ page }) => {
+test("Smart Turn stops visibly on checker failure without submitting an unfinished request", async ({ page }) => {
   const capture = await thinkingPauseAudio(page);
   await launch(page, "smart-turn-error");
   await startListening(page);

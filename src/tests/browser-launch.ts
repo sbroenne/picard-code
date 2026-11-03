@@ -78,20 +78,20 @@ if (!process.argv.includes("--model-setup") || process.argv.includes("--model-un
 const settingsStandIn = process.argv.includes("--speech-settings");
 let turnChecks = 0;
 const smartTurn = process.argv.some((arg) => /^--smart-turn(?:-late|-error)?$/.test(arg));
-const app = await startApp({ client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"), speech, soundFolder, speechFile, modelFile, readWikipedia: wikipediaFixture,
-  turnDetector: smartTurn ? {
+if (smartTurn && speech) speech.turnDetector = {
     async complete(_audio, signal) {
       const first = ++turnChecks === 1;
       if (process.argv.includes("--smart-turn-error")) throw new Error("Test-only pause checker failure.");
       if (first && process.argv.includes("--smart-turn-late")) {
-        await new Promise<void>((done) => setTimeout(done, 2500));
+        await new Promise<void>((done) => setTimeout(done, 2000));
         return true;
       }
       signal.throwIfAborted();
       return !first;
     },
     async close() {},
-  } : undefined,
+  };
+const app = await startApp({ client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"), speech, soundFolder, speechFile, modelFile, readWikipedia: wikipediaFixture,
   localSpeechReady: settingsStandIn ? async () => true : undefined,
   startSpeech: settingsStandIn ? async (settings) => {
     if (settings.region === "broken") throw new Error("Test speech service could not start.");

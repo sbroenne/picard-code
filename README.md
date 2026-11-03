@@ -64,7 +64,7 @@ You need:
 - A microphone, and speakers or headphones.
 - A model provider OpenCode can use (see
   [Connect a model provider](#connect-a-model-provider)).
-- For speech on this computer, one of these computers. Allow **2 GB**
+- For the default Nemotron and Kokoro speech, one of these computers. Allow **2 GB**
   of free disk space for the default Nemotron and Kokoro setup:
   - an Apple silicon Mac with macOS 14 or newer;
   - Windows on an x64 or ARM processor (ARM uses Intel-compatible Python
@@ -73,7 +73,11 @@ You need:
 
   Nemotron's Linux runtime needs glibc 2.31 or newer. Windows ARM uses the Intel-compatible
   Nemotron runtime; that path has not yet been checked on a Windows ARM machine.
-  Other computers can use [Azure speech](#azure-speech-setup) instead.
+  Other supported computers, including Intel Macs with macOS 14 or newer,
+  can use [Azure speech](#azure-speech-setup) instead. All choices need local
+  pause detection: macOS 14 or newer, Windows, or Linux with glibc 2.28 or
+  newer, on an x64 or arm64 processor. Preparation installs its Python
+  packages automatically.
 
 Then, in a terminal:
 
@@ -115,8 +119,9 @@ This is a one-time download; later starts use your saved speech choices.
 The preparation screen keeps its explanation and controls together. The
 listening console appears only after speech is available, not during setup.
 If you choose [Azure speech](#azure-speech-setup) for both listening and
-speaking, no local speech download is needed. Speech choices are separate
-from the model provider OpenCode uses.
+speaking, setup prepares only the small local pause detector and its Python
+packages, not Nemotron or Kokoro. Speech choices are separate from the model
+provider OpenCode uses.
 
 Your browser opens automatically. Keep the terminal open; press **Ctrl+C** to
 stop Picard Code and the OpenCode server it started. Use `--no-open` to print
@@ -581,9 +586,10 @@ on-screen button.
   included with Picard Code and run inside your browser) tells speech
   apart from steady background noise such as a fan. When someone starts
   talking, that speech (including the half second before it, so the first word
-  is kept) goes to the selected listening service. A pause of about a second
-  ends the turn by default. The optional [Smart Turn trial](#smart-turn-trial)
-  checks whether a thought sounds finished instead.
+  is kept) goes to the selected listening service. A local
+  [Smart Turn pause detector](#natural-pauses) checks whether a thought sounds
+  finished, so an unfinished-sounding thought gets more time without adding
+  a long delay to every request.
 - **Start a task with "Computer"**, for example "Computer, explain this
   project". Before a task starts, anything else is shown as "Not sent",
   plays the not-understood sound and is dropped. Saying "Computer" on its own plays the accepted sound and gives you
@@ -731,7 +737,7 @@ not an invented percentage. Reopening the page follows the same download.
 Azure choices are under **Listen · Speak → Advanced setup** and require your
 own subscription and deployed speech models.
 
-Only the selected local services are downloaded. Nemotron needs about
+Only the selected local services and the shared pause detector are downloaded. Nemotron needs about
 **700 MB** for its English model and about **7-10 MB** for its CPU runtime.
 Kokoro's model
 and voice data need about **354 MB**. The default combination therefore
@@ -754,21 +760,24 @@ npx picard-code setup-speech
 This downloads Nemotron and Kokoro without changing saved choices.
 Setup also accepts `--speaking mai`
 to skip Kokoro, or `--listening mai` to skip local listening.
+With both set to `mai`, it prepares just local pause detection. None of these
+commands changes saved speech choices.
 
 Setup works in this order, all inside `.picard-code` in your home folder:
 
 1. It checks that this computer can run local speech (see
    [Get started](#get-started)), and stops with a plain reason if not.
-2. When Kokoro is needed, it uses the [uv](https://docs.astral.sh/uv/) already installed, a tool that
+2. It uses the [uv](https://docs.astral.sh/uv/) already installed, a tool that
    sets up Python. If there is none, it downloads uv 0.13.6 from uv's GitHub
    release and checks it against a fixed checksum.
-3. If Kokoro is selected, uv finds or downloads Python 3.11 and
-   installs its pinned packages. Nemotron alone does not
-   need Python.
+3. uv finds or downloads Python 3.11 and installs pinned NumPy and ONNX
+   Runtime packages for pause detection. It installs Kokoro's speaking
+   packages only when Kokoro is selected.
 4. It downloads the selected models and, for Nemotron, the official CPU runtime.
    The Nemotron runtime and model and the Kokoro files have fixed SHA-256
-   checksums. Nemotron model downloads use a fixed public revision
-   with no account token. Licenses and notices stay with the files.
+   checksums. The roughly 9 MB Smart Turn v3.2 CPU model is shared by all
+   listening choices. Nemotron and Smart Turn downloads use fixed public
+   revisions with no account token. Licenses and notices stay with the files.
 
 Allow 2 GB of free disk space for the default setup.
 An installed uv keeps any Python it downloads in its usual place; otherwise
@@ -778,8 +787,9 @@ binds only to `127.0.0.1`, requires a server-held connection key, and stops
 when Picard Code stops.
 
 All paths use the same automatic listen/respond loop. Nemotron and MAI show
-words while you speak. The
-browser still decides when the complete request ends, so live words cannot
+words while you speak. Silero in the browser detects speech, and Smart Turn
+on this computer checks whether each pause sounds like the end of a thought.
+The browser sends the finished request only after that decision, so live words cannot
 start work or answer approvals. Stopping speech discards late audio and does
 not block the separate listening worker. No service is silently replaced if
 setup fails.
@@ -1016,12 +1026,13 @@ rendered as Markdown with unsafe HTML removed by DOMPurify, not executed as
 scripts. These protections are not a barrier
 against another program already running on your computer.
 
-## Smart Turn trial
+## Natural pauses
 
-Start with `npm start -- --smart-turn` from a built source checkout, or
-`npx picard-code --smart-turn` when using a release that includes the trial.
-Without that flag, listening is unchanged. The one-minute request limit
-still applies.
+Smart Turn v3.2 is part of normal speech setup for both local and Azure
+listening. Start Picard Code normally; no extra flag or saved preference is
+needed. Existing installations prepare any missing files through the same
+visible speech preparation flow, keeping the selected listening and speaking
+services. The one-minute request limit still applies.
 
 Silero still detects speech. After about 0.2 seconds of quiet, a local
 Smart Turn v3.2 model checks the recent audio. A finished-sounding request
@@ -1029,25 +1040,32 @@ can be sent promptly; an unfinished-sounding thought gets up to three
 seconds of uninterrupted quiet. Speaking again cancels the old decision.
 This is not a three-second delay on every request.
 
-The trial needs the local speech Python environment, including NumPy and
-ONNX Runtime, even when Azure is selected for listening and speaking.
-If it is missing, run
-`npx picard-code setup-speech --listening mai --speaking kokoro` to prepare
-it without changing saved speech choices. First use downloads about 9 MB
-from the public Pipecat model repository on Hugging Face, checks its fixed
-checksum, and keeps the model and license in `~/.picard-code/voice/models`.
-The completion check runs on this computer's CPU; it saves no recordings
+All speech choices need the local Python environment, including NumPy and
+ONNX Runtime. Preparation handles this automatically, including Azure-only
+setups. To prepare just pause detection from a terminal, run
+`npx picard-code setup-speech --listening mai --speaking mai`; this does not
+change saved choices or download unused Nemotron or Kokoro models.
+The model comes from a fixed revision of the public Pipecat repository on
+Hugging Face, with a checked checksum, and stays with its license in
+`~/.picard-code/voice/models`. The check uses only the last eight seconds of
+audio and runs on this computer's CPU; it saves no recordings
 and sends no audio to Hugging Face. Listening audio still goes to your
 selected Nemotron or Azure service as before. AI providers are unchanged.
-If the checker fails, listening stops with the actual error; an unfinished
-request is not sent as a fallback.
+If the checker fails or takes more than five seconds, listening stops with
+the actual error; an unfinished request is not sent as a fallback. Switching
+the microphone on again starts a fresh worker when the previous one failed.
+The failed request is never resent automatically.
 
-This is an opt-in experiment, not a proven fix for every thinking pause.
+Model judgments are not a guarantee against every early cutoff.
 The earlier evaluation matched 39 of 40 labels in a small
 [public human-speech sample](https://huggingface.co/datasets/pipecat-ai/smart-turn-data-v3.1-test),
 but protected only 4 of 16 digitally inserted pauses in generated
-speech. Those are limited samples, not an accuracy guarantee. Real microphone,
-room-noise, accent, Windows and Linux checks are still needed.
+speech. Those are limited samples, not an accuracy guarantee. Generated-audio
+browser checks cover both real Nemotron/Kokoro and real Azure speech with
+OpenCode on Apple silicon. Physical microphones, room noise, other accents,
+Windows and Linux have not yet been checked for this pause detector.
+If you use a custom `localPython` path, that environment must already provide
+NumPy and ONNX Runtime. Automatic preparation does not repair custom paths.
 See [third-party notices](THIRD_PARTY_NOTICES.md) for the model license.
 
 ## Checks
@@ -1068,7 +1086,6 @@ npm run test:speech:live
 npm run test:speech:local
 npm run test:conversation:live
 npm.cmd run test:conversation:live -- --local
-npm.cmd run test:conversation:live -- --local --smart-turn
 npm.cmd run test:conversation:live -- --local --interrupt
 npm.cmd run test:conversation:live -- --local --quiet-interrupt
 npm run test:behavior:live
@@ -1114,10 +1131,9 @@ Add `--model provider/model` to choose a particular available model for the
 check, for example
 `npm run test:conversation:live -- --local --model github-copilot/gpt-5.3-codex`.
 This does not change your saved Picard Code model or speech choices.
-Add `--smart-turn` to exercise the real local completion model through the
-browser's captured audio and confirm that a pause was checked before
-submission. This downloads the model if needed and requires the local Python
-environment described in [Smart Turn trial](#smart-turn-trial).
+Both paths exercise the real local completion model through the browser's
+captured audio and confirm that a pause was checked before submission.
+Prepare speech first as described in [Natural pauses](#natural-pauses).
 Add `--interrupt` to play a generated request into the browser's capture path
 while a real spoken answer is playing. It checks that playback stops, the
 new request keeps its name and negation, and no stop-work request is sent.

@@ -28,10 +28,13 @@ test("an utterance starts with a short run of voice, ends after a real pause, an
   assert.equal(detector.active, false);
   assert.equal(detector.update(0.9, 64), "start");
   assert.equal(detector.update(0.9, 200), undefined);
-  assert.equal(detector.update(0, 400), undefined);
+  assert.equal(detector.update(0, 200), "check");
+  assert.equal(detector.finishCheck(detector.revision, false), false);
+  assert.equal(detector.update(0, 200), undefined);
   assert.equal(detector.update(0.9, 100), undefined, "A short breath does not end the utterance.");
-  assert.equal(detector.update(0, 899), undefined);
-  assert.equal(detector.update(0, 1), "end");
+  assert.equal(detector.update(0, 199), undefined);
+  assert.equal(detector.update(0, 1), "check");
+  assert.equal(detector.finishCheck(detector.revision, true), true);
   assert.equal(detector.update(0, 1000), undefined);
   assert.equal(detector.update(0.9, 64), "start");
   for (let index = 0; index < 1872; index++) assert.equal(detector.update(0.9, 32), undefined);
@@ -44,8 +47,9 @@ test("a request needs a clear voice to start but continues through softer words"
   assert.equal(detector.update(0.6, 32), undefined);
   assert.equal(detector.update(0.6, 32), "start");
   for (let index = 0; index < 60; index++) assert.equal(detector.update(0.4, 32), undefined, "Softer words keep the request open.");
-  assert.equal(detector.update(0.3, 899), undefined);
-  assert.equal(detector.update(0.3, 1), "end");
+  assert.equal(detector.update(0.3, 199), undefined);
+  assert.equal(detector.update(0.3, 1), "check");
+  assert.equal(detector.finishCheck(detector.revision, true), true);
 });
 
 test("the voice detector cuts 20 ms microphone packets into 32 ms frames with the samples before each", () => {
@@ -72,7 +76,10 @@ test("steady background noise after a quiet spell never opens a request, but a v
     detector.reset();
     for (const piece of packets(audio)) for (const frame of frames.push(piece)) {
       const change = utterance.update(await detector.speech(frame), SPEECH_FRAME / 16);
-      if (change) changes.push(change);
+      if (change === "check") {
+        // This check isolates Silero's noise rejection, not completion-model accuracy.
+        if (utterance.finishCheck(utterance.revision, true)) changes.push("end");
+      } else if (change) changes.push(change);
     }
     return { changes, open: utterance.active };
   };
@@ -320,7 +327,7 @@ test("Nemotron is the default and retired Whisper settings describe their replac
   assert.throws(() => mergeSpeechSettings(undefined, { listening: "whisper", speaking: "mai" }), /Choose Nemotron or Azure MAI/);
   assert.throws(() => mergeSpeechSettings(undefined, { listening: "unknown", speaking: "kokoro" }), /Choose Nemotron or Azure MAI/);
   const missing = { localPython: "picard-missing-python" };
-  await assert.rejects(speechFromSettings(missing), /local speech file is missing\. Run npx picard-code setup-speech/);
+  await assert.rejects(speechFromSettings(missing), /local pause detector is not prepared/);
   await assert.rejects(speechFromSettings({ listening: "nemotron", speaking: "mai" }), /valid subscription/);
   await assert.rejects(speechFromSettings({ listening: "other", speaking: "kokoro" }), /never substituted silently/);
   await assert.rejects(speechFromSettings({ ...missing, listening: "mai", speaking: "mai" }), /valid subscription/);

@@ -7,23 +7,22 @@ export type SpeechEvent =
   | { type: "transcript"; text: string }
   | { type: "audio-start"; rate: number; id: number }
   | { type: "audio-end"; id: number }
-  | { type: "turn-detection"; enabled: boolean }
   | { type: "turn-result"; id: number; complete: boolean }
   | { type: "error"; message: string };
 
 // Speech detector chances: a request starts above the first and continues above the second.
 const SPEECH_STARTS = 0.5;
 const SPEECH_CONTINUES = 0.35;
+const CHECK_PAUSE = 200;
+const THINKING_PAUSE = 3000;
 
 /**
- * Finds one spoken utterance, on this computer, before any audio is sent. It reads the speech
- * detector's chance that each moment is a voice, not loudness, so a steady fan or hum never
- * opens a request. It starts after a short run of voice, ends after a real pause, and is dropped
- * when it was only a click or a cough. Very long speech is ended after a minute.
+ * Tracks speech locally, asks for a completion check at a short pause, and gives
+ * unfinished thoughts a longer pause. A click or cough is dropped. The original
+ * one-minute limit still bounds the complete recording, including thinking pauses.
  */
 export class Utterance {
   active = false;
-  smartTurn = false;
   revision = 0;
   private run = 0;
   private voiced = 0;
@@ -34,10 +33,10 @@ export class Utterance {
   reset() { this.revision++; this.active = false; this.run = 0; this.voiced = 0; this.silence = 0; this.length = 0; this.checked = false; this.incomplete = false; }
   /** A prediction belongs only to the uninterrupted pause that requested it. */
   finishCheck(revision: number, complete: boolean) {
-    if (!this.smartTurn || !this.active || !this.checked || revision !== this.revision || this.silence < 200) return false;
+    if (!this.active || !this.checked || revision !== this.revision || this.silence < CHECK_PAUSE) return false;
     if (!complete) {
       this.incomplete = true;
-      if (this.silence < 3000) return false;
+      if (this.silence < THINKING_PAUSE) return false;
     }
     this.reset();
     return true;
@@ -59,9 +58,9 @@ export class Utterance {
       this.checked = this.incomplete = false;
     }
     else this.silence += milliseconds;
-    if (this.smartTurn && this.voiced >= 150 && this.length < 60_000) {
-      if (this.silence >= 3000 && this.incomplete) { this.reset(); return "end"; }
-      if (this.silence >= 200 && !this.checked) { this.checked = true; return "check"; }
+    if (this.voiced >= 150 && this.length < 60_000) {
+      if (this.silence >= THINKING_PAUSE && this.incomplete) { this.reset(); return "end"; }
+      if (this.silence >= CHECK_PAUSE && !this.checked) { this.checked = true; return "check"; }
       return undefined;
     }
     if (this.silence < 900 && this.length < 60_000) return undefined;

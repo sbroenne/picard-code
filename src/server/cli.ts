@@ -9,7 +9,6 @@ import { projectDirectory, startEngine, openBrowser, openCodeCommand } from "./p
 import { loadSpeech, PICARD_HOME } from "./speech.js";
 import type { SpeechService } from "./speech-types.js";
 import { setupSounds, soundFolder } from "../../scripts/setup-sounds.mjs";
-import { loadTurnDetector } from "./turn-detector.js";
 
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
@@ -35,7 +34,6 @@ async function main() {
       "no-open": { type: "boolean" },
       listening: { type: "string" },
       speaking: { type: "string" },
-      "smart-turn": { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -50,7 +48,6 @@ async function main() {
   --no-open       Print the address without opening a browser
   --listening     nemotron (on this computer, the default) or mai (Azure)
   --speaking      kokoro (on this computer, the default) or mai (Azure)
-  --smart-turn    Check locally whether a spoken thought sounds finished
   --help, -h      Show these instructions
 
   npx picard-code setup-speech       Download local Nemotron and Kokoro speech
@@ -67,7 +64,6 @@ and choose your provider. Downloads and settings are kept in ${PICARD_HOME}.`);
   let cleanupEngine: (() => Promise<void>) | undefined;
   let cleanupApp: (() => Promise<void>) | undefined;
   let cleanupSpeech: (() => Promise<void> | undefined) | undefined;
-  let cleanupTurnDetector: (() => Promise<void>) | undefined;
   let stopping = false;
   const controller = new AbortController();
   const cleanup = async () => {
@@ -76,10 +72,7 @@ and choose your provider. Downloads and settings are kept in ${PICARD_HOME}.`);
     try { await cleanupApp?.(); }
     finally {
       try { await cleanupSpeech?.(); }
-      finally {
-        try { await cleanupTurnDetector?.(); }
-        finally { await cleanupEngine?.(); }
-      }
+      finally { await cleanupEngine?.(); }
     }
   };
   const shutdown = () => {
@@ -135,18 +128,15 @@ and choose your provider. Downloads and settings are kept in ${PICARD_HOME}.`);
       console.error(speechError);
     }
     cleanupSpeech = () => speech?.close?.();
-    const turnDetector = values["smart-turn"] ? await loadTurnDetector(controller.signal) : undefined;
-    cleanupTurnDetector = turnDetector?.close;
     controller.signal.throwIfAborted();
     const app = await startApp({
       client, project, port, prepareCrew,
       speech, speechError, speechOverrides: { listening: values.listening, speaking: values.speaking },
       webRoot: fileURLToPath(new URL("../../web-dist/", import.meta.url)),
-      soundFolder, turnDetector,
+      soundFolder,
     });
     // From here the app owns speech, including any service chosen later in settings.
     cleanupSpeech = undefined;
-    cleanupTurnDetector = undefined;
     cleanupApp = app.close;
     console.log(`\nPicard Code is ready.\nProject: ${project}\n\n${app.url}\n\nKeep this terminal open. Press Ctrl+C to stop.\n`);
     if (!values["no-open"]) {

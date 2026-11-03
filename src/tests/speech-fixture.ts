@@ -9,6 +9,8 @@ export function speechFixture(phrases: string | string[] = "Hello computer", sec
   let spoken = "";
   const said: { text: string; voice?: SpeakingVoice; speed?: number }[] = [];
   const service: SpeechService = {
+    // Labelled test stand-in: synthetic microphone phrases are complete.
+    turnDetector: { async complete() { return true; }, async close() {} },
     async listen(callbacks, signal) {
       await wait(5, undefined, { signal });
       let closed = false;

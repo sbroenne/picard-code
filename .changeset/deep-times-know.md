@@ -2,4 +2,4 @@
 "picard-code": patch
 ---
 
-Add an opt-in Smart Turn trial that checks whether a spoken thought sounds finished, giving unfinished thoughts more time without delaying every request. Start with --smart-turn; normal listening and saved speech choices stay unchanged.
+Listening now checks whether a spoken thought sounds finished, giving unfinished thoughts more time without adding a long wait to every request. Pause detection prepares automatically for local and Azure speech, keeps saved speech choices, and stops with a clear error rather than sending an unfinished request when a check fails.
