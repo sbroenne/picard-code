@@ -6,8 +6,6 @@ import urllib.request
 
 # The models folder, given by setup-speech.mjs.
 ROOT = Path(sys.argv[1])
-LISTENING = sys.argv[2] if len(sys.argv) > 2 else "nemotron"
-SPEAKING = sys.argv[3] if len(sys.argv) > 3 else "kokoro"
 ASSETS = {
     "kokoro-v1.0.onnx": "beb0d1848dee9a49da392cc3df26958d46cfa35d321edf434f52949153f0df3a",
     "voices-v1.0.bin": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d",
@@ -34,16 +32,6 @@ def download(name, expected):
 
 
 ROOT.mkdir(parents=True, exist_ok=True)
-if SPEAKING == "kokoro":
-    for name, checksum in ASSETS.items():
-        download(name, checksum)
-if LISTENING == "whisper":
-    from huggingface_hub import snapshot_download
-    snapshot_download(
-        "Systran/faster-whisper-tiny.en",
-        revision="0d3d19a32d3338f10357c0889762bd8d64bbdeba",
-        local_dir=ROOT / "whisper-tiny.en",
-        allow_patterns=["model.bin", "config.json", "tokenizer.json", "vocabulary.*", "README.md"],
-        token=False,
-    )
+for name, checksum in ASSETS.items():
+    download(name, checksum)
 print(f"Local speech models are ready in {ROOT}.")

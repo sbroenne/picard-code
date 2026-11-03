@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { WebSocket } from "ws";
 import { setTimeout as wait } from "node:timers/promises";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { resolve, join } from "node:path";
 import { Utterance, firstSentence, replyFailed, speakable, spokenReply, spokenSummary, type SpeechEvent } from "../shared/speech.js";
 import { addressed, interruptsSpeech, voiceCommand } from "../shared/wake.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
 import type { FormField, FormRequest } from "../shared/types.js";
 import { speakingDocument } from "../server/azure-speech.js";
-import { DEFAULT_MAI_VOICE, describeSpeechSettings, mergeSpeechSettings, speechFromSettings } from "../server/speech.js";
+import { DEFAULT_MAI_VOICE, describeSpeechSettings, mergeSpeechSettings, speechFromSettings, loadSpeech } from "../server/speech.js";
 import { attachSpeech } from "../server/speech-bridge.js";
 import { speechFixture } from "./speech-fixture.js";
 
@@ -279,13 +281,15 @@ test("spoken question answers match only clear, offered choices and keep the use
   assert.equal(canAskAloud(form(question, { ...question, key: "q1", hidden: true })), true);
 });
 
-test("Nemotron is the default and saved Whisper choices are preserved", async () => {
+test("Nemotron is the default and retired Whisper settings describe their replacement without rewriting", async () => {
   assert.equal(describeSpeechSettings(undefined).listening, "nemotron");
-  assert.equal(describeSpeechSettings({ listening: "whisper" }).listening, "whisper");
+  assert.equal(describeSpeechSettings({ listening: "whisper" }).listening, "nemotron");
   assert.equal(describeSpeechSettings({ listening: "mai" }).listening, "mai");
-  assert.equal(mergeSpeechSettings({ listening: "whisper", whisperModel: "/custom/model" }, { listening: "nemotron", speaking: "kokoro" }).listening, "nemotron");
-  assert.equal(mergeSpeechSettings(undefined, { listening: "whisper", speaking: "mai" }).listening, "whisper");
-  assert.throws(() => mergeSpeechSettings(undefined, { listening: "unknown", speaking: "kokoro" }), /Choose Nemotron, Whisper or Azure MAI/);
+  const legacy = { listening: "whisper", whisperModel: "/custom/model", localPython: "/custom/python" };
+  assert.deepEqual(mergeSpeechSettings(legacy, { listening: "nemotron", speaking: "kokoro" }), { listening: "nemotron", speaking: "kokoro", localPython: "/custom/python" });
+  assert.equal(legacy.listening, "whisper");
+  assert.throws(() => mergeSpeechSettings(undefined, { listening: "whisper", speaking: "mai" }), /Choose Nemotron or Azure MAI/);
+  assert.throws(() => mergeSpeechSettings(undefined, { listening: "unknown", speaking: "kokoro" }), /Choose Nemotron or Azure MAI/);
   const missing = { localPython: "picard-missing-python" };
   await assert.rejects(speechFromSettings(missing), /local speech file is missing\. Run npx picard-code setup-speech/);
   await assert.rejects(speechFromSettings({ listening: "nemotron", speaking: "mai" }), /valid subscription/);
@@ -300,9 +304,22 @@ test("MAI computer speaking uses Iris with its neutral style", () => {
   assert.doesNotMatch(speakingDocument({ voice: "en-US-Harper:MAI-Voice-2.1-Flash", voiceStyle: "none" }, "Ready."), /express-as/);
 });
 
+test("loading retired Whisper defers replacement to the app without rewriting or starting it", async (t) => {
+  const folder = await mkdtemp(resolve(".picard-test-retired-speech-"));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const file = join(folder, "speech.json");
+  const text = JSON.stringify({ listening: "whisper", speaking: "kokoro" });
+  await writeFile(file, text);
+  assert.equal(await loadSpeech({}, undefined, file), undefined);
+  assert.equal(await loadSpeech({ speaking: "mai" }, undefined, file), undefined);
+  await assert.rejects(loadSpeech({ speaking: "invalid" }, undefined, file), /Choose mai or kokoro/);
+  await assert.rejects(loadSpeech({ listening: "whisper" }, undefined, file), /Choose nemotron or mai/);
+  assert.equal(await readFile(file, "utf8"), text);
+});
+
 test("retired voice settings are not exposed and are removed only when services are saved", () => {
   const legacy = { voice: "old", voiceStyle: "old", kokoroVoice: "old", localPython: "/custom/python" };
-  const choice = { listening: "whisper", speaking: "kokoro" };
+  const choice = { listening: "nemotron", speaking: "kokoro" };
   const described = describeSpeechSettings(legacy);
   for (const key of ["voice", "voiceStyle", "kokoroVoice"]) {
     assert.equal(key in described, false);

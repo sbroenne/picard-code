@@ -18,7 +18,8 @@ declare global {
 const local = process.argv.includes("--local");
 const quiet = process.argv.includes("--quiet-interrupt");
 const interrupt = quiet || process.argv.includes("--interrupt");
-const localListener = process.argv.includes("--whisper") ? "whisper" : "nemotron";
+if (process.argv.includes("--whisper")) throw new Error("Whisper is no longer available. Use --local for Nemotron and Kokoro.");
+const localListener = "nemotron";
 const name = local ? `${localListener}-kokoro` : "mai";
 const directory = resolve(".picard-voice", "samples");
 await mkdir(directory, { recursive: true });
@@ -163,7 +164,7 @@ try {
   if (interrupt) {
     interrupting = true;
     await page.evaluate(({ audio, quiet }) => window.interruptTestSpeech(audio, quiet), { audio: Buffer.concat(interruption).toString("base64"), quiet });
-    await expect.poll(() => commands.includes("stop-speaking"), { timeout: local && localListener === "whisper" ? 15_000 : 5000 }).toBe(true);
+    await expect.poll(() => commands.includes("stop-speaking"), { timeout: 5000 }).toBe(true);
     assert.equal(await page.evaluate(() => window.interruptedPlayback), true, "The answer must still be playing when the interruption stops it.");
     assert.ok(interruptionAudio >= 640, "Real microphone audio must reach the listener before playback stops.");
     await expect(page.locator(".message[data-role=user]")).toHaveCount(2, { timeout: 30_000 });

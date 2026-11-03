@@ -18,10 +18,9 @@ const home = join(homedir(), ".picard-code");
 const voice = join(home, "voice");
 const windows = process.platform === "win32";
 const python = join(voice, windows ? "Scripts" : "bin", windows ? "python.exe" : "python");
-// Whisper's CTranslate2 has no Windows ARM build, so Windows ARM uses Intel-compatible Python through Windows' built-in emulation.
+// The pinned Kokoro packages use Intel-compatible Python on Windows ARM.
 const windowsArm = windows && process.arch === "arm64";
-// Keep Hugging Face's download logs inside .picard-code too.
-const env = { ...process.env, HF_HOME: join(voice, "huggingface") };
+const env = { ...process.env };
 
 // uv's release files and checksums, for the computers the speech packages support.
 const UV_VERSION = "0.13.6";
@@ -85,19 +84,18 @@ function run(command, args, step) {
 }
 
 try {
-  if (!["nemotron", "whisper", "mai"].includes(listening) || !["kokoro", "mai"].includes(speaking)) {
-    throw new Error("Choose nemotron, whisper or mai for listening, and kokoro or mai for speaking.");
+  if (!["nemotron", "mai"].includes(listening) || !["kokoro", "mai"].includes(speaking)) {
+    throw new Error("Choose nemotron or mai for listening, and kokoro or mai for speaking.");
   }
   const reason = unsupported();
   if (reason) throw new Error(`${reason} Choose Azure MAI speech in the Listen · Speak tile instead.`);
   if (listening === "nemotron") nemotronArchive();
-  if (listening === "whisper" || speaking === "kokoro") {
+  if (speaking === "kokoro") {
     const program = await uv();
     run(program, ["venv", "--allow-existing", "--python", windowsArm ? "cpython-3.11-windows-x86_64-none" : "3.11", voice],
       `Creating the Python 3.11 environment in ${voice}${windowsArm ? " (Intel-compatible, run through Windows' emulation)" : ""}...`);
-    const requirements = listening === "whisper" && speaking === "kokoro" ? "speech" : listening === "whisper" ? "whisper" : "kokoro";
-    run(program, ["pip", "install", "--python", python, "-r", join(scripts, `requirements-${requirements}.txt`)], "Installing the selected speech packages...");
-    run(python, [join(scripts, "setup-local-speech.py"), join(voice, "models"), listening, speaking], "Downloading and checking the selected Whisper and Kokoro model files...");
+    run(program, ["pip", "install", "--python", python, "-r", join(scripts, "requirements-kokoro.txt")], "Installing the speaking packages...");
+    run(python, [join(scripts, "setup-local-speech.py"), join(voice, "models")], "Downloading and checking the Kokoro model and voices...");
   }
   if (listening === "nemotron") await setupNemotron(home);
   console.log(`\nThe selected speech files are ready (${listening} listening, ${speaking} speaking). Saved speech choices have not changed.`);

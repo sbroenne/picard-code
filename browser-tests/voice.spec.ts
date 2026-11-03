@@ -92,7 +92,8 @@ async function launch(page: import("@playwright/test").Page, mode?: "resume" | "
   await page.goto(url);
   // No note or agreement step: the main screen opens straight away.
   await expect(page.locator("#drawer-settings")).toBeHidden();
-  await expect(status(page)).not.toHaveText("Starting up", { timeout: 15000 });
+  if (mode === "no-speech") await expect(page.getByRole("heading", { name: "Computer voice offline" })).toBeVisible();
+  else await expect(status(page)).not.toHaveText("Starting up", { timeout: 15000 });
 }
 
 function status(page: import("@playwright/test").Page) {
@@ -563,9 +564,10 @@ test("the arrival call waits for a click and works before speech is set up", asy
     await launch(page, "no-speech");
     const played = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds);
     expect(await played()).toEqual([]);
-    await page.locator("#voice-console").click();
-    await expect.poll(played).toEqual(["startup: Standing by"]);
-    await expect(page.locator("#voice-setup-hint")).toBeVisible();
+    await page.locator("#speech-first-start-title").click();
+    await expect.poll(played).toEqual(["startup: Computer voice offline"]);
+    await expect(page.locator("#voice-console")).toBeHidden();
+    await expect(page.locator("#prepare-computer")).toBeVisible();
   } finally { await browser.close(); }
 });
 

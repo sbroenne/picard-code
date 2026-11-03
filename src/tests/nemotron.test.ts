@@ -127,7 +127,7 @@ test("Nemotron reports a disconnected service and rejects incomplete audio", { t
   assert.match(errors[0]!, /closed its listening connection/);
 });
 
-test("Nemotron reports missing files and never substitutes Whisper", async () => {
+test("Nemotron reports missing files without substituting another service", async () => {
   await assert.rejects(nemotronSpeech({ program: resolve("picard-missing-nemotron"), model: resolve("picard-missing-model") }), /Nemotron speech file is missing/);
   await assert.rejects(nemotronSpeech({ program: process.execPath, model: join(fileURLToPath(import.meta.url), "not-a-directory") }), /ENOTDIR/);
 });
@@ -155,10 +155,10 @@ test("Nemotron platform selection preserves explicit alternatives on unsupported
   assert.deepEqual(nemotronArchive("win32", "arm64"), nemotronArchive("win32", "x64"));
   assert.match(nemotronArchive("linux", "arm64", "2.31").file, /linux-aarch64-cpu/);
   assert.match(nemotronArchive("linux", "x64", "2.40").checksum, /^[a-f0-9]{64}$/);
-  assert.throws(() => nemotronArchive("linux", "x64", "2.28"), /glibc 2.31.*Choose Whisper/);
+  assert.throws(() => nemotronArchive("linux", "x64", "2.28"), /glibc 2.31.*own Azure speech resource/);
   assert.throws(() => nemotronArchive("linux", "x64", "unknown"), /glibc 2.31/);
   assert.throws(() => nemotronArchive("linux", "x64", undefined), /glibc 2.31/);
-  assert.throws(() => nemotronArchive("darwin", "x64"), /Choose Whisper or Azure MAI/);
+  assert.throws(() => nemotronArchive("darwin", "x64"), /own Azure speech resource/);
 });
 
 test("local readiness and custom paths concern only the selected speech services", async (t) => {
@@ -168,7 +168,7 @@ test("local readiness and custom paths concern only the selected speech services
   await writeFile(present, "");
   const record = { localPython: present, whisperModel: present, kokoroModel: present, kokoroVoices: present,
     nemotronProgram: join(folder, "missing"), nemotronModel: join(folder, "missing") };
-  assert.equal(await localSpeechReady({ ...record, listening: "whisper", speaking: "kokoro" }), true);
+  assert.equal(await localSpeechReady({ ...record, nemotronProgram: present, nemotronModel: present, listening: "nemotron", speaking: "kokoro" }), true);
   assert.equal(await localSpeechReady({ ...record, listening: "nemotron", speaking: "kokoro" }), false);
   assert.equal(await localSpeechReady({ ...record, listening: "mai", speaking: "mai" }), true);
   assert.equal(await localSpeechReady({ ...record, listening: "nemotron", speaking: "kokoro" }, false, true), true);

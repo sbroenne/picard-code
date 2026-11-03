@@ -19,13 +19,20 @@ test.beforeEach(async ({ page }) => {
     });
     child.once("exit", (code) => { if (code) reject(new Error(`Browser fixture failed: ${code}`)); });
   });
+  // Original silent stand-in, not a downloaded computer recording.
+  const silent = Buffer.alloc(44 + 4800);
+  silent.write("RIFF"); silent.writeUInt32LE(silent.length - 8, 4); silent.write("WAVEfmt ", 8);
+  silent.writeUInt32LE(16, 16); silent.writeUInt16LE(1, 20); silent.writeUInt16LE(1, 22);
+  silent.writeUInt32LE(24000, 24); silent.writeUInt32LE(48000, 28);
+  silent.writeUInt16LE(2, 32); silent.writeUInt16LE(16, 34); silent.write("data", 36); silent.writeUInt32LE(4800, 40);
+  await page.route("**/api/sounds/startup", (route) => route.fulfill({ contentType: "audio/wav", body: silent }));
   await page.goto(url);
-  await expect(page.getByRole("status")).toHaveText("Standing by");
+  await expect(page.getByRole("heading", { name: "Computer voice offline" })).toBeVisible();
   page.on("close", () => child.kill());
 });
 
 test("empty screen fits without horizontal overflow and has no typing box", async ({ page }, testInfo) => {
-  await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Computer voice offline" })).toBeVisible();
   await expect(page.locator("#tribute")).toBeVisible();
   await expect(page.locator("#tribute")).toHaveText("With deepest respect and gratitude: Sir Patrick Stewart 1940 – 2026");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -43,10 +50,15 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
   await expect(page.locator("#readout-project")).not.toHaveText("—");
   await expect(page.locator("#readout-speech")).toHaveText("Not set up");
   await expect(page.locator("#readout-version")).toHaveText(version);
+  await expect(page.locator("#voice-console")).toBeHidden();
+  await expect(page.locator("#speech-first-start").getByRole("button", { name: "Prepare the computer" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Skip to speech setup" })).toHaveAttribute("href", "#speech-first-start");
+  const action = await page.locator("#prepare-computer").boundingBox();
+  expect(action!.y + action!.height).toBeLessThan(800);
   await page.screenshot({ path: testInfo.outputPath("empty-screen.png"), fullPage: true });
 });
 
-test("a new log entry shows its Stardate and keeps it stable until another entry starts", async ({ page }) => {
+test("a new log entry keeps its Stardate stable until another entry starts", async ({ page }) => {
   const first = await page.locator("#entry-stardate").textContent();
   expect(first).toMatch(/^Stardate -?\d+\.\d$/);
   const later = new Date("2027-01-02T12:00:00Z");
@@ -55,14 +67,13 @@ test("a new log entry shows its Stardate and keeps it stable until another entry
   await page.keyboard.press("Escape");
   await expect(page.locator("#entry-stardate")).toHaveText(first!);
   await page.getByRole("button", { name: "New log entry" }).click();
-  await expect(page.locator("#entry-stardate")).toBeVisible();
   await expect(page.locator("#entry-stardate")).toHaveText(`Stardate ${formatStardate(later)}`);
 });
 
 test("the main screen shows only the conversation; the side panel tiles open their own settings", async ({ page }, testInfo) => {
-  // Without speech set up, the console says so and points to Settings.
-  await expect(page.getByRole("status")).toHaveText("Standing by");
-  await expect(page.locator("#voice-setup-hint")).toBeVisible();
+  // Preparation owns the main screen until speech can actually be used.
+  await expect(page.locator("#voice-console")).toBeHidden();
+  await expect(page.locator("#speech-first-start")).toBeVisible();
   await expect(page.locator("#listen-toggle")).toBeHidden();
   for (const name of ["Project folder", "Provider sign-in"]) await expect(page.getByRole("heading", { name })).toBeHidden();
   await expect(page.getByRole("combobox", { name: "Model" })).toBeHidden();
@@ -104,9 +115,11 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
   await page.getByRole("link", { name: /^Listen/ }).click();
   await expect(page.getByRole("heading", { name: "Speech" })).toBeVisible();
+  await expect(page.getByLabel("Listening", { exact: true })).toBeHidden();
+  await page.locator("#advanced-speech > summary").click();
   await expect(page.getByLabel("Listening", { exact: true })).toHaveValue("nemotron");
   // Only the fields for the chosen services show.
-  await page.getByLabel("Listening", { exact: true }).selectOption("whisper");
+  await expect(page.getByLabel("Listening", { exact: true }).locator("option")).toHaveCount(2);
   await page.getByLabel("Speaking", { exact: true }).selectOption("kokoro");
   await expect(page.getByLabel("Subscription ID")).toBeHidden();
   await expect(page.getByLabel("Kokoro voice")).toHaveCount(0);
@@ -120,33 +133,99 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await page.screenshot({ path: testInfo.outputPath("settings.png"), fullPage: true });
   await page.keyboard.press("Escape");
   await expect(page.getByRole("heading", { name: "Speech" })).toBeHidden();
-  await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Computer voice offline" })).toBeVisible();
 });
 
-test("saved Whisper stays selected and Nemotron download details follow the chosen services", async ({ page }) => {
+test("Nemotron download details follow the chosen services without writing settings", async ({ page }) => {
   let writes = 0;
   await page.route("**/api/settings", async (route) => {
     if (route.request().method() !== "GET") { writes++; await route.abort(); return; }
     await route.fulfill({ json: {
-      settings: { listening: "whisper", speaking: "kokoro", subscription: "", resourceGroup: "", resourceName: "", region: "", deployment: "" },
-      file: "Labeled test stand-in settings", localReady: true,
-      localFiles: { whisper: true, nemotron: false, kokoro: true },
+      settings: { listening: "nemotron", speaking: "kokoro", subscription: "", resourceGroup: "", resourceName: "", region: "", deployment: "" },
+      file: "Labeled test stand-in settings", localReady: false,
+      localFiles: { nemotron: false, kokoro: true },
     } });
   });
   await page.getByRole("link", { name: /^Listen/ }).click();
+  await page.locator("#advanced-speech > summary").click();
   const listening = page.getByLabel("Listening", { exact: true });
-  await expect(listening).toHaveValue("whisper");
-  await expect(page.locator("#nemotron-upgrade")).toContainText("Whisper remains available");
-  await expect(page.locator("#local-note")).toBeHidden();
-  await listening.selectOption("nemotron");
+  await expect(listening).toHaveValue("nemotron");
   await expect(page.locator("#local-note")).toBeVisible();
   await expect(page.locator("#local-note")).toContainText("710 MB");
   await expect(page.locator("#local-note")).toContainText("Nothing changes until the new services work");
   await listening.selectOption("mai");
   await expect(page.locator("#local-note")).toBeHidden();
   await expect(page.getByLabel("Listening deployment")).toBeVisible();
-  await listening.selectOption("whisper");
-  await expect(page.locator("#local-note")).toBeHidden();
+  await listening.selectOption("nemotron");
+  await expect(page.locator("#local-note")).toContainText("710 MB");
+  expect(writes).toBe(0);
+});
+
+test("local speech preparation shows real steps, reports failure and retries without false readiness", async ({ page }, testInfo) => {
+  const settings = { listening: "nemotron", speaking: "kokoro", subscription: "", resourceGroup: "", resourceName: "", region: "", deployment: "" };
+  const saved = { settings, file: "Labeled test stand-in settings", localReady: true, localFiles: { nemotron: true, kokoro: true }, speech: { configured: true, listening: "nemotron", speaking: "kokoro" } };
+  let phase = "running";
+  let writes = 0;
+  const step = "Downloading Nemotron — labeled test download";
+  const error = "The Nemotron download could not be verified. Labeled test stand-in; no files were downloaded.";
+  await page.route("**/api/settings", async (route) => {
+    if (route.request().method() === "POST") {
+      writes++;
+      expect(route.request().postDataJSON()).toMatchObject({ listening: "nemotron", speaking: "kokoro" });
+      await route.fulfill({ status: 202, json: { state: "running", step } });
+    } else await route.fulfill({ json: { ...saved, localReady: false, speech: { configured: false }, localFiles: { nemotron: false, kokoro: false } } });
+  });
+  await page.route("**/api/speech-setup", (route) => route.fulfill({ json: phase === "done"
+    ? { state: "done", step: "Starting the selected speech services", result: saved }
+    : { state: phase, step, ...(phase === "failed" ? { error } : {}) } }));
+  await page.screenshot({ path: process.env.PICARD_SPEECH_CAPTURE ? ".picard-voice/samples/speech-first-start.png" : testInfo.outputPath("speech-first-start.png"), fullPage: true });
+  await page.locator("#prepare-computer").click();
+  await expect(page.locator("#drawer-settings")).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Preparing the computer" })).toBeVisible();
+  await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuetext", step);
+  expect(await page.getByRole("progressbar").getAttribute("aria-valuenow")).toBeNull();
+  await expect(page.locator("#voice-console")).toBeHidden();
+  await expect(page.locator("#speech-first-start")).toBeHidden();
+  await expect(page.getByRole("link", { name: "Skip to speech setup" })).toHaveAttribute("href", "#speech-preparation");
+  await expect(page.locator("#listen-toggle")).toBeHidden();
+  await page.screenshot({ path: process.env.PICARD_SPEECH_CAPTURE ? ".picard-voice/samples/speech-preparation.png" : testInfo.outputPath("speech-preparation.png"), fullPage: true });
+  phase = "failed";
+  await expect(page.getByRole("heading", { name: "Speech preparation stopped" })).toBeVisible();
+  await expect(page.locator("#speech-preparation-error")).toHaveText(error);
+  await expect(page.locator("#voice-console")).toBeHidden();
+  await expect(page.getByRole("progressbar")).toBeHidden();
+  await expect(page.locator("#listen-toggle")).toBeHidden();
+  await page.screenshot({ path: process.env.PICARD_SPEECH_CAPTURE ? ".picard-voice/samples/speech-preparation-failed.png" : testInfo.outputPath("speech-preparation-failed.png"), fullPage: true });
+  phase = "running";
+  await page.locator("#retry-speech-setup").click();
+  await expect(page.getByRole("progressbar")).toBeVisible();
+  expect(writes).toBe(2);
+  phase = "done";
+  await expect(page.locator("#speech-preparation")).toBeHidden();
+  await expect(page.locator("#readout-speech")).toHaveText("Nemotron · Kokoro");
+  await expect(page.locator("#voice-console")).toBeVisible();
+});
+
+test("reopening during automatic speech setup follows the same job without starting another", async ({ page }) => {
+  let writes = 0;
+  const setup = { state: "running", step: "Installing local speech — labeled test download" };
+  const state = await (await page.request.get(new URL("/api/state", page.url()).href)).json();
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.route("**/api/state", (route) => route.fulfill({ json: { ...state, speech: { configured: setup.state === "running", setup } } }));
+  await page.route("**/api/speech-setup", (route) => route.fulfill({ json: setup }));
+  await page.route("**/api/settings", (route) => { if (route.request().method() === "POST") writes++; return route.continue(); });
+  await page.reload();
+  await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuetext", setup.step);
+  await expect(page.locator("#voice-console")).toBeHidden();
+  await expect(page.locator("#notice")).toBeHidden();
+  await expect(page.locator(".preparation-progress i").first()).toHaveCSS("animation-name", "none");
+  await expect(page.getByRole("heading", { name: "Computer voice offline" })).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuetext", setup.step);
+  setup.state = "failed";
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Speech preparation stopped" })).toBeVisible();
+  await expect(page.locator("#retry-speech-setup")).toBeVisible();
   expect(writes).toBe(0);
 });
 

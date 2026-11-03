@@ -1,11 +1,10 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import type { SpeechListener, SpeechSpeaker } from "./speech-types.js";
+import type { SpeechSpeaker } from "./speech-types.js";
 
 export interface LocalSettings {
   python: string;
-  whisperModel: string;
   kokoroModel: string;
   kokoroVoices: string;
   kokoroVoice: string;
@@ -13,7 +12,6 @@ export interface LocalSettings {
 interface LocalResult {
   type: string;
   id?: number;
-  text?: string;
   audio?: string;
   message?: string;
 }
@@ -33,10 +31,9 @@ class LocalWorker {
   private rejectStartup?: (error: Error) => void;
   readonly ready: Promise<void>;
 
-  constructor(settings: LocalSettings, listening: boolean, speaking: boolean) {
-    const args = [fileURLToPath(new URL("../../scripts/local-speech-worker.py", import.meta.url))];
-    if (listening) args.push("--whisper-model", settings.whisperModel);
-    if (speaking) args.push("--kokoro-model", settings.kokoroModel, "--kokoro-voices", settings.kokoroVoices, "--kokoro-voice", settings.kokoroVoice);
+  constructor(settings: LocalSettings) {
+    const args = [fileURLToPath(new URL("../../scripts/local-speech-worker.py", import.meta.url)),
+      "--kokoro-model", settings.kokoroModel, "--kokoro-voices", settings.kokoroVoices, "--kokoro-voice", settings.kokoroVoice];
     const env: NodeJS.ProcessEnv = { PYTHONUNBUFFERED: "1", HF_HUB_OFFLINE: "1", HF_HUB_DISABLE_TELEMETRY: "1", OMP_NUM_THREADS: "4" };
     for (const name of ["PATH", "Path", "SystemRoot", "WINDIR", "HOME", "USERPROFILE", "TEMP", "TMP", "APPDATA", "LOCALAPPDATA", "LANG", "LC_ALL", "LD_LIBRARY_PATH"]) {
       if (process.env[name]) env[name] = process.env[name];
@@ -132,20 +129,17 @@ class LocalWorker {
   }
 }
 
-export async function localSpeech(settings: LocalSettings, listening: boolean, speaking: boolean, signal?: AbortSignal) {
+export async function localSpeech(settings: LocalSettings, signal?: AbortSignal) {
   signal?.throwIfAborted();
-  for (const path of [settings.python, ...(listening ? [settings.whisperModel] : []), ...(speaking ? [settings.kokoroModel, settings.kokoroVoices] : [])]) {
+  for (const path of [settings.python, settings.kokoroModel, settings.kokoroVoices]) {
     try { await realpath(path); }
-    catch { throw new Error(`A configured local speech file is missing. Run npx picard-code setup-speech --listening ${listening ? "whisper" : "mai"} --speaking ${speaking ? "kokoro" : "mai"}, or choose the required services and Save and apply in the Listen · Speak tile to download them.`); }
+    catch { throw new Error("A configured local speech file is missing. Run npx picard-code setup-speech --listening mai --speaking kokoro, or choose Kokoro and Save and apply in the Listen · Speak tile to download it."); }
   }
-  // A cancelled speaking batch must not delay the next listening request.
-  const listenerWorker = listening ? new LocalWorker(settings, true, false) : undefined;
-  const speakerWorker = speaking ? new LocalWorker(settings, false, true) : undefined;
-  const workers = [listenerWorker, speakerWorker].filter((worker): worker is LocalWorker => !!worker);
-  const close = async () => { await Promise.all(workers.map((worker) => worker.close())); };
+  const speakerWorker = new LocalWorker(settings);
+  const close = () => speakerWorker.close();
   const abort = () => { void close(); };
   signal?.addEventListener("abort", abort, { once: true });
-  try { await Promise.all(workers.map((worker) => worker.ready)); }
+  try { await speakerWorker.ready; }
   catch (error) {
     signal?.removeEventListener("abort", abort);
     await close();
@@ -153,47 +147,8 @@ export async function localSpeech(settings: LocalSettings, listening: boolean, s
     throw error;
   }
   signal?.throwIfAborted();
-  const listener: SpeechListener = {
-    async listen(callbacks, signal) {
-      if (!listenerWorker) throw new Error("Whisper listening is not enabled.");
-      signal.throwIfAborted();
-      let chunks: Uint8Array[] = [];
-      let closed = false;
-      const controller = new AbortController();
-      const close = () => {
-        closed = true;
-        chunks = [];
-        controller.abort();
-        signal.removeEventListener("abort", close);
-      };
-      signal.addEventListener("abort", close, { once: true });
-      return {
-        write(audio) {
-          if (closed) throw new Error("Local listening is closed.");
-          chunks.push(Buffer.from(audio));
-        },
-        commit() {
-          if (closed) throw new Error("Local listening is closed.");
-          const audio = Buffer.concat(chunks).toString("base64");
-          chunks = [];
-          void (async () => {
-            for await (const result of listenerWorker.request("transcribe", { audio }, controller.signal)) {
-              if (closed) return;
-              if (result.type === "partial" && typeof result.text === "string") callbacks.partial(result.text);
-              else if (result.type === "done" && typeof result.text === "string") callbacks.final(result.text);
-              else throw new Error("Whisper returned an unexpected listening result.");
-            }
-          })().catch((error: unknown) => {
-            if (!closed) callbacks.error(error instanceof Error ? error.message : "Whisper could not understand the request.");
-          });
-        },
-        close,
-      };
-    },
-  };
   const speaker: SpeechSpeaker = {
     async *speak(text, signal, voice) {
-      if (!speakerWorker) throw new Error("Kokoro speaking is not enabled.");
       let bytes = 0;
       const request = voice ? { text, voice: voice.name, ...voice.speed === undefined ? {} : { speed: voice.speed } } : { text };
       for await (const result of speakerWorker.request("synthesize", request, AbortSignal.any([signal, AbortSignal.timeout(60_000)]))) {
@@ -207,7 +162,7 @@ export async function localSpeech(settings: LocalSettings, listening: boolean, s
       if (!bytes) throw new Error("Kokoro returned no spoken audio.");
     },
   };
-  return { listener, speaker, close: () => {
+  return { speaker, close: () => {
     signal?.removeEventListener("abort", abort);
     return close();
   } };

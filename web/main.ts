@@ -1,5 +1,5 @@
 import "./style.css";
-import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings } from "../src/shared/types";
+import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings, SpeechSetupProgress } from "../src/shared/types";
 import { errorMessage } from "../src/shared/messages";
 import { replyFailed, spokenSummary } from "../src/shared/speech";
 import { spokenParts } from "../src/shared/briefing";
@@ -90,7 +90,7 @@ const voice = new VoiceConversation({
       voice.speak(spokenSummary(message));
     }
   },
-  canListen: () => !!state?.models.length && connected,
+  canListen: () => !!state?.models.length && connected && state.speech?.setup?.state !== "running" && speechPreparation?.state !== "running",
   beforeSpeak: () => players.stop(),
 });
 const players = new ReplyPlayers({ paused: (value) => { if (value) cancelTributeSpeech(); voice.pauseForMedia(value); } });
@@ -213,7 +213,7 @@ function setMuted(value: boolean) {
 /** The microphone is simply on, unless muted or changing settings. */
 function autoListen() {
   if (voice.microphone || voice.opening || voice.failed || !state?.speech?.configured || !state.models.length || !connected
-    || muted() || openDrawer() === "settings") return;
+    || state.speech.setup?.state === "running" || speechPreparation?.state === "running" || muted() || openDrawer() === "settings") return;
   void perform(() => voice.activate());
 }
 
@@ -221,6 +221,8 @@ function autoListen() {
 function consoleStatus(): [string, string] {
   if (!state) return ["Starting up", ""];
   if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open."];
+  if (speechPreparation?.state === "running") return ["Preparing speech", speechPreparation.step];
+  if (speechPreparation?.state === "failed" && !state.speech?.configured) return ["Speech unavailable", "Read the error above, then choose Try again."];
   if (!state.models.length) return ["Setup needed", "Sign in to a model provider: open Provider."];
   if (voice.mediaPaused) return ["Listening paused", "Pause the video or close its player to listen again."];
   if (voice.phase === "speaking") return ["Speaking", voice.microphone ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."];
@@ -239,12 +241,20 @@ function consoleStatus(): [string, string] {
   if (historyLoading) return ["Loading", ""];
   if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New log entry”." : "Say “Computer”, then your request."];
   if (voice.opening) return ["Starting microphone", ""];
-  if (!state.speech?.configured) return ["Standing by", ""];
+  if (!state.speech?.configured) return ["Computer voice offline", ""];
   return ["Microphone off", "Click the microphone button or press M to switch it on."];
 }
 
 function voiceControls() {
-  const ready = !!state?.speech?.configured && !!state.models.length && connected;
+  const ready = !!state?.speech?.configured && !!state.models.length && connected && speechPreparation?.state !== "running";
+  const preparing = speechPreparation?.state === "running" || state?.speech?.setup?.state === "running";
+  const offline = !!state && !state.speech?.configured;
+  element("voice-console").hidden = !state?.speech?.configured || preparing;
+  element("speech-first-start").hidden = !offline || !!speechPreparation || preparing;
+  element("main").dataset.speechSetup = String(offline || !!speechPreparation || preparing);
+  const skip = element<HTMLAnchorElement>("skip-to-computer");
+  skip.href = speechPreparation || preparing ? "#speech-preparation" : offline ? "#speech-first-start" : "#voice-console";
+  skip.textContent = offline || preparing ? "Skip to speech setup" : "Skip to the computer status";
   const [status, detail] = consoleStatus();
   element("status").textContent = status;
   element("status-detail").textContent = detail;
@@ -258,8 +268,8 @@ function voiceControls() {
   if (voice.phase === "listening") notSent = "";
   element("voice-partial").textContent = voice.phase === "listening" || voice.phase === "thinking" ? voice.partial : notSent;
   element("voice-partial").classList.toggle("not-sent", voice.phase !== "listening" && voice.phase !== "thinking" && !!notSent);
-  element("voice-setup-hint").hidden = !state || !!state.speech?.configured;
-  element("voice-setup-text").textContent = state?.speech?.error ? "Speech did not start." : "Speech is not set up.";
+  element<HTMLButtonElement>("prepare-computer").disabled = speechSetupWatching;
+  element<HTMLButtonElement>("prepare-local-speech").disabled = speechSetupWatching;
   const cloudListening = state?.speech?.listening === "mai";
   const cloudSpeaking = state?.speech?.speaking !== "kokoro";
   element("speech-current").textContent = state?.speech?.configured
@@ -466,8 +476,8 @@ function readouts() {
   readout("project", state ? state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project : "—");
   readout("model", state?.models.length ? model.selectedOptions[0]?.textContent ?? "—" : "None");
   const speech = state?.speech;
-  readout("speech", !speech?.configured ? "Not set up"
-    : `${speech.listening === "mai" ? "Azure MAI" : speech.listening === "whisper" ? "Whisper" : "Nemotron"} · ${speech.speaking === "kokoro" ? "Kokoro" : "Azure MAI"}`);
+  readout("speech", speechPreparation?.state === "running" ? "Preparing" : !speech?.configured ? "Not set up"
+    : `${speech.listening === "mai" ? "Azure MAI" : "Nemotron"} · ${speech.speaking === "kokoro" ? "Kokoro" : "Azure MAI"}`);
 }
 
 function controls() {
@@ -478,7 +488,7 @@ function controls() {
   element<HTMLButtonElement>("stop").disabled = submitting;
   element<HTMLButtonElement>("new-conversation").disabled = !state || submitting;
   element("setup").hidden = !state || !!state.models.length;
-  element("welcome").hidden = !!messages.length || !!selected && historyLoading || !!state && !state.models.length;
+  element("welcome").hidden = !!speechPreparation || !!messages.length || !!selected && historyLoading || !!state && (!state.models.length || !state.speech?.configured);
   const entryStarted = state?.conversations.find((entry) => entry.id === selected)?.created ?? freshEntryStarted;
   element("entry-stardate").textContent = `Stardate ${formatStardate(new Date(entryStarted))}`;
   element("provider-status").textContent = !state ? "Checking" : state.models.length
@@ -489,6 +499,11 @@ function controls() {
   voice.sync();
   autoListen();
   voiceControls();
+  const setup = state?.speech?.setup;
+  if (setup && !speechSetupWatching) {
+    if (setup.state === "running") void followSpeechSetup(setup);
+    else if (setup.state === "failed") showSpeechPreparation(setup);
+  }
 }
 
 function renderState() {
@@ -1181,28 +1196,109 @@ async function boot() {
 
 const speechFields = ["listening", "speaking", "subscription", "resourceGroup", "resourceName", "region", "deployment"] as const;
 function speechInput(name: typeof speechFields[number]) { return element<HTMLInputElement | HTMLSelectElement>(`setting-${name}`); }
-let localFiles = { nemotron: false, whisper: false, kokoro: false };
+let localFiles = { nemotron: false, kokoro: false };
 function speechFieldVisibility() {
   const listening = speechInput("listening").value;
   const azureListening = listening === "mai";
   const azureSpeaking = speechInput("speaking").value === "mai";
   element("azure-fields").hidden = !azureListening && !azureSpeaking;
-  const missingListener = listening === "nemotron" ? !localFiles.nemotron : listening === "whisper" ? !localFiles.whisper : false;
+  const missingListener = !azureListening && !localFiles.nemotron;
   const missingSpeaker = !azureSpeaking && !localFiles.kokoro;
-  const megabytes = (missingListener ? listening === "nemotron" ? 710 : 78 : 0) + (missingSpeaker ? 354 : 0);
+  const megabytes = (missingListener ? 710 : 0) + (missingSpeaker ? 354 : 0);
   element("local-note").hidden = !megabytes;
   element("local-note").textContent = `The selected speech services need a one-time model and runtime download of about ${megabytes >= 1000 ? `${(megabytes / 1000).toFixed(2)} GB` : `${megabytes} MB`}, plus Python packages if needed. Save and apply starts it. Nothing changes until the new services work.`;
   const show = (selector: string, visible: boolean) => document.querySelectorAll<HTMLElement>(selector).forEach((node) => { node.hidden = !visible; });
   show(".azure-listening", azureListening);
 }
 type SavedSpeech = { settings: SpeechSettings; file: string; localReady: boolean; localFiles: typeof localFiles; speech: AppState["speech"] };
-type SpeechSetup = { state: "running" | "done" | "failed"; step: string; error?: string; result?: SavedSpeech };
+type SpeechSetup = SpeechSetupProgress & { result?: SavedSpeech };
 function showSpeechSettings(result: { settings: SpeechSettings; file: string; localFiles: typeof localFiles }) {
   localFiles = result.localFiles;
   for (const name of speechFields) speechInput(name).value = result.settings[name];
-  element("nemotron-upgrade").hidden = result.settings.listening !== "whisper";
   element("settings-file").textContent = `Saved in ${result.file}`;
+  element<HTMLDetailsElement>("advanced-speech").open = location.hash.endsWith("/advanced") || result.settings.listening === "mai" || result.settings.speaking === "mai";
   speechFieldVisibility();
+}
+
+let speechPreparation: SpeechSetupProgress | undefined;
+let speechSetupWatching = false;
+let lastSpeechChoice: SpeechSettings | Record<string, string> | undefined;
+
+function showSpeechPreparation(progress?: SpeechSetupProgress) {
+  speechPreparation = progress;
+  if (state?.speech) state.speech.setup = progress;
+  const panel = element("speech-preparation");
+  panel.hidden = !progress;
+  if (!progress) return;
+  element("welcome").hidden = true;
+  const failed = progress.state === "failed";
+  panel.dataset.state = progress.state;
+  element("speech-preparation-title").textContent = failed ? "Speech preparation stopped" : "Preparing the computer";
+  element("speech-preparation-step").textContent = progress.step;
+  const indicator = element("speech-preparation-progress");
+  indicator.hidden = failed;
+  indicator.setAttribute("aria-valuetext", progress.step);
+  element("speech-preparation-error").hidden = !failed;
+  element("speech-preparation-error").textContent = progress.error ?? "";
+  element("retry-speech-setup").hidden = !failed;
+  readouts();
+  voiceControls();
+}
+
+async function followSpeechSetup(pending: SpeechSetup | Promise<SavedSpeech | SpeechSetup>) {
+  speechSetupWatching = true;
+  const save = element<HTMLButtonElement>("save-speech");
+  save.disabled = true;
+  const result = element("speech-result");
+  try {
+    showSpeechPreparation({ state: "running", step: "Starting the selected speech services" });
+    let saved = await pending;
+    while ("state" in saved) {
+      showSpeechPreparation(saved);
+      if (saved.state === "failed") throw new Error(saved.error ?? "The local speech setup stopped.");
+      if (saved.state === "done" && saved.result) { saved = saved.result; break; }
+      if (saved.state !== "running") throw new Error("The local speech setup did not return its result. Try again.");
+      result.textContent = saved.step;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      saved = await api<SpeechSetup>("speech-setup");
+    }
+    showSpeechSettings(saved);
+    if (state) state.speech = saved.speech;
+    showSpeechPreparation();
+    result.textContent = "Speech settings saved and in use";
+    notice();
+  } catch (error) {
+    showSpeechPreparation({ state: "failed", step: speechPreparation?.step ?? "Preparing local speech", error: errorMessage(error) });
+    result.textContent = "Speech preparation stopped. See the error on screen.";
+  } finally {
+    speechSetupWatching = false;
+    save.disabled = false;
+    controls();
+  }
+}
+
+function prepareSelectedSpeech(data: SpeechSettings | Record<string, string>) {
+  lastSpeechChoice = data;
+  voice.close();
+  closeDrawer();
+  return followSpeechSetup(api<SavedSpeech | SpeechSetup>("settings", data));
+}
+
+for (const id of ["prepare-computer", "prepare-local-speech"]) {
+  element(id).addEventListener("click", () => {
+    void perform(async () => {
+      if (speechSetupWatching) return;
+      speechSetupWatching = true;
+      voiceControls();
+      try {
+        const saved = await api<SavedSpeech>("settings");
+        await prepareSelectedSpeech({ ...saved.settings, listening: "nemotron", speaking: "kokoro" });
+      } finally {
+        speechSetupWatching = false;
+        voiceControls();
+      }
+    });
+  });
 }
 
 const drawers = ["records", "settings"] as const;
@@ -1258,6 +1354,7 @@ async function route() {
   controls();
   if (open !== "settings") return;
   showSettingsPart(location.hash.split("/")[1]);
+  if (location.hash.endsWith("/advanced")) element<HTMLDetailsElement>("advanced-speech").open = true;
   if (!settingsLoaded) {
     settingsLoaded = true;
     try { showSpeechSettings(await api("settings")); }
@@ -1284,34 +1381,10 @@ speechInput("listening").addEventListener("change", speechFieldVisibility);
 speechInput("speaking").addEventListener("change", speechFieldVisibility);
 element("speech-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  const result = element("speech-result");
-  const save = element<HTMLButtonElement>("save-speech");
-  void perform(async () => {
-    const data = Object.fromEntries(speechFields.map((name) => [name, speechInput(name).value.trim()]));
-    result.textContent = "Starting the selected speech services";
-    save.disabled = true;
-    // Open voice connections use the old services; close them before switching.
-    voice.close();
-    try {
-      let saved = await api<SavedSpeech | SpeechSetup>("settings", data);
-      // The first local choice downloads its files in the background; follow it until it is in use.
-      while ("state" in saved) {
-        if (saved.state === "failed") throw new Error(saved.error ?? "The local speech setup stopped.");
-        if (saved.state === "done" && saved.result) { saved = saved.result; break; }
-        result.textContent = `${saved.step}. This can take a few minutes`;
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        saved = await api<SpeechSetup>("speech-setup");
-      }
-      showSpeechSettings(saved);
-      if (state) state.speech = saved.speech;
-      result.textContent = "Speech settings saved and in use";
-      notice();
-      controls();
-    } catch (error) {
-      result.textContent = "Not changed. See the message above";
-      throw error;
-    } finally { save.disabled = false; }
-  });
+  void perform(() => prepareSelectedSpeech(Object.fromEntries(speechFields.map((name) => [name, speechInput(name).value.trim()]))));
+});
+element("retry-speech-setup").addEventListener("click", () => {
+  void perform(async () => prepareSelectedSpeech(lastSpeechChoice ?? (await api<SavedSpeech>("settings")).settings));
 });
 element("stop").addEventListener("click", () => {
   void perform(async () => {

@@ -21,7 +21,7 @@ export interface SpeechSpeaker {
   speak(text: string, signal: AbortSignal, voice?: SpeakingVoice): AsyncIterable<Uint8Array>;
 }
 export interface SpeechSelection {
-  listening: "mai" | "whisper" | "nemotron";
+  listening: "mai" | "nemotron";
   speaking: "mai" | "kokoro";
 }
 export interface SpeechService extends SpeechListener, SpeechSpeaker {

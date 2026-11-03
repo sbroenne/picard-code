@@ -8,7 +8,7 @@ import { checkOfficerVoices } from "./officer-voices-check.js";
 
 const loaded = Date.now();
 const { values } = parseArgs({ options: { listening: { type: "string", default: "nemotron" } } });
-if (values.listening !== "nemotron" && values.listening !== "whisper") throw new Error("Choose nemotron or whisper for this local listening check.");
+if (values.listening !== "nemotron") throw new Error("Choose nemotron for this local listening check.");
 const listeningService = values.listening;
 const speech = await loadSpeech({ listening: listeningService, speaking: "kokoro" });
 assert.ok(speech);
@@ -62,7 +62,7 @@ try {
       const transcript = await result;
       if ("error" in transcript) throw transcript.error;
       measurements.push({ firstPartialMs, finalDelayMs: Date.now() - committedAt });
-      if (listeningService === "nemotron") assert.notEqual(firstPartialMs, undefined, "Nemotron must produce live words before commit.");
+      assert.notEqual(firstPartialMs, undefined, "Nemotron must produce live words before commit.");
       return transcript.text;
     } finally {
       clearTimeout(deadline);

@@ -46,12 +46,11 @@ async function main() {
   --port          Browser port (defaults to a free local port)
   --connect       Reuse a password-protected local OpenCode server
   --no-open       Print the address without opening a browser
-  --listening     nemotron (local, the default), whisper (local) or mai (Azure)
+  --listening     nemotron (on this computer, the default) or mai (Azure)
   --speaking      kokoro (on this computer, the default) or mai (Azure)
   --help, -h      Show these instructions
 
   npx picard-code setup-speech       Download local Nemotron and Kokoro speech
-  npx picard-code setup-speech --listening whisper   Download Whisper instead
   npx picard-code opencode <args>    Run the OpenCode Picard Code uses
 
 Picard Code works with any model provider OpenCode supports, such as GitHub
@@ -132,7 +131,7 @@ and choose your provider. Downloads and settings are kept in ${PICARD_HOME}.`);
     controller.signal.throwIfAborted();
     const app = await startApp({
       client, project, port, prepareCrew,
-      speech, speechError,
+      speech, speechError, speechOverrides: { listening: values.listening, speaking: values.speaking },
       webRoot: fileURLToPath(new URL("../../web-dist/", import.meta.url)),
       soundFolder,
     });

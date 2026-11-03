@@ -65,7 +65,7 @@ export function connectNemotron(origin: string, key: string, callbacks: SpeechCa
               if (!audio.length || audio.length % 2) throw new Error("Nemotron needs complete 16-bit audio samples.");
               audioBytes += audio.length;
               if (audioBytes > 16000 * 2 * 61) { fail("The spoken request is too long. Please use shorter turns."); return; }
-              if (socket.bufferedAmount > 128_000) { fail("Nemotron listening fell behind. Try a shorter request or choose Whisper."); return; }
+              if (socket.bufferedAmount > 128_000) { fail("Nemotron listening fell behind. Try a shorter request."); return; }
               socket.send(audio);
             },
             commit() {

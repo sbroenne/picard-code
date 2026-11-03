@@ -50,9 +50,9 @@ for (const service of services) {
     const home = join(PICARD_HOME, "voice");
     const local = await localSpeech({
       python: join(home, process.platform === "win32" ? "Scripts/python.exe" : "bin/python"),
-      whisperModel: "", kokoroModel: join(home, "models", "kokoro-v1.0.onnx"), kokoroVoices: join(home, "models", "voices-v1.0.bin"),
+      kokoroModel: join(home, "models", "kokoro-v1.0.onnx"), kokoroVoices: join(home, "models", "voices-v1.0.bin"),
       kokoroVoice: COMPUTER_VOICES.kokoro,
-    }, false, true);
+    });
     try {
       for (const voice of voices) console.log(`Kokoro ${fileName(voice)}: ${await render(local.speaker, voice, join(folder, fileName(voice)))}`);
     } finally { await local.close(); }

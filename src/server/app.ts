@@ -131,10 +131,11 @@ export interface AppOptions {
   speech?: SpeechService;
   /** Why speech could not start, shown on the settings page instead of stopping the app. */
   speechError?: string;
+  speechOverrides?: { listening?: string; speaking?: string };
   /** Where speech settings are read and saved. Defaults to the usual settings file. */
   speechFile?: string;
   /** Starts speech from saved settings; replaceable in tests so no real service is called. */
-  startSpeech?: (settings: Record<string, unknown>) => Promise<SpeechService>;
+  startSpeech?: (settings: Record<string, unknown>, signal?: AbortSignal) => Promise<SpeechService>;
   localSpeechReady?: (settings: Record<string, unknown> | undefined, listening?: boolean, speaking?: boolean) => Promise<boolean>;
   setUpLocalSpeech?: (onStep: (step: string) => void, signal?: AbortSignal, selection?: SpeechSelection) => Promise<void>;
   /** Folder holding the computer sounds downloaded at startup. */
@@ -156,14 +157,29 @@ export async function startApp(options: AppOptions) {
   let speech = options.speech;
   let speechError = options.speechError;
   const speechFile = options.speechFile ?? await speechSettingsFile();
-  const startSpeech = options.startSpeech ?? ((settings) => speechFromSettings(settings));
+  const savedSpeech = !speech && !speechError ? await readSpeechSettings(speechFile) : undefined;
+  const startSpeech = options.startSpeech ?? ((settings, signal) => speechFromSettings(settings, {}, signal));
   const localReady = options.localSpeechReady ?? localSpeechReady;
+  const migrationSettings = savedSpeech?.listening === "whisper" && !options.speechOverrides?.listening
+    ? mergeSpeechSettings(savedSpeech, {
+      ...describeSpeechSettings(savedSpeech),
+      speaking: savedSpeech.speaking ?? "kokoro",
+    }) : undefined;
+  const migration = migrationSettings && options.speechOverrides?.speaking
+    ? { ...migrationSettings, speaking: options.speechOverrides.speaking } : migrationSettings;
+  const migrationDownload = migration ? !await localReady(migration) : false;
   const setUpLocal = options.setUpLocalSpeech ?? setUpLocalSpeech;
   const localFiles = async (record: Record<string, unknown> | undefined) => ({
     nemotron: await localReady({ ...record, listening: "nemotron" }, true, false),
-    whisper: await localReady({ ...record, listening: "whisper" }, true, false),
     kokoro: await localReady(record, false, true),
   });
+  const localDownload = async (record: Record<string, unknown>): Promise<SpeechSelection> => {
+    const files = await localFiles(record);
+    const listening = record.listening !== "mai" && !files.nemotron;
+    const speaking = record.speaking !== "mai" && !files.kokoro;
+    if (!canSetUpLocalSpeech(record, listening, speaking)) throw new HttpError(400, "The new speech settings did not work, so nothing was changed. A configured local speech file is missing. Check the paths in the speech settings file.");
+    return { listening: listening ? "nemotron" : "mai", speaking: speaking ? "kokoro" : "mai" };
+  };
   const readWikipedia = options.readWikipedia ?? wikipediaReader();
   /** The one-time local speech download runs in the background, because it takes minutes. */
   let localSetup: { state: "running" | "done" | "failed"; step: string; error?: string; result?: unknown } | undefined;
@@ -171,12 +187,12 @@ export async function startApp(options: AppOptions) {
   const closing = new AbortController();
   let localSetupRun: Promise<void> | undefined;
 
-  const applySpeech = async (record: Record<string, unknown>) => {
+  const applySpeech = async (record: Record<string, unknown>, savedRecord = record) => {
     let next: SpeechService;
     // Start the new services first, so a mistake leaves the working ones in place.
-    try { next = await startSpeech(record); }
+    try { next = await startSpeech(record, closing.signal); }
     catch (error) { throw new HttpError(400, `The new speech settings did not work, so nothing was changed. ${errorMessage(error)}`); }
-    try { await saveSpeechSettings(speechFile, record); }
+    try { closing.signal.throwIfAborted(); await saveSpeechSettings(speechFile, savedRecord); }
     catch (error) {
       await next.close?.();
       throw new HttpError(500, `Could not save the speech settings. ${errorMessage(error)}`);
@@ -187,7 +203,30 @@ export async function startApp(options: AppOptions) {
     closeSpeech.disconnect();
     try { await previous?.close?.(); }
     catch (error) { console.error(`Could not fully stop the previous speech service: ${errorMessage(error)}`); }
-    return { settings: describeSpeechSettings(record), file: speechFile, localReady: true, localFiles: await localFiles(record), speech: { configured: true, listening: next.selection?.listening ?? "nemotron", speaking: next.selection?.speaking ?? "kokoro" } };
+    return { settings: describeSpeechSettings(savedRecord), file: speechFile, localReady: true, localFiles: await localFiles(record), speech: { configured: true, listening: next.selection?.listening ?? "nemotron", speaking: next.selection?.speaking ?? "kokoro" } };
+  };
+
+  const beginSpeechSetup = (record: Record<string, unknown>, download: boolean, savedRecord = record) => {
+    const job: NonNullable<typeof localSetup> = { state: "running", step: download ? "Starting the download" : "Starting local speech" };
+    localSetup = job;
+    localSetupRun = (async () => {
+      try {
+        if (download) {
+          const selection = await localDownload(record);
+          closing.signal.throwIfAborted();
+          await setUpLocal((step) => { job.step = step; }, closing.signal, selection);
+        }
+        closing.signal.throwIfAborted();
+        job.step = "Starting the selected speech services";
+        job.result = await applySpeech(record, savedRecord);
+        job.state = "done";
+      } catch (error) {
+        job.state = "failed";
+        job.error = errorMessage(error);
+        if (!speech) speechError = job.error;
+      }
+    })();
+    return job;
   };
 
   // OpenCode reports only whether work runs; a scheduled retry is remembered from its event.
@@ -284,7 +323,8 @@ export async function startApp(options: AppOptions) {
       speech: { configured: !!speech,
         listening: speech?.selection?.listening ?? "nemotron",
         speaking: speech?.selection?.speaking ?? "kokoro",
-        ...(speechError ? { error: speechError } : {}) },
+        ...(speechError ? { error: speechError } : {}),
+        ...(localSetup && localSetup.state !== "done" ? { setup: { state: localSetup.state, step: localSetup.step, ...(localSetup.error ? { error: localSetup.error } : {}) } } : {}) },
     };
   };
 
@@ -421,21 +461,8 @@ export async function startApp(options: AppOptions) {
           if (localSetup?.state === "running") throw new HttpError(409, "The speech download is still running. Wait for it to finish.");
           const listening = record.listening !== "mai", speaking = record.speaking === "kokoro";
           if ((listening || speaking) && !await localReady(record, listening, speaking)) {
-            if (!canSetUpLocalSpeech(record)) throw new HttpError(400, "The new speech settings did not work, so nothing was changed. A configured local speech file is missing. Check the paths in the speech settings file.");
-            const job: NonNullable<typeof localSetup> = { state: "running", step: "Starting the download" };
-            localSetup = job;
-            localSetupRun = (async () => {
-              try {
-                await setUpLocal((step) => { job.step = step; }, closing.signal, describeSpeechSettings(record));
-                closing.signal.throwIfAborted();
-                job.result = await applySpeech(record);
-                job.state = "done";
-              } catch (error) {
-                job.state = "failed";
-                job.error = errorMessage(error);
-              }
-            })();
-            json(response, 202, job);
+            await localDownload(record);
+            json(response, 202, beginSpeechSetup(record, true));
             return;
           }
           json(response, 200, await applySpeech(record));
@@ -633,6 +660,7 @@ export async function startApp(options: AppOptions) {
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Could not start the local browser app.");
   origin = `http://127.0.0.1:${address.port}`;
+  if (migration) beginSpeechSetup(migration, migrationDownload, migrationSettings);
   return {
     origin, token,
     url: `${origin}/#token=${token}`,

@@ -118,8 +118,8 @@
           <figcaption>The real interface with a staged example conversation.</figcaption>
         </figure>
         <dl class="readouts">
-          <div class="peach"><dt>Listening</dt><dd>Nemotron, Whisper or Azure MAI
-            <small>Nemotron on this computer by default. Whisper is a smaller local option.</small></dd></div>
+          <div class="peach"><dt>Listening</dt><dd>Nemotron or Azure MAI
+            <small>Nemotron on this computer by default. Azure needs your own resource.</small></dd></div>
           <div class="orange"><dt>Speaking</dt><dd>Kokoro or Azure MAI
             <small>Prebuilt voices, never a cloned performer. Chosen apart from listening.</small></dd></div>
           <div class="lilac"><dt>Coding</dt><dd>OpenCode 2
@@ -144,7 +144,7 @@
             even before &ldquo;Computer&rdquo; is recognized; standing by still listens, and microphone off
             stops it. Hosted models receive your requests and relevant project content. Questions about
             Picard or Patrick Stewart fetch their Wikipedia articles; only the two article titles are sent.
-            Azure speech can incur charges. Nemotron and Kokoro, the default, keep speech on your computer; so does optional Whisper.
+            Azure speech can incur charges. Nemotron and Kokoro, the default, keep speech on your computer.
             <a href="https://github.com/sbroenne/picard-code#use-it">How your data moves</a></p>
         </aside>
       </section>
@@ -180,12 +180,11 @@
           <div>
             <p class="intro">You need Node.js 24 or newer (a long-term support version), a microphone, and a model provider OpenCode
               can use. Picard Code uses your OpenCode 2, or brings its own. Listening and speaking run on your computer by
-              default, so no cloud account is needed for speech. In the app, choose the
-              <strong>Listen · Speak</strong> tile, keep <strong>On this computer</strong>, and choose
-              <strong>Save and apply</strong> to start the one-time model download of about 1.05 GB,
-              plus the local speech programs. Whisper remains a smaller listening option.
+              default, so no cloud account is needed for speech. Choose <strong>Prepare the computer</strong>
+              to start the one-time speech download of about 1.05 GB, plus the local speech programs.
+              An LCARS-style display shows real steps and any error, with a way to retry.
               The app starts speech when it is ready; no restart is needed.
-              Choose Azure for both listening and speaking instead if you do not want local speech downloads.</p>
+              Azure is under <strong>Advanced setup</strong> for people with their own subscription and deployed speech models.</p>
           </div>
           <div class="source">
             <h3>Get started</h3>

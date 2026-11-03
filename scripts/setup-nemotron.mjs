@@ -20,10 +20,10 @@ const ARCHIVES = {
 
 export function nemotronArchive(platform = process.platform, arch = process.arch, glibc = process.platform === "linux" ? process.report.getReport().header.glibcVersionRuntime : undefined) {
   const asset = ARCHIVES[`${platform}-${arch}`];
-  if (!asset) throw new Error("Nemotron runs on Apple silicon Macs, Windows, and Linux with an x64 or arm64 processor. Choose Whisper or Azure MAI instead.");
+  if (!asset) throw new Error("Nemotron runs on Apple silicon Macs, Windows, and Linux with an x64 or arm64 processor. Azure MAI is available with your own Azure speech resource.");
   if (platform === "linux") {
     const [major, minor] = (glibc ?? "0.0").split(".").map(Number);
-    if (!Number.isInteger(major) || !Number.isInteger(minor) || major * 1000 + minor < 2031) throw new Error("Nemotron needs Linux with glibc 2.31 or newer. Choose Whisper or Azure MAI instead.");
+    if (!Number.isInteger(major) || !Number.isInteger(minor) || major * 1000 + minor < 2031) throw new Error("Nemotron needs Linux with glibc 2.31 or newer. Azure MAI is available with your own Azure speech resource.");
   }
   return { file: `nemo-speech-${NEMOTRON_VERSION}-${asset[0]}`, checksum: asset[1] };
 }
