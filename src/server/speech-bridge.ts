@@ -88,7 +88,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
         if (epoch === current) fail(error instanceof Error ? error.message : "Could not start the selected listening service.");
       }
     };
-    const speak = async (parts: SpokenPart[], id: number) => {
+    const speak = async (parts: SpokenPart[], id: number, speed?: number) => {
       stopSpeaking();
       const current = speechEpoch;
       speaking = new AbortController();
@@ -115,7 +115,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
           previous = part;
           let remainder = Buffer.alloc(0);
           let produced = false;
-          for await (const bytes of chosen.speak(part.text, signal, voice)) {
+          for await (const bytes of chosen.speak(part.text, signal, voice, speed)) {
             if (speechEpoch !== current || socket.readyState !== WebSocket.OPEN) return;
             const joined = Buffer.concat([remainder, bytes]);
             const end = joined.length - joined.length % 2;
@@ -165,7 +165,9 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
         else if (data.type === "speak" && "id" in data && typeof data.id === "number" && Number.isSafeInteger(data.id) && data.id > 0) {
           const parts = spokenParts(data);
           if (!parts) throw new Error("That voice request is not available.");
-          void speak(parts, data.id);
+          const speed = "speed" in data ? data.speed : undefined;
+          if (speed !== undefined && !(typeof speed === "number" && speed >= 0.8 && speed <= 1.2)) throw new Error("The speaking speed must be between 0.8 and 1.2.");
+          void speak(parts, data.id, speed);
         } else throw new Error("That voice request is not available.");
       } catch (error) { fail(error instanceof Error ? error.message : "The voice request failed."); }
     });

@@ -8,6 +8,7 @@ import { pipeline } from "node:stream/promises";
 
 export const NEMOTRON_VERSION = "0.3.0";
 export const NEMOTRON_MODEL = "nemotron-speech-streaming-en-0.6b.q8_0.gguf";
+export const NEMOTRON_NOTICES = ["NVIDIA-Open-Model-License.pdf", "NVIDIA-NOTICE.txt"];
 const MODEL_REVISION = "ebe59e5a817142986528bbbee5dba8db7b38ed50";
 const MODEL_SHA256 = "d9a01898d2a611c8764e23a1c2f45e70bbd5a425dc4de93692ac951dd603812d";
 const ARCHIVES = {
@@ -108,6 +109,6 @@ export async function setupNemotron(home) {
   await downloadVerified(`https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b/resolve/${MODEL_REVISION}/${NEMOTRON_MODEL}`,
     join(home, "voice", "models", NEMOTRON_MODEL), MODEL_SHA256);
   await downloadVerified("https://www.nvidia.com/content/dam/en-zz/Solutions/license-agreements/enterprise-software/nvidia-open-model-license-agreements-24-10-2025.pdf",
-    join(home, "voice", "models", "NVIDIA-Open-Model-License.pdf"), "4d2fb590aa9b30c47f2058bff17291df7fa2aa0c1bd775a20703da9bb267cfab");
-  await writeFile(join(home, "voice", "models", "NVIDIA-NOTICE.txt"), "Licensed by NVIDIA Corporation under the NVIDIA Open Model License\n");
+    join(home, "voice", "models", NEMOTRON_NOTICES[0]), "4d2fb590aa9b30c47f2058bff17291df7fa2aa0c1bd775a20703da9bb267cfab");
+  await writeFile(join(home, "voice", "models", NEMOTRON_NOTICES[1]), "Licensed by NVIDIA Corporation under the NVIDIA Open Model License\n");
 }

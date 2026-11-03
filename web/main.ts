@@ -4,7 +4,7 @@ import { errorMessage } from "../src/shared/messages";
 import { replyFailed, spokenSummary } from "../src/shared/speech";
 import { spokenParts } from "../src/shared/briefing";
 import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../src/shared/questions";
-import { addressed, voiceCommand } from "../src/shared/wake";
+import { addressed, changedSpeed, isSpeedCommand, SPEAKING_SPEEDS, type SpeedCommand, voiceCommand } from "../src/shared/wake";
 import { VoiceConversation, type FollowOn } from "./voice";
 import { renderMarkdown } from "./markdown";
 import { markMedia, reconcile, ReplyPlayers } from "./media";
@@ -121,6 +121,12 @@ async function heard(text: string, startedAt: number) {
   if (command === "stop") { await stopByVoice(); return; }
   if (command === "new") { freshByVoice(); return; }
   if (command === "mute") { muteMicrophone(); voice.speak("Microphone off. Click the microphone button or press M to switch it on."); return; }
+  if (isSpeedCommand(command)) {
+    // "Computer" in an open log entry engages it, as a request would, so follow-ups need no "Computer".
+    if (words !== undefined && selected) engagedWith = selected;
+    changeSpeakingSpeed(command);
+    return;
+  }
   if (question) { await answerAloud(request); return; }
   if (!request) {
     goAheadUntil = Date.now() + GO_AHEAD;
@@ -143,6 +149,21 @@ async function heard(text: string, startedAt: number) {
     await sendMessage(text, storyID);
     engagedWith = selected;
   }
+}
+
+/** "Speak faster", "Speak slowest", "Normal speed" and the like change every later spoken reply, kept in this browser. */
+function changeSpeakingSpeed(command: SpeedCommand) {
+  const speed = changedSpeed(voice.speed, command);
+  const quicker = command === "faster" || command === "fastest";
+  if (speed === undefined) {
+    voice.speak(quicker ? "This is already the fastest speaking speed." : "This is already the slowest speaking speed.");
+    return;
+  }
+  voice.speed = speed;
+  saveTributeValue("picard-speaking-speed", String(speed));
+  voice.speak(speed === 1 ? "Normal speaking speed."
+    : command === "fastest" ? "Speaking at the fastest speed." : command === "slowest" ? "Speaking at the slowest speed."
+    : quicker ? "Speaking faster." : "Speaking slower.");
 }
 
 /** "Stop listening" waits for "Computer" again, keeping the log entry and any work under way. */
@@ -304,6 +325,11 @@ function voiceControls() {
   element("speech-current").textContent = state?.speech?.configured
     ? `In use: ${cloudListening ? "Azure" : "this computer"} listens, ${cloudSpeaking ? "Azure" : "this computer"} speaks`
     : state?.speech?.error ?? "Speech is not set up yet";
+  const azureInUse = !!state?.speech?.configured && (cloudListening || cloudSpeaking);
+  element("local-speech-offer").textContent = azureInUse
+    ? "Switch to this computer: Nemotron listens and Kokoro speaks, with no Azure account needed."
+    : "Nemotron listens and Kokoro speaks on this computer. No Azure account is needed.";
+  element("prepare-local-speech").textContent = azureInUse ? "Use this computer instead" : "Prepare the computer";
   element("stop-speaking").hidden = !voice.speechPending || voice.phase === "cue";
   checkHeldBack();
 }
@@ -440,6 +466,8 @@ function bridgeControls() {
 function loadTribute() {
   tributeEnabled = readTributeBoolean("picard-tribute-enabled", true);
   bridgeEnabled = readTributeBoolean("picard-bridge-enabled", true);
+  const speed = Number(readTributeValue("picard-speaking-speed") ?? 1);
+  voice.speed = SPEAKING_SPEEDS.includes(speed as typeof SPEAKING_SPEEDS[number]) ? speed : 1;
   bridgeControls();
   let seen: string[] = [];
   const saved = readTributeValue("picard-tribute-seen");

@@ -9,7 +9,7 @@ import { nemotronSpeech } from "./nemotron-speech.js";
 import type { SpeechService, SpeechSelection } from "./speech-types.js";
 import type { SpeechSettings } from "../shared/types.js";
 import { COMPUTER_VOICES, crewVoice } from "../shared/crew-voices.js";
-import { NEMOTRON_MODEL, NEMOTRON_VERSION } from "../../scripts/setup-nemotron.mjs";
+import { NEMOTRON_MODEL, NEMOTRON_NOTICES, NEMOTRON_VERSION } from "../../scripts/setup-nemotron.mjs";
 
 /** Fixed ready-made computer voices chosen from the measured comparison. */
 export const DEFAULT_MAI_VOICE = COMPUTER_VOICES.mai;
@@ -49,7 +49,13 @@ function localKeys(record: Record<string, unknown> | undefined, listening = reco
 /** Whether the files needed by this listening and speaking choice are present. */
 export async function localSpeechReady(record: Record<string, unknown> | undefined, listening?: boolean, speaking?: boolean) {
   const keys = localKeys(record, listening, speaking);
-  try { await Promise.all(keys.map((key) => access(localPath(record, key)))); return true; }
+  try {
+    await Promise.all(keys.map((key) => access(localPath(record, key))));
+    if (keys.includes("nemotronModel") && localPath(record, "nemotronModel") === LOCAL_PATHS.nemotronModel) {
+      await Promise.all(NEMOTRON_NOTICES.map((name) => access(join(VOICE_FOLDER, "models", name))));
+    }
+    return true;
+  }
   catch { return false; }
 }
 
@@ -163,11 +169,16 @@ export async function saveSpeechSettings(file: string, record: Record<string, un
   await rename(temporary, file);
 }
 
+/** Older saved records used Whisper when no listening choice was written. */
+export function needsListenerMigration(record: Record<string, unknown> | undefined) {
+  return !!record && (record.listening === undefined || record.listening === "whisper");
+}
+
 export async function loadSpeech(overrides: { listening?: string; speaking?: string } = {}, signal?: AbortSignal, file?: string): Promise<SpeechService | undefined> {
   const record = await readSpeechSettings(file ?? await speechSettingsFile());
   // The app prepares and saves the replacement in the background, with visible progress.
-  if (record?.listening === "whisper" && !overrides.listening) {
-    const speaking = overrides.speaking ?? record.speaking ?? "kokoro";
+  if (needsListenerMigration(record) && !overrides.listening) {
+    const speaking = overrides.speaking ?? record?.speaking ?? "kokoro";
     if (speaking !== "mai" && speaking !== "kokoro") throw new Error("Choose mai or kokoro for speaking.");
     return undefined;
   }

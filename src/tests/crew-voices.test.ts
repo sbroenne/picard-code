@@ -93,6 +93,19 @@ test("a briefing is spoken in order, each officer in their own voice, as one ans
   assert.equal(voice.audio, 4 * 4800 + 3 * 14_400, "four answers and three 0.3 second pauses");
 });
 
+test("a chosen speaking speed reaches every part, and a speed outside 0.8 to 1.2 is refused", async (t) => {
+  const fixture = speechFixture("Hello computer", 0.1);
+  const voice = await connect(t, fixture.service);
+  for (const speed of [2, 0.5, "fast"]) {
+    voice.socket.send(JSON.stringify({ type: "speak", id: 1, text: "Too fast.", speed }));
+    const error = await voice.next("error");
+    assert.equal(error.type === "error" && error.message, "The speaking speed must be between 0.8 and 1.2.");
+  }
+  voice.socket.send(JSON.stringify({ type: "speak", id: 2, speed: 1.1, parts: [{ text: "Ready.", speaker: "picard-data" }, { text: "Done." }] }));
+  await voice.next("audio-end");
+  assert.deepEqual(fixture.said, [{ text: "Ready.", voice: { name: "test-picard-data" }, speed: 1.1 }, { text: "Done.", speed: 1.1 }]);
+});
+
 test("spoken parts are checked, and a failed officer voice is named instead of sounding like the computer", async (t) => {
   const fixture = speechFixture("Hello computer", 0.1);
   const voice = await connect(t, fixture.service);

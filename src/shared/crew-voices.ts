@@ -19,7 +19,7 @@ export const CREW_VOICES: CrewVoices = {
 
 export const DEFAULT_MAI_MODEL = "MAI-Voice-2.1-Flash";
 
-export interface SpeakingVoice { name: string; style?: string; speed?: number }
+export interface SpeakingVoice { name: string; style?: string }
 
 export function crewVoice(officer: CrewID, speaking: "mai" | "kokoro"): SpeakingVoice {
   const voice = CREW_VOICES[officer][speaking];

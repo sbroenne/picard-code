@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import { TRIBUTE_ENTRIES } from "../src/shared/tribute-data";
 import { formatStardate } from "../src/shared/stardate";
 import type { ChatMessage } from "../src/shared/types";
+import { syntheticVoice } from "../src/tests/test-audio";
 
 const folder = resolve(`.picard-test-voice-audio-${process.pid}`);
 const microphoneFile = join(folder, "utterance.wav");
@@ -32,12 +33,13 @@ test.beforeAll(async () => {
   const rate = 48000;
   // Leave time for the answer and optional story invitation before a follow-up without "Computer".
   const audio = Buffer.alloc(rate * 2 * 8);
-  for (let index = rate / 2; index < rate * 1.5; index++) audio.writeInt16LE(Math.round(Math.sin(index / rate * 240 * 2 * Math.PI) * 6000), index * 2);
+  // One second of synthetic voice, so the real voice detector hears a request.
+  syntheticVoice(1, 0.1, rate).forEach((value, index) => audio.writeInt16LE(Math.round(value * 32767), (rate / 2 + index) * 2));
   await writeFile(microphoneFile, wave(rate, audio));
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "fresh-starlog" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome") {
+async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "fresh-starlog" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "faster" | "speed-follow-up" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -170,6 +172,41 @@ async function holdSpeaking(page: import("@playwright/test").Page) {
 }
 
 test.setTimeout(60000);
+
+test("\"Computer, speak faster\" confirms at the faster speed, is not sent as a request, and later replies keep the speed", async ({ page }) => {
+  const frames: { text?: string; speed?: number }[] = [];
+  page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
+    if (typeof payload === "string" && JSON.parse(payload).type === "speak") frames.push(JSON.parse(payload));
+  }));
+  await launch(page, "faster");
+  await startListening(page);
+  await expect.poll(() => frames.find((frame) => frame.text === "Speaking faster."), { timeout: 20000 }).toEqual(expect.objectContaining({ speed: 1.1 }));
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("picard-speaking-speed"))).toBe("1.1");
+  await expect(page.locator(".message[data-role=user]")).toHaveCount(1, { timeout: 20000 });
+  await expect(page.locator(".message[data-role=user]")).toContainText("Computer, hello there");
+  const later = () => frames.slice(frames.findIndex((frame) => frame.text === "Speaking faster.") + 1);
+  await expect.poll(() => later().length, { timeout: 15000 }).toBeGreaterThan(0);
+  expect(later().every((frame) => frame.speed === 1.1)).toBe(true);
+});
+
+test("after a reload, \"Computer, speak slowest\" lets the next follow-up in the same log entry go without \"Computer\"", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("picard-tribute-enabled", "false"));
+  const entries: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && /\/api\/conversations\/[^/]+\/send$/.test(request.url())) entries.push(request.url());
+  });
+  await launch(page, "speed-follow-up");
+  await startListening(page);
+  await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await expect(page.getByRole("button", { name: "Stop speaking", exact: true })).toBeHidden({ timeout: 15000 });
+  await page.reload();
+  await startListening(page);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("picard-speaking-speed")), { timeout: 20000 }).toBe("0.8");
+  await expect.poll(() => entries.length, { timeout: 20000 }).toBe(2);
+  expect(entries[1]).toBe(entries[0]);
+  await expect(page.locator(".message[data-role=user]").last()).toContainText("Hello again");
+});
 
 test("briefing reports stay in one log entry; officer approvals require a button and findings are spoken only when the briefing ends", async ({ page }) => {
   const spoken = spokenText(page);

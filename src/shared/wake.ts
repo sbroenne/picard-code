@@ -19,7 +19,9 @@ export function interruptsSpeech(text: string, spoken: string) {
 const STOP = new Set([
   "stop", "stop it", "stop that", "stop now", "stop work", "stop working", "stop the work",
   "cancel", "cancel it", "cancel that", "cancel work", "cancel the work", "cancel the request",
-  "abort", "abort that", "halt", "belay that", "never mind", "nevermind", "forget it",
+  "abort", "abort that", "halt", "belay that", "belay", "belay it", "never mind", "nevermind", "forget it",
+  // Speech recognition often hears the unusual word "belay" as "delay".
+  "delay that",
 ]);
 
 // Like the ship's computer, there is one ongoing conversation until the captain starts afresh.
@@ -42,11 +44,40 @@ const MUTE = new Set([
   "mute", "mute yourself", "microphone off", "turn the microphone off", "turn off the microphone",
 ]);
 
-export type VoiceCommand = "stop" | "new" | "standby" | "mute";
+// Changes how fast the computer and officers speak, in small steps.
+const FASTER = new Set(["speak faster", "talk faster", "faster", "speak more quickly", "speak quicker", "talk quicker", "speed up"]);
+const SLOWER = new Set(["speak slower", "talk slower", "slower", "slow down", "speak more slowly", "talk more slowly"]);
+const FASTEST = new Set(["speak fastest", "talk fastest", "fastest", "fastest speed", "speak as fast as you can", "maximum speed"]);
+const SLOWEST = new Set(["speak slowest", "talk slowest", "slowest", "slowest speed", "speak as slowly as you can", "minimum speed"]);
+const NORMAL_SPEED = new Set(["normal speed", "speak normally", "talk normally", "normal speaking speed", "speak at normal speed", "speak at your normal speed"]);
+
+export type VoiceCommand = "stop" | "new" | "standby" | "mute" | "faster" | "slower" | "fastest" | "slowest" | "normal-speed";
+export type SpeedCommand = Extract<VoiceCommand, "faster" | "slower" | "fastest" | "slowest" | "normal-speed">;
 
 /** A spoken command handled by Picard Code itself rather than sent to Copilot. */
 export function voiceCommand(words: string): VoiceCommand | undefined {
   const plain = words.toLowerCase().replace(/[’]/g, "'").replace(/[^a-z'\s]/g, " ")
     .replace(/\bplease\b/g, " ").replace(/\s+/g, " ").trim();
-  return STOP.has(plain) ? "stop" : FRESH.has(plain) ? "new" : STANDBY.has(plain) ? "standby" : MUTE.has(plain) ? "mute" : undefined;
+  return STOP.has(plain) ? "stop" : FRESH.has(plain) ? "new" : STANDBY.has(plain) ? "standby" : MUTE.has(plain) ? "mute"
+    : FASTER.has(plain) ? "faster" : SLOWER.has(plain) ? "slower"
+    : FASTEST.has(plain) ? "fastest" : SLOWEST.has(plain) ? "slowest" : NORMAL_SPEED.has(plain) ? "normal-speed" : undefined;
+}
+
+export function isSpeedCommand(command: VoiceCommand | undefined): command is SpeedCommand {
+  return command === "faster" || command === "slower" || command === "fastest" || command === "slowest" || command === "normal-speed";
+}
+
+/** Speaking speeds, as a multiple of normal; both Kokoro and Azure accept this range. */
+export const SPEAKING_SPEEDS = [0.8, 0.9, 1, 1.1, 1.2] as const;
+
+/** The next speaking speed, or undefined when it is already the fastest or slowest. */
+export function changedSpeed(current: number, command: SpeedCommand) {
+  if (command === "normal-speed") return 1;
+  if (command === "fastest" || command === "slowest") {
+    const end = command === "fastest" ? SPEAKING_SPEEDS.at(-1)! : SPEAKING_SPEEDS[0];
+    return current === end ? undefined : end;
+  }
+  const index = SPEAKING_SPEEDS.indexOf(current as typeof SPEAKING_SPEEDS[number]);
+  const at = index < 0 ? SPEAKING_SPEEDS.indexOf(1) : index;
+  return SPEAKING_SPEEDS[command === "faster" ? at + 1 : at - 1];
 }

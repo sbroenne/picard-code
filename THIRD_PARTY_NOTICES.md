@@ -18,6 +18,8 @@ Their installed license files and notices must be preserved.
 | ws | MIT; copyright 2011 Einar Otto Stangvik, copyright 2013 Arnout Kazemier and contributors | [Project](https://github.com/websockets/ws) |
 | marked (built into the browser page) | MIT; copyright 2018+ MarkedJS, copyright 2011-2018 Christopher Jeffrey | [Project](https://github.com/markedjs/marked) |
 | DOMPurify (built into the browser page) | Apache 2.0 or MPL 2.0, used under Apache 2.0; copyright Cure53 and other contributors | [Project](https://github.com/cure53/DOMPurify) |
+| Silero VAD v5 voice detector model (built into the browser page; taken from the `@ricky0123/vad-web` package, ISC) | MIT; copyright 2020-present Silero Team | [Project](https://github.com/snakers4/silero-vad), [vad-web](https://github.com/ricky0123/vad) |
+| ONNX Runtime Web (built into the browser page; runs the voice detector) | MIT; Microsoft Corporation; its bundled components keep their own notices | [Project](https://github.com/microsoft/onnxruntime), [Notices](https://github.com/microsoft/onnxruntime/blob/main/ThirdPartyNotices.txt) |
 
 ## Local speech
 

@@ -7,7 +7,7 @@ export function speechFixture(phrases: string | string[] = "Hello computer", sec
   let audioWrites = 0;
   let closes = 0;
   let spoken = "";
-  const said: { text: string; voice?: SpeakingVoice }[] = [];
+  const said: { text: string; voice?: SpeakingVoice; speed?: number }[] = [];
   const service: SpeechService = {
     async listen(callbacks, signal) {
       await wait(5, undefined, { signal });
@@ -24,9 +24,9 @@ export function speechFixture(phrases: string | string[] = "Hello computer", sec
       };
     },
     officerVoice: (officer) => ({ name: `test-${officer}` }),
-    async *speak(text, signal, voice) {
+    async *speak(text, signal, voice, speed) {
       spoken = text;
-      said.push({ text, ...voice ? { voice } : {} });
+      said.push({ text, ...voice ? { voice } : {}, ...speed === undefined ? {} : { speed } });
       const tone = Buffer.alloc(4800);
       for (let index = 0; index < tone.length / 2; index++) tone.writeInt16LE(Math.round(Math.sin(index / 24000 * 440 * 2 * Math.PI) * 3000), index * 2);
       for (let index = 0; index < seconds * 10; index++) {

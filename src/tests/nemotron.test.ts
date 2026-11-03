@@ -12,7 +12,7 @@ import { setTimeout as wait } from "node:timers/promises";
 import { WebSocket, WebSocketServer } from "ws";
 import { connectNemotron, nemotronSpeech } from "../server/nemotron-speech.js";
 import { canSetUpLocalSpeech, localSpeechReady } from "../server/speech.js";
-import { downloadVerified, nemotronArchive, NEMOTRON_VERSION, setupNemotron } from "../../scripts/setup-nemotron.mjs";
+import { downloadVerified, nemotronArchive, NEMOTRON_MODEL, NEMOTRON_NOTICES, NEMOTRON_VERSION, setupNemotron } from "../../scripts/setup-nemotron.mjs";
 
 async function fixture(t: TestContext) {
   const server = createServer();
@@ -180,6 +180,31 @@ test("local readiness and custom paths concern only the selected speech services
   assert.equal(await localSpeechReady({ ...record, listening: "nemotron", speaking: "kokoro" }, false, true), true);
   assert.equal(canSetUpLocalSpeech({ listening: "nemotron", speaking: "mai", whisperModel: "/old/custom/whisper" }), true);
   assert.equal(canSetUpLocalSpeech({ listening: "nemotron", speaking: "mai", nemotronModel: "/custom/nemotron" }), false);
+});
+
+test("the standard Nemotron model is ready only with its NVIDIA licence and notice", { timeout: 10_000 }, async (t) => {
+  const home = await mkdtemp(resolve(".picard-test-home-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const models = join(home, ".picard-code", "voice", "models");
+  await mkdir(models, { recursive: true });
+  const program = join(home, "nemo-speech");
+  await writeFile(program, "");
+  await writeFile(join(models, NEMOTRON_MODEL), "");
+  const ready = async () => {
+    const script = `const { localSpeechReady } = await import(${JSON.stringify(new URL("../server/speech.js", import.meta.url).href)});
+      process.stdout.write(String(await localSpeechReady({ listening: "nemotron", speaking: "mai", nemotronProgram: ${JSON.stringify(program)} })));`;
+    const child = spawn(process.execPath, ["--input-type=module", "-e", script], { env: { ...process.env, HOME: home, USERPROFILE: home } });
+    let output = "";
+    child.stdout.on("data", (chunk) => { output += chunk; });
+    const [code] = await once(child, "exit");
+    assert.equal(code, 0);
+    return output;
+  };
+  assert.equal(await ready(), "false", "A finished model without its licence must not skip the licence download.");
+  await writeFile(join(models, NEMOTRON_NOTICES[0]), "");
+  assert.equal(await ready(), "false");
+  await writeFile(join(models, NEMOTRON_NOTICES[1]), "");
+  assert.equal(await ready(), "true");
 });
 
 test("speech downloads verify checksums, preserve a previous file on failure, and can retry", async (t) => {

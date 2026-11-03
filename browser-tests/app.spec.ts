@@ -118,6 +118,7 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
   await page.getByRole("link", { name: /^Listen/ }).click();
   await expect(page.getByRole("heading", { name: "Speech" })).toBeVisible();
+  await expect(page.locator("#prepare-local-speech")).toHaveText("Prepare the computer");
   await expect(page.getByLabel("Listening", { exact: true })).toBeHidden();
   await page.locator("#advanced-speech > summary").click();
   await expect(page.getByLabel("Listening", { exact: true })).toHaveValue("nemotron");
@@ -292,6 +293,16 @@ test("reloaded speech retry asks the server to repeat the failed choice, not sav
   await expect(page.locator("#readout-speech")).toHaveText("Nemotron · Azure MAI");
   expect(retries).toBe(1);
   expect(settingWrites).toBe(0);
+});
+
+test("while Azure is in use, the local speech choice reads as a switch, not as the current setup", async ({ page }) => {
+  const state = await (await page.request.get(new URL("/api/state", page.url()).href)).json();
+  await page.route("**/api/state", (route) => route.fulfill({ json: { ...state, speech: { configured: true, listening: "mai", speaking: "mai" } } }));
+  await page.reload();
+  await page.getByRole("link", { name: /^Listen/ }).click();
+  await expect(page.locator("#speech-current")).toHaveText("In use: Azure listens, Azure speaks");
+  await expect(page.locator("#local-speech-offer")).toHaveText("Switch to this computer: Nemotron listens and Kokoro speaks, with no Azure account needed.");
+  await expect(page.locator("#prepare-local-speech")).toHaveText("Use this computer instead");
 });
 
 test("a long saved log cannot scroll preparation out of view, and Belay that still stops work", async ({ page }) => {
