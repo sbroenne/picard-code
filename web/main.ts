@@ -1,7 +1,7 @@
 import "./style.css";
 import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings } from "../src/shared/types";
 import { errorMessage } from "../src/shared/messages";
-import { replyFailed } from "../src/shared/speech";
+import { replyFailed, spokenSummary } from "../src/shared/speech";
 import { spokenParts } from "../src/shared/briefing";
 import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../src/shared/questions";
 import { addressed, voiceCommand } from "../src/shared/wake";
@@ -80,7 +80,16 @@ let confirmingDelete: string | undefined;
 const voice = new VoiceConversation({
   changed: voiceControls,
   error: (message) => { cancelTributeSpeech(); notice(message); },
-  transcript: heard,
+  transcript: async (text, startedAt) => {
+    try { await heard(text, startedAt); }
+    catch (error) {
+      const message = errorMessage(error);
+      cancelTributeSpeech();
+      notice(message);
+      await voice.notSent();
+      voice.speak(spokenSummary(message));
+    }
+  },
   canListen: () => !!state?.models.length && connected,
   beforeSpeak: () => players.stop(),
 });

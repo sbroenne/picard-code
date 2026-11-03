@@ -224,7 +224,8 @@ You do not have to name an officer. When you don't, Picard Code first asks the
 selected model, in a quick separate check, who should handle the request, and
 then hands it over itself. This check adds nothing to the log entry, usually
 takes a second or two, and makes one small extra model request. If it fails,
-the request is not sent and the real error is shown.
+the request is not sent and the computer says the real error, which also stays
+on screen.
 
 As on the Enterprise, the computer answers most requests itself: facts,
 look-ups, explanations, news, research, summaries, writing, finding things in

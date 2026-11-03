@@ -1395,6 +1395,38 @@ test("a saved reply is shown after 20 seconds even if no terminal outcome arrive
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
+for (const path of ["**/api/conversations", "**/api/conversations/*/send"]) {
+  test(`a spoken request rejected by ${path} speaks the real error without claiming acceptance`, async ({ page }) => {
+    const message = path.endsWith("/send")
+      ? "Could not decide which officer should handle this request. This model is not available in your country. The request was not sent."
+      : "The new log entry could not be opened. The model service cannot be reached.";
+    await page.route(path, async (route) => {
+      if (route.request().method() === "POST") await route.fulfill({ status: 502, json: { error: message } });
+      else await route.continue();
+    });
+    const spoken = spokenText(page);
+    await launch(page);
+    await startListening(page);
+    await expect(page.locator("#notice-text")).toHaveText(message, { timeout: 15000 });
+    await expect.poll(() => spoken.includes(message), { timeout: 15000 }).toBe(true);
+    await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+    const timeline = await page.evaluate(() => (window as unknown as {
+      audioTimeline: { name: string; at: number; end: number; capture: boolean }[];
+    }).audioTimeline);
+    const cue = timeline.find((item) => item.name === "input-failed")!;
+    const speech = timeline.find((item) => item.name === "speech")!;
+    expect(speech.at).toBeGreaterThanOrEqual(cue.end - 0.01);
+    expect(cue.capture).toBe(false);
+    await expect(status(page)).toHaveText(/Standing by|Listening/, { timeout: 15000 });
+    await expect(page.locator("#notice-text")).toHaveText(message);
+    expect(spoken).toEqual([message]);
+    expect((await sounds(page)).map((sound) => sound.split(":")[0])).toEqual(["input-failed"]);
+    await expect(page.locator(".message[data-role=user]")).toHaveCount(0);
+    await expect(page.locator(".message[data-role=assistant]")).toHaveCount(0);
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+  });
+}
+
 test("a failed request is visible before its failure sound", async ({ page }) => {
   await launch(page, "broken");
   await startListening(page);
