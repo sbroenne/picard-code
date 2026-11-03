@@ -241,8 +241,10 @@ test("spoken answers include every conversational paragraph without reading code
 
 test("technical appendices, tables and code stay on screen without dropping later conversational prose", () => {
   const prose = "The change is not safe.\n\nThere is a second risk. Do not deploy it.\n\nWhat should we check first?";
-  assert.equal(spokenSummary(`${prose}\n\n### On screen\n\nTechnical details and [sources](https://example.com).\n\n\`\`\`ts\nconst unsafe = true;\n\`\`\``),
-    "The change is not safe. There is a second risk. Do not deploy it. What should we check first?");
+  for (const heading of ["On screen", "**On screen**", "_On screen_", "[On screen](https://example.com)", "On **screen**"]) {
+    assert.equal(spokenSummary(`${prose}\n\n### ${heading}\n\nTechnical details and [sources](https://example.com).\n\n\`\`\`ts\nconst unsafe = true;\n\`\`\``),
+      "The change is not safe. There is a second risk. Do not deploy it. What should we check first?", heading);
+  }
   assert.equal(spokenSummary("First paragraph.\n\n~~~md\n### On screen\n~~~\n\n| Setting | Value |\n| --- | --- |\n| token | secret |\n\nLast paragraph."),
     "First paragraph. Last paragraph.");
   assert.equal(spokenSummary("First.\n\n    const x = 1;\n\nLast."), "First. Last.");

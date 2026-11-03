@@ -100,11 +100,13 @@ const ADDRESSES: [CrewID, string][] = [
   ["picard-troi", String.raw`counsell?or(?:\s+troi)?|(?:commander\s+)?troi|deanna(?:\s+troi)?`],
   ["picard-crusher", String.raw`(?:doctor|dr\.?)(?:\s+crusher)?|crusher|beverly(?:\s+crusher)?`],
 ];
-const ADDRESS = new RegExp(String.raw`^\s*(?:(?:ask|have)\s+)?(?:${ADDRESSES.map(([, names], index) => `(?<o${index}>${names})`).join("|")})(?=$|\s*[,.:!]|\s+(?:and|to|please|report|brief|look|advise|assess|compare|give|tell|help|speak|answer|suggest|weigh|recommend|read|consider|handle|take|write|draft|investigate|explain|review|check|build|repair|coordinate|organise|organize|lead|assemble|gather|consult|analyse|analyze)\b)`, "i");
+const ADDRESS = new RegExp(String.raw`^\s*(?:${ADDRESSES.map(([, names], index) => `(?<o${index}>${names})`).join("|")})(?=$|\s*[,.:!]|\s+(?:and|to|please|report|brief|look|advise|assess|compare|give|tell|help|speak|answer|suggest|weigh|recommend|read|consider|handle|take|write|draft|investigate|explain|review|check|build|repair|coordinate|organise|organize|lead|assemble|gather|consult|analyse|analyze)\b)`, "i");
 
 /** Only an explicit address list at the start selects officers; mentions and negations do not. */
 export function addressedOfficers(text: string): CrewID[] {
   let rest = addressed(text) ?? text;
+  const prefix = /^\s*(?:ask|have)\s+/i.exec(rest);
+  if (prefix) rest = rest.slice(prefix[0].length);
   const found: CrewID[] = [];
   let conjunction = false;
   for (;;) {
@@ -115,6 +117,8 @@ export function addressedOfficers(text: string): CrewID[] {
       if (conjunction) return [];
       break;
     }
+    if (!found.length && !prefix && groups?.o0?.toLowerCase() === "will"
+      && !/^\s*(?:$|[,.:!]|and\b)/i.test(rest.slice(match[0].length))) return [];
     found.push(ADDRESSES[index]![0]);
     rest = rest.slice(match[0].length);
     const separator = /^\s*(?:,\s*(?:and\s+)?|and\s+)/i.exec(rest);

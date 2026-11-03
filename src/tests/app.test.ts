@@ -320,6 +320,15 @@ test("direct crew requests keep words and models unchanged; missing crew fails e
   }
   const generated = () => context.fixture.requests.filter((request) => request.path.endsWith("/generate"));
   assert.equal(generated().length, 0, "an officer named by the Captain needs no officer check");
+  for (const text of ["Computer, will help be available offline?", "Computer, will read-only access prevent writes?"]) {
+    const entry = await (await context.request("conversations", {})).json();
+    const before = generated().length;
+    context.fixture.crewChoices.push("computer");
+    assert.equal((await context.request(`conversations/${entry.id}/send`, { text, providerID: "other-provider", modelID: "other" })).status, 202);
+    assert.equal(generated().length, before + 1, "an ambiguous will question uses the officer check");
+    assert.equal(context.fixture.sessions.get(entry.id)?.agent, "build");
+    assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text });
+  }
   const ordinary = await (await context.request("conversations", {})).json();
   context.fixture.crewChoices.push("picard-worf");
   const misheard = "Computer, Walt, check this for risks.";
@@ -347,13 +356,17 @@ test("direct crew requests keep words and models unchanged; missing crew fails e
   assert.equal(context.fixture.sessions.get(named.id)?.agent, "build", "a list is not reduced to its first officer");
   assert.ok(context.fixture.instructions.get(named.id)!["picard-manner"]!.trimEnd().endsWith(crewBriefing(["picard-data", "picard-geordi", "picard-worf"])));
   assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text: address });
-  const riker = await (await context.request("conversations", {})).json();
-  const coordinate = "Computer, Number One, organise a review with Worf and Troi. Do not edit files.";
-  assert.equal((await context.request(`conversations/${riker.id}/send`, { text: coordinate, providerID: "other-provider", modelID: "other" })).status, 202);
-  assert.equal(generated().length, checksBeforeNames, "the coordination order goes straight to Number One");
-  assert.equal(context.fixture.sessions.get(riker.id)?.agent, "picard-riker");
-  assert.match(context.fixture.instructions.get(riker.id)!["picard-manner"]!, /Only when the Captain explicitly asks you to organise or coordinate work/);
-  assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text: coordinate });
+  for (const coordinate of [
+    "Computer, Number One, organise a review with Worf and Troi. Do not edit files.",
+    "Computer, Number One, have Worf review example.ts and then give me your recommendation. Do not edit files.",
+  ]) {
+    const riker = await (await context.request("conversations", {})).json();
+    assert.equal((await context.request(`conversations/${riker.id}/send`, { text: coordinate, providerID: "other-provider", modelID: "other" })).status, 202);
+    assert.equal(generated().length, checksBeforeNames, "the coordination order goes straight to Number One");
+    assert.equal(context.fixture.sessions.get(riker.id)?.agent, "picard-riker");
+    assert.match(context.fixture.instructions.get(riker.id)!["picard-manner"]!, /Only when the Captain explicitly asks you to organise or coordinate work/);
+    assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text: coordinate });
+  }
   const unchosen = await (await context.request("conversations", {})).json();
   const prompts = context.fixture.requests.filter((request) => request.path.endsWith("/prompt")).length;
   context.fixture.crewChoices.push(null);

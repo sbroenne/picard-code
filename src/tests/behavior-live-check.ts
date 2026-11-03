@@ -16,7 +16,7 @@ import type { TributeRequest } from "../shared/tribute.js";
 // Model wording varies, so this records the full transcript and checks behavior that must hold every time.
 const modelArgument = process.argv.indexOf("--model");
 const requestedModel = modelArgument < 0 ? undefined : process.argv[modelArgument + 1];
-if (modelArgument >= 0 && (!requestedModel || requestedModel.startsWith("--"))) throw new Error("Provide --model as provider/model.");
+if (!requestedModel || requestedModel.startsWith("--") || !requestedModel.includes("/")) throw new Error("Choose an available current-generation model and provide --model as provider/model. Check available models with npm run opencode -- models.");
 const samples = resolve(".picard-voice", "samples");
 await mkdir(samples, { recursive: true });
 const temporary = await mkdtemp(resolve(tmpdir(), "picard-behavior-check-"));
@@ -35,10 +35,9 @@ const check = (ok: boolean, label: string) => { transcript.push(`- ${ok ? "PASS"
 try {
   engine = await startEngine(project);
   const client = engine.client;
-  const { models, defaultModel } = await availableModels(client, project);
-  const model = requestedModel ? models.find((item) => `${item.providerID}/${item.modelID}` === requestedModel)
-    : models.find((item) => item.modelID === "gpt-4.1") ?? models.find((item) => item.modelID === "gpt-5-mini") ?? defaultModel;
-  assert.ok(model, requestedModel ? `The requested test model ${requestedModel} is not available.` : "Sign in to a model provider in OpenCode before this real check.");
+  const { models } = await availableModels(client, project);
+  const model = models.find((item) => `${item.providerID}/${item.modelID}` === requestedModel);
+  assert.ok(model, `The requested test model ${requestedModel} is not available.`);
   app = await startApp({ client, project, webRoot: resolve("web-dist"), modelFile: resolve(temporary, "model.json"), speechFile: resolve(temporary, "speech.json") });
   const origin = app.origin;
   const connected = await fetch(`${origin}/api/connect`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "x-picard-request": "1" }, body: JSON.stringify({ token: app.token }) });

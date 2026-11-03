@@ -98,7 +98,7 @@ function spokenBlocks(tokens: Token[]): string[] {
   const blocks: string[] = [];
   for (const token of tokens) {
     // A heading marks the appendix; the same words inside a code sample do not end speech.
-    if (token.type === "heading" && /^on screen$/i.test(token.text.trim())) break;
+    if (token.type === "heading" && /^on screen$/i.test((token.tokens ? spokenInline(token.tokens) : token.text).trim())) break;
     switch (token.type) {
       case "paragraph": case "text":
         blocks.push(token.tokens ? spokenInline(token.tokens) : token.text);

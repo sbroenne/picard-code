@@ -346,8 +346,9 @@ briefings with real officer calls and Number One calling officers when
 explicitly asked to organise their work. It also checks that a ban on tools
 or officer calls is respected. It cannot judge whether an
 officer sounds right; that needs you. Add `-- --show-replies` to print the six
-generated officer replies for review, or `-- --model provider/model` to choose
-an available model for the check without changing your saved choice. The check
+generated officer replies for review. First confirm a current-generation model
+with `npm run opencode -- models`, then pass `-- --model provider/model`;
+the check requires this explicit choice and does not change your saved choice. It
 makes model requests, may incur provider charges, and never answers an approval
 itself.
 
@@ -1111,8 +1112,9 @@ outside this repository. It checks a short investigation, a follow-up, a
 correction, "show me", OpenCode's real question with a spoken-style answer,
 and a refused command approval that must not run. It writes the full exchange
 to `.picard-voice/samples/behavior-transcript.md`. Model wording varies; the
-check verifies behavior, not exact words. Add `-- --model provider/model` to
-choose an available model without changing your saved choice.
+check verifies behavior, not exact words. First confirm a current-generation
+model with `npm run opencode -- models`, then pass `-- --model provider/model`.
+The check requires this explicit choice and does not change your saved choice.
 
 Quiet, very short words or a long pause inside a sentence may need a repeat.
 Interrupting playback uses **Stop speaking**, not voice-over-voice detection.

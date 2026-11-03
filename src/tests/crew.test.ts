@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { BRIDGE_CREW, chosenCrew, continuesOfficer, addressedOfficer, addressedOfficers, repeatsReport } from "../shared/crew.js";
 import { crewConfiguration, loadedAgents, verifiedCrew } from "../server/crew.js";
 import { OpenCode, type AgentInfo, type PermissionRule } from "../server/opencode.js";
@@ -44,6 +46,10 @@ test("explicit address lists select every named officer without mistaking mentio
   assert.deepEqual(addressedOfficers("Computer, Data and his cat are interesting."), []);
   assert.deepEqual(addressedOfficers("Computer, Data and Geordi must not be called."), [], "an unrecognised continuation is left to the officer check");
   assert.deepEqual(addressedOfficers("Computer, Number One, organise a review."), ["picard-riker"]);
+  for (const command of ["have", "ask"]) {
+    assert.deepEqual(addressedOfficers(`Computer, Number One, ${command} Worf to review example.ts and then give me your recommendation.`), ["picard-riker"]);
+    assert.deepEqual(addressedOfficers(`Computer, ${command} Number One, ${command} Worf to review example.ts.`), ["picard-riker"]);
+  }
 });
 
 test("only explicit officer addresses select crew, without changing the user's words", () => {
@@ -54,7 +60,7 @@ test("only explicit officer addresses select crew, without changing the user's w
   }
   assert.equal(addressedOfficer("Computer, Doctor Crusher, check recovery")?.id, "picard-crusher");
   const ranks: [string, string][] = [
-    ["Computer, Number One, report.", "picard-riker"], ["Will, coordinate this", "picard-riker"], ["Computer, Commander Riker, explain this", "picard-riker"],
+    ["Computer, Number One, report.", "picard-riker"], ["Will, coordinate this", "picard-riker"], ["Computer, ask Will to help", "picard-riker"], ["Have Will read this", "picard-riker"], ["Computer, Commander Riker, explain this", "picard-riker"],
     ["Computer, Mr. Data, explain this", "picard-data"], ["Computer, Lieutenant Commander Data, analyse this", "picard-data"],
     ["Computer, Mr. La Forge, repair the build", "picard-geordi"], ["Computer, LaForge, check this", "picard-geordi"], ["Have Geordi La Forge build it", "picard-geordi"],
     ["Computer, Mr. Worf, review the login", "picard-worf"], ["Computer, Lieutenant Worf, check this", "picard-worf"],
@@ -62,11 +68,21 @@ test("only explicit officer addresses select crew, without changing the user's w
     ["Computer, Doctor, check recovery", "picard-crusher"], ["Computer, Beverly, review this plan", "picard-crusher"], ["Computer, Dr. Crusher, check this", "picard-crusher"],
   ];
   for (const [text, id] of ranks) assert.equal(addressedOfficer(text)?.id, id, text);
-  for (const text of ["Computer, Commander, review this", "Computer, will the build pass?", "Computer, Doctor Who facts, please", "Computer, number one priority: fix the build"]) {
+  for (const text of ["Computer, Commander, review this", "Computer, will the build pass?", "Computer, will help be available offline?", "Computer, will read-only access prevent writes?", "Computer, will review help?", "Computer, Doctor Who facts, please", "Computer, number one priority: fix the build"]) {
     assert.equal(addressedOfficer(text), undefined, text);
   }
   for (const text of ["Computer, do not ask Data to review this", "Computer, don't have Riker coordinate this", "Computer, explain what Geordi does", "Data is missing from this file", "Review Riker's suggestion"]) {
     assert.equal(addressedOfficer(text), undefined);
+  }
+});
+
+test("real crew and behavior checks require an explicit model before starting", () => {
+  for (const file of ["crew-live-check.js", "behavior-live-check.js"]) {
+    for (const args of [[], ["--model"], ["--model", "--show-replies"], ["--model", "gpt-6.1-sol"]]) {
+      const result = spawnSync(process.execPath, [fileURLToPath(new URL(file, import.meta.url)), ...args], { encoding: "utf8", timeout: 5000 });
+      assert.equal(result.status, 1, `${file} ${args.join(" ")} must stop before starting services`);
+      assert.match(result.stderr, /Choose an available current-generation model and provide --model as provider\/model/);
+    }
   }
 });
 

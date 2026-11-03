@@ -11,7 +11,7 @@ import type { AppState, ChatMessage } from "../shared/types.js";
 
 const modelArgument = process.argv.indexOf("--model");
 const requestedModel = modelArgument < 0 ? undefined : process.argv[modelArgument + 1];
-if (modelArgument >= 0 && (!requestedModel || requestedModel.startsWith("--"))) throw new Error("Provide --model as provider/model.");
+if (!requestedModel || requestedModel.startsWith("--") || !requestedModel.includes("/")) throw new Error("Choose an available current-generation model and provide --model as provider/model. Check available models with npm run opencode -- models.");
 const temporary = await mkdtemp(join(tmpdir(), "picard-crew-check-"));
 const projectFolder = join(temporary, "project");
 await mkdir(projectFolder);
@@ -27,10 +27,9 @@ try {
   await writeFile(join(project, "example.ts"), example);
   await writeFile(join(project, "opencode.json"), configuration);
   engine = await startEngine(project);
-  const { models, defaultModel } = await availableModels(engine.client, project);
-  const model = requestedModel ? models.find((item) => `${item.providerID}/${item.modelID}` === requestedModel)
-    : models.find((item) => item.modelID === "gpt-5-mini") ?? defaultModel;
-  assert.ok(model, requestedModel ? `The requested test model ${requestedModel} is not available.` : "A model provider must be connected to run the real crew check.");
+  const { models } = await availableModels(engine.client, project);
+  const model = models.find((item) => `${item.providerID}/${item.modelID}` === requestedModel);
+  assert.ok(model, `The requested test model ${requestedModel} is not available.`);
   app = await startApp({ client: engine.client, project, prepareCrew: engine.prepareCrew, webRoot: resolve("web-dist"), speechFile: join(temporary, "speech.json"), modelFile: join(temporary, "model.json") });
   const connected = await fetch(`${app.origin}/api/connect`, {
     method: "POST", headers: { "Content-Type": "application/json", "X-Picard-Request": "1" }, body: JSON.stringify({ token: app.token }),
