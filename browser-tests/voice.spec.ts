@@ -1486,16 +1486,19 @@ test("the website example: Data and Riker answer, then a Picard personnel file a
 
 test("the side panel keeps every tile readable on a short laptop screen", async ({ page }) => {
   await launch(page);
-  for (const height of [590, 657]) {
-    await page.setViewportSize({ width: 1280, height });
-    const tiles = await page.locator("#sidebar .rail-button, #sidebar .readout").evaluateAll((nodes) => nodes.map((node) => {
-      const tile = node.getBoundingClientRect();
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      const text = range.getBoundingClientRect();
-      return { text: node.textContent, clipped: text.top < tile.top - 1 || text.bottom > tile.bottom + 1, bottom: tile.bottom };
-    }));
-    expect(tiles.filter((tile) => tile.clipped)).toEqual([]);
-    expect(Math.max(...tiles.map((tile) => tile.bottom))).toBeLessThanOrEqual(height);
+  for (const font of ["", "Arial, sans-serif"]) {
+    await page.evaluate((font) => document.documentElement.style.setProperty("--lcars", font), font);
+    for (const height of [590, 657]) {
+      await page.setViewportSize({ width: 1280, height });
+      const tiles = await page.locator("#sidebar .rail-button, #sidebar .readout").evaluateAll((nodes) => nodes.map((node) => {
+        const tile = node.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const text = range.getBoundingClientRect();
+        return { text: node.textContent, clipped: text.top < tile.top - 1 || text.bottom > tile.bottom + 1, bottom: tile.bottom };
+      }));
+      expect(tiles.filter((tile) => tile.clipped)).toEqual([]);
+      expect(Math.max(...tiles.map((tile) => tile.bottom))).toBeLessThanOrEqual(height);
+    }
   }
 });

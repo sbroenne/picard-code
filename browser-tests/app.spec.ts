@@ -262,6 +262,80 @@ test("reopening during automatic speech setup follows the same job without start
   expect(writes).toBe(0);
 });
 
+test("reloaded speech retry asks the server to repeat the failed choice, not saved settings", async ({ page }) => {
+  const state = await (await page.request.get(new URL("/api/state", page.url()).href)).json();
+  const setup = { state: "failed", step: "Downloading Nemotron", error: "Generated download failure" };
+  let retries = 0;
+  let settingWrites = 0;
+  await page.route("**/api/state", (route) => route.fulfill({ json: { ...state, speech: {
+    configured: true, listening: "mai", speaking: "mai", setup,
+  } } }));
+  await page.route("**/api/settings", (route) => {
+    if (route.request().method() === "POST") settingWrites++;
+    return route.fulfill({ json: { settings: { listening: "mai", speaking: "mai" }, localFiles: { nemotron: false, kokoro: false } } });
+  });
+  await page.route("**/api/speech-setup", (route) => {
+    if (route.request().method() === "POST") {
+      retries++;
+      expect(route.request().postDataJSON()).toEqual({});
+      return route.fulfill({ status: 202, json: { state: "done", step: "Starting speech", result: {
+        settings: { listening: "nemotron", speaking: "mai" }, file: "Labeled test settings",
+        localFiles: { nemotron: true, kokoro: false }, speech: { configured: true, listening: "nemotron", speaking: "mai" },
+      } } });
+    }
+    return route.fulfill({ json: setup });
+  });
+  await page.reload();
+  await expect(page.locator("#retry-speech-setup")).toBeVisible();
+  await page.locator("#retry-speech-setup").click();
+  await expect(page.locator("#speech-preparation")).toBeHidden();
+  await expect(page.locator("#readout-speech")).toHaveText("Nemotron · Azure MAI");
+  expect(retries).toBe(1);
+  expect(settingWrites).toBe(0);
+});
+
+test("a long saved log cannot scroll preparation out of view, and Belay that still stops work", async ({ page }) => {
+  const state = await (await page.request.get(new URL("/api/state", page.url()).href)).json();
+  const entry = { id: "saved-setup-entry", title: "Generated saved log", created: 1, updated: 1 };
+  const setup = { state: "running", step: "Downloading Nemotron" };
+  let done = false;
+  let stopped = 0;
+  await page.route("**/api/state", (route) => route.fulfill({ json: { ...state, conversations: [entry],
+    statuses: stopped ? {} : { [entry.id]: { type: "busy" } }, speech: { configured: false, setup } } }));
+  await page.route(`**/api/conversations/${entry.id}/messages`, (route) => route.fulfill({ json: [{
+    id: "long-saved-message", role: "user", parts: [{ id: "long-text", type: "text", text: "Original generated long log.\n".repeat(300) }],
+  }] }));
+  await page.route(`**/api/conversations/${entry.id}/stop`, (route) => {
+    stopped++;
+    return route.fulfill({ json: {} });
+  });
+  await page.route("**/api/speech-setup", (route) => {
+    if (route.request().method() === "POST") setup.state = "running";
+    return route.fulfill({ json: done ? { state: "done", step: "Starting speech", result: {
+      settings: { listening: "nemotron", speaking: "kokoro" }, file: "Labeled test settings",
+      localFiles: { nemotron: true, kokoro: true }, speech: { configured: true, listening: "nemotron", speaking: "kokoro" },
+    } } : setup });
+  });
+  await page.reload();
+  await expect(page.locator("#messages")).toContainText("Original generated long log");
+  await expect(page.locator("#voice-console")).toBeHidden();
+  await expect(page.locator("#speech-preparation")).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole("button", { name: "Belay that", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Belay that", exact: true }).click();
+  await expect(page.locator("#stop")).toBeHidden();
+  expect(stopped).toBe(1);
+  setup.state = "failed";
+  await expect(page.locator("#retry-speech-setup")).toBeVisible();
+  await expect(page.locator("#speech-preparation")).toBeInViewport({ ratio: 1 });
+  await expect(page.locator("#messages")).toContainText("Original generated long log");
+  await page.locator("#retry-speech-setup").click();
+  await expect(page.getByRole("progressbar")).toBeVisible();
+  done = true;
+  await expect(page.locator("#speech-preparation")).toBeHidden();
+  await expect(page.locator("#messages")).toBeVisible();
+  await expect(page.locator("#messages")).toContainText("Original generated long log");
+});
+
 test("the only Tribute toggle is a navigation tile; About explains screen-only facts", async ({ page }, testInfo) => {
   const toggle = page.getByRole("switch", { name: "Tribute", exact: true });
   await expect(toggle).toBeChecked();

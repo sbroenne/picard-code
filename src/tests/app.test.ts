@@ -896,6 +896,7 @@ test("choosing local speech for the first time downloads it in the background, t
   assert.deepEqual(running, { state: "running", step: "Downloading and checking Nemotron and Kokoro..." });
   assert.deepEqual((await (await context.request("state")).json()).speech.setup, running);
   assert.equal((await context.request("settings", choice)).status, 409, "a second download is not started");
+  assert.equal((await context.request("speech-setup", {})).status, 409, "retry cannot duplicate a running download");
   assert.equal(started.length, 0, "nothing is used before the files are there");
 
   finish();
@@ -1053,6 +1054,61 @@ test("a failed local speech download is reported and changes nothing", async (t)
   assert.equal(state.speech?.configured, false);
 });
 
+test("retry uses the failed speech choice after reload, keeps private paths, and starts only one retry", { timeout: 5000 }, async (t) => {
+  const original = { listening: "mai", speaking: "mai", region: "eastus", localPython: "/existing/private/python" };
+  const choice = { listening: "nemotron", speaking: "mai", region: "swedencentral", deployment: "listen" };
+  let downloads = 0;
+  let ready = false;
+  let releaseReadiness!: () => void;
+  let retryReadiness: Promise<void> | undefined;
+  let waiting = 0;
+  const records: Record<string, unknown>[] = [];
+  const context = await setup({
+    speech: { ...speechFixture().service, selection: { listening: "mai", speaking: "mai" } },
+    localSpeechReady: async (_record, listening = true) => {
+      if (retryReadiness) { waiting++; await retryReadiness; }
+      return !listening || ready;
+    },
+    setUpLocalSpeech: async () => {
+      if (++downloads === 1) throw new Error("Generated download failure.");
+      ready = true;
+    },
+    startSpeech: async (record) => {
+      records.push(record);
+      return { ...speechFixture().service, selection: { listening: "nemotron", speaking: "mai" } };
+    },
+  }, original);
+  t.after(async () => { releaseReadiness?.(); await context.cleanup(); });
+  await context.login();
+  assert.equal((await context.request("speech-setup", {})).status, 409);
+  assert.equal((await context.request("settings", choice)).status, 202);
+  let job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") {
+    await new Promise((done) => setTimeout(done, 5));
+    job = await (await context.request("speech-setup")).json();
+  }
+  assert.equal(job.state, "failed");
+  assert.equal(JSON.stringify(job).includes(original.localPython), false);
+  assert.equal((await (await context.request("settings")).json()).settings.listening, "mai");
+  assert.deepEqual(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")), original);
+  retryReadiness = new Promise((done) => { releaseReadiness = done; });
+  const first = context.request("speech-setup", {});
+  while (waiting < 1) { t.signal.throwIfAborted(); await new Promise((done) => setTimeout(done, 5)); }
+  assert.equal((await context.request("speech-setup", {})).status, 409);
+  releaseReadiness();
+  assert.equal((await first).status, 202);
+  job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") {
+    await new Promise((done) => setTimeout(done, 5));
+    job = await (await context.request("speech-setup")).json();
+  }
+  assert.equal(job.state, "done");
+  assert.equal(downloads, 2);
+  assert.deepEqual(records, [{ ...original, ...choice }]);
+  assert.deepEqual(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")), { ...original, ...choice });
+  assert.equal((await context.request("speech-setup", {})).status, 409);
+});
+
 test("automatic replacement downloads only Nemotron when custom Kokoro files already work", async (t) => {
   const choices: unknown[] = [];
   const context = await setup({
@@ -1096,11 +1152,13 @@ test("shutdown cancels speech startup and never saves the replacement", { timeou
 });
 
 test("automatic listener replacement does not save a temporary speaking override", async (t) => {
+  let attempts = 0;
   const context = await setup({
     speechOverrides: { speaking: "mai" },
     localSpeechReady: async () => true,
     startSpeech: async (record) => {
       assert.equal(record.speaking, "mai");
+      if (++attempts === 1) throw new Error("Generated speech startup failure.");
       return { ...speechFixture().service, selection: { listening: "nemotron", speaking: "mai" } };
     },
   }, { listening: "whisper", speaking: "kokoro" });
@@ -1111,7 +1169,15 @@ test("automatic listener replacement does not save a temporary speaking override
     await new Promise((done) => setTimeout(done, 5));
     job = await (await context.request("speech-setup")).json();
   }
+  assert.equal(job.state, "failed");
+  assert.equal((await context.request("speech-setup", {})).status, 202);
+  job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") {
+    await new Promise((done) => setTimeout(done, 5));
+    job = await (await context.request("speech-setup")).json();
+  }
   assert.equal(job.state, "done");
+  assert.equal(attempts, 2);
   assert.deepEqual(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")), { listening: "nemotron", speaking: "kokoro" });
 });
 

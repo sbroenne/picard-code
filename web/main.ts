@@ -272,6 +272,11 @@ function voiceControls() {
   }
   element("setup").hidden = !!setupPart || !state || !!state.models.length;
   element("voice-console").hidden = !state?.speech?.configured || preparing || !!setupPart;
+  const stop = element("stop");
+  const workControls = element("setup-work-controls");
+  const stopContainer = element("voice-console").hidden ? workControls : element("console-actions");
+  if (stop.parentElement !== stopContainer) stopContainer.append(stop);
+  workControls.hidden = !element("voice-console").hidden || !busy();
   element("speech-first-start").hidden = !state?.selectedModel || !offline || !!speechPreparation || preparing;
   element("speech-preparation").hidden = !speechPreparation || !!setupPart;
   element("main").dataset.speechSetup = String(!!setupPart || offline || !!speechPreparation || preparing);
@@ -776,7 +781,7 @@ function renderMessages() {
   reconcile(container, wanted);
   players.mount(container, state?.project ?? "");
   controls();
-  if (nearBottom && window.matchMedia("(min-width: 701px)").matches) readingArea.scrollTop = readingArea.scrollHeight;
+  if (nearBottom && element("main").dataset.speechSetup !== "true" && window.matchMedia("(min-width: 701px)").matches) readingArea.scrollTop = readingArea.scrollHeight;
 }
 
 function tributeSource(entry: TributeEntry) {
@@ -1517,6 +1522,11 @@ element("retry-speech-setup").addEventListener("click", () => {
     try {
       const setup = await api<SpeechSetup | { state: "none" }>("speech-setup");
       if (setup.state === "running") await followSpeechSetup(setup);
+      else if (setup.state === "failed" && !lastSpeechChoice) {
+        voice.close();
+        closeDrawer();
+        await followSpeechSetup(api<SpeechSetup>("speech-setup", {}));
+      }
       else await prepareSelectedSpeech(lastSpeechChoice ?? (await api<SavedSpeech>("settings")).settings);
     } finally { speechSetupWatching = false; voiceControls(); }
   });

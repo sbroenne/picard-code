@@ -103,9 +103,9 @@ a.readout { text-decoration: none; }
 a.readout:hover, a.tribute:hover { filter: brightness(1.12); }
 a.readout[aria-current] { background: var(--gold); }
 a.tribute { text-decoration: none; }
-.rail-fill .readout:nth-child(1) { flex: 3; }
-.rail-fill .readout:nth-child(2) { flex: 1; }
-.rail-fill .readout:nth-child(3) { flex: 1.6; }
+.rail-fill .readout:nth-child(1) { flex: 3 0 auto; }
+.rail-fill .readout:nth-child(2) { flex: 1 0 auto; }
+.rail-fill .readout:nth-child(3) { flex: 1.6 0 auto; }
 #rail-end { border-radius: 0 0 0 var(--elbow); flex: 0 1 70px; min-height: 46px; }
 
 /* Main viewscreen: the conversation above, the voice console below. */
@@ -121,6 +121,8 @@ a.tribute { text-decoration: none; }
 .setup { display: flex; align-items: center; justify-content: space-between; gap: 18px; max-width: 760px; margin: 6vh auto 0; padding: 16px 16px 16px 24px; border-left: 14px solid var(--red); border-radius: 0 28px 28px 0; background: #1d0f0f; }
 .setup h3 { margin: 0; font: 600 26px/1.1 var(--lcars); letter-spacing: .08em; text-transform: uppercase; color: var(--red); }
 .workspace[data-speech-setup="true"] .reading-area { display: flex; flex-direction: column; }
+.workspace[data-speech-setup="true"] #messages { display: none; }
+#setup-work-controls { align-self: flex-end; }
 .speech-preparation { --preparation-color: var(--lilac); flex: none; width: min(920px, 100%); margin: auto; padding: 24px 28px; border-left: 28px solid var(--preparation-color); border-top: 16px solid var(--preparation-color); border-bottom: 6px solid var(--preparation-color); border-radius: 54px 0 0 0; overflow-wrap: anywhere; }
 .speech-preparation[data-state="offline"] { --preparation-color: var(--orange); }
 .speech-preparation[data-state="failed"] { --preparation-color: var(--red); }

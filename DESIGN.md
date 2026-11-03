@@ -44,6 +44,10 @@ Hide the listening console until model selection and speech preparation are
 complete; do not show Standing by before the computer can listen.
 Keep setup controls out of the bottom console. Unavailable saved models stay
 in the settings drawer for recovery, not first-run onboarding.
+Keep Belay that available when work is running, even while the listening
+console is hidden. Keep the current log entry without letting its scrolling
+hide preparation or retry. After a reload, Try again repeats the failed speech
+choice, not the previously saved choice.
 
 Captain's log and the Project, Computer intelligence, and Listen · Speak tiles
 open in a slide-out, as do AI provider in the top bar and About from the header dedication.

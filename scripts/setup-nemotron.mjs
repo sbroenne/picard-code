@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
 import { access, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -34,7 +34,29 @@ async function checksum(path) {
   return hash.digest("hex");
 }
 
+async function removeStoppedDownloads(target) {
+  const folder = dirname(target);
+  let entries;
+  try { entries = await readdir(folder); }
+  catch (error) { if (error.code === "ENOENT") return; throw error; }
+  const prefix = `${basename(target)}.`;
+  for (const entry of entries) {
+    if (!entry.startsWith(prefix)) continue;
+    const suffix = entry.slice(prefix.length);
+    if (!/^[1-9]\d*\.download$/.test(suffix)) continue;
+    const pid = Number(suffix.slice(0, -".download".length));
+    if (!Number.isSafeInteger(pid) || pid > 2_147_483_647) continue;
+    // Forced shutdown cannot run finally; only reclaim files whose process has ended.
+    try { process.kill(pid, 0); }
+    catch (error) {
+      if (error.code === "ESRCH") await rm(join(folder, entry), { recursive: true, force: true });
+      else if (error.code !== "EPERM") throw error;
+    }
+  }
+}
+
 export async function downloadVerified(url, target, expected) {
+  await removeStoppedDownloads(target);
   try { if (await checksum(target) === expected) return; }
   catch (error) { if (error.code !== "ENOENT") throw error; }
   await mkdir(dirname(target), { recursive: true });
@@ -57,8 +79,9 @@ export async function setupNemotron(home) {
   const asset = nemotronArchive();
   const root = join(home, "voice", "nemotron", NEMOTRON_VERSION);
   const executable = join(root, "bin", process.platform === "win32" ? "nemo-speech.exe" : "nemo-speech");
+  await removeStoppedDownloads(root);
   let installed = false;
-  try { installed = (await readFile(join(root, ".picard-checksum"), "utf8")) === asset.checksum; await access(executable); }
+  try { await access(executable); installed = (await readFile(join(root, ".picard-checksum"), "utf8")) === asset.checksum; }
   catch (error) { if (error.code !== "ENOENT") throw error; }
   if (!installed) {
     console.log(`Downloading and checking Nemotron ${NEMOTRON_VERSION} for this computer...`);
@@ -84,7 +107,7 @@ export async function setupNemotron(home) {
   console.log("Downloading and checking the Nemotron English model (about 700 MB)...");
   await downloadVerified(`https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b/resolve/${MODEL_REVISION}/${NEMOTRON_MODEL}`,
     join(home, "voice", "models", NEMOTRON_MODEL), MODEL_SHA256);
-  await downloadVerified("https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/",
-    join(home, "voice", "models", "NVIDIA-Open-Model-License.html"), "3f1c457c697daee3d03fecdc777108d307a9af124a28365dae1f5665ffab3934");
+  await downloadVerified("https://www.nvidia.com/content/dam/en-zz/Solutions/license-agreements/enterprise-software/nvidia-open-model-license-agreements-24-10-2025.pdf",
+    join(home, "voice", "models", "NVIDIA-Open-Model-License.pdf"), "4d2fb590aa9b30c47f2058bff17291df7fa2aa0c1bd775a20703da9bb267cfab");
   await writeFile(join(home, "voice", "models", "NVIDIA-NOTICE.txt"), "Licensed by NVIDIA Corporation under the NVIDIA Open Model License\n");
 }
