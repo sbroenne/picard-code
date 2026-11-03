@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { saveModelSettings } from "../src/server/model-settings";
 
 const first = JSON.stringify(["github-copilot", "fixture-model"]);
 const other = JSON.stringify(["other-provider", "other"]);
@@ -140,6 +141,7 @@ test("first setup stays central through model choice, speech preparation, failur
   await page.route("**/api/settings", (route) => {
     if (route.request().method() === "POST") {
       writes++;
+      phase = "running";
       expect(route.request().postDataJSON()).toMatchObject({ listening: "nemotron", speaking: "kokoro" });
       return route.fulfill({ status: 202, json: { state: "running", step } });
     }
@@ -166,7 +168,6 @@ test("first setup stays central through model choice, speech preparation, failur
   await expect(page.locator("#speech-preparation-error")).toHaveText(error);
   await expect(page.getByRole("heading", { name: "Speech preparation stopped" })).toBeVisible();
   await expect(page.locator("#drawer-settings")).toBeHidden();
-  phase = "running";
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(page.getByRole("progressbar")).toBeVisible();
   phase = "done";
@@ -257,6 +258,7 @@ test("connection refresh stays single and shows real progress and failures", asy
   await page.locator("#refresh-provider").dispatchEvent("click");
   finish();
   await expect(page.getByRole("alert")).toContainText("Test provider connection failed.");
+  await expect(page.locator("#first-run-setup #notice")).toBeVisible();
   await expect(page.getByRole("button", { name: "Refresh connection" })).toBeEnabled();
   expect(refreshes).toBe(1);
   await expect(page.locator("#provider-status")).toHaveText("No connected AI providers found. 1 model available.");
@@ -336,7 +338,7 @@ test("a failed refresh from Computer intelligence preserves the saved choice and
   await expect(page.locator("#model")).toHaveValue("");
 });
 
-test("central setup and pressing M cannot start the microphone before confirmation", async ({ page }) => {
+for (const needsProvider of [false, true]) test(`existing speech skips preparation after model confirmation, provider connection needed: ${needsProvider}`, async ({ page }) => {
   await page.addInitScript(() => {
     Object.assign(window, { microphoneRequests: 0 });
     navigator.mediaDevices.getUserMedia = async () => {
@@ -346,9 +348,17 @@ test("central setup and pressing M cannot start the microphone before confirmati
     };
   });
   let sends = 0;
-  page.on("request", (request) => { if (request.url().endsWith("/send")) sends++; });
-  await launch(page, ["--speech"]);
-  await page.selectOption("#model", first);
+  let speechWrites = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/send")) sends++;
+    if (request.method() === "POST" && request.url().endsWith("/settings")) speechWrites++;
+  });
+  await launch(page, ["--speech", ...(needsProvider ? ["--free-models"] : [])]);
+  if (needsProvider) {
+    await expect(page.getByRole("heading", { name: "Connect your AI provider" })).toBeVisible();
+    await page.getByRole("link", { name: "Continue without connecting" }).click();
+  }
+  await page.selectOption("#model", needsProvider ? JSON.stringify(["opencode", "free-model"]) : first);
   await page.keyboard.press("Escape");
   await expect(page.locator("#voice-console")).toBeHidden();
   await expect(page.locator("#listen-toggle")).toBeDisabled();
@@ -358,7 +368,106 @@ test("central setup and pressing M cannot start the microphone before confirmati
   await page.getByRole("link", { name: /^Computer intelligence/ }).click();
   await page.getByRole("button", { name: "Use this model" }).click();
   await expect(page.locator("#drawer-settings")).toBeHidden();
+  await expect(page.locator("#first-run-setup")).toBeHidden();
+  await expect(page.locator("#speech-first-start")).toBeHidden();
+  await expect(page.locator("#setup-progress")).toBeHidden();
+  await expect(page.locator("#voice-console")).toBeVisible();
   await expect.poll(() => page.evaluate(() => (window as unknown as { microphoneRequests: number }).microphoneRequests)).toBe(1);
+  expect(speechWrites).toBe(0);
+});
+
+test("saved setup opens directly and later provider, model and speech settings remain available", async ({ page }, testInfo) => {
+  const folder = await mkdtemp(join(tmpdir(), "picard-later-settings-"));
+  const file = join(folder, "model.json");
+  await saveModelSettings(file, { providerID: "github-copilot", modelID: "fixture-model" });
+  const app = await launch(page, ["--speech", "--speech-settings", "--model-file", file]);
+  try {
+    await expect(page.locator("#first-run-setup")).toBeHidden();
+    await expect(page.locator("#speech-first-start")).toBeHidden();
+    await expect(page.locator("#setup-progress")).toBeHidden();
+    await expect(page.locator("#voice-console")).toBeVisible();
+    await expect(page.locator("#readout-model")).toHaveText("Copilot test model");
+    await page.evaluate(async () => {
+      const response = await fetch("/api/conversations", { method: "POST",
+        headers: { "Content-Type": "application/json", "X-Picard-Request": "1" },
+        body: JSON.stringify({ title: "Keep this log entry" }) });
+      if (!response.ok) throw new Error("The test log entry could not be created.");
+    });
+    await page.reload();
+    const currentEntry = page.locator('.conversation-button[aria-current="page"]');
+    await expect(currentEntry).toContainText("Keep this log entry");
+    await page.getByRole("link", { name: /^AI provider/ }).click();
+    await page.getByRole("button", { name: "Refresh connection" }).click();
+    await expect(page.getByRole("button", { name: "Refresh connection" })).toBeEnabled();
+    await expect(page.locator("#drawer-settings")).toBeVisible();
+    await expect(page.locator("#provider-welcome")).toBeHidden();
+    await expect(page.locator("#setup-progress")).toBeHidden();
+    await expect(page.locator("#readout-model")).toHaveText("Copilot test model");
+    await page.getByRole("link", { name: /^Computer intelligence/ }).click();
+    await expect(page.getByRole("heading", { name: "Computer intelligence" })).toBeVisible();
+    await expect(page.locator("#model-status")).toHaveText("Model saved · GitHub Copilot");
+    await page.screenshot({ path: testInfo.outputPath("later-model-settings.png"), animations: "disabled" });
+    await page.selectOption("#model", other);
+    await expect(page.locator("#readout-model")).toHaveText("Copilot test model");
+    await page.getByRole("button", { name: "Use this model" }).click();
+    await expect(page.locator("#drawer-settings")).toBeHidden();
+    await expect(page.locator("#readout-model")).toHaveText("Other model");
+    await expect(currentEntry).toContainText("Keep this log entry");
+    await page.reload();
+    await expect(page.locator("#first-run-setup")).toBeHidden();
+    await expect(page.locator("#readout-model")).toHaveText("Other model");
+    await expect(currentEntry).toContainText("Keep this log entry");
+    await page.getByRole("link", { name: /^Listen/ }).click();
+    await expect(page.locator("#drawer-settings")).toBeVisible();
+    await page.locator("#advanced-speech > summary").click();
+    await expect(page.getByLabel("Listening", { exact: true })).toHaveValue("nemotron");
+    await expect(page.getByLabel("Speaking", { exact: true })).toHaveValue("kokoro");
+    await page.getByLabel("Listening", { exact: true }).selectOption("mai");
+    await expect(page.getByLabel("Speaking", { exact: true })).toHaveValue("kokoro");
+    await expect(page.getByLabel("Subscription ID")).toBeVisible();
+    await page.getByLabel("Listening", { exact: true }).selectOption("nemotron");
+    await page.getByLabel("Speaking", { exact: true }).selectOption("mai");
+    await expect(page.getByLabel("Listening", { exact: true })).toHaveValue("nemotron");
+    await expect(page.getByLabel("Listening deployment")).toBeHidden();
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#readout-model")).toHaveText("Other model");
+    await expect(currentEntry).toContainText("Keep this log entry");
+    await page.getByRole("link", { name: /^Listen/ }).click();
+    await expect(page.getByLabel("Speaking", { exact: true })).toHaveValue("mai");
+    await page.reload();
+    await expect(page.getByLabel("Speaking", { exact: true })).toHaveValue("kokoro");
+    await page.locator("#advanced-speech > summary").click();
+    await page.getByLabel("Listening", { exact: true }).selectOption("mai");
+    await page.getByLabel("Subscription ID").fill("test-subscription");
+    await page.getByLabel("Resource group").fill("test-group");
+    await page.getByLabel("Resource name").fill("test-resource");
+    await page.getByLabel("Region", { exact: true }).fill("testregion");
+    await page.getByLabel("Listening deployment").fill("test-listening");
+    await page.locator("#save-speech").click();
+    await expect(page.locator("#readout-speech")).toHaveText("Azure MAI · Kokoro");
+    await page.reload();
+    await expect(page.locator("#readout-model")).toHaveText("Other model");
+    await expect(currentEntry).toContainText("Keep this log entry");
+    await page.getByRole("link", { name: /^Listen/ }).click();
+    await expect(page.getByRole("heading", { name: "Speech", exact: true })).toBeVisible();
+    await expect(page.getByLabel("Listening", { exact: true })).toHaveValue("mai");
+    await expect(page.getByLabel("Speaking", { exact: true })).toHaveValue("kokoro");
+    await expect(page.locator("#readout-provider")).toHaveText("Connected");
+    await page.screenshot({ path: testInfo.outputPath("later-speech-settings.png"), animations: "disabled" });
+    await page.getByLabel("Region", { exact: true }).fill("broken");
+    await page.locator("#save-speech").click();
+    await expect(page.locator("#speech-preparation-error")).toContainText("Test speech service could not start.");
+    await expect(page.locator("#readout-speech")).toHaveText("Azure MAI · Kokoro");
+    await expect(page.locator("#readout-model")).toHaveText("Other model");
+    await expect(currentEntry).toContainText("Keep this log entry");
+    await page.reload();
+    await page.getByRole("link", { name: /^Listen/ }).click();
+    await expect(page.getByLabel("Region", { exact: true })).toHaveValue("testregion");
+    await expect(page.getByLabel("Speaking", { exact: true })).toHaveValue("kokoro");
+  } finally {
+    await app.close();
+    await rm(folder, { recursive: true });
+  }
 });
 
 test("confirmation updates other open pages and an unconfirmed change stays only a draft", async ({ page, context }) => {
@@ -387,6 +496,7 @@ test("confirmation failures remain visible and do not activate the selected mode
   await page.selectOption("#model", first);
   await page.getByRole("button", { name: "Use this model" }).click();
   await expect(page.getByRole("alert")).toContainText("Could not save the model choice. Test disk is full.");
+  await expect(page.locator("#first-run-setup #notice")).toBeVisible();
   await expect(page.locator("#status")).toHaveText("Setup needed");
   await expect(page.locator("#readout-model")).toHaveText("Not selected");
   await expect(page.getByRole("button", { name: "Use this model" })).toBeEnabled();

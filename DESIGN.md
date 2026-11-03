@@ -39,6 +39,7 @@ and model controls in the central panel and later settings drawers; do not
 keep separate copies or save a choice merely because the list changed.
 Speech service names, download information and Prepare the computer stay
 together. Downloads and failures show actual steps and retry beside the error.
+Keep AI provider and AI model errors inside the same first-run frame.
 Hide the listening console until model selection and speech preparation are
 complete; do not show Standing by before the computer can listen.
 Keep setup controls out of the bottom console. Unavailable saved models stay

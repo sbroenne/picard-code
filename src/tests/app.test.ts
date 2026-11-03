@@ -1006,6 +1006,34 @@ for (const speaking of ["kokoro", "mai"] as const) {
   });
 }
 
+test("a successful retry clears an earlier automatic speech startup failure", async (t) => {
+  let attempts = 0;
+  const legacy = { listening: "whisper", speaking: "kokoro" };
+  const context = await setup({
+    localSpeechReady: async () => true,
+    startSpeech: async () => {
+      if (++attempts === 1) throw new Error("The Nemotron model could not start.");
+      return { ...speechFixture().service, selection: { listening: "nemotron", speaking: "kokoro" } };
+    },
+  }, legacy);
+  t.after(context.cleanup);
+  await context.login();
+  let job = await (await context.request("speech-setup")).json();
+  while (job.state === "running") {
+    await new Promise((done) => setTimeout(done, 5));
+    job = await (await context.request("speech-setup")).json();
+  }
+  assert.equal(job.state, "failed");
+  assert.deepEqual(JSON.parse(await readFile(join(context.temporary, "speech.json"), "utf8")), legacy);
+  assert.equal((await context.request("settings", { listening: "nemotron", speaking: "kokoro" })).status, 200);
+  const state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.speech?.configured, true);
+  assert.equal(state.speech?.setup, undefined);
+  assert.equal(state.speech?.error, undefined);
+  assert.equal((await (await context.request("speech-setup")).json()).state, "none");
+  assert.equal(attempts, 2);
+});
+
 test("a failed local speech download is reported and changes nothing", async (t) => {
   const context = await setup({
     localSpeechReady: async () => false,

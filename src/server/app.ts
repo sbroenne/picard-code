@@ -492,7 +492,9 @@ export async function startApp(options: AppOptions) {
             json(response, 202, beginSpeechSetup(record, true));
             return;
           }
-          json(response, 200, await applySpeech(record));
+          const result = await applySpeech(record);
+          localSetup = undefined;
+          json(response, 200, result);
           return;
         }
         if (path === "/api/refresh" && method === "POST") {

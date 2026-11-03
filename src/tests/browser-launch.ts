@@ -73,7 +73,17 @@ const modelFile = modelFileIndex > 0 ? process.argv[modelFileIndex + 1]! : join(
 if (!process.argv.includes("--model-setup") || process.argv.includes("--model-unavailable")) {
   await saveModelSettings(modelFile, { providerID: "github-copilot", modelID: process.argv.includes("--model-unavailable") ? "missing-model" : "fixture-model" });
 }
-const app = await startApp({ client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"), speech, soundFolder, speechFile, modelFile, readWikipedia: wikipediaFixture });
+const settingsStandIn = process.argv.includes("--speech-settings");
+const app = await startApp({ client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"), speech, soundFolder, speechFile, modelFile, readWikipedia: wikipediaFixture,
+  localSpeechReady: settingsStandIn ? async () => true : undefined,
+  startSpeech: settingsStandIn ? async (settings) => {
+    if (settings.region === "broken") throw new Error("Test speech service could not start.");
+    return { ...speechFixture([""]).service, selection: {
+      listening: settings.listening === "mai" ? "mai" : "nemotron",
+      speaking: settings.speaking === "mai" ? "mai" : "kokoro",
+    } };
+  } : undefined,
+});
 console.log(app.url);
 const close = () => { void app.close().then(() => fixture.close()).then(() => rm(settingsFolder, { recursive: true })); };
 process.once("SIGTERM", close);

@@ -256,6 +256,9 @@ function voiceControls() {
   const setupPart = centralSetupPart();
   const setupPanel = element("first-run-setup");
   setupPanel.hidden = !setupPart;
+  const problem = element("notice");
+  const problemParent = setupPart ? setupPanel : element("main");
+  if (problem.parentElement !== problemParent) problemParent.insertBefore(problem, setupPart ? element("first-run-panel") : readingArea);
   const panelParent = setupPart ? element("first-run-panel") : element("drawer-settings");
   for (const part of ["provider", "model"]) {
     const panel = element(`settings-${part}`);
@@ -1508,7 +1511,15 @@ element("speech-form").addEventListener("submit", (event) => {
   void perform(() => prepareSelectedSpeech(Object.fromEntries(speechFields.map((name) => [name, speechInput(name).value.trim()]))));
 });
 element("retry-speech-setup").addEventListener("click", () => {
-  void perform(async () => prepareSelectedSpeech(lastSpeechChoice ?? (await api<SavedSpeech>("settings")).settings));
+  void perform(async () => {
+    if (speechSetupWatching) return;
+    speechSetupWatching = true;
+    try {
+      const setup = await api<SpeechSetup | { state: "none" }>("speech-setup");
+      if (setup.state === "running") await followSpeechSetup(setup);
+      else await prepareSelectedSpeech(lastSpeechChoice ?? (await api<SavedSpeech>("settings")).settings);
+    } finally { speechSetupWatching = false; voiceControls(); }
+  });
 });
 element("stop").addEventListener("click", () => {
   void perform(async () => {
