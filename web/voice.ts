@@ -46,6 +46,8 @@ export class VoiceConversation {
   // Detector results arrive a moment later; this keeps them in order and drops them after a reset.
   private detection = Promise.resolve();
   private detectionRevision = 0;
+  private turnCheckID = 0;
+  private turnCheck?: { id: number; revision: number; sent: boolean };
   // The last half second before speech starts, so the first word is not cut off.
   private preRoll: ArrayBuffer[] = [];
   // Audio held while the listening service opens; undefined once it is open.
@@ -95,6 +97,7 @@ export class VoiceConversation {
   private resetDetection() {
     this.detectionRevision++;
     this.utterance.reset();
+    this.turnCheck = undefined;
     this.frames.reset();
     this.detector?.reset();
     this.preRoll = [];
@@ -298,6 +301,7 @@ export class VoiceConversation {
   private listened(packet: ArrayBuffer, change: ReturnType<Utterance["update"]>) {
     if (this.mediaPaused || !this.microphone || this.socket?.readyState !== WebSocket.OPEN || this.optionalCue) return;
     if (this.handling || !this.recording && this.phase !== "standby" && !this.speechPending) return;
+    if (this.turnCheck && this.turnCheck.revision !== this.utterance.revision) this.turnCheck = undefined;
     if (!this.recording) {
       if (change !== "start") {
         this.preRoll.push(packet);
@@ -325,7 +329,10 @@ export class VoiceConversation {
       this.queue.push(packet);
       if (this.queue.length > 1500) { this.fail("The listening service did not start within 30 seconds. Check the speech setup, then click the microphone button to listen again."); return; }
     } else this.socket.send(packet);
-    if (change === "end") {
+    if (change === "check") {
+      this.turnCheck = { id: ++this.turnCheckID, revision: this.utterance.revision, sent: false };
+      this.checkTurn();
+    } else if (change === "end") {
       if (this.queue) this.endedEarly = true;
       else this.commit();
     } else if (change === "drop") {
@@ -333,6 +340,12 @@ export class VoiceConversation {
       this.command({ type: "pause" });
       this.resume();
     }
+  }
+  private checkTurn() {
+    const check = this.turnCheck;
+    if (!check || check.sent || this.queue || !this.recording || check.revision !== this.utterance.revision) return;
+    check.sent = true;
+    this.command({ type: "check-turn", id: check.id });
   }
   private commit() {
     this.handling = true;
@@ -373,7 +386,20 @@ export class VoiceConversation {
               for (const packet of this.queue) socket.send(packet);
               this.queue = undefined;
               if (this.endedEarly) this.commit();
+              else this.checkTurn();
             }
+          }
+          else if (data.type === "turn-detection") this.utterance.smartTurn = data.enabled;
+          else if (data.type === "turn-result") {
+            const check = this.turnCheck;
+            const revision = this.detectionRevision;
+            if (!check || check.id !== data.id || typeof data.complete !== "boolean") return;
+            // Apply after already captured frames, so resumed speech invalidates a late prediction.
+            this.detection = this.detection.then(() => {
+              if (revision !== this.detectionRevision || this.turnCheck !== check || !this.recording) return;
+              this.turnCheck = undefined;
+              if (this.utterance.finishCheck(check.revision, data.complete)) this.commit();
+            }).catch((error: unknown) => this.fail(`Pause detection stopped. ${error instanceof Error ? error.message : "The spoken request was not sent."}`));
           }
           else if (data.type === "partial") {
             if (this.recording || this.handling) {

@@ -582,7 +582,8 @@ on-screen button.
   apart from steady background noise such as a fan. When someone starts
   talking, that speech (including the half second before it, so the first word
   is kept) goes to the selected listening service. A pause of about a second
-  ends the turn.
+  ends the turn by default. The optional [Smart Turn trial](#smart-turn-trial)
+  checks whether a thought sounds finished instead.
 - **Start a task with "Computer"**, for example "Computer, explain this
   project". Before a task starts, anything else is shown as "Not sent",
   plays the not-understood sound and is dropped. Saying "Computer" on its own plays the accepted sound and gives you
@@ -1015,6 +1016,40 @@ rendered as Markdown with unsafe HTML removed by DOMPurify, not executed as
 scripts. These protections are not a barrier
 against another program already running on your computer.
 
+## Smart Turn trial
+
+Start with `npm start -- --smart-turn` from a built source checkout, or
+`npx picard-code --smart-turn` when using a release that includes the trial.
+Without that flag, listening is unchanged. The one-minute request limit
+still applies.
+
+Silero still detects speech. After about 0.2 seconds of quiet, a local
+Smart Turn v3.2 model checks the recent audio. A finished-sounding request
+can be sent promptly; an unfinished-sounding thought gets up to three
+seconds of uninterrupted quiet. Speaking again cancels the old decision.
+This is not a three-second delay on every request.
+
+The trial needs the local speech Python environment, including NumPy and
+ONNX Runtime, even when Azure is selected for listening and speaking.
+If it is missing, run
+`npx picard-code setup-speech --listening mai --speaking kokoro` to prepare
+it without changing saved speech choices. First use downloads about 9 MB
+from the public Pipecat model repository on Hugging Face, checks its fixed
+checksum, and keeps the model and license in `~/.picard-code/voice/models`.
+The completion check runs on this computer's CPU; it saves no recordings
+and sends no audio to Hugging Face. Listening audio still goes to your
+selected Nemotron or Azure service as before. AI providers are unchanged.
+If the checker fails, listening stops with the actual error; an unfinished
+request is not sent as a fallback.
+
+This is an opt-in experiment, not a proven fix for every thinking pause.
+The earlier evaluation matched 39 of 40 labels in a small
+[public human-speech sample](https://huggingface.co/datasets/pipecat-ai/smart-turn-data-v3.1-test),
+but protected only 4 of 16 digitally inserted pauses in generated
+speech. Those are limited samples, not an accuracy guarantee. Real microphone,
+room-noise, accent, Windows and Linux checks are still needed.
+See [third-party notices](THIRD_PARTY_NOTICES.md) for the model license.
+
 ## Checks
 
 For changes only to documentation or the project website, use
@@ -1033,6 +1068,7 @@ npm run test:speech:live
 npm run test:speech:local
 npm run test:conversation:live
 npm.cmd run test:conversation:live -- --local
+npm.cmd run test:conversation:live -- --local --smart-turn
 npm.cmd run test:conversation:live -- --local --interrupt
 npm.cmd run test:conversation:live -- --local --quiet-interrupt
 npm run test:behavior:live
@@ -1078,6 +1114,10 @@ Add `--model provider/model` to choose a particular available model for the
 check, for example
 `npm run test:conversation:live -- --local --model github-copilot/gpt-5.3-codex`.
 This does not change your saved Picard Code model or speech choices.
+Add `--smart-turn` to exercise the real local completion model through the
+browser's captured audio and confirm that a pause was checked before
+submission. This downloads the model if needed and requires the local Python
+environment described in [Smart Turn trial](#smart-turn-trial).
 Add `--interrupt` to play a generated request into the browser's capture path
 while a real spoken answer is playing. It checks that playback stops, the
 new request keeps its name and negation, and no stop-work request is sent.

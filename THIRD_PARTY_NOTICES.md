@@ -62,6 +62,21 @@ requirements. Do not assume all
 local speech dependencies are MIT licensed. This repository's download setup
 does not grant permission to remove notices or bypass redistribution terms.
 
+## Optional Smart Turn trial
+
+`--smart-turn` separately downloads `smart-turn-v3.2-cpu.onnx` from
+[Pipecat Smart Turn](https://huggingface.co/pipecat-ai/smart-turn-v3).
+It is BSD-2-Clause, copyright 2024-2025 Daily. Its full license is included in
+`scripts/smart-turn-LICENSE.txt` and copied beside the downloaded model in
+`~/.picard-code/voice/models`. The download is checked against a fixed SHA-256
+checksum. No model weights or evaluation recordings are shipped with the app.
+
+The local worker uses the existing NumPy and ONNX Runtime installation.
+Its audio feature calculation is independently implemented for the model's
+input format. The model uses a Whisper-derived encoder to judge whether
+speech sounds complete; it does not transcribe speech or restore the retired
+Whisper listener. Nemotron and Azure remain the listening choices.
+
 ## Computer sounds
 
 Picard Code automatically downloads five short sound files from

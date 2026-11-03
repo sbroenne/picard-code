@@ -56,14 +56,14 @@ async function removeStoppedDownloads(target) {
   }
 }
 
-export async function downloadVerified(url, target, expected) {
+export async function downloadVerified(url, target, expected, signal) {
   await removeStoppedDownloads(target);
   try { if (await checksum(target) === expected) return; }
   catch (error) { if (error.code !== "ENOENT") throw error; }
   await mkdir(dirname(target), { recursive: true });
   const temporary = `${target}.${process.pid}.download`;
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(600_000) });
+    const response = await fetch(url, { signal: AbortSignal.any([AbortSignal.timeout(600_000), ...(signal ? [signal] : [])]) });
     if (!response.ok || !response.body) {
       await response.body?.cancel();
       throw new Error(`Could not download ${url} (HTTP ${response.status}).`);

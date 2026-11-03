@@ -19,6 +19,7 @@ import { addressedOfficer, chosenCrew, crewMember, type CrewID } from "../shared
 import { requireCrew, verifiedCrew } from "./crew.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechSelection, SpeechService } from "./speech-types.js";
+import type { TurnDetector } from "./turn-detector.js";
 import { canSetUpLocalSpeech, describeSpeechSettings, localSpeechReady, mergeSpeechSettings, needsListenerMigration, readSpeechSettings, saveSpeechSettings, setUpLocalSpeech, speechFromSettings, speechSettingsFile } from "./speech.js";
 
 class HttpError extends Error {
@@ -131,6 +132,7 @@ export interface AppOptions {
   webRoot: string;
   port?: number;
   speech?: SpeechService;
+  turnDetector?: TurnDetector;
   /** Why speech could not start, shown on the settings page instead of stopping the app. */
   speechError?: string;
   speechOverrides?: { listening?: string; speaking?: string };
@@ -711,7 +713,7 @@ export async function startApp(options: AppOptions) {
     return request.headers.host === new URL(origin).host && request.headers.origin === origin
       && (!request.headers["sec-fetch-site"] || request.headers["sec-fetch-site"] === "same-origin")
       && cookies.some((part) => part.startsWith("picard=") && equalSecret(part.slice(7), cookie));
-  });
+  }, options.turnDetector);
   server.requestTimeout = 30_000;
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -729,7 +731,7 @@ export async function startApp(options: AppOptions) {
       await localSetupRun;
       closeSpeech();
       for (const stream of streams) stream.end();
-      try { await speech?.close?.(); }
+      try { await Promise.all([speech?.close?.(), options.turnDetector?.close()]); }
       finally {
         await new Promise<void>((resolve, reject) => {
           server.close((error) => error ? reject(error) : resolve());

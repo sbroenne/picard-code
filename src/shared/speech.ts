@@ -7,6 +7,8 @@ export type SpeechEvent =
   | { type: "transcript"; text: string }
   | { type: "audio-start"; rate: number; id: number }
   | { type: "audio-end"; id: number }
+  | { type: "turn-detection"; enabled: boolean }
+  | { type: "turn-result"; id: number; complete: boolean }
   | { type: "error"; message: string };
 
 // Speech detector chances: a request starts above the first and continues above the second.
@@ -21,12 +23,26 @@ const SPEECH_CONTINUES = 0.35;
  */
 export class Utterance {
   active = false;
+  smartTurn = false;
+  revision = 0;
   private run = 0;
   private voiced = 0;
   private silence = 0;
   private length = 0;
-  reset() { this.active = false; this.run = 0; this.voiced = 0; this.silence = 0; this.length = 0; }
-  update(speech: number, milliseconds: number): "start" | "end" | "drop" | undefined {
+  private checked = false;
+  private incomplete = false;
+  reset() { this.revision++; this.active = false; this.run = 0; this.voiced = 0; this.silence = 0; this.length = 0; this.checked = false; this.incomplete = false; }
+  /** A prediction belongs only to the uninterrupted pause that requested it. */
+  finishCheck(revision: number, complete: boolean) {
+    if (!this.smartTurn || !this.active || !this.checked || revision !== this.revision || this.silence < 200) return false;
+    if (!complete) {
+      this.incomplete = true;
+      if (this.silence < 3000) return false;
+    }
+    this.reset();
+    return true;
+  }
+  update(speech: number, milliseconds: number): "start" | "check" | "end" | "drop" | undefined {
     if (!this.active) {
       this.run = speech >= SPEECH_STARTS ? this.run + milliseconds : 0;
       if (this.run < 60) return undefined;
@@ -36,8 +52,18 @@ export class Utterance {
       return "start";
     }
     this.length += milliseconds;
-    if (speech >= SPEECH_CONTINUES) { this.voiced += milliseconds; this.silence = 0; }
+    if (speech >= SPEECH_CONTINUES) {
+      if (this.silence) this.revision++;
+      this.voiced += milliseconds;
+      this.silence = 0;
+      this.checked = this.incomplete = false;
+    }
     else this.silence += milliseconds;
+    if (this.smartTurn && this.voiced >= 150 && this.length < 60_000) {
+      if (this.silence >= 3000 && this.incomplete) { this.reset(); return "end"; }
+      if (this.silence >= 200 && !this.checked) { this.checked = true; return "check"; }
+      return undefined;
+    }
     if (this.silence < 900 && this.length < 60_000) return undefined;
     const result = this.voiced >= 150 ? "end" : "drop";
     this.reset();

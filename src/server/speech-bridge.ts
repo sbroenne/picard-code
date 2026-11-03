@@ -3,6 +3,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { SpeechService, SpeechInput } from "./speech-types.js";
 import type { SpeechEvent, VoicePhase } from "../shared/speech.js";
 import { crewMember, type CrewID } from "../shared/crew.js";
+import type { TurnDetector } from "./turn-detector.js";
 
 interface SpokenPart { text: string; speaker?: CrewID }
 // A short pause when the next part has a different speaker: 0.3 seconds of 24 kHz 16-bit silence.
@@ -26,7 +27,7 @@ function spokenParts(data: object): SpokenPart[] | undefined {
  * `source` may be a fixed service or a function, so speech settings can change while the app runs.
  * Each browser connection keeps the service it started with; call `disconnect` after a change.
  */
-export function attachSpeech(server: Server, source: SpeechService | undefined | (() => SpeechService | undefined), allowed: (request: IncomingMessage) => boolean) {
+export function attachSpeech(server: Server, source: SpeechService | undefined | (() => SpeechService | undefined), allowed: (request: IncomingMessage) => boolean, turnDetector?: TurnDetector) {
   const service = () => typeof source === "function" ? source() : source;
   const sockets = new WebSocketServer({ noServer: true, maxPayload: 65_536 });
   server.on("upgrade", (request, socket, head) => {
@@ -48,10 +49,15 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
     let speechEpoch = 0;
     let audioBytes = 0;
     let commitTimer: ReturnType<typeof setTimeout> | undefined;
+    let turnAudio: Buffer[] = [];
+    let turnBytes = 0;
+    let turnCheck: AbortController | undefined;
+    let turnRevision = 0;
     const send = (event: SpeechEvent) => {
       if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
     };
     const state = (next: VoicePhase, id?: number) => { phase = next; send(id === undefined ? { type: "state", phase } : { type: "state", phase, id }); };
+    const stopTurnCheck = () => { ++turnRevision; turnCheck?.abort(); turnCheck = undefined; };
     const stopListening = () => {
       ++epoch;
       clearTimeout(commitTimer);
@@ -60,10 +66,28 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
       input?.close();
       input = undefined;
       audioBytes = 0;
+      stopTurnCheck();
+      turnAudio = [];
+      turnBytes = 0;
     };
     const stopSpeaking = () => { ++speechEpoch; speaking?.abort(); speaking = undefined; };
     const stop = () => { stopListening(); stopSpeaking(); };
     const fail = (message: string) => { stop(); state("off"); send({ type: "error", message }); };
+    send({ type: "turn-detection", enabled: !!turnDetector });
+    const checkTurn = async (id: number) => {
+      if (!turnDetector) throw new Error("The Smart Turn trial is not enabled.");
+      stopTurnCheck();
+      const current = turnRevision;
+      turnCheck = new AbortController();
+      try {
+        const complete = await turnDetector.complete(Buffer.concat(turnAudio, turnBytes), turnCheck.signal);
+        if (current === turnRevision && phase === "listening") send({ type: "turn-result", id, complete });
+      } catch (error) {
+        if (current === turnRevision) fail(`Pause detection stopped. ${error instanceof Error ? error.message : "The spoken request was not sent."}`);
+      } finally {
+        if (current === turnRevision) turnCheck = undefined;
+      }
+    };
     const listen = async (id?: number) => {
       stopListening();
       const current = epoch;
@@ -142,6 +166,17 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
           if (!bytes.length || bytes.length % 2 || bytes.length > 2560) throw new Error("Microphone audio must contain small, complete 16-bit audio samples.");
           audioBytes += bytes.length;
           if (audioBytes > 16000 * 2 * 3600) throw new Error("Listening reached the service's one-hour limit. Click the microphone button to listen again.");
+          if (turnDetector) {
+            turnAudio.push(bytes);
+            turnBytes += bytes.length;
+            while (turnBytes > 256000) {
+              const first = turnAudio[0]!;
+              const removed = Math.min(first.length, turnBytes - 256000);
+              if (removed === first.length) turnAudio.shift();
+              else turnAudio[0] = first.subarray(removed);
+              turnBytes -= removed;
+            }
+          }
           input.write(bytes);
           return;
         }
@@ -152,12 +187,20 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
           if (id !== undefined && !(typeof id === "number" && Number.isSafeInteger(id) && id > 0)) throw new Error("The voice request is not valid.");
           void listen(id);
         }
-        else if (data.type === "pause") {
+        else if (data.type === "check-turn") {
+          if (!turnDetector || phase !== "listening" || !input || !turnBytes) throw new Error("No spoken audio is waiting for pause detection.");
+          const id = "id" in data ? data.id : undefined;
+          if (!(typeof id === "number" && Number.isSafeInteger(id) && id > 0)) throw new Error("The pause detection request is not valid.");
+          void checkTurn(id);
+        } else if (data.type === "pause") {
           stopListening();
           phase = "off";
           if (!speaking) state("off");
         } else if (data.type === "commit") {
           if (phase !== "listening" || !input || !audioBytes) throw new Error("No spoken audio is waiting.");
+          stopTurnCheck();
+          turnAudio = [];
+          turnBytes = 0;
           state("thinking");
           commitTimer = setTimeout(() => fail("The listening service did not finish understanding the request. Click the microphone button to listen again."), 30_000);
           input.commit();

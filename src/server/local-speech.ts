@@ -14,6 +14,7 @@ interface LocalResult {
   id?: number;
   audio?: string;
   message?: string;
+  probability?: number;
 }
 interface Job {
   items: LocalResult[];
@@ -21,7 +22,7 @@ interface Job {
   wake?: () => void;
 }
 
-class LocalWorker {
+export class LocalWorker {
   private child: ChildProcessWithoutNullStreams;
   private jobs = new Map<number, Job>();
   private sequence = 0;
@@ -31,14 +32,12 @@ class LocalWorker {
   private rejectStartup?: (error: Error) => void;
   readonly ready: Promise<void>;
 
-  constructor(settings: LocalSettings) {
-    const args = [fileURLToPath(new URL("../../scripts/local-speech-worker.py", import.meta.url)),
-      "--kokoro-model", settings.kokoroModel, "--kokoro-voices", settings.kokoroVoices, "--kokoro-voice", settings.kokoroVoice];
+  constructor(python: string, args: string[]) {
     const env: NodeJS.ProcessEnv = { PYTHONUNBUFFERED: "1", HF_HUB_OFFLINE: "1", HF_HUB_DISABLE_TELEMETRY: "1", OMP_NUM_THREADS: "4" };
     for (const name of ["PATH", "Path", "SystemRoot", "WINDIR", "HOME", "USERPROFILE", "TEMP", "TMP", "APPDATA", "LOCALAPPDATA", "LANG", "LC_ALL", "LD_LIBRARY_PATH"]) {
       if (process.env[name]) env[name] = process.env[name];
     }
-    this.child = spawn(settings.python, args, { env, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+    this.child = spawn(python, args, { env, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     let buffer = "";
     let stderr = "";
     let initialized = false;
@@ -135,7 +134,10 @@ export async function localSpeech(settings: LocalSettings, signal?: AbortSignal)
     try { await realpath(path); }
     catch { throw new Error("A configured local speech file is missing. Run npx picard-code setup-speech --listening mai --speaking kokoro, or choose Kokoro and Save and apply in the Listen · Speak tile to download it."); }
   }
-  const speakerWorker = new LocalWorker(settings);
+  const speakerWorker = new LocalWorker(settings.python, [
+    fileURLToPath(new URL("../../scripts/local-speech-worker.py", import.meta.url)),
+    "--kokoro-model", settings.kokoroModel, "--kokoro-voices", settings.kokoroVoices, "--kokoro-voice", settings.kokoroVoice,
+  ]);
   const close = () => speakerWorker.close();
   const abort = () => { void close(); };
   signal?.addEventListener("abort", abort, { once: true });

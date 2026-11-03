@@ -230,6 +230,26 @@ test("speech downloads verify checksums, preserve a previous file on failure, an
   assert.equal(requests, 2, "A verified existing model is not downloaded again.");
 });
 
+test("a cancelled model download removes only its partial file and preserves the previous model", { timeout: 10_000 }, async (t) => {
+  const folder = await mkdtemp(resolve(".picard-test-download-"));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const target = join(folder, "model");
+  await writeFile(target, "previous model");
+  const server = createServer((_request, response) => { response.write("generated incomplete model"); });
+  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>((done) => server.close(() => done())); });
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const controller = new AbortController();
+  const download = downloadVerified(`http://127.0.0.1:${address.port}/generated-model`, target, "0".repeat(64), controller.signal);
+  const rejected = assert.rejects(download, /aborted/);
+  while (!(await readdir(folder)).some((file) => file.endsWith(".download"))) await wait(10);
+  controller.abort();
+  await rejected;
+  assert.equal(await readFile(target, "utf8"), "previous model");
+  assert.deepEqual(await readdir(folder), ["model"]);
+});
+
 test("a stopped download is removed on retry without touching a running process's files", { timeout: 10_000 }, async (t) => {
   const folder = await mkdtemp(resolve(".picard-test-download-"));
   t.after(() => rm(folder, { recursive: true, force: true }));
