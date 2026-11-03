@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import { BRIDGE_CREW } from "../shared/crew.js";
 import type { SpeechService } from "../server/speech-types.js";
 
-/** Speaks one short original line in each officer's voice and checks that each is real, audible audio. */
+/** Speaks an original character example in each officer's voice and checks that each is real, audible audio. */
 export async function checkOfficerVoices(service: SpeechService) {
   assert.ok(service.officerVoice, "The speech service must provide officer voices.");
   const used: string[] = [];
   for (const officer of BRIDGE_CREW) {
     const voice = service.officerVoice(officer.id);
     const chunks: Uint8Array[] = [];
-    for await (const chunk of service.speak(`${officer.name} reporting. The check is complete.`, AbortSignal.timeout(60_000), voice)) chunks.push(chunk);
+    for await (const chunk of service.speak(officer.examples[0].reply, AbortSignal.timeout(60_000), voice)) chunks.push(chunk);
     const audio = Buffer.concat(chunks);
     let energy = 0;
     for (let index = 0; index + 1 < audio.length; index += 2) energy += (audio.readInt16LE(index) / 32768) ** 2;

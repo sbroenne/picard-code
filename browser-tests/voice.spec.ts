@@ -39,7 +39,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "fresh-starlog" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "faster" | "speed-follow-up" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome") {
+async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "fresh-starlog" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "faster" | "speed-follow-up" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome" | "explanation") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -241,19 +241,18 @@ test("a request for one officer is handed to that officer, who answers in the co
   await expect(page.locator(".crew-report")).toHaveCount(0);
 });
 
-test("after a briefing, each officer's finding is spoken in their own voice, then the computer closes", async ({ page }) => {
+test("after a successful briefing, officers speak without a routine computer close", async ({ page }) => {
   const spoken = spokenParts(page);
   await launch(page, "crew");
   await startListening(page);
   await expect(page.getByRole("heading", { name: "Approval required." })).toBeVisible({ timeout: 20000 });
   await page.getByRole("button", { name: "Allow once", exact: true }).click();
-  await expect.poll(() => spoken.find((answer) => answer.some((part) => part.text.includes("reports are collected"))), { timeout: 15000 }).toEqual([
+  await expect.poll(() => spoken.find((answer) => answer.some((part) => part.text.includes("Data supplied"))), { timeout: 15000 }).toEqual([
     { text: "Test stand-in: Data supplied an investigation report.", speaker: "picard-data" },
-    { text: expect.stringContaining("the briefing reports are collected") },
   ]);
 });
 
-test("Riker has the last word in a briefing without a repeated computer close", async ({ page }) => {
+test("officers keep their report order without moving Riker last", async ({ page }) => {
   const spoken = spokenParts(page);
   await launch(page, "briefing");
   await startListening(page);
@@ -265,14 +264,14 @@ test("Riker has the last word in a briefing without a repeated computer close", 
   await expect(page.locator(".crew-report .message-header small")).toHaveCount(0);
   await expect(page.locator(".crew-report .copy-button")).toHaveCount(2);
   await expect.poll(() => spoken.at(-1), { timeout: 15000 }).toEqual([
+    { text: "Test stand-in: I recommend the smaller repair, Captain.", speaker: "picard-riker" },
     { text: "Test stand-in: Data found a small repair.", speaker: "picard-data" },
-    { text: "Test stand-in: I recommend the smaller repair, Captain. Shall I proceed?", speaker: "picard-riker" },
   ]);
-  await expect(page.locator(".message.current[data-role=assistant]:not(.crew-report)")).toContainText("The recommendation is waiting for your decision.");
+  await expect(page.locator(".message.current[data-role=assistant]:not(.crew-report)")).toContainText("The reports are on screen.");
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
-test("Riker's spoken question keeps a filename while the screen keeps its exact spelling", async ({ page }) => {
+test("Riker's later conversational question is spoken once as part of his own report", async ({ page }) => {
   const spoken = spokenParts(page);
   await launch(page, "briefing-filename");
   await startListening(page);
@@ -285,13 +284,27 @@ test("Riker's spoken question keeps a filename while the screen keeps its exact 
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
+test("a long explanation speaks through its final paragraph while the technical appendix stays on screen", async ({ page }) => {
+  const spoken = spokenText(page);
+  await launch(page, "explanation");
+  await startListening(page);
+  await expect(page.locator("#messages pre")).toContainText("const value = 42;", { timeout: 45000 });
+  await expect(page.locator("#messages")).toContainText("APPENDIX_SENTINEL");
+  await expect.poll(() => spoken.find((text) => text.includes("The final point is to hear the complete explanation.")), { timeout: 15000 }).toBeTruthy();
+  const answer = spoken.find((text) => text.includes("Here is the full explanation."))!;
+  expect(answer.length).toBeGreaterThan(1000);
+  expect(answer).not.toMatch(/APPENDIX|const value|On screen/);
+  await expect(page.getByRole("button", { name: "Stop speaking", exact: true })).toBeHidden({ timeout: 15000 });
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
 test("a briefing speaks the computer's close when an officer's action was denied after a partial report", async ({ page }) => {
   const spoken = spokenParts(page);
   await launch(page, "briefing-failure");
   await startListening(page);
   await expect(page.locator(".message.current[data-role=assistant]")).toHaveCount(3, { timeout: 20000 });
   await expect.poll(() => spoken.at(-1), { timeout: 15000 }).toEqual([
-    { text: "Test stand-in: I recommend the smaller repair, Captain. Shall I proceed?", speaker: "picard-riker" },
+    { text: "Test stand-in: I recommend the smaller repair, Captain.", speaker: "picard-riker" },
     { text: "Test stand-in: Data's action was denied. No command was run." },
   ]);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
@@ -303,7 +316,7 @@ test("a recovered officer action does not make the computer repeat a successful 
   await startListening(page);
   await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toEqual([
     { text: "Test stand-in: Data found a small repair.", speaker: "picard-data" },
-    { text: "Test stand-in: I recommend the smaller repair, Captain. Shall I proceed?", speaker: "picard-riker" },
+    { text: "Test stand-in: I recommend the smaller repair, Captain.", speaker: "picard-riker" },
   ]);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
@@ -314,7 +327,7 @@ test("a second report from the same officer does not hide a different failed ass
   await startListening(page);
   await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toEqual([
     { text: "Test stand-in: Data found a small repair.", speaker: "picard-data" },
-    { text: "Test stand-in: I recommend the smaller repair, Captain. Shall I proceed?", speaker: "picard-riker" },
+    { text: "Test stand-in: I recommend the smaller repair, Captain.", speaker: "picard-riker" },
     { text: "Test stand-in: Data's action was denied. No command was run." },
   ]);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
@@ -325,7 +338,7 @@ test("an earlier successful step does not hide the officer's final failed action
   await launch(page, "briefing-late-failure");
   await startListening(page);
   await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toEqual([
-    { text: "Test stand-in: I recommend the smaller repair, Captain. Shall I proceed?", speaker: "picard-riker" },
+    { text: "Test stand-in: I recommend the smaller repair, Captain.", speaker: "picard-riker" },
     { text: "Test stand-in: Data's action was denied. No command was run." },
   ]);
   await expect(page.getByText("Test stand-in: Data completed an earlier step.", { exact: true })).toBeVisible();
@@ -339,7 +352,7 @@ test("a copied computer close cannot replace the officers' own spoken reports", 
   await startListening(page);
   await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toEqual([
     { text: "Test stand-in: Data found a small repair.", speaker: "picard-data" },
-    { text: "Test stand-in: I recommend the smaller repair, Captain. Shall I proceed?", speaker: "picard-riker" },
+    { text: "Test stand-in: I recommend the smaller repair, Captain.", speaker: "picard-riker" },
   ]);
   await expect(page.locator(".message.current[data-role=assistant]:not(.crew-report)")).toHaveCount(0);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
@@ -350,7 +363,7 @@ test("a copied computer close cannot hide an officer's failed action", async ({ 
   await launch(page, "briefing-failure-copy");
   await startListening(page);
   await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toEqual([
-    { text: "Test stand-in: I recommend the smaller repair, Captain. Shall I proceed?", speaker: "picard-riker" },
+    { text: "Test stand-in: I recommend the smaller repair, Captain.", speaker: "picard-riker" },
     { text: "Data did not finish. Request denied. The action was not carried out." },
   ]);
   await expect(page.locator(".crew-report .message-error")).toContainText("The user declined this tool call");
@@ -1477,7 +1490,7 @@ test("a failed request is visible before its failure sound", async ({ page }) =>
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
-test("an everyday answer is spoken briefly while the exact code stays on screen", async ({ page }, info) => {
+test("an everyday answer and its question are spoken while the exact code stays on screen", async ({ page }, info) => {
   const spoken = spokenText(page);
   await launch(page, "example");
   await startListening(page);
@@ -1485,7 +1498,7 @@ test("an everyday answer is spoken briefly while the exact code stays on screen"
   await expect(answer).toHaveCount(1, { timeout: 15000 });
   await expect(answer.locator("pre code")).toHaveText("const settings = { ...defaults, ...saved };");
   await expect.poll(() => spoken[0], { timeout: 15000 })
-    .toBe("The settings test fails because the default voice replaces the saved choice when the app starts.");
+    .toBe("The settings test fails because the default voice replaces the saved choice when the app starts. Shall I make that change and run the test again?");
   await expect(status(page)).not.toHaveText("Speaking", { timeout: 15000 });
   await expect(status(page)).toHaveText(/Standing by|Listening/, { timeout: 15000 });
   await page.screenshot({ path: info.outputPath("example-answer.png"), fullPage: true });

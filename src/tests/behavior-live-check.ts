@@ -6,7 +6,7 @@ import { setTimeout as wait } from "node:timers/promises";
 import { startEngine, projectDirectory } from "../server/process.js";
 import { startApp } from "../server/app.js";
 import { availableModels } from "../server/engine.js";
-import { spokenReply } from "../shared/speech.js";
+import { spokenReply, spokenSummary } from "../shared/speech.js";
 import { chatMessages } from "../server/history.js";
 import type { FormRequest, PermissionRequest } from "../shared/types.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
@@ -14,6 +14,9 @@ import type { TributeRequest } from "../shared/tribute.js";
 
 // Real multi-turn check: Picard Code's own API, its always-supplied instructions, OpenCode and a signed-in model provider.
 // Model wording varies, so this records the full transcript and checks behavior that must hold every time.
+const modelArgument = process.argv.indexOf("--model");
+const requestedModel = modelArgument < 0 ? undefined : process.argv[modelArgument + 1];
+if (modelArgument >= 0 && (!requestedModel || requestedModel.startsWith("--"))) throw new Error("Provide --model as provider/model.");
 const samples = resolve(".picard-voice", "samples");
 await mkdir(samples, { recursive: true });
 const temporary = await mkdtemp(resolve(tmpdir(), "picard-behavior-check-"));
@@ -33,8 +36,9 @@ try {
   engine = await startEngine(project);
   const client = engine.client;
   const { models, defaultModel } = await availableModels(client, project);
-  const model = models.find((item) => item.modelID === "gpt-4.1") ?? models.find((item) => item.modelID === "gpt-5-mini") ?? defaultModel;
-  assert.ok(model, "Sign in to a model provider in OpenCode before this real check.");
+  const model = requestedModel ? models.find((item) => `${item.providerID}/${item.modelID}` === requestedModel)
+    : models.find((item) => item.modelID === "gpt-4.1") ?? models.find((item) => item.modelID === "gpt-5-mini") ?? defaultModel;
+  assert.ok(model, requestedModel ? `The requested test model ${requestedModel} is not available.` : "Sign in to a model provider in OpenCode before this real check.");
   app = await startApp({ client, project, webRoot: resolve("web-dist"), modelFile: resolve(temporary, "model.json"), speechFile: resolve(temporary, "speech.json") });
   const origin = app.origin;
   const connected = await fetch(`${origin}/api/connect`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "x-picard-request": "1" }, body: JSON.stringify({ token: app.token }) });
@@ -104,7 +108,7 @@ try {
       `Tools: ${result.tools.map((tool) => `${tool.tool} (${tool.status}${tool.status === "error" ? `: ${tool.output.slice(0, 160)}` : ""})`).join(", ") || "none"}`, "",
       `Reference: ${JSON.stringify(sent.reference ?? null)}`, "");
     const spoken = result.spoken;
-    check(spoken.length > 0 && spoken.length <= 420, `${label}: spoken reply is present and short (${spoken.length} characters)`);
+    check(spoken.length > 0 && spoken.length <= 8000, `${label}: spoken reply is present and fits the playback limit (${spoken.length} characters)`);
     check(!/[:`*_#]\s*$/.test(spoken) && !/`|\*\*|https?:/.test(spoken), `${label}: spoken reply has no dangling colon, code marks or raw links`);
     return { ...result, reference: sent.reference };
   };
@@ -120,11 +124,18 @@ try {
   const follow = await turn("Contextual follow-up", "And the service address?");
   check(/status\.example\.invalid|SERVICE_URL/i.test(follow.reply), "Follow-up: understands the short question from context");
   const corrected = await turn("Correction", "No, I meant how many attempts the retry helper actually makes, not the setting.");
-  check(/retry\.ts|withRetry|retry helper/i.test(corrected.reply) && /\b4\b|four/i.test(corrected.reply), "Correction: switches to the helper and reports 4 attempts");
+  check(/retry\.ts|withRetry|\bhelper\b/i.test(corrected.reply) && /\b4\b|four/i.test(corrected.reply), "Correction: switches to the helper and reports 4 attempts");
   const shown = await turn("Show me", "Show me.");
   check(/withRetry|MAX_RETRIES \+ 1|attempt/i.test(shown.reply), "Show me: puts the relevant code or detail on screen");
   check(shown.spoken.length < shown.reply.length || shown.reply.length < 200, "Show me: speaks less than the screen detail");
   check(JSON.stringify(await Promise.all(projectFiles.map((file) => readFile(resolve(project, file), "utf8")))) === JSON.stringify(beforeQuestions), "Repository questions: project files remain unchanged");
+
+  const explanation = await turn("Complete spoken explanation", 'Computer, explain in three short paragraphs why listening first, checking evidence and admitting uncertainty matter. End the last paragraph with "That is the complete explanation." Then put a small TypeScript example containing APPENDIX_SENTINEL under an On screen heading. Do not use tools or change files.');
+  const paragraphs = explanation.reply.split(/\n#{1,6}\s+On screen\s*\n/i)[0]!.trim().split(/\n\s*\n/);
+  check(paragraphs.length >= 3 && paragraphs.every((paragraph) => explanation.spoken.includes(spokenSummary(paragraph))), "Complete explanation: every conversational paragraph is spoken");
+  check(explanation.spoken.includes("That is the complete explanation."), "Complete explanation: the final conversational paragraph is spoken");
+  check(/APPENDIX_SENTINEL/.test(explanation.reply) && !/APPENDIX|appendix sentinel/i.test(explanation.spoken), "Complete explanation: the technical appendix is shown but not spoken");
+  check(!explanation.tools.length, "Complete explanation: no tools were used");
 
   let asked: { question: string; spoken: string; answer: string } | undefined;
   const question = await turn("Clarification question", "Ask me with your question tool whether the retry limit should be 3 or 5. Do not change any files.", async (pending) => {

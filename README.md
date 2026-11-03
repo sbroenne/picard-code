@@ -267,20 +267,25 @@ also recognises common mishearings, such as "Rika" for Riker or "Walt" for
 Worf, and sends a follow-up such as "Make it so" back to the officer who just
 answered.
 
-An explicit officer address at the start always selects that officer directly,
-without the check; mentioning Data or saying "do not ask Data" does not.
+An explicit officer address or list of officers at the start selects them
+directly, without the check; mentioning Data or saying "do not ask Data" does not.
 
-A briefing works as it does on the bridge. The computer calls each officer the
-work needs, usually two or three, never the whole crew by default. Each officer
-reports to you directly, and at most one of them may change files. If you want
-a recommendation, Riker weighs their findings, recommends one course and asks
-whether to proceed. Each officer then gives their main finding in a sentence,
-Riker last, and you decide; "Make it so" carries out that recommendation. Each
-officer's full report stays on screen; if the computer only copies a report
-word for word, the copy is not shown and the officers' reports are spoken
-instead. Officers do not hand work to each other. When one needs a
-colleague, they name the officer and you can call them. Each officer called
-makes an extra model request and can increase cost.
+You lead the briefing, as Picard does on the bridge. The computer connects the
+officers the work needs, usually two or three, never the whole crew by default.
+They report directly to you and may disagree or offer alternatives. Riker gives
+his judgment when needed; he does not automatically speak last or ask whether
+to proceed. You decide. "Make it so" carries out the clear proposal you just
+discussed, within its limits; if the choice is unclear, the officer asks.
+
+If you explicitly ask Number One to organise or coordinate work, he can call
+the relevant officers and base his recommendation on their actual findings.
+An opinion or recommendation alone does not authorise him to hand work on.
+Other officers name any additional expertise needed so you can call that
+colleague. OpenCode's existing helper limit and approval rules still apply;
+at most one officer may change files, and only when you requested changes.
+Each officer called makes an extra model request and can increase cost.
+Full reports stay on screen. If the computer only copies a report word for
+word, the copy is not shown.
 
 Reports are labelled by officer inside the same Current log entry; there is no
 separate crew display. Related approvals and questions appear there too, naming
@@ -299,10 +304,15 @@ also answers everything itself, and naming an officer reports why.
 Everyone uses the selected model and speech service. Each officer has their
 own ready-made Kokoro and Azure MAI voice, measured to sound closer to the
 actor; nothing is cloned. An officer's answer is spoken in their voice. After a
-briefing, each officer says their main finding in one sentence, Riker last with
-his recommendation and question. The computer's closing summary is spoken only
-when it adds something, such as an officer whose work failed, or when Riker
-was not called; otherwise it stays on screen with the full reports. Spoken
+briefing, each officer gives their complete conversational answer in report
+order, without a fixed closing speaker or a question repeated at the end.
+Stories and explanations are spoken across paragraphs, not just the first.
+Code, tables, source links and lengthy technical detail stay in an **On screen**
+section. An answer can contain up to 8,000 spoken characters across its speakers;
+longer answers report a speech error rather than silently cutting off the text.
+Routine computer receipts stay on screen; real failures are still spoken.
+When Riker was explicitly asked to coordinate, his own reply follows the
+reports he requested. Spoken
 replies appear on screen when the voice starts saying them, so you hear the
 answer first and read the detail alongside it. If you stop speaking, switch
 the microphone off, or the voice fails, the reply is shown without waiting.
@@ -329,13 +339,17 @@ permission rules. Naming an officer then reports that the crew is unavailable.
 `npm run test:crew:live` checks real officer replies and a few measurable voice
 habits (no exclamation marks, Data without contractions, Worf brief), "Make it
 so" carrying out an officer's own proposal, an unclear "Make it so" answered
-with a question, a quick fact, an explanation and a piece of writing kept by the
-computer, requests needing an officer's judgment handed to the right officer
-without naming them (including misheard names) and real briefings, when
-asked for, in which the computer calls each
-officer itself. It cannot judge whether an officer sounds right; that needs
-you. It makes model requests, may incur provider charges, and never
-answers an approval itself.
+with a request for clarification, a quick fact, an explanation and a piece of
+writing kept by the computer, requests needing an officer's judgment handed to
+the right officer without naming them (including misheard names), and real
+briefings with real officer calls and Number One calling officers when
+explicitly asked to organise their work. It also checks that a ban on tools
+or officer calls is respected. It cannot judge whether an
+officer sounds right; that needs you. Add `-- --show-replies` to print the six
+generated officer replies for review, or `-- --model provider/model` to choose
+an available model for the check without changing your saved choice. The check
+makes model requests, may incur provider charges, and never answers an approval
+itself.
 
 ## Connect a model provider
 
@@ -967,7 +981,7 @@ other rules file into your project, so your project's own development rules
 stay as they are.
 
 The instructions ask for a restrained ship-computer manner: a complete short
-spoken answer first, details after it for the screen, short follow-ups
+complete spoken answer first, technical detail under On screen, short follow-ups
 understood from context, one focused question when something is missing,
 specific reasons when information is unavailable, and completion reports only
 for work that actually happened. Stock phrases such as "Working" are not
@@ -1097,7 +1111,8 @@ outside this repository. It checks a short investigation, a follow-up, a
 correction, "show me", OpenCode's real question with a spoken-style answer,
 and a refused command approval that must not run. It writes the full exchange
 to `.picard-voice/samples/behavior-transcript.md`. Model wording varies; the
-check verifies behavior, not exact words.
+check verifies behavior, not exact words. Add `-- --model provider/model` to
+choose an available model without changing your saved choice.
 
 Quiet, very short words or a long pause inside a sentence may need a repeat.
 Interrupting playback uses **Stop speaking**, not voice-over-voice detection.

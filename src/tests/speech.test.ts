@@ -229,20 +229,33 @@ test("microphone off preserves pending speech; stopped speech cannot send late a
   assert.equal(audioBytes, 9600);
 });
 
-test("spoken answers preserve a concise first paragraph without reading code or making up success", () => {
+test("spoken answers include every conversational paragraph without reading code or making up success", () => {
   assert.equal(spokenSummary("I could not complete that change.\n\n```js\nconst x = 1;\n```"), "I could not complete that change.");
-  assert.equal(spokenSummary("**Two problems** remain. Read [the details](https://example.com).\n\nLong details."), "Two problems remain. Read the details.");
+  assert.equal(spokenSummary("**Two problems** remain. Read [the details](https://example.com).\n\nThe second paragraph explains why."),
+    "Two problems remain. Read the details. The second paragraph explains why.");
   assert.equal(spokenSummary("```js\nconst x = 1;\n```"), "The result is on screen.");
-  assert.ok(spokenSummary("A very long explanation. ".repeat(100)).length <= 420);
+  assert.equal(spokenSummary("A long but complete explanation. ".repeat(100)), "A long but complete explanation. ".repeat(100).trim());
+  assert.equal(spokenSummary("## The question\n\nA complete explanation.\n\n## The answer\n\nThe conclusion matters."),
+    "The question. A complete explanation. The answer. The conclusion matters.");
+});
+
+test("technical appendices, tables and code stay on screen without dropping later conversational prose", () => {
+  const prose = "The change is not safe.\n\nThere is a second risk. Do not deploy it.\n\nWhat should we check first?";
+  assert.equal(spokenSummary(`${prose}\n\n### On screen\n\nTechnical details and [sources](https://example.com).\n\n\`\`\`ts\nconst unsafe = true;\n\`\`\``),
+    "The change is not safe. There is a second risk. Do not deploy it. What should we check first?");
+  assert.equal(spokenSummary("First paragraph.\n\n~~~md\n### On screen\n~~~\n\n| Setting | Value |\n| --- | --- |\n| token | secret |\n\nLast paragraph."),
+    "First paragraph. Last paragraph.");
+  assert.equal(spokenSummary("First.\n\n    const x = 1;\n\nLast."), "First. Last.");
+  assert.equal(spokenSummary("First.\n\n```ts\nconst unfinished = true;"), "First.");
 });
 
 test("a reply that opens with a list is spoken completely, not cut off at the colon", () => {
-  const written = "The missing required release settings are:\n\n- `SERVICE_URL`: the address of the service\n- `RELEASE_TOKEN` — used for signing\n- `BUILD_NUMBER`\n\nSet them in `config/release.json`.";
-  assert.equal(spokenSummary(written), "The missing required release settings are: service URL, release token, and build number.");
+  const written = "The missing required release settings are:\n\n- `SERVICE_URL`: the address of the service\n- `RELEASE_TOKEN` — used for signing\n- `BUILD_NUMBER`\n\n### On screen\n\nSet them in `config/release.json`.";
+  assert.equal(spokenSummary(written), "The missing required release settings are: service URL: the address of the service. release token — used for signing. build number.");
   assert.equal(spokenSummary("Here is the fix:\n\n```ts\nconst x = 1;\n```"), "Here is the fix. The details are on screen.");
-  assert.equal(spokenSummary("1. First step\n2. Second step"), "First step and Second step.");
+  assert.equal(spokenSummary("1. First step\n2. Second step"), "First step. Second step.");
   const many = `Changed files:\n${Array.from({ length: 7 }, (_value, index) => `- file${index}`).join("\n")}`;
-  assert.equal(spokenSummary(many), "Changed files: file0, file1, file2, file3, file4, and 2 more on screen.");
+  assert.equal(spokenSummary(many), "Changed files: file0. file1. file2. file3. file4. file5. file6.");
 });
 
 test("technical names are spoken understandably while the written text keeps exact names", () => {

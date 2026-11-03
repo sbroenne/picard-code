@@ -106,14 +106,70 @@ test("a chosen speaking speed reaches every part, and a speed outside 0.8 to 1.2
   assert.deepEqual(fixture.said, [{ text: "Ready.", voice: { name: "test-picard-data" }, speed: 1.1 }, { text: "Done.", speed: 1.1 }]);
 });
 
+test("long reports are spoken completely in bounded chunks with one voice, speed and playback", async (t) => {
+  const fixture = speechFixture("Hello computer", 0.1);
+  const voice = await connect(t, fixture.service);
+  const report = `${"Captain, this is another part of the explanation. ".repeat(50)}This is the final point.`;
+  voice.socket.send(JSON.stringify({ type: "speak", id: 1, speed: 1.1, parts: [
+    { text: report, speaker: "picard-data" }, { text: "The decision is yours." },
+  ] }));
+  await voice.next("audio-end");
+  assert.equal(fixture.said.slice(0, -1).map((part) => part.text).join(" "), report);
+  assert.ok(fixture.said.every((part) => part.text.length <= 1000 && part.speed === 1.1));
+  assert.ok(fixture.said.slice(0, -1).every((part) => part.voice?.name === "test-picard-data"));
+  assert.equal(voice.events.filter((event) => event.type === "audio-start").length, 1);
+  assert.equal(voice.audio, fixture.said.length * 4800 + 14_400, "no handover pauses between chunks of the same speaker");
+
+  for (const text of ["x".repeat(8000), `${"x".repeat(999)}😀${"y".repeat(1000)}`]) {
+    const before = fixture.said.length;
+    voice.socket.send(JSON.stringify({ type: "speak", id: 2, text }));
+    await voice.next("audio-end");
+    const chunks = fixture.said.slice(before).map((part) => part.text);
+    assert.ok(chunks.every((chunk) => chunk.length <= 1000 && Buffer.from(chunk).toString() === chunk));
+    assert.equal(chunks.join(""), text);
+  }
+});
+
+test("stopping a long reply prevents later chunks and does not corrupt the next reply", async (t) => {
+  const fixture = speechFixture("Hello computer", 0.1);
+  const said: string[] = [];
+  const voice = await connect(t, {
+    ...fixture.service,
+    async *speak(text, signal) {
+      said.push(text);
+      yield Buffer.alloc(480);
+      if (said.length === 1) {
+        await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }));
+        yield Buffer.alloc(480);
+      }
+    },
+  });
+  voice.socket.send(JSON.stringify({ type: "speak", id: 1, text: "This reply will be interrupted. ".repeat(100) }));
+  await voice.next("audio-start");
+  voice.events.length = 0;
+  voice.socket.send(JSON.stringify({ type: "stop-speaking" }));
+  const stopped = await voice.next("state");
+  assert.equal(stopped.type === "state" && stopped.phase, "off");
+  await wait(25);
+  assert.equal(said.length, 1, "no later chunk starts after cancellation");
+  assert.ok(!voice.events.some((event) => event.type === "audio-end" || event.type === "error"));
+  voice.socket.send(JSON.stringify({ type: "speak", id: 2, text: "The new reply is complete." }));
+  const finished = await voice.next("audio-end");
+  assert.equal(finished.type === "audio-end" && finished.id, 2);
+  assert.equal(said.at(-1), "The new reply is complete.");
+});
+
 test("spoken parts are checked, and a failed officer voice is named instead of sounding like the computer", async (t) => {
   const fixture = speechFixture("Hello computer", 0.1);
   const voice = await connect(t, fixture.service);
-  for (const parts of [[], [{ text: "Hello.", speaker: "picard-q" }], [{ text: " " }], Array.from({ length: 9 }, () => ({ text: "Too many." })), [{ text: "x".repeat(1001) }]]) {
+  for (const parts of [[], [{ text: "Hello.", speaker: "picard-q" }], [{ text: " " }], Array.from({ length: 9 }, () => ({ text: "Too many." })), [{ text: "x".repeat(8001) }], [{ text: "x".repeat(4001) }, { text: "y".repeat(4000) }]]) {
     voice.socket.send(JSON.stringify({ type: "speak", id: 1, parts }));
     const error = await voice.next("error");
     assert.ok(error.type === "error" && error.message, JSON.stringify(parts));
   }
+  voice.socket.send(JSON.stringify({ type: "speak", id: 1, text: "x".repeat(8001) }));
+  const tooLong = await voice.next("error");
+  assert.equal(tooLong.type === "error" && tooLong.message, "The spoken answer is too long. The written answer remains on screen.");
   assert.equal(fixture.said.length, 0, "nothing invalid is spoken");
 
   const failing: SpeechService = {
