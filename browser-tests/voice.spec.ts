@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { copyFile, mkdir, writeFile, rm } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { copyFile, mkdir, mkdtemp, realpath, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, resolve, join } from "node:path";
 import { spawn } from "node:child_process";
 import { TRIBUTE_ENTRIES } from "../src/shared/tribute-data";
 import { formatStardate } from "../src/shared/stardate";
@@ -1368,6 +1369,42 @@ test("Allow once lets the requested action go ahead", async ({ page }, info) => 
   await page.getByRole("button", { name: "Allow once" }).click();
   await expect(page.locator(".message[data-role=assistant]").last()).toContainText("The test approval was answered.", { timeout: 15000 });
   await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("the Project folder form refuses a missing folder, clears the screen for a new one, and reopens the earlier entry on return", async ({ page }) => {
+  const empty = await realpath(await mkdtemp(join(tmpdir(), "picard-project-")));
+  test.info().attachments.push({ name: "empty project", contentType: "text/plain", body: Buffer.from(empty) });
+  try {
+    await launch(page, "example");
+    await startListening(page);
+    const reply = page.locator(".message[data-role=assistant]");
+    await expect(reply).toHaveCount(1, { timeout: 15000 });
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+    const original = await page.locator("#project-path").inputValue();
+    const folderField = page.getByLabel("Full folder path");
+    await page.locator("#readout-project").click();
+    await folderField.fill(join(empty, "missing"));
+    await page.getByRole("button", { name: "Open folder" }).click();
+    await expect(page.locator("#notice-text")).toContainText("Could not open that folder.");
+    await expect(page.locator("#readout-project")).toHaveText(basename(original));
+    await expect(reply).toHaveCount(1);
+
+    await folderField.fill(empty);
+    await page.getByRole("button", { name: "Open folder" }).click();
+    await expect(page.locator("#readout-project")).toHaveText(basename(empty));
+    await expect(page.locator("#drawer-settings")).toBeHidden();
+    await expect(page.locator(".message")).toHaveCount(0);
+    await expect(page.locator("#workspace-caption")).toContainText(empty);
+
+    await page.locator("#readout-project").click();
+    await folderField.fill(original);
+    await page.getByRole("button", { name: "Open folder" }).click();
+    await expect(page.locator("#readout-project")).toHaveText(basename(original));
+    await expect(reply).toHaveCount(1, { timeout: 15000 });
+    await expect(reply).toContainText(/settings test/i);
+  } finally {
+    await rm(empty, { recursive: true, force: true });
+  }
 });
 
 test("with finished work, “Belay that” says no work is running, and speed changes stop at the fastest", async ({ page }) => {
