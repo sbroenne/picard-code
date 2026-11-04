@@ -53,6 +53,8 @@ export async function startFixture(project: string) {
   let listedModels: ModelInfo[] | undefined;
   let listedProviders: ProviderInfo[] | undefined;
   let listedIntegrations: IntegrationInfo[] = [];
+  // The model the user set in their OpenCode settings, if any.
+  let configuredModel: { providerID: string; model: string } | undefined = { providerID: "github-copilot", model: "fixture-model" };
   let providerError: string | undefined;
   let integrationError: string | undefined;
   const buildPermissions: PermissionRule[] = [{ action: "*", resource: "*", effect: "allow" }, { action: "read", resource: "*.env", effect: "ask" }];
@@ -169,7 +171,12 @@ export async function startFixture(project: string) {
       if (path === "/api/provider") { send(providerError ? 502 : 200, providerError ? { message: providerError } : { data: providers }); return; }
       if (path === "/api/integration") { send(integrationError ? 502 : 200, integrationError ? { message: integrationError } : { data: listedIntegrations }); return; }
       if (path === "/api/agent") { send(200, { data: agents }); return; }
-      if (path === "/api/model/default") { send(200, { data: models[0] }); return; }
+      // Like OpenCode, name the user's model when set, otherwise pick one of the listed models itself.
+      if (path === "/api/model/default") { send(200, { data: models.find((model) => model.providerID === configuredModel?.providerID && model.id === configuredModel.model) ?? models[0] ?? null }); return; }
+      if (path === "/api/config") {
+        send(200, [{ type: "document", path: "/fixture/opencode.json", info: { ...(configuredModel ? { model: configuredModel } : {}), providers: { "other-provider": { settings: { apiKey: "config-key-must-never-reach-browser" } } } } }, { type: "directory", path: "/fixture" }]);
+        return;
+      }
       if (path === "/api/event") {
         response.writeHead(200, { "Content-Type": "text/event-stream" });
         response.write(`data: ${JSON.stringify({ id: id("evt"), created: Date.now(), type: "server.connected", data: {} })}\n\n`);
@@ -425,6 +432,7 @@ export async function startFixture(project: string) {
     publish,
     setSignedIn: (ready: boolean) => { signedIn = ready; },
     setModels: (models: ModelInfo[]) => { listedModels = models; },
+    setConfiguredModel: (model?: { providerID: string; model: string }) => { configuredModel = model; },
     setProviders: (providers: ProviderInfo[]) => { listedProviders = providers; },
     setIntegrations: (integrations: IntegrationInfo[]) => { listedIntegrations = integrations; },
     setProviderError: (message?: string) => { providerError = message; },

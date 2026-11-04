@@ -30,9 +30,10 @@ export async function checkVersion(client: OpenCode) {
 
 /** Every model OpenCode can use right now, from any provider. OpenCode lists only providers it can reach. */
 export async function availableModels(client: OpenCode, directory: string) {
-  const [all, preferred, providers, integrations] = await Promise.all([
+  const [all, preferred, configured, providers, integrations] = await Promise.all([
     client.models(directory),
     client.defaultModel(directory).catch(() => null),
+    client.configuredModels(directory).catch(() => []),
     client.providers(directory),
     client.integrations(directory),
   ]);
@@ -42,7 +43,10 @@ export async function availableModels(client: OpenCode, directory: string) {
     .filter((model) => model.enabled !== false && model.status !== "deprecated")
     .map((model) => ({ providerID: model.providerID, provider: providerName.get(model.providerID) ?? model.providerID, modelID: model.id, name: model.name }));
   models.sort((a, b) => a.provider.localeCompare(b.provider) || a.name.localeCompare(b.name));
-  const defaultModel = models.find((model) => model.providerID === preferred?.providerID && model.modelID === preferred.id) ?? models[0];
+  // OpenCode always names a default, picking one of its own free models when the user set none.
+  // Only a model the user set in OpenCode counts; otherwise the Captain chooses.
+  const userSet = !!preferred && configured.some((model) => model.providerID === preferred.providerID && model.id === preferred.id);
+  const defaultModel = userSet ? models.find((model) => model.providerID === preferred.providerID && model.modelID === preferred.id) : undefined;
   // OpenCode's keyless catalog is available without a connection. Local providers
   // can be configured without credentials; unrelated connections (such as MCP) do not count.
   const hasConnectedProvider = providers.some((provider) => provider.id !== "opencode")

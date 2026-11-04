@@ -95,33 +95,40 @@ Prefer to keep a local copy of the source instead of using npx? Follow
 [Run from source](#run-from-source) below. Both ways open the same app and
 use the same first-run setup.
 
-Before the computer starts listening, choose an **AI model** in
-**Computer intelligence** and choose **Use this model**. For the best experience, choose the most capable
-model your provider offers; it may cost more or take longer to answer.
-First setup keeps AI provider connection, AI model choice and speech
-preparation in a central LCARS-style flow, with the current step highlighted.
-The side tiles open settings drawers for later changes.
-Picard Code does not rank models or choose one for you, even when free OpenCode
-models are available. If OpenCode has no connected providers and you have not
-saved a model choice, **Connect your AI provider** opens first. It recommends
-connecting your preferred AI provider, with **Copy command** for OpenCode's
-sign-in command and **Refresh connection** when you return.
-**Continue without connecting** opens model selection without signing in.
-If a provider is already connected, you go straight to model selection.
+The first time, the ship comes online one system at a time. The welcome
+screen shows three systems and which are already online; choose
+**Begin start-up**:
 
+1. **Computer core**: your own AI account, such as GitHub Copilot, Anthropic
+   or OpenAI, used through OpenCode. If OpenCode is not signed in, the screen
+   gives the sign-in order with **Copy order**. Run it in a terminal; when you
+   return to the page, the computer core comes online by itself. A link lets
+   you skip sign-in and use OpenCode's few free models instead.
+2. **Computer intelligence**: the AI model. If you set a default model in
+   OpenCode, **Begin start-up** uses it and this step is skipped. Otherwise
+   choose one and **Confirm this model**. For the best experience, choose the
+   most capable model your provider offers; it may cost more or take longer.
+3. **Communications**: choose **Open a channel** and allow the microphone.
+
+Steps already finished in OpenCode are skipped. Meanwhile the voice systems
+prepare on their own: a bar at the bottom of the screen shows each real step
+of the one-time local Nemotron and Kokoro download, or the real error with
+**Try again** (see [Local speech setup](#local-nemotron-and-kokoro-setup)).
+**Open a channel** is available once they are online. Then give your first
+order, such as "Computer, what can you do?". After the first answer, the
+senior officers report, unless the Bridge crew switch is off; choose
+**Dismissed** or simply give your next order. Change any of these later
+from the side panel tiles.
+
+Picard Code does not rank models or choose one for you. It only uses a default
+model you set in OpenCode yourself, never one OpenCode picked on its own.
 Your confirmed model is remembered on this computer, across restarts, browsers
-and project folders, without changing OpenCode's default. Existing users also
-confirm a model once when first using this version. If that model becomes
-unavailable, choose and confirm another; Picard Code never substitutes a model.
+and project folders, without changing OpenCode's default. If that model
+becomes unavailable, choose and confirm another; Picard Code never substitutes
+a model.
 
-On a fresh installation, the app also opens without speech. After choosing
-your AI model, choose **Prepare the computer**. The app downloads
-local Nemotron and Kokoro speech, shows each real step in an LCARS-style
-display, and starts speech when it is ready, without a restart
-(see [Local speech setup](#local-nemotron-and-kokoro-setup)).
-This is a one-time download; later starts use your saved speech choices.
-The preparation screen keeps its explanation and controls together. The
-listening console appears only after speech is available, not during setup.
+Existing users without speech set up see **Prepare the computer** instead,
+which runs the same download. Later starts use your saved speech choices.
 If you choose [Azure speech](#azure-speech-setup) for both listening and
 speaking, setup prepares only the small local pause detector and its Python
 packages, not Nemotron or Kokoro. Speech choices are separate from the model
@@ -185,9 +192,10 @@ npm start
 ```
 
 Your browser opens automatically. Keep the terminal open while using Picard
-Code; press **Ctrl+C** to stop it. Choose your **AI provider** and **AI model**
-when asked, then choose **Prepare the computer** to set up local listening
-and speaking. You need a microphone and speakers or headphones.
+Code; press **Ctrl+C** to stop it. Choose **Begin start-up** and bring the
+ship's systems online as described in [Get started](#get-started); local
+listening and speaking prepare on their own. You need a microphone and
+speakers or headphones.
 
 Starting from this folder selects the Picard Code repository as the Project.
 Use the **Project** tile in the app to choose the folder you want to work on.
@@ -361,19 +369,16 @@ To sign in to a provider:
 2. Choose your provider from the list and follow its sign-in. For GitHub
    Copilot, that is GitHub's device sign-in: check you are signed in to the
    right account, enter the code OpenCode shows, and approve it yourself.
-3. Return to Picard Code, choose the **AI provider** tile and then
-   **Refresh connection**. Once a provider connection is found,
-   **Computer intelligence** opens if no model has been confirmed. Models
-   are grouped by provider: pick one and choose **Use this model**. The
-   **Computer intelligence** tile lets you change it later; changing the list
-   alone does not save or activate a choice.
+3. Return to Picard Code. During the first start-up, the computer core
+   comes online as soon as you return to the page. Later, choose the
+   **AI provider** tile and then **Refresh connection**. Models are grouped
+   by provider: pick one and choose **Confirm this model** during start-up,
+   or **Use this model** in the **Computer intelligence** tile later.
+   Changing the list alone does not save or activate a choice.
 
-The Connect screen addresses you as the Captain and shows the first setup
-steps: connect an AI provider, choose an AI model, and set up speech. It does not ask
-you to sign in again when OpenCode already has a connected provider. The
-secondary **Continue without connecting** button lets you choose from
-OpenCode's default models when available; a saved OpenCode model does not
-trigger connection onboarding again.
+The start-up does not ask you to sign in again when OpenCode already has a
+connected provider, and a saved model choice means the start-up does not
+appear again.
 You can add providers later through **Connect an AI provider** in Computer
 intelligence. Local providers remain supported without an online account.
 A provider with no available models opens Computer intelligence so you can
@@ -384,10 +389,8 @@ including OpenCode's permission behavior, are under **About the connection**.
 Computer intelligence labels the selector **AI model** and shows **Model saved**
 after confirmation. First-time guidance recommends a capable model; saved
 choices and recovery have their own wording rather than repeating the welcome.
-**Use this model** stays off until you choose a different model. During first
-setup, saving moves straight to the central speech preparation screen, or
-finishes setup if speech is already ready. Later changes use settings drawers;
-there is no extra confirmation screen. **About this choice**
+**Use this model** stays off until you choose a different model. Later changes
+use settings drawers; there is no extra confirmation screen. **About this choice**
 explains where the choice is remembered; if the saved model is unavailable,
 **Refresh connection** is offered in the same panel.
 
@@ -440,10 +443,8 @@ screen; there is no phone layout.
   **Computer intelligence** the AI model, **Project** the folder,
   **Listen · Speak** the speech services, and the tribute badge **About**.
   Choosing the same tile again
-  closes it. Without a saved model choice, the central first-run panel shows
-  AI provider first only when OpenCode has no connected providers; otherwise
-  it shows Computer intelligence. The panel then moves to speech preparation.
-  An unavailable saved model opens Computer intelligence for recovery,
+  closes it. Without a saved model choice, the first start-up takes the
+  centre of the screen (see [Get started](#get-started)). An unavailable saved model opens Computer intelligence for recovery,
   without choosing a replacement. Listening stays off until an available model
   is confirmed and speech is set up. Listening pauses while a setting is open. Speech
   changes apply without restarting.
@@ -730,7 +731,8 @@ prebuilt American English `af_alloy` voice for the computer. The computer and
 crew voices are fixed, with no voice selection. Both run on the CPU. No Azure resource, key, or login
 is needed when both sides are local. A model provider is still needed for coding.
 
-Start Picard Code and choose **Prepare the computer**.
+The download begins on its own during the first start-up; existing users without
+speech choose **Prepare the computer**.
 Picard Code downloads local speech in the background, shows each real step, and
 starts the selected speech services when ready. No restart is needed. If the
 download fails, the real reason is shown with **Try again**, and any working

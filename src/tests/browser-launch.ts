@@ -17,6 +17,7 @@ if (process.argv.includes("--free-models")) {
 if (process.argv.includes("--no-models")) fixture.setModels([]);
 if (process.argv.includes("--no-providers")) fixture.setProviders([]);
 if (process.argv.includes("--provider-error")) fixture.setProviderError("Test provider lookup failed.");
+if (process.argv.includes("--no-default-model")) fixture.setConfiguredModel(undefined);
 if (process.argv.includes("--opencode-account")) fixture.setIntegrations([{ id: "opencode", connections: [{ type: "credential" }] }]);
 // Each utterance hears the next phrase; the last one repeats. Within a task everything said is sent,
 // so most end in silence ("").
@@ -89,15 +90,22 @@ if (smartTurn && speech) speech.turnDetector = {
     },
     async close() {},
   };
+// Browser checks never download or start real speech: setup and start-up use labeled stand-ins.
+let speechSetupFailures = process.argv.includes("--speech-setup-fails") ? 1 : 0;
 const app = await startApp({ client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"), speech, soundFolder, speechFile, modelFile, readWikipedia: wikipediaFixture,
-  localSpeechReady: settingsStandIn ? async () => true : undefined,
-  startSpeech: settingsStandIn ? async (settings) => {
+  localSpeechReady: async () => settingsStandIn,
+  setUpLocalSpeech: async (onStep) => {
+    onStep("Downloading local speech — labeled test stand-in");
+    await new Promise((done) => setTimeout(done, 1500));
+    if (speechSetupFailures-- > 0) throw new Error("Test speech download failed. No files were downloaded.");
+  },
+  startSpeech: async (settings) => {
     if (settings.region === "broken") throw new Error("Test speech service could not start.");
     return { ...speechFixture([""]).service, selection: {
       listening: settings.listening === "mai" ? "mai" : "nemotron",
       speaking: settings.speaking === "mai" ? "mai" : "kokoro",
     } };
-  } : undefined,
+  },
 });
 console.log(app.url);
 const close = () => { void app.close().then(() => fixture.close()).then(() => rm(settingsFolder, { recursive: true })); };

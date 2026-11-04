@@ -11,7 +11,7 @@ import { markMedia, reconcile, ReplyPlayers } from "./media";
 import { formatStardate } from "../src/shared/stardate";
 import { TRIBUTE_ENTRIES, type TributeEntry } from "../src/shared/tribute-data";
 import { TributeCycle, tributeMode, declinedReply, storyOfferAllowed, storyAcceptance, explicitStorySubject, tributeQuestion, tributeSubject, randomIndex, storyInvitation, type ExecutionOutcome } from "../src/shared/tribute";
-import { crewMember, repeatsReport, type CrewID } from "../src/shared/crew";
+import { BRIDGE_CREW, crewMember, repeatsReport, type CrewID } from "../src/shared/crew";
 
 function element<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -34,7 +34,11 @@ function button(text: string, className: string, action: () => Promise<void> | v
 const model = element<HTMLSelectElement>("model");
 const readingArea = element("reading-area");
 let state: AppState | undefined;
-let onboarding = false;
+/** How far the first-run start-up has come. Kept for this browser address, so a reload resumes it. */
+type FirstRun = "started" | "listening" | "answered" | "done";
+const FIRST_RUN_KEY = "picard-first-run";
+let firstRun: FirstRun | undefined;
+let firstRunChecked = false;
 let selected: string | undefined;
 let freshEntryStarted = Date.now();
 let messages: ChatMessage[] = [];
@@ -232,10 +236,11 @@ function setMuted(value: boolean) {
   microphoneSwitchedOff = value;
 }
 
-/** The microphone is simply on, unless muted or changing settings. */
+/** The microphone is simply on, unless muted or changing settings. During start-up the Captain opens the channel. */
 function autoListen() {
   if (voice.microphone || voice.opening || voice.failed || !state?.speech?.configured || !state.selectedModel || !connected
-    || state.speech.setup?.state === "running" || speechPreparation?.state === "running" || muted() || openDrawer() === "settings") return;
+    || state.speech.setup?.state === "running" || speechPreparation?.state === "running" || muted() || openDrawer() === "settings"
+    || !firstRunChecked || !firstRun || firstRun === "started") return;
   void perform(() => voice.activate());
 }
 
@@ -273,37 +278,34 @@ function voiceControls() {
   const ready = !!state?.speech?.configured && !!state.selectedModel && connected && speechPreparation?.state !== "running";
   const preparing = speechPreparation?.state === "running" || state?.speech?.setup?.state === "running";
   const offline = !!state && !state.speech?.configured;
-  const setupPart = centralSetupPart();
+  const step = wizardStep();
+  // Before the channel opens, the start-up panel replaces the conversation.
+  const startUp = !!step && step !== "online" && step !== "crew";
   const setupPanel = element("first-run-setup");
-  setupPanel.hidden = !setupPart;
+  setupPanel.hidden = !step;
   const problem = element("notice");
-  const problemParent = setupPart ? setupPanel : element("main");
-  if (problem.parentElement !== problemParent) problemParent.insertBefore(problem, setupPart ? element("first-run-panel") : readingArea);
-  const panelParent = setupPart ? element("first-run-panel") : element("drawer-settings");
-  for (const part of ["provider", "model"]) {
-    const panel = element(`settings-${part}`);
-    if (panel.parentElement !== panelParent) panelParent.append(panel);
-    if (setupPart) panel.hidden = part !== setupPart;
-  }
-  if (setupPart) {
-    setupPanel.dataset.step = setupPart;
-    element("first-run-title").textContent = settingsParts[setupPart][0];
-    element("welcome").hidden = true;
-  }
-  element("setup").hidden = !!setupPart || !state || !!state.models.length;
-  element("voice-console").hidden = !state?.speech?.configured || preparing || !!setupPart;
+  if (startUp) {
+    if (problem.parentElement !== setupPanel) setupPanel.insertBefore(problem, element("first-run-lead").nextSibling);
+  } else if (problem.parentElement !== element("main")) element("main").insertBefore(problem, readingArea);
+  const modelPanel = element("settings-model");
+  const modelParent = step === "model" ? element("first-run-panel") : element("drawer-settings");
+  if (modelPanel.parentElement !== modelParent) modelParent.append(modelPanel);
+  if (step === "model") modelPanel.hidden = false;
+  if (step) showWizard(step);
+  element("setup").hidden = !!step || !state || !!state.models.length;
+  element("voice-console").hidden = !state?.speech?.configured || preparing || startUp;
   const stop = element("stop");
   const workControls = element("setup-work-controls");
   const stopContainer = element("voice-console").hidden ? workControls : element("console-actions");
   if (stop.parentElement !== stopContainer) stopContainer.append(stop);
   workControls.hidden = !element("voice-console").hidden || !busy();
-  element("speech-first-start").hidden = !state?.selectedModel || !offline || !!speechPreparation || preparing;
-  element("speech-preparation").hidden = !speechPreparation || !!setupPart;
-  element("main").dataset.speechSetup = String(!!setupPart || offline || !!speechPreparation || preparing);
-  showSetupProgress();
+  element("speech-first-start").hidden = !!step || !state?.selectedModel || !offline || !!speechPreparation || preparing;
+  element("speech-preparation").hidden = !speechPreparation || !!step;
+  element("main").dataset.speechSetup = String(startUp || !step && (offline || !!speechPreparation || preparing));
+  voiceBar(step);
   const skip = element<HTMLAnchorElement>("skip-to-computer");
-  skip.href = setupPart ? "#first-run-setup" : speechPreparation || preparing ? "#speech-preparation" : offline ? "#speech-first-start" : "#voice-console";
-  skip.textContent = setupPart ? "Skip to setup" : offline || preparing ? "Skip to speech setup" : "Skip to the computer status";
+  skip.href = startUp ? "#first-run-setup" : !step && (speechPreparation || preparing) ? "#speech-preparation" : !step && offline ? "#speech-first-start" : "#voice-console";
+  skip.textContent = startUp ? "Skip to start-up" : !step && (offline || preparing) ? "Skip to speech setup" : "Skip to the computer status";
   const [status, detail] = consoleStatus();
   element("status").textContent = status;
   element("status-detail").textContent = detail;
@@ -405,6 +407,13 @@ function completeVoiceReply() {
     }
   }
   const fact = tributeCycle.completed({ id: key, outcome, reply, blocked: !!pending(), explicit: !!turn.storyID || tributeQuestion(turn.request) });
+  if (successful && firstRun === "listening") {
+    // The first order was answered: introduce the senior officers, if they are aboard.
+    const crewAboard = !!state?.crew.available && bridgeEnabled;
+    setFirstRun(crewAboard ? "answered" : "done");
+    if (crewAboard && !tail) tail = { text: "Your senior officers are standing by.", valid: () => selected === turn.session && firstRun === "answered" && connected && !voice.failed, started: () => undefined };
+    controls();
+  }
   if (fact) {
     display.fact = fact;
     display.factShownAt = new Date();
@@ -528,11 +537,12 @@ function readout(name: string, value: string) {
 /** The side panel's readouts show what the computer is connected to right now. */
 function readouts() {
   readout("provider", !state ? "Checking" : !connected ? "Reconnecting" : state.hasConnectedProvider ? "Connected"
-    : state.models.length ? "OpenCode models" : "Not connected");
+    : state.models.length ? "OpenCode models" : "Offline");
   readout("project", state ? state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project : "—");
-  readout("model", state?.selectedModel?.name ?? (state?.savedModel ? "Unavailable" : "Not selected"));
+  readout("model", !state ? "—" : state.selectedModel?.name ?? (state.savedModel ? "Unavailable" : "Offline"));
   const speech = state?.speech;
-  readout("speech", speechPreparation?.state === "running" ? "Preparing" : !speech?.configured ? "Not set up"
+  const setup = speechPreparation ?? speech?.setup;
+  readout("speech", !state ? "—" : setup?.state === "running" ? "Preparing" : !speech?.configured ? setup?.state === "failed" ? "Failed" : "Offline"
     : `${speech.listening === "mai" ? "Azure MAI" : "Nemotron"} · ${speech.speaking === "kokoro" ? "Kokoro" : "Azure MAI"}`);
 }
 
@@ -551,7 +561,7 @@ function controls() {
   const unchanged = !!selectedModel && model.value === modelValue(selectedModel);
   const confirm = element<HTMLButtonElement>("confirm-model");
   confirm.disabled = model.disabled || !model.value || unchanged;
-  confirm.textContent = savingModel ? "Saving model" : "Use this model";
+  confirm.textContent = savingModel ? "Saving model" : wizardStep() === "model" ? "Confirm this model" : "Use this model";
   const unavailable = !!savedModel && !selectedModel;
   let guidance = "Choose the most capable AI model available for the best answers. It may cost more or take longer.";
   if (state?.modelError || unavailable) guidance = "Your saved choice is kept until you confirm a replacement.";
@@ -589,19 +599,16 @@ function controls() {
   element<HTMLButtonElement>("new-conversation").disabled = !state || submitting;
   element("setup").hidden = !state || !!state.models.length;
   element<HTMLAnchorElement>("open-model-setup").href = `#settings/${modelSetupPart()}`;
-  element("welcome").hidden = !!speechPreparation || !!messages.length || !!selected && historyLoading || !!state && (!state.models.length || !state.speech?.configured);
+  element("welcome").hidden = !!wizardStep() || !!speechPreparation || !!messages.length || !!selected && historyLoading || !!state && (!state.models.length || !state.speech?.configured);
   const entryStarted = state?.conversations.find((entry) => entry.id === selected)?.created ?? freshEntryStarted;
   element("entry-stardate").textContent = `Stardate ${formatStardate(new Date(entryStarted))}`;
   element("provider-status").textContent = refreshingProvider ? "Refreshing connection"
     : !state ? "Checking"
     : `${state.hasConnectedProvider ? "AI provider connection found" : "No connected AI providers found"}. ${state.models.length} model${state.models.length === 1 ? "" : "s"} available.`;
-  element("provider-welcome").hidden = !onboarding || !!state?.savedModel || !!state?.hasConnectedProvider;
   element("provider-guidance").textContent = state?.hasConnectedProvider
     ? "Connect another AI provider in OpenCode, or refresh after changing a connection."
     : "Connect your preferred AI provider in OpenCode for the best Picard Code experience. Then choose its most capable model.";
   element("use-opencode-models").hidden = !state || state.hasConnectedProvider || !state.models.some((choice) => choice.providerID === "opencode");
-  if (state?.selectedModel && state.speech?.configured) onboarding = false;
-  showSetupProgress();
   readouts();
   renderWorking();
   element("voice-console").dataset.working = String(working);
@@ -613,6 +620,7 @@ function controls() {
     if (setup.state === "running") void followSpeechSetup(setup);
     else if (setup.state === "failed") showSpeechPreparation(setup);
   }
+  startVoiceSystems();
 }
 
 let displayedModel: string | undefined;
@@ -1143,7 +1151,7 @@ async function refreshState() {
   }
   if (revision !== selectionRevision && state?.project !== next.project) return;
   const lostModel = !!state?.selectedModel && !next.selectedModel;
-  const finishedModelSetup = onboarding && !state?.selectedModel && !!next.selectedModel;
+  const finishedModelSetup = !!wizardStep() && !state?.selectedModel && !!next.selectedModel;
   const speechBecameReady = !state?.speech?.configured && !!next.speech?.configured;
   state = next;
   if (speechBecameReady && !speechSetupWatching) showSpeechPreparation();
@@ -1178,9 +1186,12 @@ async function loadHistory() {
   }
 }
 
-function openEvents() {
+/** A quiet reopen keeps the current connection readout until the server reports it. */
+function openEvents(quiet = false) {
   events?.close();
-  connected = false;
+  if (!quiet) connected = false;
+  // A quiet reconnect leaves an error that is already on screen in place.
+  let keepNotice = quiet;
   events = new EventSource("/api/events");
   events.addEventListener("message", (message: MessageEvent<string>) => {
     void perform(async () => {
@@ -1190,7 +1201,8 @@ function openEvents() {
         if (!connected) cancelTributeSpeech();
         if (data.message) notice(data.message);
         if (connected) {
-          notice();
+          if (!keepNotice) notice();
+          keepNotice = false;
           await refreshState();
           await loadHistory();
         }
@@ -1200,6 +1212,7 @@ function openEvents() {
     });
   });
   events.addEventListener("error", () => {
+    keepNotice = false;
     cancelTributeSpeech();
     connected = false;
     controls();
@@ -1272,6 +1285,7 @@ async function sendMessage(spoken: string, requestedStoryID?: string) {
   if (!text) return;
   const choice = state.selectedModel;
   if (!choice) throw new Error("Open Computer intelligence and confirm a model before sending a request.");
+  if (firstRun === "answered") setFirstRun("done");
   submitting = true;
   controls();
   notice();
@@ -1307,8 +1321,10 @@ async function boot() {
     history.replaceState(null, "", location.pathname);
   }
   await refreshState();
-  onboarding = !!state && !state.modelError && (!state.savedModel || !!state.selectedModel && !state.speech?.configured);
-  if (state && !state.selectedModel) location.hash = `settings/${modelSetupPart()}`;
+  // Anyone who already chose a model has been aboard before; the start-up is only for a first run.
+  if (state && !firstRun && (state.savedModel || state.modelError)) setFirstRun("done");
+  firstRunChecked = !!state;
+  if (state && !state.selectedModel && !wizardStep()) location.hash = `settings/${modelSetupPart()}`;
   controls();
   if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id);
   openEvents();
@@ -1423,35 +1439,177 @@ for (const id of ["prepare-computer", "prepare-local-speech"]) {
 
 const drawers = ["records", "settings"] as const;
 type Drawer = typeof drawers[number];
-function centralSetupPart(): "provider" | "model" | undefined {
-  if (!onboarding || !state || state.savedModel || state.modelError) return;
-  const [view, part] = location.hash.slice(1).split("/");
-  if (view === "settings" && part !== "provider" && part !== "model") return;
-  return part === "provider" || part === "model" ? part : modelSetupPart();
+type WizardStep = "welcome" | "provider" | "model" | "comms" | "online" | "crew";
+function setFirstRun(value: FirstRun) {
+  firstRun = value;
+  saveTributeValue(FIRST_RUN_KEY, value);
+}
+function loadFirstRun() {
+  const saved = readTributeValue(FIRST_RUN_KEY);
+  firstRun = saved === "started" || saved === "listening" || saved === "answered" || saved === "done" ? saved : undefined;
+}
+/** The first-run step on screen, or nothing once the ship is fully online. */
+function wizardStep(): WizardStep | undefined {
+  if (!state || !firstRunChecked || firstRun === "done" || state.modelError) return;
+  if (!firstRun) return "welcome";
+  if (!state.selectedModel) {
+    // A saved model that has gone missing is recovered in the side panel.
+    if (state.savedModel) return;
+    const [view, part] = location.hash.slice(1).split("/");
+    if (view === "settings") return part === "provider" || part === "model" ? part : undefined;
+    return modelSetupPart();
+  }
+  return firstRun === "started" ? "comms" : firstRun === "listening" ? "online" : "crew";
 }
 function openDrawer(): Drawer | undefined {
   const name = location.hash.slice(1).split("/")[0] ?? "";
-  if (name === "settings" && centralSetupPart()) return;
+  const step = wizardStep();
+  if (name === "settings" && (step === "provider" || step === "model")) return;
   return (drawers as readonly string[]).includes(name) ? name as Drawer : undefined;
 }
 function closeDrawer() {
   if (openDrawer()) location.hash = "";
 }
 
-const settingsParts = { provider: ["Connect your AI provider", "orange"], model: ["Computer intelligence", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
-type SettingsPart = keyof typeof settingsParts;
-function showSetupProgress() {
-  const part = centralSetupPart();
-  const speechPanel = speechPreparation ? element("speech-preparation") : element("speech-first-start");
-  const target = part ? element("first-run-setup") : state?.selectedModel && !speechPanel.hidden ? speechPanel : undefined;
-  const progress = element("setup-progress");
-  progress.hidden = !onboarding || !target || !!openDrawer();
-  if (target && progress.parentElement !== target) target.insertBefore(progress, target.children[2] ?? null);
-  document.querySelectorAll<HTMLElement>("[data-setup-step]").forEach((step) => {
-    if (target && step.dataset.setupStep === (part ?? "voice")) step.setAttribute("aria-current", "step");
-    else step.removeAttribute("aria-current");
+const CREW_ROSTER: Record<string, [colour: string, order: string]> = {
+  Riker: ["orange", "Number One, what are our options?"],
+  Data: ["peach", "Mr. Data, look into this error."],
+  Geordi: ["tan", "Geordi, fix the failing test."],
+  Worf: ["red", "Mr. Worf, is this safe?"],
+  Troi: ["lilac", "Counselor, reword this message."],
+  Crusher: ["blue", "Doctor, check the error handling."],
+};
+function crewRoster() {
+  const roster = element("crew-roster");
+  for (const officer of BRIDGE_CREW) {
+    const [colour, order] = CREW_ROSTER[officer.name] ?? ["peach", ""];
+    const card = make("li");
+    card.style.setProperty("--officer", `var(--${colour})`);
+    card.append(make("b", undefined, officer.name), make("span", undefined, `${officer.duty}.`));
+    if (order) card.append(make("q", undefined, `“${order}”`));
+    roster.append(card);
+  }
+}
+
+function shipSystem(name: "core" | "intelligence" | "comms", online: boolean, current: boolean, detail = "") {
+  const tile = document.querySelector<HTMLElement>(`#ship-systems [data-system="${name}"]`)!;
+  tile.dataset.state = online ? "online" : "offline";
+  if (current) tile.setAttribute("aria-current", "step");
+  else tile.removeAttribute("aria-current");
+  element(`system-${name}`).textContent = `${online ? "Online" : "Offline"}${detail}`;
+}
+
+let shownStep: WizardStep | undefined;
+function showWizard(step: WizardStep) {
+  if (!state) return;
+  const panel = element("first-run-setup");
+  panel.dataset.step = step;
+  // The crew roster follows the first answer; every other step leads the screen.
+  if (step === "crew") { if (panel.nextElementSibling !== element("working")) readingArea.insertBefore(panel, element("working")); }
+  else if (panel.nextElementSibling !== element("voice-bar")) readingArea.insertBefore(panel, element("voice-bar"));
+  const signedIn = state.hasConnectedProvider;
+  const openCodeDefault = signedIn && !state.selectedModel ? state.defaultModel : undefined;
+  const core = signedIn || !!state.selectedModel;
+  const intelligence = !!state.selectedModel || step === "welcome" && !!openCodeDefault;
+  const comms = firstRun === "listening" || firstRun === "answered";
+  shipSystem("core", core, step === "provider", step === "welcome" && signedIn ? " · your OpenCode sign-in" : "");
+  shipSystem("intelligence", intelligence, step === "model", step === "welcome" && openCodeDefault ? ` · ${openCodeDefault.name}, your OpenCode default` : "");
+  shipSystem("comms", comms, step === "comms");
+  const remaining = [core, intelligence, comms].filter((online) => !online).length;
+  const listensHere = state.speech?.listening !== "mai";
+  const [title, lead] = ({
+    welcome: ["Welcome aboard, Captain.", `The ship is on standby. ${signedIn ? openCodeDefault ? "Your OpenCode sign-in and default AI model are already in use. " : "Your OpenCode sign-in is already in use. " : ""}${["", "One system remains", "Two systems remain", "Three systems must come online"][remaining]} before the computer can take your orders.`],
+    provider: ["Computer core offline", "The computer core draws its power from your own AI account, such as GitHub Copilot, Anthropic or OpenAI. Report to Main Engineering (your computer's terminal) and give this order to grant OpenCode access to it."],
+    model: ["Computer intelligence", !signedIn
+      ? "Select one of OpenCode's free models to power the computer. Sign in under AI provider at any time for more capable models."
+      : state.defaultModel ? `Select the AI model that powers the computer. Your OpenCode default is ${state.defaultModel.name}. The most capable model gives the best answers.`
+      : "OpenCode has no default AI model set, so select the one that powers the computer. The most capable model gives the best answers."],
+    comms: ["Open a channel", "The computer must be able to hear you. Your browser may ask to use the microphone; choose Allow."],
+    online: ["All systems online", "Say “Computer”, then give your order."],
+    crew: ["Senior officers reporting", "The computer answers by default. Address an officer by name for their judgment, or ask for “Options” to hold a briefing."],
+  } satisfies Record<WizardStep, [string, string]>)[step];
+  element("first-run-title").textContent = title;
+  element("first-run-lead").textContent = lead;
+  element("welcome-note").hidden = step !== "welcome" || remaining !== 1;
+  element("use-free-models").hidden = signedIn || !state.models.some((choice) => choice.providerID === "opencode");
+  element("channel-note").textContent = `${listensHere ? "All listening happens on this computer." : "Listening uses your Azure speech resource."} Close the channel at any time with the microphone button or the M key.`;
+  const channel = element<HTMLButtonElement>("open-channel");
+  channel.disabled = !state.speech?.configured || !connected || voice.opening;
+  element("open-channel-hint").textContent = voice.opening ? "Opening the channel"
+    : !state.speech?.configured ? "Available once voice systems are online."
+    : voice.failed ? "To allow the microphone, use the site settings next to the address bar, then choose Open a channel again." : "";
+  element<HTMLButtonElement>("begin-startup").disabled = savingModel;
+  if (step !== shownStep) {
+    shownStep = step;
+    if (!openDrawer()) panel.focus();
+  }
+}
+
+/** When the Captain returns from signing in at the terminal, look for the new sign-in without being asked.
+ * Only on return: each check reloads OpenCode and reconnects every open page. */
+let checkingSignIn = false;
+async function checkSignIn() {
+  if (checkingSignIn || refreshingProvider || document.hidden || !connected || wizardStep() !== "provider") return;
+  checkingSignIn = true;
+  // Closing the live connection first keeps the planned reconnect from looking like a failure.
+  events?.close();
+  try {
+    await api("refresh", {});
+    await refreshState();
+    notice();
+  } finally {
+    checkingSignIn = false;
+    openEvents(true);
+  }
+}
+for (const name of ["focus", "visibilitychange"] as const) {
+  (name === "focus" ? window : document).addEventListener(name, () => { void perform(checkSignIn); });
+}
+
+/** Voice systems start on their own during start-up; the bar below the panel reports each real step. */
+let voiceBarState = "";
+function voiceBar(step: WizardStep | undefined) {
+  const bar = element("voice-bar");
+  const speech = state?.speech;
+  bar.hidden = !step || !speech || (step === "online" || step === "crew") && !!speech.configured;
+  if (bar.hidden || !speech) return;
+  const setup = speechPreparation ?? speech.setup;
+  const [barState, text] = setup?.state === "running" ? ["running", `Initializing voice systems · ${setup.step}`]
+    : setup?.state === "failed" ? ["failed", `Voice systems offline: ${setup.error ?? setup.step}`]
+    : speech.configured ? ["online", "Voice systems online"]
+    : speechSetupWatching ? ["running", "Initializing voice systems"]
+    : ["offline", `Voice systems offline${speech.error ? `: ${speech.error}` : "."}`];
+  bar.dataset.state = barState;
+  element("voice-bar-text").textContent = text;
+  element("voice-bar-retry").hidden = barState !== "failed";
+  element("voice-bar-settings").hidden = barState !== "offline";
+  if (barState !== voiceBarState) {
+    voiceBarState = barState;
+    element("voice-bar-announce").textContent = barState === "running" ? "Initializing voice systems" : text;
+  }
+}
+
+let voiceStartTried = false;
+function startVoiceSystems() {
+  const speech = state?.speech;
+  if (voiceStartTried || !wizardStep() || !speech || speech.configured || speech.error || speech.setup || speechPreparation || speechSetupWatching
+    || speech.listening !== "nemotron" || speech.speaking !== "kokoro") return;
+  voiceStartTried = true;
+  speechSetupWatching = true;
+  voiceControls();
+  void perform(async () => {
+    try {
+      const current = await api<SpeechSetup | { state: "none" }>("speech-setup");
+      if (current.state !== "none") { await followSpeechSetup(current); return; }
+      const saved = await api<SavedSpeech>("settings");
+      lastSpeechChoice = { ...saved.settings, listening: "nemotron", speaking: "kokoro" };
+      await followSpeechSetup(api<SavedSpeech | SpeechSetup>("settings", lastSpeechChoice));
+    } finally { speechSetupWatching = false; voiceControls(); }
   });
 }
+
+const settingsParts = { provider: ["Connect your AI provider", "orange"], model: ["Computer intelligence", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
+type SettingsPart = keyof typeof settingsParts;
 /** Each side panel tile opens its own part, for example #settings/voice. Without one, open what still needs doing. */
 function showSettingsPart(requested?: string) {
   const part = requested && requested in settingsParts ? requested as SettingsPart
@@ -1492,8 +1650,7 @@ async function route() {
   if (open === "settings" && (voice.microphone || voice.opening)) voice.microphoneOff();
   controls();
   if (open !== "settings") {
-    if (!open && centralSetupPart()) element("first-run-setup").focus();
-    else if (!open && onboarding && !element("speech-first-start").hidden) element("speech-first-start").focus();
+    if (!open && wizardStep()) element("first-run-setup").focus();
     return;
   }
   showSettingsPart(location.hash.split("/")[1]);
@@ -1513,13 +1670,13 @@ element("model-form").addEventListener("submit", (event) => {
     const choice = state?.models.find((choice) => modelValue(choice) === model.value);
     if (!choice) throw new Error("Choose an available model before confirming.");
     savingModel = true;
-    const firstRun = onboarding;
+    const startUp = !!wizardStep();
     controls();
     try {
       state = await api<AppState>("model", choice);
       renderState();
       notice();
-      location.hash = firstRun || state.speech?.configured ? "" : "settings/voice";
+      location.hash = startUp || state.speech?.configured ? "" : "settings/voice";
     } finally { savingModel = false; controls(); }
   });
 });
@@ -1543,7 +1700,9 @@ element("speech-form").addEventListener("submit", (event) => {
   event.preventDefault();
   void perform(() => prepareSelectedSpeech(Object.fromEntries(speechFields.map((name) => [name, speechInput(name).value.trim()]))));
 });
-element("retry-speech-setup").addEventListener("click", () => {
+element("retry-speech-setup").addEventListener("click", retrySpeechSetup);
+element("voice-bar-retry").addEventListener("click", retrySpeechSetup);
+function retrySpeechSetup() {
   void perform(async () => {
     if (speechSetupWatching) return;
     speechSetupWatching = true;
@@ -1558,6 +1717,27 @@ element("retry-speech-setup").addEventListener("click", () => {
       else await prepareSelectedSpeech(lastSpeechChoice ?? (await api<SavedSpeech>("settings")).settings);
     } finally { speechSetupWatching = false; voiceControls(); }
   });
+}
+element("begin-startup").addEventListener("click", () => { void perform(async () => {
+  if (!state || savingModel) return;
+  // With an OpenCode sign-in and default model, choosing Begin start-up confirms that model.
+  const openCodeDefault = state.hasConnectedProvider && !state.selectedModel ? state.defaultModel : undefined;
+  if (openCodeDefault) {
+    savingModel = true;
+    controls();
+    try { state = await api<AppState>("model", openCodeDefault); }
+    finally { savingModel = false; }
+  }
+  setFirstRun("started");
+  notice();
+  if (location.hash) location.hash = "";
+  renderState();
+}); });
+element("open-channel").addEventListener("click", () => { void perform(startListening); });
+element("dismiss-crew").addEventListener("click", () => {
+  setFirstRun("done");
+  controls();
+  element("voice-console").focus();
 });
 element("stop").addEventListener("click", () => {
   void perform(async () => {
@@ -1587,18 +1767,20 @@ async function refreshProvider() {
 for (const id of ["refresh-provider", "refresh-model"]) {
   element(id).addEventListener("click", () => { void perform(refreshProvider); });
 }
-element("copy-provider-command").addEventListener("click", () => { void perform(async () => {
-  const copy = element<HTMLButtonElement>("copy-provider-command");
-  if (copy.disabled) return;
-  copy.disabled = true;
-  element("provider-copy-result").textContent = "";
-  try {
-    if (!navigator.clipboard) throw new Error("The browser cannot copy the command. Select and copy it from the screen.");
-    await navigator.clipboard.writeText(element("provider-command").innerText);
-    element("provider-copy-result").textContent = "Command copied";
-    notice();
-  } finally { copy.disabled = false; }
-}); });
+for (const [buttonID, commandID, resultID] of [["copy-provider-command", "provider-command", "provider-copy-result"], ["copy-wizard-command", "wizard-command", "wizard-copy-result"]]) {
+  element(buttonID!).addEventListener("click", () => { void perform(async () => {
+    const copy = element<HTMLButtonElement>(buttonID!);
+    if (copy.disabled) return;
+    copy.disabled = true;
+    element(resultID!).textContent = "";
+    try {
+      if (!navigator.clipboard) throw new Error("The browser cannot copy the command. Select and copy it from the screen.");
+      await navigator.clipboard.writeText(element(commandID!).innerText);
+      element(resultID!).textContent = buttonID === "copy-wizard-command" ? "Order copied" : "Command copied";
+      notice();
+    } finally { copy.disabled = false; }
+  }); });
+}
 element("project-form").addEventListener("submit", (event) => {
   event.preventDefault();
   void perform(async () => {
@@ -1632,6 +1814,10 @@ async function startListening() {
   if (!state?.speech?.configured || !state.selectedModel || !connected || openDrawer() === "settings") return;
   setMuted(false);
   await voice.activate();
+  if (firstRun === "started" && voice.microphone) {
+    setFirstRun("listening");
+    voice.speak("All systems online. Say “Computer”, then give your order.");
+  }
   controls();
 }
 /** The last side panel tile shows the current stardate. Dates are only ever shown as stardates. */
@@ -1680,5 +1866,9 @@ element("bridge-toggle").addEventListener("change", () => {
 });
 for (const name of ["pointerdown", "keydown"] as const) document.addEventListener(name, () => voice.unlock(), true);
 window.addEventListener("beforeunload", () => { players.stop(); events?.close(); voice.close(); });
+// Another open page may move the start-up on; follow it rather than repeating a step.
+window.addEventListener("storage", (event) => { if (event.key === FIRST_RUN_KEY) { loadFirstRun(); controls(); } });
 loadTribute();
+loadFirstRun();
+crewRoster();
 void perform(async () => { await route(); await boot(); await route(); });

@@ -123,6 +123,23 @@ export class OpenCode {
     return (await this.call<{ data: ModelInfo | null }>("GET", "/api/model/default", { directory })).data;
   }
 
+  /** Models the user set in their OpenCode settings. Only the model names are kept: the settings can hold keys. */
+  async configuredModels(directory: string) {
+    const documents = await this.call<{ info?: { model?: unknown } }[]>("GET", "/api/config", { directory });
+    const models: { providerID: string; id: string }[] = [];
+    for (const document of Array.isArray(documents) ? documents : []) {
+      const model = document.info?.model;
+      if (typeof model === "string" && model.includes("/")) {
+        const split = model.indexOf("/");
+        models.push({ providerID: model.slice(0, split), id: model.slice(split + 1) });
+      } else if (model && typeof model === "object" && "providerID" in model && "model" in model
+        && typeof model.providerID === "string" && typeof model.model === "string") {
+        models.push({ providerID: model.providerID, id: model.model });
+      }
+    }
+    return models;
+  }
+
   async sessions(directory: string, parentID?: string) {
     const query = new URLSearchParams({ directory, parentID: parentID ?? "null", archived: "false", limit: "100" });
     const all: SessionInfo[] = [];
