@@ -142,6 +142,17 @@ on GitHub can use it. If your coding tool reads skills, ask it for a
 `ponytail-review` of your branch before opening the pull request.
 The maintainer decides what fits the project and merges manually.
 
+Once a day, the Code Simplifier (`.github/workflows/code-simplifier.md`, from
+the public [Agentics](https://github.com/githubnext/agentics) library) reads
+the code merged in the past day. It may open one small draft pull request
+titled `[code-simplifier]`. It must not change anything users see or hear,
+and it leaves speech, conversation and safety code alone. Review it like any
+other pull request; unmerged ones close after a day. It needs two repository
+secrets: `COPILOT_GITHUB_TOKEN` for the AI, and `GH_AW_CI_TRIGGER_TOKEN` so its
+pull requests start the required checks. To change it, edit the `.md` file
+and run `gh aw compile` to regenerate the matching `.lock.yml`; `gh aw update`
+brings in changes from the library.
+
 ## Project website
 
 The static homepage is in `site/`, separate from the app in `web/`.
