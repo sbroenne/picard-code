@@ -251,11 +251,19 @@ reusing earlier test results. Cache only public model downloads and notices,
 reverify checksums, and recreate runtimes. Required gates must reject scope
 errors and unexpected skipped, cancelled or failed jobs. Extra speech jobs
 do not repeat on pushes to main; manual runs opt in with **speech-checks**.
-See [the CI speech guide](README.md#which-github-checks-run-real-speech).
+See [the CI speech guide](docs/DEVELOPMENT.md#which-github-checks-run-real-speech).
+
+When a check fails, investigate and fix failures caused by the change before
+calling it ready. For a separate problem, find or open a GitHub issue with
+reproduction steps and evidence, then work on it separately. Do not leave it
+only as a known failure in a pull request or handoff. Passing on a rerun does
+not resolve an intermittent failure. Keep the pull request's check results
+accurate and link the issue; never hide a failure, skip the check or weaken
+its assertions to get a pass.
 
 The browser checks use a labeled test stand-in for OpenCode, a fake
 microphone and silent stand-in sounds. When you change OpenCode, speech or conversation behavior, also run the
-matching real check from the README (`test:live`, `test:speech:live`,
+matching real check from [the developer guide](docs/DEVELOPMENT.md#real-service-checks) (`test:live`, `test:speech:live`,
 `test:speech:local`, `test:conversation:live`, `test:behavior:live`). Most of
 these make real model requests and some make small Azure charges. Report
 plainly which real checks ran and which could not.

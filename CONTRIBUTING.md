@@ -123,7 +123,7 @@ Unrelated dependency updates, release versions, documentation, styling and
 ordinary reply wording do not select those extra jobs. Dependency selection
 compares the relevant resolved packages, not just whether a lockfile changed.
 See [the exact selection rules](.github/scripts/speech-scope.mjs) and
-[the cache and manual-run guide](README.md#which-github-checks-run-real-speech).
+[the cache and manual-run guide](docs/DEVELOPMENT.md#which-github-checks-run-real-speech).
 Changing those rules also requires `node --test .github/scripts/*.test.mjs`.
 
 The complete pull request determines the selection. Adding documentation to
@@ -136,8 +136,8 @@ If Chromium is missing, run `npx playwright install chromium`. Windows users
 should use `npm.cmd` for commands with `--` arguments.
 
 These checks use a test stand-in for OpenCode and generated audio. When changing
-models, speech, or conversation behavior, also run the matching real checks in
-README. They can require your own sign-in,
+models, speech, or conversation behavior, also run the matching real checks in the
+[developer guide](docs/DEVELOPMENT.md#real-service-checks). They can require your own sign-in,
 model downloads, or paid Azure/model requests. Report exactly what ran and what
 could not; never submit credentials to CI.
 
@@ -170,6 +170,19 @@ correct, safe, tested, and no bigger than it needs to be. Copilot code review
 on GitHub can use it. If your coding tool reads skills, ask it for a
 `ponytail-review` of your branch before opening the pull request.
 The maintainer decides what fits the project and merges manually.
+
+Once a week, the Code Simplifier (`.github/workflows/code-simplifier.md`, from
+the public [Agentics](https://github.com/githubnext/agentics) library) reads
+the code merged in the past week. It may open one small draft pull request
+titled `[code-simplifier]`. It must not change anything users see or hear,
+and it leaves speech, conversation, crew, tribute and safety code alone.
+Review it like any other pull request. Unmerged ones close after a week; the
+generated `agentics-maintenance.yml` workflow checks for them every day. The
+Code Simplifier needs two repository secrets: `COPILOT_GITHUB_TOKEN` for the
+AI, and `GH_AW_CI_TRIGGER_TOKEN` so its pull requests start the required
+checks. To change it, edit the `.md` file and run `gh aw compile` to
+regenerate the matching `.lock.yml` and the maintenance workflow;
+`gh aw update` brings in changes from the library.
 
 ## Project website
 

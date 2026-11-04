@@ -173,89 +173,111 @@ async function holdSpeaking(page: import("@playwright/test").Page) {
 
 test.setTimeout(60000);
 
-async function thinkingPauseAudio(page: import("@playwright/test").Page, holdPredictions = false) {
-  await page.addInitScript((voice) => {
+/** Start test speech only after the microphone and the real voice detector are ready. */
+async function controlledMicrophone(page: import("@playwright/test").Page, phraseStarts = [0.5, 3.5]) {
+  await page.addInitScript(({ voice, phraseStarts }) => {
     const original = AudioContext.prototype.createMediaStreamSource;
     AudioContext.prototype.createMediaStreamSource = function () {
       const destination = this.createMediaStreamDestination();
       const audio = this.createBuffer(1, 16000 * 20, 16000);
-      // One-second phrases, with a two-second thinking pause between them.
-      audio.getChannelData(0).set(voice, 8000);
-      audio.getChannelData(0).set(voice, 56000);
-      const source = this.createBufferSource();
-      source.buffer = audio;
-      source.connect(destination);
-      Object.assign(window, { startThinkingPause: () => source.start() });
+      for (const seconds of phraseStarts) audio.getChannelData(0).set(voice, 16000 * seconds);
+      Object.assign(window, { startMicrophone: () => {
+        const source = this.createBufferSource();
+        source.buffer = audio;
+        source.connect(destination);
+        source.start();
+      } });
       return original.call(this, destination.stream);
     };
-  }, Array.from(syntheticVoice(1, 0.1)));
+  }, { voice: Array.from(syntheticVoice(1, 0.1)), phraseStarts });
   let audioBytes = 0;
   const checks: number[] = [];
   const commits: number[] = [];
   const requests: string[] = [];
-  const predictions: (() => void)[] = [];
-  const record = (payload: string | Buffer) => {
-    if (typeof payload !== "string") { audioBytes += payload.length; return; }
-    const command = JSON.parse(payload) as { type: string; id?: number };
-    if (command.type === "check-turn") checks.push(audioBytes);
-    else if (command.type === "commit") commits.push(audioBytes);
-    return command;
-  };
-  if (holdPredictions) {
-    // Control only backend predictions; browser audio and Silero still run unchanged.
-    await page.routeWebSocket("**/api/speech", (browser) => {
-      const server = browser.connectToServer();
-      browser.onMessage((payload) => {
-        const command = record(payload);
-        if (command?.type === "check-turn") {
-          predictions.push(() => browser.send(JSON.stringify({ type: "turn-result", id: command.id, complete: true })));
-        } else server.send(payload);
-      });
-    });
-  } else page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => record(payload)));
+  page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
+    if (typeof payload !== "string") audioBytes += payload.length;
+    else if (JSON.parse(payload).type === "check-turn") checks.push(audioBytes);
+    else if (JSON.parse(payload).type === "commit") commits.push(audioBytes);
+  }));
   page.on("request", (request) => {
     if (request.method() === "POST" && /\/api\/conversations\/[^/]+\/send$/.test(request.url())) requests.push(request.url());
   });
+  return { checks, commits, requests, bytes: () => audioBytes, start: () => page.evaluate(() => (window as unknown as { startMicrophone(): void }).startMicrophone()) };
+}
+
+/** Hold real test-service results until the test has reached the state they must arrive in. */
+async function holdTurnResults(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    const received: number[] = [];
+    Object.assign(window, { receivedTurnResults: received });
+    const NativeWebSocket = window.WebSocket;
+    window.WebSocket = class extends NativeWebSocket {
+      constructor(...args: ConstructorParameters<typeof WebSocket>) {
+        super(...args);
+        this.addEventListener("message", (event: MessageEvent) => {
+          if (typeof event.data !== "string") return;
+          const data = JSON.parse(event.data);
+          // Mark receipt after the app's synchronous message handler has run.
+          if (data.type === "turn-result") setTimeout(() => received.push(data.id), 0);
+        });
+      }
+    };
+  });
+  const pending: { id: number; complete: boolean; message: string; browser: import("@playwright/test").WebSocketRoute }[] = [];
+  await page.routeWebSocket("**/api/speech", (browser) => {
+    const server = browser.connectToServer();
+    server.onMessage((message) => {
+      if (typeof message === "string") {
+        const data = JSON.parse(message);
+        if (data.type === "turn-result") {
+          pending.push({ id: data.id, complete: data.complete, message, browser });
+          return;
+        }
+      }
+      browser.send(message);
+    });
+  });
   return {
-    checks, commits, requests, bytes: () => audioBytes,
-    start: () => page.evaluate(() => (window as unknown as { startThinkingPause(): void }).startThinkingPause()),
-    complete: (index: number) => {
-      const send = predictions[index];
-      if (!send) throw new Error("No test pause prediction is waiting.");
-      send();
-      return audioBytes;
+    pending,
+    async release(index: number) {
+      const result = pending[index];
+      if (!result) throw new Error("No pause detection result is waiting.");
+      result.browser.send(result.message);
+      await expect.poll(() => page.evaluate(() => (window as unknown as { receivedTurnResults: number[] }).receivedTurnResults)).toContain(result.id);
     },
   };
 }
 
 for (const mode of ["smart-turn", "smart-turn-late"] as const) {
   test(`${mode}: a thinking pause stays in one request and resumed speech rejects stale completion`, async ({ page }) => {
-    const capture = await thinkingPauseAudio(page, mode === "smart-turn-late");
+    const capture = await controlledMicrophone(page);
+    const results = await holdTurnResults(page);
     await launch(page, mode);
     await startListening(page);
     await capture.start();
-    let heldBytes = 0;
+    await expect.poll(() => results.pending.length, { timeout: 10000 }).toBe(1);
+    expect(capture.checks).toHaveLength(1);
+    expect(capture.commits).toEqual([]);
+    expect(capture.requests).toEqual([]);
+    expect(results.pending[0]!.complete).toBe(mode === "smart-turn-late");
+    if (mode === "smart-turn") await results.release(0);
+    await expect.poll(() => results.pending.length, { timeout: 10000 }).toBe(2);
+    expect(capture.checks).toHaveLength(2);
     if (mode === "smart-turn-late") {
-      await expect.poll(() => capture.checks.length, { timeout: 10000 }).toBe(2);
-      expect(capture.commits).toEqual([]);
-      expect(capture.requests).toEqual([]);
-      const staleAt = capture.complete(0);
-      // Continued audio proves the stale result did not commit the current request.
-      await expect.poll(capture.bytes, { timeout: 5000, intervals: [20, 50] }).toBeGreaterThan(staleAt + 32000 * 0.5);
-      expect(capture.commits).toEqual([]);
-      expect(capture.requests).toEqual([]);
-      heldBytes = capture.complete(1) - capture.checks[1]!;
-    } else {
-      await expect.poll(capture.bytes, { timeout: 10000 }).toBeGreaterThan(32000 * 3);
-      expect(capture.checks).toHaveLength(1);
-      expect(capture.commits).toEqual([]);
-      expect(capture.requests).toEqual([]);
+      await results.release(0);
+      const afterStaleResult = capture.bytes();
+      // Another detected packet proves queued completion work did not stop capture.
+      await expect.poll(capture.bytes).toBeGreaterThan(afterStaleResult);
     }
+    expect(capture.commits).toEqual([]);
+    expect(capture.requests).toEqual([]);
+    expect(results.pending[1]!.complete).toBe(true);
+    const releasedAt = capture.bytes();
+    await results.release(1);
     await expect.poll(() => capture.commits.length, { timeout: 10000 }).toBe(1);
     expect(capture.checks).toHaveLength(2);
     expect(capture.commits[0]).toBeGreaterThan(32000 * 4);
-    expect(capture.commits[0]! - heldBytes).toBeLessThan(32000 * 5.5);
-    expect(capture.commits[0]! - capture.checks[1]! - heldBytes).toBeLessThan(32000 * 0.5);
+    expect(capture.commits[0]! - releasedAt).toBeLessThan(32000 * 0.5);
     await expect.poll(() => capture.requests.length).toBe(1);
     await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
     await expect(page.locator(".message[data-role=user]")).toContainText("Computer, hello there");
@@ -263,7 +285,7 @@ for (const mode of ["smart-turn", "smart-turn-late"] as const) {
 }
 
 test("Smart Turn stops visibly on checker failure without submitting an unfinished request", async ({ page }) => {
-  const capture = await thinkingPauseAudio(page);
+  const capture = await controlledMicrophone(page);
   await launch(page, "smart-turn-error");
   await startListening(page);
   await capture.start();
@@ -274,13 +296,14 @@ test("Smart Turn stops visibly on checker failure without submitting an unfinish
 });
 
 test("microphone off during a Smart Turn check discards its late completion", async ({ page }) => {
-  const capture = await thinkingPauseAudio(page);
+  const capture = await controlledMicrophone(page);
+  const results = await holdTurnResults(page);
   await launch(page, "smart-turn-late");
   await startListening(page);
   await capture.start();
-  await expect.poll(() => capture.checks.length, { timeout: 10000 }).toBe(1);
+  await expect.poll(() => results.pending.length, { timeout: 10000 }).toBe(1);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
-  await page.waitForTimeout(2800);
+  await results.release(0);
   expect(capture.commits).toEqual([]);
   expect(capture.requests).toEqual([]);
   await expect(status(page)).toHaveText("Microphone off");
@@ -591,6 +614,7 @@ test(`${mode}: a request spoken over an answer keeps Computer and the exact word
 }
 
 test("quiet microphone speech interrupts an answer and preserves the full request", async ({ page }) => {
+  const capture = await controlledMicrophone(page, [0.5]);
   await page.addInitScript(() => {
     const node = AudioWorkletNode;
     window.AudioWorkletNode = class extends node {
@@ -611,7 +635,9 @@ test("quiet microphone speech interrupts an answer and preserves the full reques
   }));
   await launch(page, "interrupt-request");
   await startListening(page);
+  await capture.start();
   await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+  await capture.start();
   await expect(page.locator(".message[data-role=user]")).toHaveCount(2, { timeout: 15000 });
   await expect(page.locator(".message[data-role=user]").last()).toContainText("Computer, keep the exact name and do not change files.");
   expect(commands).toContain("stop-speaking");
@@ -735,14 +761,20 @@ test("the arrival call waits for a click and works before speech is set up", asy
 });
 
 test("a slow arrival sound never interrupts a spoken request", async ({ page }) => {
+  const capture = await controlledMicrophone(page, [0.5]);
   let release!: () => void;
   const ready = new Promise<void>((done) => { release = done; });
   await page.route("**/api/sounds/startup", async (route) => { await ready; await route.continue(); });
   await launch(page);
   await startListening(page);
+  await capture.start();
   await expect(status(page)).toHaveText("Listening");
+  const loaded = page.waitForResponse("**/api/sounds/startup");
   release();
+  await (await loaded).finished();
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
+  await expect(page.locator(".message[data-role=user]")).toContainText("Computer, hello there");
+  expect(capture.requests).toHaveLength(1);
   const arrivals = await page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
   expect(arrivals).toEqual([]);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
