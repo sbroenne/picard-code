@@ -173,22 +173,23 @@ async function holdSpeaking(page: import("@playwright/test").Page) {
 
 test.setTimeout(60000);
 
-async function thinkingPauseAudio(page: import("@playwright/test").Page) {
-  await page.addInitScript((voice) => {
+/** Start test speech only after the microphone and the real voice detector are ready. */
+async function controlledMicrophone(page: import("@playwright/test").Page, phraseStarts = [0.5, 3.5]) {
+  await page.addInitScript(({ voice, phraseStarts }) => {
     const original = AudioContext.prototype.createMediaStreamSource;
     AudioContext.prototype.createMediaStreamSource = function () {
       const destination = this.createMediaStreamDestination();
       const audio = this.createBuffer(1, 16000 * 20, 16000);
-      // One-second phrases, with a two-second thinking pause between them.
-      audio.getChannelData(0).set(voice, 8000);
-      audio.getChannelData(0).set(voice, 56000);
-      const source = this.createBufferSource();
-      source.buffer = audio;
-      source.connect(destination);
-      Object.assign(window, { startThinkingPause: () => source.start() });
+      for (const seconds of phraseStarts) audio.getChannelData(0).set(voice, 16000 * seconds);
+      Object.assign(window, { startMicrophone: () => {
+        const source = this.createBufferSource();
+        source.buffer = audio;
+        source.connect(destination);
+        source.start();
+      } });
       return original.call(this, destination.stream);
     };
-  }, Array.from(syntheticVoice(1, 0.1)));
+  }, { voice: Array.from(syntheticVoice(1, 0.1)), phraseStarts });
   let audioBytes = 0;
   const checks: number[] = [];
   const commits: number[] = [];
@@ -201,12 +202,12 @@ async function thinkingPauseAudio(page: import("@playwright/test").Page) {
   page.on("request", (request) => {
     if (request.method() === "POST" && /\/api\/conversations\/[^/]+\/send$/.test(request.url())) requests.push(request.url());
   });
-  return { checks, commits, requests, bytes: () => audioBytes, start: () => page.evaluate(() => (window as unknown as { startThinkingPause(): void }).startThinkingPause()) };
+  return { checks, commits, requests, bytes: () => audioBytes, start: () => page.evaluate(() => (window as unknown as { startMicrophone(): void }).startMicrophone()) };
 }
 
 for (const mode of ["smart-turn", "smart-turn-late"] as const) {
   test(`${mode}: a thinking pause stays in one request and resumed speech rejects stale completion`, async ({ page }) => {
-    const capture = await thinkingPauseAudio(page);
+    const capture = await controlledMicrophone(page);
     await launch(page, mode);
     await startListening(page);
     await capture.start();
@@ -226,7 +227,7 @@ for (const mode of ["smart-turn", "smart-turn-late"] as const) {
 }
 
 test("Smart Turn stops visibly on checker failure without submitting an unfinished request", async ({ page }) => {
-  const capture = await thinkingPauseAudio(page);
+  const capture = await controlledMicrophone(page);
   await launch(page, "smart-turn-error");
   await startListening(page);
   await capture.start();
@@ -237,7 +238,7 @@ test("Smart Turn stops visibly on checker failure without submitting an unfinish
 });
 
 test("microphone off during a Smart Turn check discards its late completion", async ({ page }) => {
-  const capture = await thinkingPauseAudio(page);
+  const capture = await controlledMicrophone(page);
   await launch(page, "smart-turn-late");
   await startListening(page);
   await capture.start();
@@ -554,6 +555,7 @@ test(`${mode}: a request spoken over an answer keeps Computer and the exact word
 }
 
 test("quiet microphone speech interrupts an answer and preserves the full request", async ({ page }) => {
+  const capture = await controlledMicrophone(page, [0.5]);
   await page.addInitScript(() => {
     const node = AudioWorkletNode;
     window.AudioWorkletNode = class extends node {
@@ -574,7 +576,9 @@ test("quiet microphone speech interrupts an answer and preserves the full reques
   }));
   await launch(page, "interrupt-request");
   await startListening(page);
+  await capture.start();
   await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+  await capture.start();
   await expect(page.locator(".message[data-role=user]")).toHaveCount(2, { timeout: 15000 });
   await expect(page.locator(".message[data-role=user]").last()).toContainText("Computer, keep the exact name and do not change files.");
   expect(commands).toContain("stop-speaking");
@@ -698,14 +702,20 @@ test("the arrival call waits for a click and works before speech is set up", asy
 });
 
 test("a slow arrival sound never interrupts a spoken request", async ({ page }) => {
+  const capture = await controlledMicrophone(page, [0.5]);
   let release!: () => void;
   const ready = new Promise<void>((done) => { release = done; });
   await page.route("**/api/sounds/startup", async (route) => { await ready; await route.continue(); });
   await launch(page);
   await startListening(page);
+  await capture.start();
   await expect(status(page)).toHaveText("Listening");
+  const loaded = page.waitForResponse("**/api/sounds/startup");
   release();
+  await (await loaded).finished();
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
+  await expect(page.locator(".message[data-role=user]")).toContainText("Computer, hello there");
+  expect(capture.requests).toHaveLength(1);
   const arrivals = await page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
   expect(arrivals).toEqual([]);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
