@@ -185,7 +185,7 @@ changes from the library.
 The owner sets it up once:
 
 1. **AI sign-in.** Create a
-   [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new?name=COPILOT_GITHUB_TOKEN&description=Picard+Code+Code+Simplifier&expires_in=90&user_copilot_requests=read)
+   [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new?name=Picard+Code+Code+Simplifier&description=Copilot+requests+for+the+Code+Simplifier+workflow&expires_in=90&user_copilot_requests=read)
    owned by your account. Give it only the **Copilot requests** account
    permission, no repository permissions, and an expiry date. Replace it
    before it expires. Its runs use your Copilot requests. Save it with
