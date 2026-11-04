@@ -261,12 +261,24 @@ not resolve an intermittent failure. Keep the pull request's check results
 accurate and link the issue; never hide a failure, skip the check or weaken
 its assertions to get a pass.
 
+Every bug fix and new behavior needs a test that fails without the change.
+Prove it before committing: run the new test against the code without the
+change and see it fail. A test must not pass by accident, for example because
+an unrelated background update refreshes the screen; set up the state so only
+the change under test can make it pass. For screens and step-by-step flows,
+test the side routes as well as the main one: arriving through a side-panel
+tile or link, leaving the app and coming back, a setting changed at a later
+step, another open page, and a failure while background work runs.
+
 The browser checks use a labeled test stand-in for OpenCode, a fake
 microphone and silent stand-in sounds. When you change OpenCode, speech or conversation behavior, also run the
 matching real check from [the developer guide](docs/DEVELOPMENT.md#real-service-checks) (`test:live`, `test:speech:live`,
-`test:speech:local`, `test:conversation:live`, `test:behavior:live`). Most of
-these make real model requests and some make small Azure charges. Report
-plainly which real checks ran and which could not.
+`test:speech:local`, `test:conversation:live`, `test:behavior:live`) before
+opening or updating the pull request. Changes to first start-up or saved
+settings count too, because the real checks open the app the same way. Most of
+these make real model requests and some make small Azure charges. In the pull
+request, name each real check that ran with its result, and each one that
+could not run and why.
 
 For development work and real-model checks, use only current-generation AI
 models. Check the provider's available models before choosing one; do not

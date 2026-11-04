@@ -21,6 +21,9 @@ This is a report the user asked for, so give it in full.
 - Read the diff, then the code it touches: callers of every changed function,
   the functions it calls, the tests, the README.
 - Trace the real flow: where data comes in, what is stored, what goes out.
+- For screens and step-by-step flows, walk the side routes too: arriving
+  through another link or tile, leaving and coming back, a change made at a
+  later step, a second open page, a failure while other work runs.
 - A change can break code it does not touch. When a signature, return value
   or behavior changes, grep every caller.
 - Find the expected load in the repo (README, deploy config): one person
@@ -40,7 +43,9 @@ This is a report the user asked for, so give it in full.
    per item, O(n^2) on big input, per-process state that must be shared.
 4. **Missing test:** risky new logic (a branch, a parser, money, security,
    data writes, a bug fix) with no test that fails when it breaks. One good
-   test, not coverage.
+   test, not coverage. A test that would still pass with the change removed
+   (another update hides the bug, or it checks only the end state when order
+   matters) counts as missing.
 5. **Speed:** big slowdowns are problems. Small wins (work repeated in a hot
    loop) are suggestions; some software counts every millisecond.
 6. **Lean:** code that should not exist or should be smaller.

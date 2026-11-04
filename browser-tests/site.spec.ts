@@ -32,7 +32,7 @@ for (const width of [1440, 390]) {
       "git clone https://github.com/sbroenne/picard-code.git\ncd picard-code\nnpm install\nnpm run build\nnpm start",
     ]);
     await expect(page.getByRole("heading", { name: "Or run a repository clone" })).toBeVisible();
-    await expect(page.locator("#start .intro")).toContainText("Prepare the computer");
+    await expect(page.locator("#start .intro")).toContainText("The first start-up begins");
     await expect(page.locator("#start .intro")).toContainText("Advanced setup");
     await expect(page.locator(".site-footer")).toContainText("Not connected with or endorsed by Sir Patrick Stewart");
     await expect(page.locator('script:not([type="application/ld+json"]), iframe, audio, video')).toHaveCount(0);

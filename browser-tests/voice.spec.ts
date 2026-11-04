@@ -33,7 +33,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "fresh-starlog" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "faster" | "speed-follow-up" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome" | "explanation" | "smart-turn" | "smart-turn-late" | "smart-turn-error") {
+async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "fresh-starlog" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "faster" | "speed-follow-up" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome" | "explanation" | "smart-turn" | "smart-turn-late" | "smart-turn-error", extra: string[] = []) {
   const diagnostics: string[] = [];
   browserDiagnostics.set(page, diagnostics);
   page.on("console", (message) => { if (message.type() === "error") diagnostics.push(`Browser console: ${message.text()}`); });
@@ -102,7 +102,7 @@ async function launch(page: import("@playwright/test").Page, mode?: "resume" | "
       return createMediaStreamSource.call(this, destination.stream);
     };
   }, { lengths: SOUND_LENGTHS, microphoneVoice });
-  const child = spawn(process.execPath, ["dist/tests/browser-launch.js", ...(mode === "no-speech" ? [] : ["--speech"]), "--sounds", soundFolder, ...(mode ? [`--${mode}`] : [])], { stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, ["dist/tests/browser-launch.js", ...(mode === "no-speech" ? [] : ["--speech"]), "--sounds", soundFolder, ...(mode ? [`--${mode}`] : []), ...extra], { stdio: ["ignore", "pipe", "pipe"] });
   const url = await new Promise<string>((resolve, reject) => {
     child.on("error", reject);
     child.stderr.on("data", (chunk) => diagnostics.push(`Test server: ${chunk.toString().trim()}`));
@@ -120,6 +120,7 @@ async function launch(page: import("@playwright/test").Page, mode?: "resume" | "
   // No note or agreement step: the main screen opens straight away.
   await expect(page.locator("#drawer-settings")).toBeHidden();
   if (mode === "no-speech") await expect(page.getByRole("heading", { name: "Computer voice offline" })).toBeVisible();
+  else if (extra.includes("--model-setup")) await expect(page.locator("#first-run-setup")).toBeVisible({ timeout: 15000 });
   else await expect(status(page)).not.toHaveText("Starting up", { timeout: 15000 });
 }
 
@@ -823,6 +824,80 @@ test("a slow arrival sound never interrupts a spoken request", async ({ page }) 
   const arrivals = await page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
   expect(arrivals).toEqual([]);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("start-up: the first answer brings the senior officers to report, and Dismissed returns the bridge", async ({ page }) => {
+  const spoken = spokenText(page);
+  await launch(page, "example", ["--model-setup"]);
+  await expect(page.locator("#first-run-title")).toHaveText("Welcome aboard, Captain.");
+  await page.getByRole("button", { name: "Begin start-up" }).click();
+  await expect(page.locator("#first-run-title")).toHaveText("Open a channel");
+  await expect(page.locator("#voice-bar-text")).toHaveText("Voice systems online");
+  await page.getByRole("button", { name: "Open a channel" }).click();
+  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
+  await expect(page.locator("#first-run-title")).toHaveText("Senior officers reporting");
+  await expect(page.locator("#system-comms")).toHaveText("Online");
+  await expect(page.locator("#crew-roster li")).toHaveCount(6);
+  await expect(page.locator("#crew-roster")).toContainText("Number One, what are our options?");
+  await expect.poll(() => spoken.join(" | ")).toContain("Your senior officers are standing by.");
+  expect(spoken[0]).toBe("All systems online. Say “Computer”, then give your order.");
+  // Reloading during the officers' report keeps it until the Captain dismisses it.
+  await page.reload();
+  await expect(page.locator("#first-run-title")).toHaveText("Senior officers reporting");
+  await expect(page.locator("#crew-roster li")).toHaveCount(6);
+  await page.getByRole("button", { name: "Dismissed" }).click();
+  await expect(page.locator("#first-run-setup")).toBeHidden();
+  await expect(page.locator("#voice-console")).toBeFocused();
+  await page.reload();
+  await expect(page.locator("#first-run-setup")).toBeHidden();
+});
+
+test("start-up: the first answer waits while its voice is preparing, then appears when it starts", async ({ page }) => {
+  const voice = await holdSpeaking(page);
+  await launch(page, "example", ["--model-setup"]);
+  await page.getByRole("button", { name: "Begin start-up" }).click();
+  await page.getByRole("button", { name: "Open a channel" }).click();
+  // The first held line is the welcome; let it through, then hold the answer's voice.
+  await expect.poll(() => voice.pending()?.message ?? "", { timeout: 15000 }).toContain("All systems online");
+  voice.release();
+  await expect.poll(() => voice.pending()?.message ?? "", { timeout: 15000 }).toMatch(/"speak"/);
+  await expect(status(page)).toHaveText("Preparing reply");
+  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(0);
+  voice.release();
+  await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1);
+});
+
+test("start-up: a failed first order keeps start-up waiting for an answer and does not call the officers", async ({ page }) => {
+  await launch(page, "broken", ["--model-setup"]);
+  await page.getByRole("button", { name: "Begin start-up" }).click();
+  await page.getByRole("button", { name: "Open a channel" }).click();
+  await expect(page.locator(".message-error")).toContainText("The test model cannot be reached.", { timeout: 15000 });
+  await expect(page.locator("#first-run-title")).toHaveText("All systems online");
+  await expect(page.locator("#crew-roster")).toBeHidden();
+  await page.reload();
+  await expect(page.locator("#first-run-title")).toHaveText("All systems online");
+});
+
+test("start-up: the next order ends the officers' report", async ({ page }) => {
+  await launch(page, undefined, ["--model-setup"]);
+  await page.getByRole("button", { name: "Begin start-up" }).click();
+  await page.getByRole("button", { name: "Open a channel" }).click();
+  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
+  await expect(page.locator(".message[data-role=user]").last()).toContainText("Hello again", { timeout: 15000 });
+  await expect(page.locator("#first-run-setup")).toBeHidden();
+});
+
+test("start-up: with the Bridge crew off, the first answer completes start-up without the officers' report", async ({ page }) => {
+  const spoken = spokenText(page);
+  await launch(page, "example", ["--model-setup"]);
+  await page.getByRole("switch", { name: "Bridge crew", exact: true }).uncheck();
+  await page.getByRole("button", { name: "Begin start-up" }).click();
+  await page.getByRole("button", { name: "Open a channel" }).click();
+  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
+  await expect(page.locator("#first-run-setup")).toBeHidden();
+  await expect(page.locator("#crew-roster")).toBeHidden();
+  expect(spoken.join(" | ")).not.toContain("senior officers");
 });
 
 test("listening stays on; “Computer” starts a task, follow-ups need no “Computer”; the app always opens listening", async ({ page }, info) => {

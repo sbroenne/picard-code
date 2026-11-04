@@ -48,7 +48,7 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
   await expect(page.locator("#readout-provider")).toHaveText("Connected");
   await expect(page.locator("#readout-model")).not.toHaveText(/^(—|None)$/);
   await expect(page.locator("#readout-project")).not.toHaveText("—");
-  await expect(page.locator("#readout-speech")).toHaveText("Not set up");
+  await expect(page.locator("#readout-speech")).toHaveText("Offline");
   await expect(page.locator("#readout-version")).toHaveText(version);
   await expect(page.locator("#voice-console")).toBeHidden();
   await expect(page.locator("#speech-first-start").getByRole("button", { name: "Prepare the computer" })).toBeVisible();

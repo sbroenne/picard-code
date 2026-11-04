@@ -64,7 +64,7 @@ test("available models, including free models, never count as a confirmed model 
   await context.login();
   let state = await (await context.request("state")).json() as AppState;
   assert.equal(state.models.length, 1);
-  assert.equal(state.defaultModel?.modelID, "free");
+  assert.equal(state.defaultModel, undefined);
   assert.equal(state.selectedModel, undefined);
   assert.equal(state.savedModel, undefined);
   const session = context.fixture.createSession(context.directory, "Existing entry");
@@ -137,6 +137,27 @@ test("provider discovery failures stay errors rather than becoming an empty conn
   const state = await (await context.request("state")).json() as AppState;
   assert.equal(state.hasConnectedProvider, true);
   assert.equal(state.selectedModel?.modelID, "fixture-model");
+});
+
+test("only a model the user set in OpenCode counts as its default, never OpenCode's own pick", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  context.fixture.setConfiguredModel(undefined);
+  assert.equal((await context.request("refresh", {})).status, 200);
+  let state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.models.length, 2);
+  assert.equal(state.defaultModel, undefined);
+  context.fixture.setConfiguredModel({ providerID: "other-provider", model: "other" });
+  assert.equal((await context.request("refresh", {})).status, 200);
+  state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.defaultModel?.modelID, "other");
+  assert.equal(state.selectedModel?.modelID, "fixture-model");
+  context.fixture.setConfiguredModel({ providerID: "gone-provider", model: "gone" });
+  assert.equal((await context.request("refresh", {})).status, 200);
+  state = await (await context.request("state")).json() as AppState;
+  assert.equal(state.defaultModel, undefined);
+  assert.doesNotMatch(JSON.stringify(state), /config-key-must-never-reach-browser/);
 });
 
 test("a confirmed choice is shared by independent app starts and Project changes, not OpenCode's default", async (t) => {

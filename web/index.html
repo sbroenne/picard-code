@@ -47,11 +47,57 @@
           <button id="retry" class="pill outline" type="button">Try again</button>
         </div>
         <div id="reading-area" class="reading-area">
-          <section id="first-run-setup" class="speech-preparation first-run-setup" data-state="offline" hidden tabindex="-1" aria-labelledby="first-run-title">
-            <p class="preparation-label">Computer · Initial setup</p>
-            <h2 id="first-run-title">Connect your AI provider</h2>
+          <!-- First run: each step brings one ship system online. Advanced choices stay in the side panels. -->
+          <section id="first-run-setup" class="speech-preparation first-run-setup" data-step="welcome" hidden tabindex="-1" aria-labelledby="first-run-title">
+            <ol id="ship-systems" class="systems" aria-label="Ship systems">
+              <li data-system="core"><b aria-hidden="true">01</b>Computer core<em id="system-core">Offline</em></li>
+              <li data-system="intelligence"><b aria-hidden="true">02</b>Computer intelligence<em id="system-intelligence">Offline</em></li>
+              <li data-system="comms"><b aria-hidden="true">03</b>Communications<em id="system-comms">Offline</em></li>
+            </ol>
+            <h2 id="first-run-title">Welcome aboard, Captain.</h2>
+            <p id="first-run-lead" class="lead"></p>
+            <div data-wizard="welcome">
+              <div class="preparation-actions">
+                <button id="begin-startup" class="preparation-action" type="button">Begin start-up</button>
+                <span id="welcome-note" class="muted" hidden>Change the AI model at any time under Computer intelligence.</span>
+              </div>
+            </div>
+            <div data-wizard="provider">
+              <p class="muted">Your sign-in stays with OpenCode; nothing is entered here. The computer core comes online the moment you return.</p>
+              <div class="order">
+                <code id="wizard-command">npx picard-code opencode auth login</code>
+                <button id="copy-wizard-command" class="pill outline" type="button">Copy order</button>
+              </div>
+              <p id="wizard-copy-result" class="copy-result" aria-live="polite"></p>
+              <p id="use-free-models" hidden><a class="small-link" href="#settings/model">Skip sign-in for now and use OpenCode's few free models</a></p>
+            </div>
             <div id="first-run-panel"></div>
+            <div data-wizard="comms">
+              <p id="channel-note" class="muted"></p>
+              <div class="preparation-actions">
+                <button id="open-channel" class="preparation-action" type="button">Open a channel</button>
+                <span id="open-channel-hint" class="muted"></span>
+              </div>
+            </div>
+            <div data-wizard="online">
+              <p class="say"><small>Your first order · say it aloud</small>“Computer, what can you do?”</p>
+              <p class="muted">Orders are carried out as given. OpenCode changes files and runs commands without asking first, unless your OpenCode rules say otherwise.</p>
+            </div>
+            <div data-wizard="crew">
+              <ul id="crew-roster" class="crew" aria-label="Senior officers"></ul>
+              <div class="preparation-actions">
+                <button id="dismiss-crew" class="preparation-action" type="button">Dismissed</button>
+                <span class="muted">or simply give your next order</span>
+              </div>
+            </div>
           </section>
+          <div id="voice-bar" class="voice-bar" data-state="running" hidden>
+            <span class="voice-bar-meter" aria-hidden="true"><i></i></span>
+            <span id="voice-bar-text"></span>
+            <a id="voice-bar-settings" href="#settings/voice" hidden>Speech settings</a>
+            <button id="voice-bar-retry" class="pill outline" type="button" hidden>Try again</button>
+          </div>
+          <p id="voice-bar-announce" class="visually-hidden" aria-live="polite"></p>
           <section id="speech-first-start" class="speech-preparation" data-state="offline" hidden tabindex="-1" aria-labelledby="speech-first-start-title">
             <p class="preparation-label">Computer · Voice systems</p>
             <h3 id="speech-first-start-title">Computer voice offline</h3>
@@ -122,13 +168,7 @@
 
       <section id="drawer-settings" class="drawer wide" hidden tabindex="-1" aria-labelledby="settings-title">
         <div id="settings-bar" class="drawer-bar blue"><h2 id="settings-title">Settings</h2></div>
-        <ol id="setup-progress" class="setup-progress" aria-label="Setup progress" hidden>
-          <li data-setup-step="provider"><span aria-hidden="true">01</span> Connect AI provider</li>
-          <li data-setup-step="model"><span aria-hidden="true">02</span> Choose AI model</li>
-          <li data-setup-step="voice"><span aria-hidden="true">03</span> Set up speech</li>
-        </ol>
         <section id="settings-provider" class="panel" hidden>
-          <p id="provider-welcome" class="setup-welcome" hidden>Welcome aboard, Captain.</p>
           <p id="provider-guidance">Connect your preferred AI provider in OpenCode for the best Picard Code experience. Then choose its most capable model.</p>
           <div class="provider-connection">
             <p class="connection-label">Connect through OpenCode</p>

@@ -153,6 +153,8 @@ try {
     (window as unknown as { startTestMicrophone: () => void }).startTestMicrophone = release;
     devices.getUserMedia = async (constraints) => { await ready; return original(constraints); };
   });
+  // This check is about the conversation, not first start-up: begin as a ship already brought online.
+  await page.addInitScript(() => localStorage.setItem("picard-first-run", "done"));
   await page.goto(app.url);
   await expect(page.locator("#status")).not.toHaveText("Starting up", { timeout: 30_000 });
   await page.evaluate(() => { location.hash = "settings/model"; });
