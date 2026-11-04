@@ -1580,6 +1580,8 @@ test("the reply waits while the voice is preparing, then appears when it starts"
   await expect.poll(() => !!voice.pending(), { timeout: 15000 }).toBe(true);
   await expect(status(page)).toHaveText("Preparing reply");
   await expect(page.locator("#working")).toContainText("Preparing the reply.");
+  // OpenCode has finished, so the scanning bar no longer shows; the written line stays.
+  await expect(page.locator("#working .scan-bar")).toBeHidden();
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(0);
   voice.release();
   await expect(status(page)).toHaveText("Transmitting", { timeout: 15000 });

@@ -8,7 +8,7 @@ import { addressed, changedSpeed, isSpeedCommand, SPEAKING_SPEEDS, type SpeedCom
 import { VoiceConversation, type FollowOn } from "./voice";
 import { renderMarkdown } from "./markdown";
 import { markMedia, reconcile, ReplyPlayers } from "./media";
-import { formatStardate, stardate } from "../src/shared/stardate";
+import { formatStardate, stardateGroup } from "../src/shared/stardate";
 import { TRIBUTE_ENTRIES, type TributeEntry } from "../src/shared/tribute-data";
 import { TributeCycle, tributeMode, declinedReply, storyOfferAllowed, storyAcceptance, explicitStorySubject, tributeQuestion, tributeSubject, randomIndex, storyInvitation, type ExecutionOutcome } from "../src/shared/tribute";
 import { BRIDGE_CREW, crewMember, repeatsReport, type CrewID } from "../src/shared/crew";
@@ -657,7 +657,7 @@ function renderState() {
   const startedAt = (item: Conversation) => Number.isFinite(new Date(item.created).getTime()) ? new Date(item.created).getTime() : -Infinity;
   let logGroup: string | undefined;
   for (const item of [...state.conversations].sort((a, b) => startedAt(b) - startedAt(a) || 0)) {
-    const heading = Number.isFinite(startedAt(item)) ? `Stardate ${Math.trunc(stardate(new Date(item.created)))}` : "Stardate unknown";
+    const heading = Number.isFinite(startedAt(item)) ? stardateGroup(new Date(item.created)) : "Stardate unknown";
     if (heading !== logGroup) { logGroup = heading; list.append(make("h3", "log-group", heading)); }
     const row = make("div", "conversation-row");
     if (confirmingDelete === item.id) {
@@ -1106,6 +1106,8 @@ function renderWorking() {
   const show = !!state && (!!status || submitting || preparing) && !pending();
   node.hidden = !show;
   if (!show) return;
+  // The scanning bar shows only while the server reports work running, not while sending or preparing speech.
+  node.querySelector<HTMLElement>(".scan-bar")!.hidden = !status;
   const officers = [...new Set(state!.crew.activity
     .filter((item) => item.logEntryID === selected && item.officer)
     .map((item) => crewMember(item.officer)!.name))];
