@@ -333,3 +333,17 @@ test("Picard Code asks who handles a request, and the computer is told the answe
   assert.ok(!plain.includes("Spoken replies currently play"), "no speed is claimed when the browser sent none");
   assert.match(computerManner("Computer, how fast do you speak?", { mode: "off" }, undefined, { speed: 1 }), /currently play at normal speed[\s\S]*"Computer, speak faster"/);
 });
+
+test("each officer wears their own rank and division colour on screen", () => {
+  assert.deepEqual(
+    Object.fromEntries(BRIDGE_CREW.map((officer) => [officer.name, `${officer.rank}, ${officer.division}`])),
+    {
+      Riker: "Commander, command",
+      Data: "Lieutenant Commander, operations",
+      Geordi: "Lieutenant Commander, operations",
+      Worf: "Lieutenant, operations",
+      Troi: "Commander, sciences",
+      Crusher: "Commander, sciences",
+    },
+  );
+});

@@ -167,7 +167,7 @@ test("actual video playback pauses capture, survives updates, and respects a man
     await page.getByRole("button", { name: "Switch microphone off" }).click();
     await video.evaluate((item: HTMLVideoElement) => item.pause());
     await expect.poll(capture).toBe(false);
-    await expect(page.locator("#status")).toHaveText("Microphone off");
+    await expect(page.locator("#status")).toHaveText("Channel closed");
   } finally { await context.cleanup(); }
 });
 

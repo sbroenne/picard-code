@@ -60,14 +60,14 @@ test("empty screen fits without horizontal overflow and has no typing box", asyn
 
 test("a new log entry keeps its Stardate stable until another entry starts", async ({ page }) => {
   const first = await page.locator("#entry-stardate").textContent();
-  expect(first).toMatch(/^Stardate -?\d+\.\d$/);
+  expect(first).toMatch(/^Captain’s log, stardate -?\d+\.\d$/);
   const later = new Date("2027-01-02T12:00:00Z");
   await page.clock.setFixedTime(later);
   await page.getByRole("link", { name: "Captain’s log" }).click();
   await page.keyboard.press("Escape");
   await expect(page.locator("#entry-stardate")).toHaveText(first!);
   await page.getByRole("button", { name: "New log entry" }).click();
-  await expect(page.locator("#entry-stardate")).toHaveText(`Stardate ${formatStardate(later)}`);
+  await expect(page.locator("#entry-stardate")).toHaveText(`Captain’s log, stardate ${formatStardate(later)}`);
 });
 
 test("the main screen shows only the conversation; the side panel tiles open their own settings", async ({ page }, testInfo) => {
@@ -90,6 +90,9 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page).toHaveURL(/#settings\/model$/);
   await expect(page.getByRole("heading", { name: "Computer intelligence" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "AI model" })).toBeVisible();
+  // The drawer is the ship's systems, each part with its own LCARS panel code.
+  await expect(page.getByRole("region", { name: "Ship’s systems Computer intelligence" })).toBeVisible();
+  await expect(page.locator("#settings-code")).toHaveText("SYS 02");
   await expect(page.getByText("OpenCode's own rules decide which actions ask first.", { exact: false })).toBeHidden();
   await expect(page.getByRole("heading", { name: "Connect your AI provider" })).toBeHidden();
   await expect(page.getByLabel("Mode", { exact: true })).toHaveCount(0);

@@ -13,3 +13,8 @@ export function stardate(date: Date) {
 export function formatStardate(date: Date) {
   return stardate(date).toFixed(1);
 }
+
+/** The Captain's log group heading: the whole part of the stardate shown on the entry. */
+export function stardateGroup(date: Date) {
+  return `Stardate ${Math.trunc(Number(formatStardate(date)))}`;
+}

@@ -41,8 +41,10 @@
       </nav>
 
       <main id="main" class="workspace">
-        <p id="tribute-storage-error" class="notice" role="alert" hidden></p>
-        <div id="notice" class="notice" role="alert" hidden>
+        <p id="tribute-storage-error" class="notice" data-alert="red" role="alert" hidden></p>
+        <!-- A real failure shows in a red alert frame. The label is decoration; screen readers hear only the exact error. -->
+        <div id="notice" class="notice" data-alert="red" role="alert" hidden>
+          <span class="alert-label" aria-hidden="true">Red alert</span>
           <span id="notice-text"></span>
           <button id="retry" class="pill outline" type="button">Try again</button>
         </div>
@@ -94,7 +96,7 @@
           <div id="voice-bar" class="voice-bar" data-state="running" hidden>
             <span class="voice-bar-meter" aria-hidden="true"><i></i></span>
             <span id="voice-bar-text"></span>
-            <a id="voice-bar-settings" href="#settings/voice" hidden>Speech settings</a>
+            <a id="voice-bar-settings" href="#settings/voice" hidden>Ship’s systems: Speech</a>
             <button id="voice-bar-retry" class="pill outline" type="button" hidden>Try again</button>
           </div>
           <p id="voice-bar-announce" class="visually-hidden" aria-live="polite"></p>
@@ -130,14 +132,12 @@
             <h3 id="setup-title">No model available</h3>
             <a id="open-model-setup" class="pill orange" href="#settings/provider">Open setup</a>
           </section>
+          <p id="entry-stardate" class="log-header" hidden></p>
           <section id="welcome" class="welcome">
-            <div>
-              <p id="entry-stardate" class="muted"></p>
-              <h3 id="welcome-title">Please specify your request.</h3>
-            </div>
+            <h3 id="welcome-title">Please specify your request.</h3>
           </section>
           <div id="messages" class="messages" aria-label="Log entry"></div>
-          <div id="working" class="working" aria-live="polite" hidden><span class="working-mark" aria-hidden="true"><i></i><i></i><i></i></span><span id="working-text"></span><span id="working-step" class="working-step"></span></div>
+          <div id="working" class="working" aria-live="polite" hidden><span class="scan-bar" aria-hidden="true"><i></i></span><span class="working-mark" aria-hidden="true"><i></i><i></i><i></i></span><span id="working-text"></span><span id="working-step" class="working-step"></span></div>
           <div id="approvals" class="approvals" aria-live="polite"></div>
         </div>
 
@@ -162,12 +162,12 @@
       </main>
 
       <section id="drawer-records" class="drawer" hidden tabindex="-1" aria-labelledby="records-title">
-        <div class="drawer-bar peach"><h2 id="records-title">Captain’s log</h2></div>
+        <div class="drawer-bar peach"><h2 id="records-title">Captain’s log</h2><span class="panel-code" aria-hidden="true">LOG 01</span></div>
         <div id="conversations" class="conversation-list"></div>
       </section>
 
-      <section id="drawer-settings" class="drawer wide" hidden tabindex="-1" aria-labelledby="settings-title">
-        <div id="settings-bar" class="drawer-bar blue"><h2 id="settings-title">Settings</h2></div>
+      <section id="drawer-settings" class="drawer wide" hidden tabindex="-1" aria-labelledby="settings-system settings-title">
+        <div id="settings-bar" class="drawer-bar blue"><span id="settings-system" class="drawer-system">Ship’s systems</span><h2 id="settings-title">Speech</h2><span id="settings-code" class="panel-code" aria-hidden="true"></span></div>
         <section id="settings-provider" class="panel" hidden>
           <p id="provider-guidance">Connect your preferred AI provider in OpenCode for the best Picard Code experience. Then choose its most capable model.</p>
           <div class="provider-connection">
