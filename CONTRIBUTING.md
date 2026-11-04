@@ -201,7 +201,8 @@ The owner sets it up once:
    `gh variable set GH_AW_APP_CLIENT_ID --body "<client id>"`, generate a
    private key, save it with
    `gh secret set GH_AW_APP_PRIVATE_KEY < path/to/key.pem`, then delete the
-   downloaded key file.
+   downloaded key file. Without the App, runs still report failures and may
+   open the pull request, but its checks do not start on their own.
 
 ## Project website
 
