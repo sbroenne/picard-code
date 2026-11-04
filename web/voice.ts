@@ -1,4 +1,5 @@
-import { Utterance, type SpeechEvent } from "../src/shared/speech";
+import type { SpeechEvent } from "../src/shared/speech";
+import { Utterance } from "../src/shared/utterance";
 import { SPEECH_FRAME, SpeechFrames, type SpeechDetector } from "../src/shared/speech-detector";
 import { loadSpeechDetector } from "./speech-detector";
 import { interruptsSpeech } from "../src/shared/wake";

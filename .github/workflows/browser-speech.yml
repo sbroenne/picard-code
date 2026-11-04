@@ -1,0 +1,47 @@
+name: Real browser voice detection
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  detection:
+    name: Browser detection (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # Ubuntu already runs these tests in the complete browser suite.
+        os: [windows-2025, macos-15]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Get the source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install the test browser
+        run: npx playwright install chromium
+      - name: Build
+        run: npm run build
+      - name: Check the real browser detector and microphone reset
+        run: npx playwright test browser-tests/speech-detector.spec.ts
+      - name: Keep browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: speech-browser-${{ matrix.os }}
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
