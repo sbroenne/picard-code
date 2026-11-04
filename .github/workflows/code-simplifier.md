@@ -2,7 +2,7 @@
 name: Code Simplifier
 description: Analyzes recently modified code and creates pull requests with simplifications that improve clarity, consistency, and maintainability while preserving functionality
 on:
-  schedule: daily
+  schedule: weekly
   workflow_dispatch:
   skip-if-match: 'is:pr is:open in:title "[code-simplifier]"'
 
@@ -32,7 +32,7 @@ safe-outputs:
   create-pull-request:
     title-prefix: "[code-simplifier] "
     labels: [refactoring, code-quality, automation]
-    expires: 1d
+    expires: 7d
     protected-files: fallback-to-issue
 
 tools:
@@ -52,7 +52,7 @@ You are an expert code simplification specialist focused on enhancing code clari
 
 ## Your Mission
 
-Analyze recently modified code from the last 24 hours and apply refinements that improve code quality while preserving all functionality. Create a pull request with the simplified code if improvements are found.
+Analyze recently modified code from the last 7 days and apply refinements that improve code quality while preserving all functionality. Create a pull request with the simplified code if improvements are found.
 
 ## Current Context
 
@@ -82,20 +82,20 @@ This repository is Picard Code, a voice-only local browser app. Read `AGENTS.md`
 
 ### 1.1 Find Recent Changes
 
-Search for merged pull requests and commits from the last 24 hours:
+Search for merged pull requests and commits from the last 7 days:
 
 ```bash
-# Get yesterday's date in ISO format
-YESTERDAY=$(date -d '1 day ago' '+%Y-%m-%d' 2>/dev/null || date -v-1d '+%Y-%m-%d')
+# Get the date one week ago in ISO format
+WEEK_AGO=$(date -d '7 days ago' '+%Y-%m-%d' 2>/dev/null || date -v-7d '+%Y-%m-%d')
 
 # List recent commits
-git log --since="24 hours ago" --pretty=format:"%H %s" --no-merges
+git log --since="7 days ago" --pretty=format:"%H %s" --no-merges
 ```
 
 Use GitHub tools to:
-- Search for pull requests merged in the last 24 hours: `repo:${{ github.repository }} is:pr is:merged merged:>=${YESTERDAY}`
+- Search for pull requests merged in the last 7 days: `repo:${{ github.repository }} is:pr is:merged merged:>=${WEEK_AGO}`
 - Get details of merged PRs to understand what files were changed
-- List commits from the last 24 hours to identify modified files
+- List commits from the last 7 days to identify modified files
 
 ### 1.2 Extract Changed Files
 
@@ -107,11 +107,11 @@ For each merged PR or recent commit:
 
 ### 1.3 Determine Scope
 
-If **no files were changed in the last 24 hours**, exit gracefully without creating a PR:
+If **no files were changed in the last 7 days**, exit gracefully without creating a PR:
 
 ```
-✅ No code changes detected in the last 24 hours.
-Code simplifier has nothing to process today.
+✅ No code changes detected in the last 7 days.
+Code simplifier has nothing to process this week.
 ```
 
 If **files were changed**, proceed to Phase 2.
@@ -216,7 +216,7 @@ Only create a PR if:
 If no improvements were made or changes broke tests, exit gracefully:
 
 ```
-✅ Code analyzed from last 24 hours.
+✅ Code analyzed from last 7 days.
 No simplifications needed - code already meets quality standards.
 ```
 
@@ -276,7 +276,7 @@ Create the pull request using the safe-outputs tool with the generated descripti
 ## Important Guidelines
 
 ### Scope Control
-- **Focus on recent changes**: Only refine code modified in the last 24 hours
+- **Focus on recent changes**: Only refine code modified in the last 7 days
 - **Don't over-refactor**: Avoid touching unrelated code
 - **Preserve interfaces**: Don't change public APIs
 - **Incremental improvements**: Make targeted, surgical changes
@@ -289,7 +289,7 @@ Create the pull request using the safe-outputs tool with the generated descripti
 
 ### Exit Conditions
 Exit gracefully without creating a PR if:
-- No code was changed in the last 24 hours
+- No code was changed in the last 7 days
 - No simplifications are beneficial
 - Tests fail after changes
 - Build fails after changes
@@ -299,7 +299,7 @@ Exit gracefully without creating a PR if:
 
 Your output MUST either:
 
-1. **If no changes in last 24 hours**: Output a brief status message
+1. **If no changes in last 7 days**: Output a brief status message
 2. **If no simplifications beneficial**: Output a brief status message
 3. **If simplifications made**: Create a PR with the changes
 
