@@ -7,7 +7,8 @@ const MERGE = "b".repeat(40);
 const options = {
   repo: "owner/repo", pr: 35, sha: SHA, token: "test-token",
   runURL: "https://github.com/owner/repo/actions/runs/1",
-  results: { scope: "success", browser: "success", systems: "success" },
+  results: { scope: "success", browser: "success", systems: "success", full: "true",
+    localRequired: "false", localSpeech: "skipped", browserRequired: "false", browserSpeech: "skipped" },
 };
 
 function fixture({ head = SHA, ref = "release", repo = "owner/repo", state = "open", sameTree = true, reject = false } = {}) {
@@ -41,7 +42,7 @@ test("reports the real results on the identical merge files with links to their 
 test("failed, cancelled and skipped tests never become successful release checks", async () => {
   for (const result of ["failure", "cancelled", "skipped"]) {
     const mock = fixture();
-    await reportReleaseChecks({ ...options, results: { scope: "success", browser: result, systems: result } }, mock.request);
+    await reportReleaseChecks({ ...options, results: { ...options.results, browser: result, systems: result } }, mock.request);
     assert.ok(mock.reported.every((check) => check.conclusion === "failure"));
   }
   const mock = fixture();
@@ -54,6 +55,19 @@ test("changed, closed, foreign or different release files cannot receive results
     const mock = fixture(change);
     await assert.rejects(reportReleaseChecks(options, mock.request), /No results were reported/);
     assert.equal(mock.reported.length, 0);
+  }
+});
+
+test("release reporting cannot hide selected speech failures or unexpected skips", async () => {
+  for (const [required, result] of [["localRequired", "localSpeech"], ["browserRequired", "browserSpeech"]]) {
+    for (const status of ["success", "failure", "cancelled", "skipped"]) {
+      const mock = fixture();
+      await reportReleaseChecks({
+        ...options, results: { ...options.results, [required]: "true", [result]: status },
+      }, mock.request);
+      assert.equal(mock.reported[0].conclusion, "success", "Unrelated browser evidence is kept exact.");
+      assert.ok(mock.reported.slice(1).every((check) => check.conclusion === (status === "success" ? "success" : "failure")));
+    }
   }
 });
 

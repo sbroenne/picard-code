@@ -103,6 +103,24 @@ Changes to the changed-file rules also need
 GitHub follows the same split; manual runs always use full checks.
 See [AGENTS.md](AGENTS.md#checks) for the rules.
 
+Real local speech checks are an additional, narrow selection, not part of
+every full check. Relevant local speech/setup changes run Nemotron, Kokoro
+and Smart Turn on GitHub-hosted Mac, Ubuntu and Windows computers. Browser
+capture/detection changes select focused real Chromium/Silero checks on
+Mac and Windows; Ubuntu already runs them in the browser suite.
+Unrelated dependency updates, release versions, documentation, styling and
+ordinary reply wording do not select those extra jobs. Dependency selection
+compares the relevant resolved packages, not just whether a lockfile changed.
+See [the exact selection rules](.github/scripts/speech-scope.mjs) and
+[the cache and manual-run guide](README.md#which-github-checks-run-real-speech).
+Changing those rules also requires `node --test .github/scripts/*.test.mjs`.
+
+The complete pull request determines the selection. Adding documentation to
+a PR that still contains speech changes reruns its selected speech checks.
+Only model downloads are cached, never test results. Pushes to main do not
+repeat the extra jobs. Manual runs use no extra speech jobs unless
+**speech-checks** explicitly selects **local**, **browser** or **all**.
+
 If Chromium is missing, run `npx playwright install chromium`. Windows users
 should use `npm.cmd` for commands with `--` arguments.
 
