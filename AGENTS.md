@@ -229,10 +229,29 @@ npx playwright test
 
 When changing the changed-file rules, also run
 `node --test .github/scripts/check-scope.test.mjs`.
+For speech-selection or workflow-gate changes, run
+`node --test .github/scripts/*.test.mjs` as well.
 GitHub uses the same split for pull requests and pushes to main. The required
 server checks are skipped for documentation, website and development-only tool
 changes; the required browser check runs only the website tests. Unknown paths
 and manual runs use the full checks. A failed changed-file check blocks merging.
+
+Real-model jobs are an additional narrow PR selection, not part of every
+full check. `.github/scripts/speech-scope.mjs` owns the explicit local-speech
+and browser-detection inputs and relevant resolved npm dependency comparisons.
+Local changes run real Nemotron, Kokoro and Smart Turn on hosted Mac, Ubuntu
+and Windows. Browser changes add focused real Chromium/Silero tests on Mac
+and Windows; Ubuntu's full suite already includes them. Keep model-sensitive
+code separate from ordinary wording and interface changes. Do not broaden
+these triggers to whole source folders, every dependency change or general
+workflow edits. Test excluded paths as well as included paths.
+
+Selection uses the whole PR; selected checks rerun on each update without
+reusing earlier test results. Cache only public model downloads and notices,
+reverify checksums, and recreate runtimes. Required gates must reject scope
+errors and unexpected skipped, cancelled or failed jobs. Extra speech jobs
+do not repeat on pushes to main; manual runs opt in with **speech-checks**.
+See [the CI speech guide](docs/DEVELOPMENT.md#which-github-checks-run-real-speech).
 
 When a check fails, investigate and fix failures caused by the change before
 calling it ready. For a separate problem, find or open a GitHub issue with

@@ -57,6 +57,51 @@ npx playwright test
 types of the server and browser code. Build before running server tests:
 they run the compiled files in `dist/`.
 
+### Which GitHub checks run real speech
+
+Real speech checks are separate from the normal app checks. They use
+GitHub-hosted Apple silicon macOS, Ubuntu x64 and Windows x64 computers;
+there are no self-hosted runners and no paid AI-provider or Azure requests.
+
+| What the pull request changes | Extra checks |
+| --- | --- |
+| Local speech services, workers, setup, fixed voices or real-check inputs | Real Nemotron listening, Kokoro speaking and Smart Turn pause predictions on all three systems |
+| Browser speech capture, Silero detection, utterance timing or their focused tests | Real Chromium/Silero checks on Mac and Windows, alongside Ubuntu's existing browser suite; no large speech downloads |
+| Relevant resolved npm dependencies or their dependencies, Node requirements, or the corresponding check's runtime/build settings | Only the affected checks |
+| Documentation, website, styling, ordinary reply wording, unrelated app work, unrelated dependency updates or release-version-only edits | No extra real speech checks |
+
+The exact file lists and dependency comparisons are in
+[speech-scope.mjs](../.github/scripts/speech-scope.mjs). Utterance timing is kept
+separate from reply formatting so wording edits do not select model checks.
+General workflow edits run the fast workflow tests; editing a speech
+workflow itself selects its real checks.
+
+Selection uses the complete pull request, not just its latest commit.
+If a pull request contains speech changes, a later README-only commit still
+reruns the selected speech checks. Passing test results are never cached.
+The existing required checks reject failed, cancelled or unexpectedly skipped
+speech checks. Pushes to main do not automatically repeat these extra checks.
+
+Only the downloaded model files and their notices are cached. Every selected
+run prepares the software afresh, verifies the files' checksums and executes
+the models. Cache misses or eviction require another download.
+GitHub keeps pull-request caches separate, so new pull requests can reuse a
+cache from main but cannot use another pull request's cache.
+To seed those shared caches, or to check speech manually, run **Project checks**
+from GitHub Actions on main with **speech-checks: all**. Choose **local** for
+Nemotron/Kokoro/Smart Turn, **browser** for focused browser detection, or
+**none** (the default) for the existing checks only.
+This input does not change saved speech choices or request a release.
+
+Silero's model runs in browser WebAssembly; Smart Turn's model runs in the
+local Python worker. Their model files are portable, but running them on
+each system checks the actual browser and local software there.
+These checks use original generated audio, not a physical microphone.
+They do not establish Safari/Firefox behaviour, room-echo handling or a full
+real AI-provider conversation.
+
+### What the checks cover
+
 The server and browser tests use a clearly labeled local test server that follows
 OpenCode 2's connection format, through Picard Code's own OpenCode client. They cover live replies, saved
 log entries, approvals, questions, folder boundaries, browser request
@@ -112,8 +157,12 @@ an AI model.
 `test:speech:local` performs real CPU Kokoro synthesis and Nemotron recognition. It feeds audio
 at microphone pace, checks live Nemotron words before commit, names and
 negations, and listening/speaking cancellation followed by fresh listening.
-It saves an original sample under `.picard-voice/samples` and never changes
-saved speech choices. Generated speech does not test a physical microphone.
+It also asks the real Smart Turn worker to distinguish a complete request
+from an unfinished one, cancels a prediction and checks a fresh prediction.
+It saves an original sample under `.picard-voice/samples` and neither reads
+nor changes saved speech choices. These short examples do not establish
+general recognition or pause-detection accuracy. Generated speech does not
+test a physical microphone.
 
 ### Complete spoken requests and replies
 

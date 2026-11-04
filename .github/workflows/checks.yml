@@ -10,6 +10,11 @@ on:
         description: Release pull request receiving these check results
         type: number
         required: false
+      speech-checks:
+        description: Real speech checks (choose all on main to seed model caches)
+        type: choice
+        options: [none, local, browser, all]
+        default: none
 
 permissions:
   contents: read
@@ -25,6 +30,8 @@ jobs:
     timeout-minutes: 5
     outputs:
       full: ${{ steps.scope.outputs.full }}
+      local-speech: ${{ steps.scope.outputs.local-speech }}
+      browser-speech: ${{ steps.scope.outputs.browser-speech }}
     steps:
       - name: Get the source and comparison commits
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,6 +46,7 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD: ${{ github.sha }}
           EVENT_NAME: ${{ github.event_name }}
+          SPEECH_CHECKS: ${{ inputs.speech-checks || 'none' }}
         run: node .github/scripts/check-scope.mjs
 
   # Things that can differ between computers: OpenCode packages, paths and starting programs.
@@ -88,39 +96,76 @@ jobs:
           if grep -q "^package/dist/tests/" files.txt; then echo "Test files must not be in the package."; exit 1; fi
           npx --yes "./$file" opencode --version
 
-  # Fixed names keep the existing merge requirements intact even when the matrix is skipped.
+  local-speech:
+    needs: changes
+    if: needs.changes.outputs.local-speech == 'true'
+    uses: ./.github/workflows/local-speech.yml
+
+  browser-speech:
+    needs: changes
+    if: needs.changes.outputs.browser-speech == 'true'
+    uses: ./.github/workflows/browser-speech.yml
+
+  # Required gates always evaluate, including when a prerequisite failed or was skipped.
   ubuntu:
     name: Server and package (ubuntu-latest)
-    needs: [changes, systems]
-    if: always() && needs.changes.outputs.full == 'true'
+    needs: [changes, systems, local-speech, browser-speech]
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - env:
-          RESULT: ${{ needs.systems.result }}
-        run: test "$RESULT" = success
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          FULL_CHECKS: ${{ needs.changes.outputs.full }}
+          SYSTEMS_RESULT: ${{ needs.systems.result }}
+          LOCAL_REQUIRED: ${{ needs.changes.outputs.local-speech }}
+          LOCAL_RESULT: ${{ needs.local-speech.result }}
+          BROWSER_REQUIRED: ${{ needs.changes.outputs.browser-speech }}
+          DETECTION_RESULT: ${{ needs.browser-speech.result }}
+        run: node .github/scripts/check-results.mjs
 
   windows:
     name: Server and package (windows-latest)
-    needs: [changes, systems]
-    if: always() && needs.changes.outputs.full == 'true'
+    needs: [changes, systems, local-speech, browser-speech]
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - env:
-          RESULT: ${{ needs.systems.result }}
-        run: test "$RESULT" = success
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          FULL_CHECKS: ${{ needs.changes.outputs.full }}
+          SYSTEMS_RESULT: ${{ needs.systems.result }}
+          LOCAL_REQUIRED: ${{ needs.changes.outputs.local-speech }}
+          LOCAL_RESULT: ${{ needs.local-speech.result }}
+          BROWSER_REQUIRED: ${{ needs.changes.outputs.browser-speech }}
+          DETECTION_RESULT: ${{ needs.browser-speech.result }}
+        run: node .github/scripts/check-results.mjs
 
   macos:
     name: Server and package (macos-latest)
-    needs: [changes, systems]
-    if: always() && needs.changes.outputs.full == 'true'
+    needs: [changes, systems, local-speech, browser-speech]
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 1
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - env:
-          RESULT: ${{ needs.systems.result }}
-        run: test "$RESULT" = success
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          FULL_CHECKS: ${{ needs.changes.outputs.full }}
+          SYSTEMS_RESULT: ${{ needs.systems.result }}
+          LOCAL_REQUIRED: ${{ needs.changes.outputs.local-speech }}
+          LOCAL_RESULT: ${{ needs.local-speech.result }}
+          BROWSER_REQUIRED: ${{ needs.changes.outputs.browser-speech }}
+          DETECTION_RESULT: ${{ needs.browser-speech.result }}
+        run: node .github/scripts/check-results.mjs
 
   # The browser checks use a test stand-in for OpenCode, so they run once.
   browser:
@@ -171,7 +216,7 @@ jobs:
 
   release-results:
     name: Report release checks
-    needs: [changes, systems, browser]
+    needs: [changes, systems, browser, local-speech, browser-speech]
     if: always() && github.event_name == 'workflow_dispatch' && inputs.pull-request
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -192,5 +237,10 @@ jobs:
           SYSTEMS_RESULT: ${{ needs.systems.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
           SCOPE_RESULT: ${{ needs.changes.result }}
+          FULL_CHECKS: ${{ needs.changes.outputs.full }}
+          LOCAL_REQUIRED: ${{ needs.changes.outputs.local-speech }}
+          LOCAL_RESULT: ${{ needs.local-speech.result }}
+          BROWSER_REQUIRED: ${{ needs.changes.outputs.browser-speech }}
+          DETECTION_RESULT: ${{ needs.browser-speech.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node .github/scripts/report-release-checks.mjs

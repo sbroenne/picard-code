@@ -1,4 +1,5 @@
 import { pathToFileURL } from "node:url";
+import { serverChecksPassed } from "./check-results.mjs";
 
 // GitHub can require results on its test-merge commit. Report only when that
 // commit has exactly the same files as the release commit the jobs tested.
@@ -30,7 +31,7 @@ export async function reportReleaseChecks({ repo, pr, sha, token, results, runUR
   const checks = [
     ["Types and browser checks", scopePassed && results.browser === "success"],
     ...["ubuntu-latest", "windows-latest", "macos-latest"].map((os) => [
-      `Server and package (${os})`, scopePassed && results.systems === "success",
+      `Server and package (${os})`, serverChecksPassed(results),
     ]),
   ];
   for (const [name, passed] of checks) {
@@ -46,6 +47,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   await reportReleaseChecks({
     repo: process.env.GITHUB_REPOSITORY, pr: process.env.RELEASE_PR,
     sha: process.env.CHECKED_SHA, token: process.env.GH_TOKEN, runURL: process.env.RUN_URL,
-    results: { scope: process.env.SCOPE_RESULT, browser: process.env.BROWSER_RESULT, systems: process.env.SYSTEMS_RESULT },
+    results: {
+      scope: process.env.SCOPE_RESULT, browser: process.env.BROWSER_RESULT, systems: process.env.SYSTEMS_RESULT,
+      full: process.env.FULL_CHECKS, localRequired: process.env.LOCAL_REQUIRED, localSpeech: process.env.LOCAL_RESULT,
+      browserRequired: process.env.BROWSER_REQUIRED, browserSpeech: process.env.DETECTION_RESULT,
+    },
   });
 }

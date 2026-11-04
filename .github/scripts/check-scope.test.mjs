@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -49,7 +49,9 @@ test("Git comparisons select light checks, while manual runs and comparison fail
   git("config", "user.email", "test@example.invalid");
   git("config", "commit.gpgsign", "false");
   writeFileSync(join(folder, "README.md"), "Before\n");
-  git("add", "README.md");
+  writeFileSync(join(folder, "package.json"), '{"version":"1.0.0"}\n');
+  writeFileSync(join(folder, "package-lock.json"), '{"lockfileVersion":3,"packages":{}}\n');
+  git("add", ".");
   git("commit", "--quiet", "-m", "Before");
   const base = git("rev-parse", "HEAD");
   writeFileSync(join(folder, "README.md"), "After\n");
@@ -60,24 +62,47 @@ test("Git comparisons select light checks, while manual runs and comparison fail
     writeFileSync(output, "");
     return spawnSync(process.execPath, [fileURLToPath(new URL("./check-scope.mjs", import.meta.url))], {
       cwd: folder, encoding: "utf8",
-      env: { ...process.env, BASE: base, HEAD: head, EVENT_NAME: "pull_request", GITHUB_OUTPUT: output, ...overrides },
+      env: { ...process.env, BASE: base, HEAD: head, EVENT_NAME: "pull_request", SPEECH_CHECKS: "none", GITHUB_OUTPUT: output,
+        GITHUB_STEP_SUMMARY: join(folder, "summary"), ...overrides },
     });
   };
   for (const event of ["pull_request", "push"]) {
     assert.equal(run({ EVENT_NAME: event }).status, 0);
-    assert.equal(readFileSync(output, "utf8"), "full=false\n");
+    assert.equal(readFileSync(output, "utf8"), "full=false\nlocal-speech=false\nbrowser-speech=false\n");
   }
   writeFileSync(join(folder, "package.json"), "{}\n");
   git("add", "package.json");
   git("commit", "--quiet", "-m", "Dependencies");
   assert.equal(run({ HEAD: git("rev-parse", "HEAD") }).status, 0);
-  assert.equal(readFileSync(output, "utf8"), "full=true\n");
-  for (const overrides of [{ EVENT_NAME: "workflow_dispatch" }, { BASE: "" }, { BASE: "0".repeat(40) }]) {
+  assert.equal(readFileSync(output, "utf8"), "full=true\nlocal-speech=false\nbrowser-speech=false\n");
+  for (const overrides of [{ EVENT_NAME: "workflow_dispatch" }, { EVENT_NAME: "push", BASE: "" }, { EVENT_NAME: "push", BASE: "0".repeat(40) }]) {
     assert.equal(run(overrides).status, 0);
-    assert.equal(readFileSync(output, "utf8"), "full=true\n");
+    assert.equal(readFileSync(output, "utf8"), "full=true\nlocal-speech=false\nbrowser-speech=false\n");
   }
-  for (const overrides of [{ BASE: "not a commit" }, { BASE: "1".repeat(40) }]) {
+  for (const overrides of [{ BASE: "not a commit" }, { BASE: "1".repeat(40) }, { BASE: "" }, { BASE: "0".repeat(40) }, { SPEECH_CHECKS: "invalid" }]) {
     assert.notEqual(run(overrides).status, 0);
     assert.equal(readFileSync(output, "utf8"), "");
   }
+  for (const choice of ["none", "local", "browser", "all"]) {
+    assert.equal(run({ EVENT_NAME: "workflow_dispatch", SPEECH_CHECKS: choice }).status, 0);
+    assert.equal(readFileSync(output, "utf8"),
+      `full=true\nlocal-speech=${choice === "local" || choice === "all"}\nbrowser-speech=${choice === "browser" || choice === "all"}\n`);
+  }
+  writeFileSync(join(folder, "local-speech.ts"), "Generated test source\n");
+  git("add", "local-speech.ts");
+  git("commit", "--quiet", "-m", "Unrelated source");
+  const unrelated = git("rev-parse", "HEAD");
+  // A real speech path selects the matrix even when a later commit only changes documentation.
+  mkdirSync(join(folder, "src", "tests"), { recursive: true });
+  git("mv", "local-speech.ts", "src/tests/speech-local-check.ts");
+  git("commit", "--quiet", "-m", "Rename");
+  assert.equal(run({ HEAD: unrelated }).status, 0);
+  assert.equal(readFileSync(output, "utf8"), "full=true\nlocal-speech=false\nbrowser-speech=false\n");
+  writeFileSync(join(folder, "README.md"), "Another documentation update\n");
+  git("commit", "--quiet", "-am", "Documentation after speech");
+  const speechHead = git("rev-parse", "HEAD");
+  assert.equal(run({ HEAD: speechHead }).status, 0);
+  assert.equal(readFileSync(output, "utf8"), "full=true\nlocal-speech=true\nbrowser-speech=false\n");
+  assert.equal(run({ HEAD: speechHead, EVENT_NAME: "push" }).status, 0);
+  assert.equal(readFileSync(output, "utf8"), "full=true\nlocal-speech=false\nbrowser-speech=false\n");
 });

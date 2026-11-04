@@ -3,14 +3,14 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { setTimeout as wait } from "node:timers/promises";
-import { loadSpeech } from "../server/speech.js";
+import { speechFromSettings } from "../server/speech.js";
 import { checkOfficerVoices } from "./officer-voices-check.js";
 
 const loaded = Date.now();
 const { values } = parseArgs({ options: { listening: { type: "string", default: "nemotron" } } });
 if (values.listening !== "nemotron") throw new Error("Choose nemotron for this local listening check.");
 const listeningService = values.listening;
-const speech = await loadSpeech({ listening: listeningService, speaking: "kokoro" });
+const speech = await speechFromSettings({}, { listening: listeningService, speaking: "kokoro" });
 assert.ok(speech);
 const startup = Date.now() - loaded;
 try {
@@ -102,6 +102,25 @@ try {
   setTimeout(() => controller.abort(), 10);
   await assert.rejects(waiting, /stopped/);
   assert.match(await recognize(), /local listening connection is ready/i, "A cancelled speaking request must not corrupt later listening.");
+  assert.ok(speech.turnDetector, "The real local pause detector must be available.");
+  const turnAudio = async (text: string) => {
+    const parts: Uint8Array[] = [];
+    for await (const chunk of speech.speak(text, AbortSignal.timeout(30_000))) parts.push(chunk);
+    const spoken = Buffer.concat(parts);
+    const pcm = Buffer.alloc(Math.floor(spoken.length / 3) * 2);
+    for (let index = 0; index < pcm.length / 2; index++) pcm.writeInt16LE(spoken.readInt16LE(Math.floor(index * 1.5) * 2), index * 2);
+    return pcm;
+  };
+  const complete = await turnAudio("Please explain the project.");
+  const unfinished = await turnAudio("I would like you to");
+  assert.equal(await speech.turnDetector.complete(complete, AbortSignal.timeout(10_000)), true, "Smart Turn must recognise a complete request.");
+  assert.equal(await speech.turnDetector.complete(unfinished, AbortSignal.timeout(10_000)), false, "Smart Turn must keep an unfinished request open.");
+  const stopped = new AbortController();
+  const checking = speech.turnDetector.complete(complete, stopped.signal);
+  stopped.abort();
+  await assert.rejects(checking, /abort/i);
+  assert.equal(await speech.turnDetector.complete(complete, AbortSignal.timeout(10_000)), true, "Smart Turn must recover after cancellation.");
+  console.log("Real Smart Turn complete and unfinished predictions, cancellation and fresh prediction passed.");
   console.log(`Officer voices spoke real audio: ${await checkOfficerVoices(speech)}.`);
   const directory = resolve(".picard-voice", "samples");
   await mkdir(directory, { recursive: true });

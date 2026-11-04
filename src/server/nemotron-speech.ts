@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import { createServer } from "node:net";
+import { availableParallelism } from "node:os";
 import { dirname } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
 import WebSocket from "ws";
@@ -124,7 +125,7 @@ export async function nemotronSpeech(settings: { program: string; model: string 
     if (process.env[name]) env[name] = process.env[name];
   }
   const child = spawn(settings.program, ["serve", "--host", "127.0.0.1", "--port", new URL(origin).port,
-    "--asr-model", settings.model, "--gpu", "-1", "--asr.backend.threads", "4",
+    "--asr-model", settings.model, "--gpu", "-1", "--asr.backend.threads", String(Math.min(4, availableParallelism())),
     "--asr.endpointing.enable=false", "--asr.batching.enabled=false", "--no-ui"], {
     cwd: dirname(settings.program), env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
   });

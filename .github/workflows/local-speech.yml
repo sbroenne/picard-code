@@ -1,0 +1,49 @@
+name: Real local speech
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  speech:
+    name: Local speech (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Get the source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Restore public speech models
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.picard-code/voice/models/*.onnx
+            ~/.picard-code/voice/models/*.bin
+            ~/.picard-code/voice/models/*.gguf
+            ~/.picard-code/voice/models/*LICENSE*
+            ~/.picard-code/voice/models/*License*
+            ~/.picard-code/voice/models/*NOTICE*
+          key: speech-models-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/setup-nemotron.mjs', 'scripts/setup-turn.mjs', 'scripts/setup-local-speech.py') }}
+      - name: Prepare speech and verify cached models
+        run: npm run setup:speech
+      - name: Build
+        run: npm run build
+      - name: Check real listening, speaking and pause detection
+        run: npm run test:speech:local

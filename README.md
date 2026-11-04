@@ -785,8 +785,9 @@ Allow 2 GB of free disk space for the default setup.
 An installed uv keeps any Python it downloads in its usual place; otherwise
 nothing is installed outside that folder. Recognition and speaking use local
 files only, with up to four CPU threads per service. Nemotron's local service
-binds only to `127.0.0.1`, requires a server-held connection key, and stops
-when Picard Code stops.
+uses fewer threads when the computer provides fewer processors, so smaller
+Macs do not stall during startup. It binds only to `127.0.0.1`, requires a
+server-held connection key, and stops when Picard Code stops.
 
 All paths use the same automatic listen/respond loop. Nemotron and MAI show
 words while you speak. Silero in the browser detects speech, and Smart Turn
@@ -1060,8 +1061,9 @@ speech. Those are limited samples, not an accuracy guarantee. Generated-audio
 browser checks cover both real Nemotron/Kokoro and real Azure speech with
 OpenCode on Apple silicon. Automated server tests also cover the pause-check
 protocol and recovery on Windows, Linux and macOS, using labelled stand-ins.
-Physical microphones, room noise, other accents and real Smart Turn model
-execution on Windows and Linux have not yet been checked.
+Real Smart Turn execution with generated audio has also passed on
+GitHub-hosted Ubuntu x64 and Windows x64 computers. Physical microphones,
+room noise and other accents have not yet been checked with Smart Turn.
 If you use a custom `localPython` path, that environment must already provide
 NumPy and ONNX Runtime. Automatic preparation does not repair custom paths.
 See [third-party notices](THIRD_PARTY_NOTICES.md) for the model license.
