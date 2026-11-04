@@ -44,6 +44,10 @@ Advanced setup for people with their own subscription and deployed models.
   | AI provider | Provider (the tile name or connection wording) |
   | Stardate | date or time; dates and times are always shown and spoken as stardates |
   | Standing by | Idle, Ready |
+  | Channel open / Channel closed | Listening / Microphone off (the console status) |
+  | Transmitting | Speaking (the console status) |
+  | Accessing | Working (the console status while work runs) |
+  | Ship’s systems | Settings (the drawer the side panel tiles open) |
   | Belay that | Stop work, Cancel (the button that cancels running work) |
   | “Computer” | wake word, assistant |
 

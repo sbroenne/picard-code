@@ -400,21 +400,28 @@ not rank the models or select OpenCode's default for you.
 
 `npx picard-code opencode auth list` shows which providers are signed in.
 
-## The main screen and Settings
+## The main screen and Ship’s systems
 
 The main screen shows only the current log entry: the messages, any
 question or approval waiting for you, and the computer console with one large
-status (for example Standing by, Listening, Understanding, Working, Speaking
-or Decision needed) and a line saying what to do next. The console also holds
+status (for example Standing by, Channel open, Understanding, Accessing,
+Transmitting or Decision needed) and a line saying what to do next. The console also holds
 **Stop speaking** and **Belay that** when they apply, and the microphone
 button; the row of lights beside it shows listening, and turns blue and moves
 while work runs. While the request runs, a line at the end of the conversation
 also says so and who is on it, such as "Data is working on it.", with what is
-happening now when OpenCode reports it, such as "Searching the web.". It shows
-only while OpenCode reports the work as running. If a step fails along the way
+happening now when OpenCode reports it, such as "Searching the web.", and a
+moving LCARS scanning bar. They show only while OpenCode reports the work as
+running; the bar never replaces the written progress. If a step fails along the way
 but the request carries on, such as a web page that refuses access, it is
 folded into a small "1 step did not work" note; open it to read the exact
 error. A reply that ends without an answer still shows its errors in full.
+A real failure shows in a red alert frame and a question or approval waiting
+for you in a yellow alert frame; the error text inside stays exact, and screen
+readers hear only that text. Each officer's reply shows their rank pips and
+uniform colour: command red for Riker, operations gold for Data, Geordi and
+Worf, and sciences blue for Troi and Crusher. The log entry opens with
+"Captain’s log, stardate …".
 The latest request and reply are shown large; earlier messages are smaller. The header shows only the name and the
 tribute badge. Like the ship's computer, there are no entry names or
 modes on the main screen.
@@ -435,11 +442,13 @@ screen; there is no phone layout.
   when the computer answers ("what time is it?" gets the current stardate),
   since each request tells it the current stardate.
 - **Captain’s log** (`#records`): earlier log entries in the project folder (latest
-  100), each marked with the stardate it was started. Choose one to reopen it. The ✕ beside an entry deletes it from OpenCode
+  100), grouped by whole stardate with the latest first, each marked with the
+  stardate it was started. Choose one to reopen it. The ✕ beside an entry deletes it from OpenCode
   permanently, after you confirm; an entry that is still working cannot be
   deleted until it is stopped.
-- **Settings** (`#settings/…`): there is no Settings button. Each tile in the
-  side panel opens its own setting: **AI provider** the sign-in steps,
+- **Ship’s systems** (`#settings/…`): there is no Settings button. Each tile in the
+  side panel opens its own part of the ship’s systems, with a short LCARS panel
+  code (SYS 02 to SYS 06): **AI provider** the sign-in steps,
   **Computer intelligence** the AI model, **Project** the folder,
   **Listen · Speak** the speech services, and the tribute badge **About**.
   Choosing the same tile again
@@ -567,7 +576,7 @@ Automatic facts, reviewed story replies and repository questions make no
 Wikipedia requests.
 
 Optional speech follows the answer only after playback finishes. **Stop
-speaking**, microphone off, switching log entries or projects, Settings,
+speaking**, microphone off, switching log entries or projects, Ship’s systems,
 errors and disconnection discard pending extras. Saying "Computer" during an
 answer stops spoken playback and pending extras; approvals still need an
 on-screen button.
@@ -579,7 +588,7 @@ on-screen button.
   sound until you interact, the screen says "Click anywhere to start listening."
 - The **microphone button** beside the status lights, or the **M** key,
   switches the microphone off (the button turns red and crossed out, and the
-  status says **Microphone off**) and on again. Nothing else switches it on, so
+  status says **Channel closed**) and on again. Nothing else switches it on, so
   a stray click never starts listening. Saying "Computer, microphone off" (or
   "Computer, mute") also switches it off. Reloading the page switches it back
   on. Switching it off and back on keeps the current log entry; follow-ups

@@ -7,6 +7,10 @@
   --red: #dd6666;
   --tan: #d9a37c;
   --gold: #ffaa00;
+  /* Uniform colours for the officers' divisions. */
+  --command: #e0584f;
+  --operations: #ffaa00;
+  --sciences: #5fb3d9;
   --ink: #000;
   --text: #f2e6da;
   --muted: #b8aa9c;
@@ -116,12 +120,12 @@ a.tribute { text-decoration: none; }
 .reading-area { flex: 1; min-height: 120px; overflow-y: auto; padding: 4px 10px 16px 0; scrollbar-color: #5c4a3a var(--ink); }
 .pill { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 22px; border-radius: 24px; color: var(--ink); text-decoration: none; font: 600 16px/1 var(--lcars); letter-spacing: .07em; text-transform: uppercase; white-space: nowrap; }
 .pill.outline { background: transparent; color: var(--peach); border: 2px solid var(--peach); }
-.welcome { display: grid; place-items: center; min-height: 100%; text-align: center; }
+.welcome { display: grid; place-items: center; min-height: calc(100% - 48px); text-align: center; }
 .welcome h3 { margin: 0; font: 500 clamp(34px, 4.4vw, 64px)/1.05 var(--lcars); letter-spacing: .06em; text-transform: uppercase; color: var(--orange); }
 .setup { display: flex; align-items: center; justify-content: space-between; gap: 18px; max-width: 760px; margin: 6vh auto 0; padding: 16px 16px 16px 24px; border-left: 14px solid var(--red); border-radius: 0 28px 28px 0; background: #1d0f0f; }
 .setup h3 { margin: 0; font: 600 26px/1.1 var(--lcars); letter-spacing: .08em; text-transform: uppercase; color: var(--red); }
 .workspace[data-speech-setup="true"] .reading-area { display: flex; flex-direction: column; }
-.workspace[data-speech-setup="true"] #messages { display: none; }
+.workspace[data-speech-setup="true"] #messages, .workspace[data-speech-setup="true"] #entry-stardate { display: none; }
 #setup-work-controls { align-self: flex-end; }
 .speech-preparation { --preparation-color: var(--lilac); flex: none; width: min(920px, 100%); margin: auto; padding: 24px 28px; border-left: 28px solid var(--preparation-color); border-top: 16px solid var(--preparation-color); border-bottom: 6px solid var(--preparation-color); border-radius: 54px 0 0 0; overflow-wrap: anywhere; }
 .speech-preparation[data-state="offline"] { --preparation-color: var(--orange); }
@@ -217,13 +221,13 @@ a.tribute { text-decoration: none; }
 .messages, .approvals { max-width: 920px; margin: 0 auto; }
 .message { position: relative; padding: 12px 0 14px 22px; margin: 0 0 14px; overflow-wrap: anywhere; border-left: 8px solid var(--orange); }
 .message[data-role="user"] { border-left-color: var(--blue); }
-.message-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.message-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .message-header strong { font: 600 14px/1 var(--lcars); letter-spacing: .16em; text-transform: uppercase; color: var(--orange); }
 /* "Crew report" sits beside the officer's name; the copy button stays at the right. */
-.message-header small { margin: 0 auto 0 14px; color: var(--muted); font: 500 12px/1 var(--lcars); letter-spacing: .12em; text-transform: uppercase; }
+.message-header small { margin: 0 0 0 4px; color: var(--muted); font: 500 12px/1 var(--lcars); letter-spacing: .12em; text-transform: uppercase; }
 .message[data-role="user"] .message-header strong { color: var(--blue); }
 .message[data-role="user"] .message-text { color: #d9d4ff; }
-.copy-button { color: var(--muted); background: transparent; padding: 4px 8px; font: 500 12px/1 var(--lcars); letter-spacing: .1em; text-transform: uppercase; opacity: 0; transition: opacity 120ms; }
+.copy-button { margin-left: auto; color: var(--muted); background: transparent; padding: 4px 8px; font: 500 12px/1 var(--lcars); letter-spacing: .1em; text-transform: uppercase; opacity: 0; transition: opacity 120ms; }
 .message:hover .copy-button, .copy-button:focus-visible { opacity: 1; }
 .message-text { font-size: 17px; line-height: 1.65; white-space: pre-wrap; margin: 0 0 10px; max-width: 76ch; }
 /* The latest request and reply are the readout; earlier exchanges stay small and dim above it. */
@@ -342,8 +346,8 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .drawer-caption { margin: 0 0 14px; color: var(--muted); font: 500 15px/1.4 var(--lcars); letter-spacing: .08em; text-transform: uppercase; }
 .conversation-list { display: flex; flex-direction: column; gap: 6px; }
 .conversation-button { width: 100%; min-height: 50px; padding: 8px 18px; border-radius: 0 25px 25px 0; text-align: left; color: var(--ink); background: var(--peach); font: 500 16px/1.15 var(--lcars); letter-spacing: .04em; text-transform: uppercase; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: none; }
-.conversation-row:nth-child(3n+2) .conversation-button { background: var(--blue); }
-.conversation-row:nth-child(3n+3) .conversation-button { background: var(--tan); }
+.conversation-row:nth-of-type(3n+2) .conversation-button { background: var(--blue); }
+.conversation-row:nth-of-type(3n+3) .conversation-button { background: var(--tan); }
 .conversation-button[aria-current="page"] { background: var(--orange); font-weight: 700; }
 .conversation-button .log-stardate { display: block; font-size: 12px; font-weight: 500; letter-spacing: .08em; opacity: .75; }
 .conversation-button .log-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -443,3 +447,37 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 /* An officer's report keeps a narrower peach bar; reports for the latest request are shown in full. */
 .message.crew-report { border-left-color: var(--peach); border-left-width: 4px; }
 .message.current.crew-report .message-text { font-size: 18px; }
+
+/* Each log entry opens like a captain's log, with its stardate. */
+.log-header { max-width: 920px; margin: 0 auto 14px; padding: 6px 0 6px 18px; border-left: 8px solid var(--peach); border-radius: 18px 0 0 0; color: var(--peach); font: 500 17px/1.3 var(--lcars); letter-spacing: .12em; text-transform: uppercase; }
+/* The Captain's log is grouped by stardate. */
+.log-group { margin: 14px 0 2px; padding: 0 0 0 18px; color: var(--muted); font: 500 14px/1.4 var(--lcars); letter-spacing: .14em; text-transform: uppercase; }
+.log-group:first-child { margin-top: 0; }
+/* Ship's systems: the drawer name above each part, and a short panel code at the end of each bar. */
+.drawer-bar .drawer-system { flex: none; color: var(--ink); font: 500 13px/1 var(--lcars); letter-spacing: .14em; text-transform: uppercase; opacity: .75; }
+.drawer-bar h2 { flex: 1; min-width: 0; }
+.panel-code { flex: none; padding: 6px 14px; border-radius: 0 20px 20px 0; background: var(--ink); color: var(--peach); font: 600 15px/1 var(--lcars); letter-spacing: .14em; }
+/* Officers: rank pips and the uniform colour of their division. */
+.message[data-division="command"] { --division: var(--command); }
+.message[data-division="operations"] { --division: var(--operations); }
+.message[data-division="sciences"] { --division: var(--sciences); }
+.message[data-division] { border-left-color: var(--division); }
+.message[data-division] .message-header strong { color: var(--division); }
+.rank { display: inline-flex; align-items: center; }
+.rank-pips { color: var(--division, var(--gold)); font-size: 11px; letter-spacing: .25em; line-height: 1; }
+/* Alerts: red for a real failure, yellow for a decision waiting for the Captain. The labels are decoration. */
+.alert-label { flex: none; align-self: flex-start; padding: 3px 10px; border-radius: 10px; color: var(--ink); font: 600 12px/1.2 var(--lcars); letter-spacing: .16em; text-transform: uppercase; }
+.notice[data-alert="red"] { border: 3px solid var(--red); border-left-width: 12px; }
+.notice .alert-label, .message[data-alert="red"] .alert-label { background: var(--red); }
+#notice-text { flex: 1; }
+.message[data-alert="red"] { padding-right: 14px; border: 2px solid var(--red); border-left: 8px solid var(--red); border-radius: 0 22px 22px 0; }
+.message.earlier[data-alert="red"] { border-left-width: 4px; }
+.approval[data-alert="yellow"] { border: 3px solid var(--gold); border-left-width: 14px; }
+.approval .alert-label { display: inline-block; margin: 0 0 10px; background: var(--gold); font-size: 12px; line-height: 1.2; }
+/* While work runs, an LCARS scanning bar moves beside the written progress, never instead of it. */
+.scan-bar { flex: 0 0 100%; height: 8px; border-radius: 4px; background: #1d1a33; overflow: hidden; }
+.scan-bar i { display: block; width: 30%; height: 100%; border-radius: 4px; background: var(--blue); }
+@media (prefers-reduced-motion: no-preference) {
+  .working:not([hidden]) .scan-bar i { animation: lcars-scan 1.8s ease-in-out infinite alternate; }
+  @keyframes lcars-scan { from { margin-left: 0; } to { margin-left: 70%; } }
+}

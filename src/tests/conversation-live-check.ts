@@ -109,7 +109,7 @@ try {
     const send = WebSocket.prototype.send;
     WebSocket.prototype.send = function (data) {
       if (typeof data === "string" && JSON.parse(data).type === "stop-speaking"
-        && document.querySelector("#status")?.textContent === "Speaking") window.interruptedPlayback = true;
+        && document.querySelector("#status")?.textContent === "Transmitting") window.interruptedPlayback = true;
       send.call(this, data);
     };
     const original = AudioContext.prototype.createMediaStreamSource;
@@ -163,11 +163,11 @@ try {
   await expect(page.locator("#drawer-settings")).toBeHidden();
   await page.evaluate(() => (window as unknown as { startTestMicrophone: () => void }).startTestMicrophone());
   await expect.poll(async () => `${await page.getByRole("status").textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 30_000 })
-    .toMatch(/Standing by|Listening|Understanding|Click anywhere/);
+    .toMatch(/Standing by|Channel open|Understanding|Click anywhere/);
   if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#messages").click();
   await expect(page.locator(".message[data-role=user]")).toContainText(/connection is ready/i, { timeout: 60_000 });
   await expect(page.locator(".message[data-role=assistant]")).toContainText(/connection is ready/i, { timeout: 90_000 });
-  await expect(page.getByRole("status")).toHaveText("Speaking", { timeout: 30_000 });
+  await expect(page.getByRole("status")).toHaveText("Transmitting", { timeout: 30_000 });
   if (interrupt) {
     interrupting = true;
     await page.evaluate(({ audio, quiet }) => window.interruptTestSpeech(audio, quiet), { audio: Buffer.concat(interruption).toString("base64"), quiet });
@@ -177,10 +177,10 @@ try {
     await expect(page.locator(".message[data-role=user]")).toHaveCount(2, { timeout: 30_000 });
     await expect(page.locator(".message[data-role=user]").last()).toContainText(/Computer.*Delta (?:Seven|7).*do not change any files/i);
     assert.deepEqual(stoppedWork, [], "Interrupting spoken playback must not stop work.");
-    await expect(page.getByRole("status")).toHaveText("Speaking", { timeout: 90_000 });
+    await expect(page.getByRole("status")).toHaveText("Transmitting", { timeout: 90_000 });
   }
   await page.getByRole("button", { name: "Switch microphone off" }).click();
-  await expect(page.getByRole("status")).toHaveText("Microphone off", { timeout: 30_000 });
+  await expect(page.getByRole("status")).toHaveText("Channel closed", { timeout: 30_000 });
   assert.ok(sentAudio > 16000, "Actual browser microphone audio must reach the chosen listener.");
   assert.ok(receivedAudio > 16000, "Actual chosen speaking service must return audible-length audio.");
   assert.ok(commands.includes("check-turn"), "The real Smart Turn worker must check a browser-captured pause before the request is sent.");

@@ -8,7 +8,7 @@ import { addressed, changedSpeed, isSpeedCommand, SPEAKING_SPEEDS, type SpeedCom
 import { VoiceConversation, type FollowOn } from "./voice";
 import { renderMarkdown } from "./markdown";
 import { markMedia, reconcile, ReplyPlayers } from "./media";
-import { formatStardate } from "../src/shared/stardate";
+import { formatStardate, stardate } from "../src/shared/stardate";
 import { TRIBUTE_ENTRIES, type TributeEntry } from "../src/shared/tribute-data";
 import { TributeCycle, tributeMode, declinedReply, storyOfferAllowed, storyAcceptance, explicitStorySubject, tributeQuestion, tributeSubject, randomIndex, storyInvitation, type ExecutionOutcome } from "../src/shared/tribute";
 import { BRIDGE_CREW, crewMember, repeatsReport, type CrewID } from "../src/shared/crew";
@@ -255,10 +255,10 @@ function consoleStatus(): [string, string] {
     : "No models are available. Open Computer intelligence to refresh the connection."];
   if (!state.selectedModel) return ["Setup needed", "Open Computer intelligence, choose an AI model, and confirm your choice."];
   if (voice.mediaPaused) return ["Listening paused", "Pause the video or close its player to listen again."];
-  if (voice.phase === "speaking") return ["Speaking", voice.microphone ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."];
+  if (voice.phase === "speaking") return ["Transmitting", voice.microphone ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."];
   if (voice.speechPending) return ["Preparing reply", ""];
   if (voice.microphone && voice.waitingForClick) return ["Standing by", "Click anywhere to start listening."];
-  if (voice.phase === "listening") return ["Listening", ""];
+  if (voice.phase === "listening") return ["Channel open", ""];
   if (voice.microphone && voice.phase === "thinking") return ["Understanding", ""];
   const listening = voice.microphone && voice.phase === "standby";
   if (state.permissions.some((item) => logEntryID(item) === selected)) return ["Decision needed", "Choose Allow once or Deny on screen."];
@@ -266,12 +266,12 @@ function consoleStatus(): [string, string] {
   if (pending()) return ["Answer needed", "Answer the question on screen."];
   const stopHint = !listening ? "Choose Belay that to cancel." : inTask() ? "Say “Belay that” to cancel." : "Say “Computer, belay that” to cancel.";
   if (selected && state.statuses[selected]?.type === "retry") return ["Retrying", stopHint];
-  if (busy() || submitting) return ["Working", stopHint];
+  if (busy() || submitting) return ["Accessing", stopHint];
   if (historyLoading) return ["Loading", ""];
   if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New log entry”." : "Say “Computer”, then your request."];
   if (voice.opening) return ["Starting microphone", ""];
   if (!state.speech?.configured) return ["Computer voice offline", ""];
-  return ["Microphone off", "Click the microphone button or press M to switch it on."];
+  return ["Channel closed", "Click the microphone button or press M to switch it on."];
 }
 
 function voiceControls() {
@@ -600,7 +600,9 @@ function controls() {
   element<HTMLAnchorElement>("open-model-setup").href = `#settings/${modelSetupPart()}`;
   element("welcome").hidden = !!wizardStep() || !!speechPreparation || !!messages.length || !!selected && historyLoading || !!state && (!state.models.length || !state.speech?.configured);
   const entryStarted = state?.conversations.find((entry) => entry.id === selected)?.created ?? freshEntryStarted;
-  element("entry-stardate").textContent = `Stardate ${formatStardate(new Date(entryStarted))}`;
+  // Each log entry opens like a captain's log, with the stardate it was started.
+  element("entry-stardate").textContent = `Captain’s log, stardate ${formatStardate(new Date(entryStarted))}`;
+  element("entry-stardate").hidden = element("welcome").hidden && !element("messages").childElementCount;
   element("provider-status").textContent = refreshingProvider ? "Refreshing connection"
     : !state ? "Checking"
     : `${state.hasConnectedProvider ? "AI provider connection found" : "No connected AI providers found"}. ${state.models.length} model${state.models.length === 1 ? "" : "s"} available.`;
@@ -651,7 +653,12 @@ function renderState() {
   const list = element("conversations");
   list.replaceChildren();
   if (confirmingDelete && !state.conversations.some((item) => item.id === confirmingDelete)) confirmingDelete = undefined;
-  for (const item of state.conversations) {
+  // The Captain's log is grouped by whole stardate, the latest first. Entries without a known start come last.
+  const startedAt = (item: Conversation) => Number.isFinite(new Date(item.created).getTime()) ? new Date(item.created).getTime() : -Infinity;
+  let logGroup: string | undefined;
+  for (const item of [...state.conversations].sort((a, b) => startedAt(b) - startedAt(a) || 0)) {
+    const heading = Number.isFinite(startedAt(item)) ? `Stardate ${Math.trunc(stardate(new Date(item.created)))}` : "Stardate unknown";
+    if (heading !== logGroup) { logGroup = heading; list.append(make("h3", "log-group", heading)); }
     const row = make("div", "conversation-row");
     if (confirmingDelete === item.id) {
       row.classList.add("confirming");
@@ -752,7 +759,13 @@ function renderMessages() {
     article.dataset.sessionId = message.sourceSessionID ?? selected;
     article.dataset.role = message.role;
     const header = make("div", "message-header");
-    header.append(make("strong", undefined, message.role === "user" ? "Picard" : crewMember(message.speaker)?.name ?? "Computer"));
+    const officer = message.role === "assistant" ? crewMember(message.speaker) : undefined;
+    header.append(make("strong", undefined, message.role === "user" ? "Picard" : officer?.name ?? "Computer"));
+    if (officer) {
+      // Rank pips and the uniform colour of the officer's division.
+      article.dataset.division = officer.division;
+      header.append(rankPips(officer.rank));
+    }
     if (message.background && !message.speaker) header.append(make("small", undefined, "Supporting report"));
     const copy = button("Copy", "copy-button", async () => {
       const current = shown().find((item) => item.id === message.id) ?? message;
@@ -777,6 +790,13 @@ function renderMessages() {
     }
     for (const part of failures) article.append(make("p", "message-error", part.text));
     if (message.error) article.append(make("p", "message-error", message.error));
+    // A real failure in the reply shows in a red alert frame; the exact error text stays as it is.
+    if (failures.length || message.error) {
+      article.dataset.alert = "red";
+      const label = make("span", "alert-label", "Red alert");
+      label.setAttribute("aria-hidden", "true");
+      header.insertBefore(label, copy);
+    }
     const extra = tributeDisplay.get(`${selected}:${message.id}`);
     if (extra?.invitation && tributeEnabled) article.append(make("p", "tribute-invitation", extra.invitation));
     if (extra?.story) {
@@ -817,6 +837,16 @@ function renderMessages() {
   if (nearBottom && element("main").dataset.speechSetup !== "true" && window.matchMedia("(min-width: 701px)").matches) readingArea.scrollTop = readingArea.scrollHeight;
 }
 
+const RANK_PIPS = { "Commander": "●●●", "Lieutenant Commander": "●●○", "Lieutenant": "●●" } as const;
+function rankPips(rank: keyof typeof RANK_PIPS) {
+  const pips = make("span", "rank");
+  const marks = make("span", "rank-pips", RANK_PIPS[rank]);
+  marks.setAttribute("aria-hidden", "true");
+  pips.append(marks, make("span", "visually-hidden", rank));
+  pips.title = rank;
+  return pips;
+}
+
 function tributeSource(entry: TributeEntry) {
   return sourceLink(entry.source);
 }
@@ -846,9 +876,17 @@ async function answerRequest(container: HTMLElement, path: string, data: unknown
   }
 }
 
+/** A decision waiting for the Captain shows in a yellow alert frame. The label is decoration only. */
+function yellowAlert() {
+  const label = make("p", "alert-label", "Yellow alert");
+  label.setAttribute("aria-hidden", "true");
+  return label;
+}
+
 function permissionPanel(request: PermissionRequest) {
   const panel = make("section", "approval");
-  panel.append(make("h3", undefined, "Approval required."));
+  panel.dataset.alert = "yellow";
+  panel.append(yellowAlert(), make("h3", undefined, "Approval required."));
   if (request.officer) panel.append(make("p", "crew-request", `${crewMember(request.officer)!.name} needs your decision.`));
   const actions: Record<string, string> = {
     shell: "run a command",
@@ -947,6 +985,8 @@ function formField(request: FormRequest, field: FormField, index: number) {
 
 function questionPanel(request: FormRequest) {
   const form = make("form", "approval");
+  form.dataset.alert = "yellow";
+  form.append(yellowAlert());
   form.append(make("h3", undefined, "Additional information required."));
   if (request.officer) form.append(make("p", "crew-request", `${crewMember(request.officer)!.name} asks:`));
   const fields = request.fields.filter((field) => !field.hidden).map((field, index) => formField(request, field, index));
@@ -1611,15 +1651,17 @@ function startVoiceSystems() {
   });
 }
 
-const settingsParts = { provider: ["Connect your AI provider", "orange"], model: ["Computer intelligence", "blue"], project: ["Project folder", "tan"], voice: ["Speech", "lilac"], about: ["About", "red"] } as const;
+// Each part of Ship's systems carries a short panel code, as on an LCARS console. The codes are decoration only.
+const settingsParts = { provider: ["Connect your AI provider", "orange", "SYS 02"], model: ["Computer intelligence", "blue", "SYS 03"], project: ["Project folder", "tan", "SYS 04"], voice: ["Speech", "lilac", "SYS 05"], about: ["About", "red", "SYS 06"] } as const;
 type SettingsPart = keyof typeof settingsParts;
 /** Each side panel tile opens its own part, for example #settings/voice. Without one, open what still needs doing. */
 function showSettingsPart(requested?: string) {
   const part = requested && requested in settingsParts ? requested as SettingsPart
     : !state?.selectedModel ? modelSetupPart() : "voice";
   for (const name of Object.keys(settingsParts) as SettingsPart[]) element(`settings-${name}`).hidden = name !== part;
-  const [title, colour] = settingsParts[part];
+  const [title, colour, code] = settingsParts[part];
   element("settings-title").textContent = title;
+  element("settings-code").textContent = code;
   element("settings-bar").className = `drawer-bar ${colour}`;
 }
 
