@@ -8,14 +8,14 @@ import type { ChatMessage } from "../src/shared/types";
 import { syntheticVoice } from "../src/tests/test-audio";
 
 const folder = resolve(`.picard-test-voice-audio-${process.pid}`);
-const microphoneFile = join(folder, "utterance.wav");
 const soundFolder = join(folder, "sounds");
+const browserDiagnostics = new WeakMap<import("@playwright/test").Page, string[]>();
+const microphoneVoice = Array.from(syntheticVoice(1, 0.1));
 // Silent stand-ins for the downloaded sounds; each has its own length so the test can tell them apart.
 const SOUND_LENGTHS = { startup: 0.2, "request-accepted": 0.3, "input-failed": 0.4, "request-failed": 0.6 };
 // Simulated speaker output keeps the browser's audio clock running even when this computer's real speakers are unavailable.
 test.use({ permissions: ["microphone"], launchOptions: { args: [
   "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--disable-audio-output",
-  `--use-file-for-fake-audio-capture=${microphoneFile}`,
 ] } });
 function wave(rate: number, audio: Buffer) {
   const header = Buffer.alloc(44);
@@ -30,22 +30,23 @@ test.beforeAll(async () => {
   await mkdir(folder);
   await mkdir(soundFolder);
   for (const [name, seconds] of Object.entries(SOUND_LENGTHS)) await writeFile(join(soundFolder, `${name}.mp3`), wave(24000, Buffer.alloc(24000 * 2 * seconds)));
-  const rate = 48000;
-  // Leave time for the answer and optional story invitation before a follow-up without "Computer".
-  const audio = Buffer.alloc(rate * 2 * 8);
-  // One second of synthetic voice, so the real voice detector hears a request.
-  syntheticVoice(1, 0.1, rate).forEach((value, index) => audio.writeInt16LE(Math.round(value * 32767), (rate / 2 + index) * 2));
-  await writeFile(microphoneFile, wave(rate, audio));
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
 async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "fresh-starlog" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "faster" | "speed-follow-up" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome" | "explanation" | "smart-turn" | "smart-turn-late" | "smart-turn-error") {
+  const diagnostics: string[] = [];
+  browserDiagnostics.set(page, diagnostics);
+  page.on("console", (message) => { if (message.type() === "error") diagnostics.push(`Browser console: ${message.text()}`); });
+  page.on("pageerror", (error) => diagnostics.push(`Browser error: ${error.message}`));
+  page.on("requestfailed", (request) => diagnostics.push(`Request failed: ${request.method()} ${request.url()} (${request.failure()?.errorText})`));
   // Record each computer sound that starts, and the voice status at that moment.
-  await page.addInitScript((lengths) => {
+  await page.addInitScript(({ lengths, microphoneVoice }) => {
     const decoded = new WeakSet<AudioBuffer>();
+    const microphoneSources = new WeakSet<AudioBufferSourceNode>();
     const plays: string[] = [];
     const timeline: { name: string; at: number; end: number; capture: boolean; visibleErrors: string[] }[] = [];
     let capture = false;
+    let startTestMicrophone: (() => void) | undefined;
     Object.assign(window, { acceptedSounds: plays, audioTimeline: timeline });
     const node = window.AudioWorkletNode;
     window.AudioWorkletNode = class extends node {
@@ -55,6 +56,7 @@ async function launch(page: import("@playwright/test").Page, mode?: "resume" | "
         this.port.postMessage = (message: unknown) => {
           if (typeof message === "boolean") capture = message;
           post(message);
+          if (message === true) startTestMicrophone?.();
         };
       }
     };
@@ -67,6 +69,7 @@ async function launch(page: import("@playwright/test").Page, mode?: "resume" | "
     const start = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<typeof start>) {
       const buffer = this.buffer;
+      if (microphoneSources.has(this)) return start.apply(this, args);
       let name = "speech";
       if (buffer && decoded.has(buffer)) {
         name = Object.entries(lengths).find(([, seconds]) => Math.abs(seconds - buffer.duration) < 0.02)?.[0] ?? "unknown";
@@ -78,10 +81,32 @@ async function launch(page: import("@playwright/test").Page, mode?: "resume" | "
       });
       return start.apply(this, args);
     };
-  }, SOUND_LENGTHS);
+    const createMediaStreamSource = AudioContext.prototype.createMediaStreamSource;
+    AudioContext.prototype.createMediaStreamSource = function (stream) {
+      if ((window as unknown as { useControlledMicrophoneAudio?: boolean }).useControlledMicrophoneAudio) return createMediaStreamSource.call(this, stream);
+      const destination = this.createMediaStreamDestination();
+      const audio = this.createBuffer(1, 16000 * 8, 16000);
+      audio.getChannelData(0).set(microphoneVoice, 8000);
+      const source = this.createBufferSource();
+      microphoneSources.add(source);
+      source.buffer = audio;
+      source.loop = true;
+      source.connect(destination);
+      let started = false;
+      // Start when the app enables capture, including after the microphone is switched back on.
+      startTestMicrophone = () => {
+        if (started) return;
+        started = true;
+        source.start();
+      };
+      return createMediaStreamSource.call(this, destination.stream);
+    };
+  }, { lengths: SOUND_LENGTHS, microphoneVoice });
   const child = spawn(process.execPath, ["dist/tests/browser-launch.js", ...(mode === "no-speech" ? [] : ["--speech"]), "--sounds", soundFolder, ...(mode ? [`--${mode}`] : [])], { stdio: ["ignore", "pipe", "pipe"] });
   const url = await new Promise<string>((resolve, reject) => {
     child.on("error", reject);
+    child.stderr.on("data", (chunk) => diagnostics.push(`Test server: ${chunk.toString().trim()}`));
+    child.on("exit", (code, signal) => diagnostics.push(`Test server exited with code ${code} and signal ${signal}.`));
     let output = "";
     child.stdout.on("data", (chunk) => {
       output += chunk.toString();
@@ -139,16 +164,35 @@ function sounds(page: import("@playwright/test").Page) {
 /** Hold a speaking request before the test voice can produce any audio. */
 async function holdSpeaking(page: import("@playwright/test").Page) {
   let pending: { message: string; server: import("@playwright/test").WebSocketRoute; browser: import("@playwright/test").WebSocketRoute; at: number } | undefined;
+  const messages: string[] = [];
+  let audioPackets = 0;
+  let audioBytes = 0;
   await page.routeWebSocket("**/api/speech", (browser) => {
     const server = browser.connectToServer();
     browser.onMessage((message) => {
+      if (typeof message !== "string") {
+        audioPackets++;
+        audioBytes += message.byteLength;
+      } else {
+        const data = JSON.parse(message) as { type: string; id?: number };
+        messages.push(`Browser sent ${data.type}${data.id === undefined ? "" : ` (${data.id})`}`);
+      }
       if (typeof message === "string" && JSON.parse(message).type === "speak") {
         pending = { message, server, browser, at: Date.now() };
       } else server.send(message);
     });
+    server.onMessage((message) => {
+      if (typeof message === "string") {
+        const data = JSON.parse(message) as { type: string; phase?: string };
+        const id = "id" in data && typeof data.id === "number" ? `, ${data.id}` : "";
+        messages.push(`Voice server sent ${data.type}${data.phase ? ` (${data.phase}${id})` : id}`);
+      }
+      browser.send(message);
+    });
   });
   return {
     pending: () => pending,
+    diagnostics: () => ({ messages, audioPackets, audioBytes }),
     release: () => {
       if (!pending) throw new Error("No speaking request is waiting.");
       pending.server.send(pending.message);
@@ -176,6 +220,7 @@ test.setTimeout(60000);
 /** Start test speech only after the microphone and the real voice detector are ready. */
 async function controlledMicrophone(page: import("@playwright/test").Page, phraseStarts = [0.5, 3.5]) {
   await page.addInitScript(({ voice, phraseStarts }) => {
+    Object.assign(window, { useControlledMicrophoneAudio: true });
     const original = AudioContext.prototype.createMediaStreamSource;
     AudioContext.prototype.createMediaStreamSource = function () {
       const destination = this.createMediaStreamDestination();
@@ -1534,7 +1579,23 @@ test("a speaking failure shows the reply and the real error", async ({ page }) =
   const voice = await holdSpeaking(page);
   await launch(page, "example");
   await startListening(page);
-  await expect.poll(() => !!voice.pending(), { timeout: 15000 }).toBe(true);
+  try {
+    await expect.poll(() => !!voice.pending(), { timeout: 15000 }).toBe(true);
+  } catch (error) {
+    const state = await page.evaluate(() => ({
+      status: document.querySelector("#status")?.textContent,
+      detail: document.querySelector("#status-detail")?.textContent,
+      partial: document.querySelector("#voice-partial")?.textContent,
+      userMessages: [...document.querySelectorAll(".message[data-role=user]")].map((node) => node.textContent),
+      assistantMessages: [...document.querySelectorAll(".message[data-role=assistant]")].map((node) => node.textContent),
+    }));
+    console.error("Speaking failure diagnostics", JSON.stringify({
+      state,
+      browser: browserDiagnostics.get(page),
+      voice: voice.diagnostics(),
+    }, null, 2));
+    throw error;
+  }
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(0);
   voice.fail("Test stand-in: the voice could not start.");
   await expect(page.locator(".message[data-role=assistant]")).toContainText("The settings test fails", { timeout: 3000 });
