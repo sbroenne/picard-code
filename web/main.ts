@@ -412,7 +412,6 @@ function completeVoiceReply() {
     const crewAboard = !!state?.crew.available && bridgeEnabled;
     setFirstRun(crewAboard ? "answered" : "done");
     if (crewAboard && !tail) tail = { text: "Your senior officers are standing by.", valid: () => selected === turn.session && firstRun === "answered" && connected && !voice.failed, started: () => undefined };
-    controls();
   }
   if (fact) {
     display.fact = fact;
@@ -1557,6 +1556,8 @@ async function checkSignIn() {
     await api("refresh", {});
     await refreshState();
     notice();
+    // Opened from the AI provider tile: once signed in, move on to the model choice.
+    if (state?.hasConnectedProvider && location.hash === "#settings/provider") location.hash = "settings/model";
   } finally {
     checkingSignIn = false;
     openEvents(true);
@@ -1571,9 +1572,11 @@ let voiceBarState = "";
 function voiceBar(step: WizardStep | undefined) {
   const bar = element("voice-bar");
   const speech = state?.speech;
-  bar.hidden = !step || !speech || (step === "online" || step === "crew") && !!speech.configured;
+  const setup = speechPreparation ?? speech?.setup;
+  // A replacement being prepared, or its failure, stays in view even while the previous services still work.
+  const changing = setup?.state === "running" || setup?.state === "failed";
+  bar.hidden = !step || !speech || (step === "online" || step === "crew") && !!speech.configured && !changing;
   if (bar.hidden || !speech) return;
-  const setup = speechPreparation ?? speech.setup;
   const [barState, text] = setup?.state === "running" ? ["running", `Initializing voice systems · ${setup.step}`]
     : setup?.state === "failed" ? ["failed", `Voice systems offline: ${setup.error ?? setup.step}`]
     : speech.configured ? ["online", "Voice systems online"]
@@ -1726,7 +1729,7 @@ element("begin-startup").addEventListener("click", () => { void perform(async ()
     savingModel = true;
     controls();
     try { state = await api<AppState>("model", openCodeDefault); }
-    finally { savingModel = false; }
+    finally { savingModel = false; controls(); }
   }
   setFirstRun("started");
   notice();

@@ -93,7 +93,8 @@ test("signed in with a default: Begin start-up confirms OpenCode's default and g
 });
 
 test("a failed default confirmation stays on the welcome screen with the real error", async ({ page }) => {
-  await launch(page);
+  // Speech is already set up, so no background speech updates can re-enable the button by chance.
+  await launch(page, ["--speech"]);
   await page.route("**/api/model", (route) => route.fulfill({
     status: 502, contentType: "application/json", body: JSON.stringify({ error: "Could not save the model choice. Test disk is full." }),
   }));
@@ -194,6 +195,32 @@ test("speech that is already set up is not prepared again during start-up", asyn
   expect(speechWrites).toBe(0);
 });
 
+test("a later speech change that fails stays visible after the channel is open", async ({ page }) => {
+  await launch(page, ["--speech", "--speech-settings"]);
+  await begin(page);
+  await expect(title(page)).toHaveText("Open a channel");
+  // The channel is open and the first order is awaited, without needing a microphone here.
+  await page.evaluate(() => {
+    localStorage.setItem("picard-first-run", "listening");
+    window.dispatchEvent(new StorageEvent("storage", { key: "picard-first-run" }));
+  });
+  await expect(title(page)).toHaveText("All systems online");
+  await expect(page.locator("#voice-bar")).toBeHidden();
+  await page.getByRole("link", { name: /^Listen/ }).click();
+  await page.locator("#advanced-speech > summary").click();
+  await page.getByLabel("Listening", { exact: true }).selectOption("mai");
+  await page.getByLabel("Subscription ID").fill("test-subscription");
+  await page.getByLabel("Resource group").fill("test-group");
+  await page.getByLabel("Resource name").fill("test-resource");
+  await page.getByLabel("Region", { exact: true }).fill("broken");
+  await page.getByLabel("Listening deployment").fill("test-listening");
+  await page.locator("#save-speech").click();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#voice-bar-text")).toHaveText("Voice systems offline: The new speech settings did not work, so nothing was changed. Test speech service could not start.");
+  await expect(page.locator("#voice-bar-retry")).toBeVisible();
+  await expect(page.locator("#readout-speech")).toHaveText("Nemotron · Kokoro");
+});
+
 test("a connected provider with no usable models shows the model problem rather than the sign-in order", async ({ page }) => {
   await launch(page, ["--no-models"]);
   await begin(page);
@@ -224,6 +251,22 @@ test("returning from the terminal after signing in moves on to the model choice 
   await expect(page.locator("#model")).toHaveValue("");
   await expect(page.locator("#readout-model")).toHaveText("Offline");
   await expect(page.getByRole("button", { name: "Confirm this model" })).toBeDisabled();
+  await page.unrouteAll({ behavior: "wait" });
+});
+
+test("signing in after opening the AI provider tile during start-up moves on to the model choice", async ({ page }) => {
+  await launch(page, ["--free-models"]);
+  await begin(page);
+  await page.getByRole("link", { name: /^AI provider/ }).click();
+  await expect(page).toHaveURL(/#settings\/provider$/);
+  await expect(title(page)).toHaveText("Computer core offline");
+  await page.route("**/api/state", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({ json: { ...await response.json(), hasConnectedProvider: true } });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(title(page)).toHaveText("Computer intelligence");
+  await expect(page.locator("#system-core")).toHaveText("Online");
   await page.unrouteAll({ behavior: "wait" });
 });
 
