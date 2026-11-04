@@ -4,7 +4,8 @@ import { createServer, type IncomingMessage } from "node:http";
 import { createHash } from "node:crypto";
 import fs, { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
-import { spawn } from "node:child_process";
+import childProcess, { spawn } from "node:child_process";
+import os from "node:os";
 import { once } from "node:events";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -145,6 +146,20 @@ test("a native process that fails during startup is reported and closed", { time
   const controller = new AbortController();
   controller.abort();
   await assert.rejects(nemotronSpeech({ program: process.execPath, model: fileURLToPath(import.meta.url) }, controller.signal), /aborted/);
+});
+
+test("Nemotron uses at most four CPU threads without exceeding available processors", { timeout: 5000 }, async (t) => {
+  const parallelism = t.mock.method(os, "availableParallelism", () => 3);
+  const started = t.mock.method(childProcess, "spawn");
+  syncBuiltinESMExports();
+  t.after(() => { parallelism.mock.restore(); started.mock.restore(); syncBuiltinESMExports(); });
+  for (const available of [1, 2, 3, 4, 8]) {
+    parallelism.mock.mockImplementation(() => available);
+    await assert.rejects(nemotronSpeech({ program: process.execPath, model: fileURLToPath(import.meta.url) }), /Nemotron stopped/);
+    const args = started.mock.calls.at(-1)?.arguments[1];
+    assert.ok(Array.isArray(args));
+    assert.equal(args[args.indexOf("--asr.backend.threads") + 1], String(Math.min(4, available)));
+  }
 });
 
 test("Nemotron bounds audio before sending an oversized request", { timeout: 5000 }, async (t) => {

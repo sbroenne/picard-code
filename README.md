@@ -805,8 +805,9 @@ Allow 2 GB of free disk space for the default setup.
 An installed uv keeps any Python it downloads in its usual place; otherwise
 nothing is installed outside that folder. Recognition and speaking use local
 files only, with up to four CPU threads per service. Nemotron's local service
-binds only to `127.0.0.1`, requires a server-held connection key, and stops
-when Picard Code stops.
+uses fewer threads when the computer provides fewer processors, so smaller
+Macs do not stall during startup. It binds only to `127.0.0.1`, requires a
+server-held connection key, and stops when Picard Code stops.
 
 All paths use the same automatic listen/respond loop. Nemotron and MAI show
 words while you speak. Silero in the browser detects speech, and Smart Turn
