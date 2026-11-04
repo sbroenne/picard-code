@@ -1089,8 +1089,9 @@ speech. Those are limited samples, not an accuracy guarantee. Generated-audio
 browser checks cover both real Nemotron/Kokoro and real Azure speech with
 OpenCode on Apple silicon. Automated server tests also cover the pause-check
 protocol and recovery on Windows, Linux and macOS, using labelled stand-ins.
-Physical microphones, room noise, other accents and real Smart Turn model
-execution on Windows and Linux have not yet been checked.
+Real Smart Turn execution with generated audio has also passed on
+GitHub-hosted Ubuntu x64 and Windows x64 computers. Physical microphones,
+room noise and other accents have not yet been checked with Smart Turn.
 If you use a custom `localPython` path, that environment must already provide
 NumPy and ONNX Runtime. Automatic preparation does not repair custom paths.
 See [third-party notices](THIRD_PARTY_NOTICES.md) for the model license.
