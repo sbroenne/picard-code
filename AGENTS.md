@@ -192,6 +192,17 @@ never instead of the written or spoken explanation:
 
 ## Checks
 
+Keep dependency installs portable. The project `.npmrc` sets
+`omit-lockfile-registry-resolved=true` so registry packages use the computer's
+configured npm registry rather than saved download addresses. Do not set a
+registry or change the user's npm settings to make an install pass. Regenerate
+`package-lock.json` with npm, not hand edits; keep integrity checks and any
+non-registry source addresses. After dependency changes, check `npm ci` using
+the configured registry. Vite is pinned to 8.3.4 with its compatible Rolldown
+1.2.13 override because newer Rolldown downloads were unavailable through the
+approved feed. Check compatibility and download availability before raising
+either version; do not force a Rolldown version outside Vite's supported range.
+
 For changes only to documentation, the project website (`site/`),
 development-only tools (`tools/`), or `browser-tests/site.spec.ts`, run
 `npx playwright test browser-tests/site.spec.ts` before committing. This checks
