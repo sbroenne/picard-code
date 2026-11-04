@@ -177,12 +177,32 @@ the code merged in the past week. It may open one small draft pull request
 titled `[code-simplifier]`. It must not change anything users see or hear,
 and it leaves speech, conversation, crew, tribute and safety code alone.
 Review it like any other pull request. Unmerged ones close after a week; the
-generated `agentics-maintenance.yml` workflow checks for them every day. The
-Code Simplifier needs two repository secrets: `COPILOT_GITHUB_TOKEN` for the
-AI, and `GH_AW_CI_TRIGGER_TOKEN` so its pull requests start the required
-checks. To change it, edit the `.md` file and run `gh aw compile` to
-regenerate the matching `.lock.yml` and the maintenance workflow;
-`gh aw update` brings in changes from the library.
+generated `agentics-maintenance.yml` workflow checks for them every day.
+To change it, edit the `.md` file and run `gh aw compile` to regenerate the
+matching `.lock.yml` and the maintenance workflow; `gh aw update` brings in
+changes from the library.
+
+The owner sets it up once:
+
+1. **AI sign-in.** Create a
+   [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new?name=Picard+Code+Code+Simplifier&description=Copilot+requests+for+the+Code+Simplifier+workflow&expires_in=90&user_copilot_requests=read)
+   owned by your account. Give it only the **Copilot requests** account
+   permission, no repository permissions, and an expiry date. Replace it
+   before it expires. Its runs use your Copilot requests. Save it with
+   `gh secret set COPILOT_GITHUB_TOKEN`, which asks for the value. gh-aw
+   cannot use a GitHub App for this. The token-free option needs an
+   organization's Copilot plan, which a personal repository does not have.
+2. **GitHub App for the pull request.** It creates the draft pull request, so
+   the required checks start, using a short-lived token for each run.
+   [Register a private app](https://github.com/settings/apps/new?name=Picard+Code+workflows&url=https://github.com/sbroenne/picard-code&public=false&webhook_active=false&checks=read&contents=write&issues=write&pull_requests=write)
+   with only these repository permissions: Checks read, Contents read and
+   write, Issues read and write, and Pull requests read and write. Leave the
+   webhook off. Install it on this repository only. Save its Client ID with
+   `gh variable set GH_AW_APP_CLIENT_ID --body "<client id>"`, generate a
+   private key, save it with
+   `gh secret set GH_AW_APP_PRIVATE_KEY < path/to/key.pem`, then delete the
+   downloaded key file. Without the App, runs still report failures and may
+   open the pull request, but its checks do not start on their own.
 
 ## Project website
 
