@@ -29,11 +29,15 @@ imports:
   - shared/reporting.md
 
 safe-outputs:
+  github-app:
+    client-id: ${{ vars.GH_AW_APP_CLIENT_ID }}
+    private-key: ${{ secrets.GH_AW_APP_PRIVATE_KEY }}
   create-pull-request:
     title-prefix: "[code-simplifier] "
     labels: [refactoring, code-quality, automation]
     expires: 7d
     protected-files: fallback-to-issue
+    github-token-for-extra-empty-commit: app
 
 tools:
   github:
