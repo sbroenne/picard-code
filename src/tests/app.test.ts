@@ -665,7 +665,11 @@ test("a crew entry that points back to itself is reported instead of hanging the
   const reader = stream.body!.getReader();
   t.after(() => reader.cancel());
   let observed = "";
-  while (!observed.includes('"connected":true')) observed += new TextDecoder().decode((await reader.read()).value);
+  while (!observed.includes('"connected":true')) {
+    const chunk = await reader.read();
+    if (chunk.done) assert.fail(`The live connection closed before it connected: ${observed}`);
+    observed += new TextDecoder().decode(chunk.value);
+  }
   context.fixture.publish(context.directory, "session.text.delta", { sessionID: second.id, assistantMessageID: "msg_loop", ordinal: 0, delta: "Loop" });
   while (!observed.includes('"connected":false')) {
     const chunk = await reader.read();
