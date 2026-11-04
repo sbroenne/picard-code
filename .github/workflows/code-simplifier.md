@@ -66,9 +66,10 @@ This repository is Picard Code, a voice-only local browser app. Read `AGENTS.md`
 
 - **No behaviour changes.** Do not change what users see or hear: interface text, error messages, spoken wording, sounds, timing, or Star Trek: The Next Generation terms.
 - **Do not edit these files.** Their behaviour can only be confirmed with real speech or model checks, which this workflow cannot run:
-  - `src/server/instructions.ts`
-  - `src/server/*speech*.ts`, `src/shared/speech.ts`, `src/shared/speech-detector.ts`, `src/shared/wake.ts`, `web/voice.ts`
-  - `src/shared/crew.ts`, `src/shared/crew-voices.ts`, `src/shared/briefing.ts`, `src/shared/tribute.ts`, `src/shared/tribute-data.ts`
+  - `src/server/instructions.ts`, `src/shared/questions.ts`
+  - `src/server/*speech*.ts`, `src/server/turn-detector.ts`, `src/shared/speech.ts`, `src/shared/speech-detector.ts`, `src/shared/wake.ts`, `web/voice.ts`, `web/speech-detector.ts`
+  - `src/server/crew.ts`, `src/shared/crew.ts`, `src/shared/crew-voices.ts`, `src/shared/briefing.ts`
+  - `src/server/wikipedia.ts`, `src/shared/tribute.ts`, `src/shared/tribute-data.ts`
   - anything under `scripts/`, `tools/`, `site/`, `docs/`, `.github/` or `.changeset/`
 - **Keep the safety checks.** Do not loosen or reorganise the host, origin, launch key or `x-picard-request` checks in `src/server/app.ts`, or anything that keeps secrets out of logs and the browser.
 - **No new dependencies** and no changes to `package.json` or `package-lock.json`.

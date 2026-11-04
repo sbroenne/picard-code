@@ -146,12 +146,14 @@ Once a week, the Code Simplifier (`.github/workflows/code-simplifier.md`, from
 the public [Agentics](https://github.com/githubnext/agentics) library) reads
 the code merged in the past week. It may open one small draft pull request
 titled `[code-simplifier]`. It must not change anything users see or hear,
-and it leaves speech, conversation and safety code alone. Review it like any
-other pull request; unmerged ones close after a week. It needs two repository
-secrets: `COPILOT_GITHUB_TOKEN` for the AI, and `GH_AW_CI_TRIGGER_TOKEN` so its
-pull requests start the required checks. To change it, edit the `.md` file
-and run `gh aw compile` to regenerate the matching `.lock.yml`; `gh aw update`
-brings in changes from the library.
+and it leaves speech, conversation, crew, tribute and safety code alone.
+Review it like any other pull request. Unmerged ones close after a week; the
+generated `agentics-maintenance.yml` workflow checks for them every day. The
+Code Simplifier needs two repository secrets: `COPILOT_GITHUB_TOKEN` for the
+AI, and `GH_AW_CI_TRIGGER_TOKEN` so its pull requests start the required
+checks. To change it, edit the `.md` file and run `gh aw compile` to
+regenerate the matching `.lock.yml` and the maintenance workflow;
+`gh aw update` brings in changes from the library.
 
 ## Project website
 
