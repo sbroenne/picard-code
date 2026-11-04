@@ -105,3 +105,12 @@ test("officers give complete conversational reports but leave technical appendic
   }]);
   assert.deepEqual(spokenParts(close, report, [report]), spokenParts(close, close, [report]));
 });
+
+test("a long briefing keeps the latest seven reports so the computer's close always fits in eight spoken parts", () => {
+  const reports = Array.from({ length: 9 }, (_, index) => message(`report-${index}`, `Finding number ${index + 1}.`, "picard-data"));
+  const failed = message("close", "", undefined, { error: "The briefing failed." });
+  const parts = spokenParts(failed, failed, reports);
+  assert.equal(parts.length, 8);
+  assert.deepEqual(parts.slice(0, 7).map((part) => part.text), Array.from({ length: 7 }, (_, index) => `Finding number ${index + 3}.`));
+  assert.equal(parts.at(-1)!.text, "The briefing failed.");
+});
