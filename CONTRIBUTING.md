@@ -74,6 +74,17 @@ Fork the repository, create a branch, and follow
 [Run from source](README.md#run-from-source). Use your own OpenCode sign-in and speech resources.
 OpenCode 2 is required; `npm install` brings the tested copy.
 
+Dependency installs use the npm registry already configured on your computer.
+Keep the project's `.npmrc` setting `omit-lockfile-registry-resolved=true`:
+it leaves registry download addresses out of `package-lock.json`, while
+keeping exact versions and integrity checks. Update the lockfile with npm,
+not by deleting fields by hand, and preserve source addresses for dependencies
+that do not come from a registry. Do not change personal or global npm settings
+to work around an installation failure. After dependency changes, run `npm ci`.
+Vite and its compatible Rolldown override are pinned to versions available
+through the approved feed; check both compatibility and download availability
+before updating them.
+
 Before each commit, choose the checks that match the change.
 For changes only to documentation, the project website (`site/`),
 development-only tools (`tools/`), or `browser-tests/site.spec.ts`, run:
