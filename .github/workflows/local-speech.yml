@@ -47,3 +47,20 @@ jobs:
         run: npm run build
       - name: Check real listening, speaking and pause detection
         run: npm run test:speech:local
+      - name: Show native Mac startup details after failure
+        if: failure() && runner.os == 'macOS'
+        run: |
+          node --input-type=module <<'JS'
+          import { spawnSync } from "node:child_process";
+          import { homedir } from "node:os";
+          import { join } from "node:path";
+          const voice = join(homedir(), ".picard-code", "voice");
+          const result = spawnSync(join(voice, "nemotron", "0.3.0", "bin", "nemo-speech"),
+            ["serve", "--host", "127.0.0.1", "--port", "18791",
+             "--asr-model", join(voice, "models", "nemotron-speech-streaming-en-0.6b.q8_0.gguf"),
+             "--gpu", "-1", "--asr.backend.threads", "4", "--asr.endpointing.enable=false",
+             "--asr.batching.enabled=false", "--no-ui"],
+            { stdio: "inherit", timeout: 90_000, killSignal: "SIGKILL" });
+          if (result.error) throw result.error;
+          if (result.status !== 0) throw new Error(`Native startup exited with ${result.status}.`);
+          JS
