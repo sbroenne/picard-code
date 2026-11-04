@@ -109,6 +109,14 @@ is granted here.
 license; copyright 2026 DietrichGebert. Its license is kept beside it. It is
 used only to review changes to this repository, not by the app.
 
+`.github/workflows/code-simplifier.md` is adapted from the Code Simplifier
+workflow in [Agentics](https://github.com/githubnext/agentics) (commit
+`139fa09ef17cde4135e696ff8e7af09bc5ddfa6e`), and
+`.github/workflows/shared/formatting.md` and `reporting.md` are copied
+unchanged from it, under the MIT license; copyright 2025 GitHub. Its license
+is kept in `.github/workflows/shared/LICENSE`. They are used only by a
+GitHub workflow for this repository, not by the app or the npm package.
+
 `tools/voice-match` measured which ready-made voices sound closest to each
 actor. It is not part of the npm package or the app. When run, it downloads
 its Python packages and these speaker-recognition models into
