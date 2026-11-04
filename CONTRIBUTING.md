@@ -118,8 +118,8 @@ If Chromium is missing, run `npx playwright install chromium`. Windows users
 should use `npm.cmd` for commands with `--` arguments.
 
 These checks use a test stand-in for OpenCode and generated audio. When changing
-models, speech, or conversation behavior, also run the matching real checks in
-README. They can require your own sign-in,
+models, speech, or conversation behavior, also run the matching real checks in the
+[developer guide](docs/DEVELOPMENT.md#real-service-checks). They can require your own sign-in,
 model downloads, or paid Azure/model requests. Report exactly what ran and what
 could not; never submit credentials to CI.
 
