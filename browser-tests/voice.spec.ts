@@ -173,7 +173,7 @@ async function holdSpeaking(page: import("@playwright/test").Page) {
 
 test.setTimeout(60000);
 
-async function thinkingPauseAudio(page: import("@playwright/test").Page) {
+async function thinkingPauseAudio(page: import("@playwright/test").Page, holdPredictions = false) {
   await page.addInitScript((voice) => {
     const original = AudioContext.prototype.createMediaStreamSource;
     AudioContext.prototype.createMediaStreamSource = function () {
@@ -193,32 +193,69 @@ async function thinkingPauseAudio(page: import("@playwright/test").Page) {
   const checks: number[] = [];
   const commits: number[] = [];
   const requests: string[] = [];
-  page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
-    if (typeof payload !== "string") audioBytes += payload.length;
-    else if (JSON.parse(payload).type === "check-turn") checks.push(audioBytes);
-    else if (JSON.parse(payload).type === "commit") commits.push(audioBytes);
-  }));
+  const predictions: (() => void)[] = [];
+  const record = (payload: string | Buffer) => {
+    if (typeof payload !== "string") { audioBytes += payload.length; return; }
+    const command = JSON.parse(payload) as { type: string; id?: number };
+    if (command.type === "check-turn") checks.push(audioBytes);
+    else if (command.type === "commit") commits.push(audioBytes);
+    return command;
+  };
+  if (holdPredictions) {
+    // Control only backend predictions; browser audio and Silero still run unchanged.
+    await page.routeWebSocket("**/api/speech", (browser) => {
+      const server = browser.connectToServer();
+      browser.onMessage((payload) => {
+        const command = record(payload);
+        if (command?.type === "check-turn") {
+          predictions.push(() => browser.send(JSON.stringify({ type: "turn-result", id: command.id, complete: true })));
+        } else server.send(payload);
+      });
+    });
+  } else page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => record(payload)));
   page.on("request", (request) => {
     if (request.method() === "POST" && /\/api\/conversations\/[^/]+\/send$/.test(request.url())) requests.push(request.url());
   });
-  return { checks, commits, requests, bytes: () => audioBytes, start: () => page.evaluate(() => (window as unknown as { startThinkingPause(): void }).startThinkingPause()) };
+  return {
+    checks, commits, requests, bytes: () => audioBytes,
+    start: () => page.evaluate(() => (window as unknown as { startThinkingPause(): void }).startThinkingPause()),
+    complete: (index: number) => {
+      const send = predictions[index];
+      if (!send) throw new Error("No test pause prediction is waiting.");
+      send();
+      return audioBytes;
+    },
+  };
 }
 
 for (const mode of ["smart-turn", "smart-turn-late"] as const) {
   test(`${mode}: a thinking pause stays in one request and resumed speech rejects stale completion`, async ({ page }) => {
-    const capture = await thinkingPauseAudio(page);
+    const capture = await thinkingPauseAudio(page, mode === "smart-turn-late");
     await launch(page, mode);
     await startListening(page);
     await capture.start();
-    await expect.poll(capture.bytes, { timeout: 10000 }).toBeGreaterThan(32000 * 3);
-    expect(capture.checks).toHaveLength(1);
-    expect(capture.commits).toEqual([]);
-    expect(capture.requests).toEqual([]);
+    let heldBytes = 0;
+    if (mode === "smart-turn-late") {
+      await expect.poll(() => capture.checks.length, { timeout: 10000 }).toBe(2);
+      expect(capture.commits).toEqual([]);
+      expect(capture.requests).toEqual([]);
+      const staleAt = capture.complete(0);
+      // Continued audio proves the stale result did not commit the current request.
+      await expect.poll(capture.bytes, { timeout: 5000, intervals: [20, 50] }).toBeGreaterThan(staleAt + 32000 * 0.5);
+      expect(capture.commits).toEqual([]);
+      expect(capture.requests).toEqual([]);
+      heldBytes = capture.complete(1) - capture.checks[1]!;
+    } else {
+      await expect.poll(capture.bytes, { timeout: 10000 }).toBeGreaterThan(32000 * 3);
+      expect(capture.checks).toHaveLength(1);
+      expect(capture.commits).toEqual([]);
+      expect(capture.requests).toEqual([]);
+    }
     await expect.poll(() => capture.commits.length, { timeout: 10000 }).toBe(1);
     expect(capture.checks).toHaveLength(2);
     expect(capture.commits[0]).toBeGreaterThan(32000 * 4);
-    expect(capture.commits[0]).toBeLessThan(32000 * 5.5);
-    expect(capture.commits[0]! - capture.checks[1]!).toBeLessThan(32000 * 0.5);
+    expect(capture.commits[0]! - heldBytes).toBeLessThan(32000 * 5.5);
+    expect(capture.commits[0]! - capture.checks[1]! - heldBytes).toBeLessThan(32000 * 0.5);
     await expect.poll(() => capture.requests.length).toBe(1);
     await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
     await expect(page.locator(".message[data-role=user]")).toContainText("Computer, hello there");
