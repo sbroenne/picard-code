@@ -271,6 +271,8 @@ test("console clarity: startup waits for permission and the open channel stays s
   await expect(status(page)).toHaveText("Standing by");
   await expect.poll(() => !!transcript, { timeout: 15000 }).toBe(true);
   await expect(page.locator("#status-detail")).toHaveText("Checking what you said.");
+  await expect(page.locator("#status-detail")).toHaveAttribute("aria-live", "polite");
+  await expect(page.locator("#status-detail")).toHaveAttribute("aria-atomic", "true");
   await expect(status(page)).toHaveText("Standing by");
   await expect(page.locator("#voice-channel")).toHaveText("Channel open");
   expect(await headings()).not.toContain("Understanding");
@@ -353,15 +355,21 @@ for (const mode of ["approval", "question"] as const) {
     const heading = mode === "approval" ? "Decision needed" : "Answer needed";
     await expect(status(page)).toHaveText(heading, { timeout: 15000 });
     await expect.poll(() => !!speaking.pending()).toBe(true);
+    if (mode === "question") await expect(page.locator("#status-detail")).toHaveText("Answer the question on screen.");
     speaking.release();
     await expect(page.getByRole("button", { name: "Stop speaking", exact: true })).toBeVisible();
     await expect(page.locator("#status-detail")).toContainText("The computer is speaking.");
     await expect(status(page)).toHaveText(heading);
     await expect(page.locator("#voice-console")).toHaveAttribute("data-activity", "attention");
+    if (mode === "question") {
+      await expect(page.locator("#status-detail")).toHaveText("The computer is speaking. Answer the question on screen.");
+      await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
+      await expect(page.locator("#status-detail")).toHaveText("Say your answer, or choose it on screen.");
+    }
     await page.getByRole("button", { name: "Switch microphone off" }).click();
     await expect(page.locator("#voice-channel")).toHaveText("Channel closed");
     await expect(status(page)).toHaveText(heading);
-    await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
+    if (mode === "approval") await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
     await expect(status(page)).toHaveText(heading);
     if (mode === "approval") await expect(page.locator("#status-detail")).toHaveText("Choose Allow once or Deny on screen.");
     else await expect(page.locator("#status-detail")).toHaveText("Answer the question on screen.");
