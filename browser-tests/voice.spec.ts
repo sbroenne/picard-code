@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { copyFile, mkdir, writeFile, rm } from "node:fs/promises";
-import { resolve, join } from "node:path";
+import { copyFile, mkdir, mkdtemp, realpath, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, resolve, join } from "node:path";
 import { spawn } from "node:child_process";
 import { TRIBUTE_ENTRIES } from "../src/shared/tribute-data";
 import { formatStardate } from "../src/shared/stardate";
@@ -33,7 +34,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "fresh-starlog" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "faster" | "speed-follow-up" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome" | "explanation" | "smart-turn" | "smart-turn-late" | "smart-turn-error", extra: string[] = []) {
+async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "fresh-starlog" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "faster" | "speed-follow-up" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome" | "explanation" | "smart-turn" | "smart-turn-late" | "smart-turn-error" | "refusal-idle" | "refusal-approval" | "refusal-question" | "refusal-busy", extra: string[] = []) {
   const diagnostics: string[] = [];
   browserDiagnostics.set(page, diagnostics);
   page.on("console", (message) => { if (message.type() === "error") diagnostics.push(`Browser console: ${message.text()}`); });
@@ -1413,6 +1414,72 @@ test("Allow once lets the requested action go ahead", async ({ page }, info) => 
   await expect(page.locator(".message[data-role=assistant]").last()).toContainText("The test approval was answered.", { timeout: 15000 });
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
+
+test("the Project folder form refuses a missing folder, clears the screen for a new one, and reopens the earlier entry on return", async ({ page }) => {
+  const empty = await realpath(await mkdtemp(join(tmpdir(), "picard-project-")));
+  test.info().attachments.push({ name: "empty project", contentType: "text/plain", body: Buffer.from(empty) });
+  try {
+    await launch(page, "example");
+    await startListening(page);
+    const reply = page.locator(".message[data-role=assistant]");
+    await expect(reply).toHaveCount(1, { timeout: 15000 });
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+    const original = await page.locator("#project-path").inputValue();
+    const folderField = page.getByLabel("Full folder path");
+    await page.locator("#readout-project").click();
+    await folderField.fill(join(empty, "missing"));
+    await page.getByRole("button", { name: "Open folder" }).click();
+    await expect(page.locator("#notice-text")).toContainText("Could not open that folder.");
+    await expect(page.locator("#readout-project")).toHaveText(basename(original));
+    await expect(reply).toHaveCount(1);
+
+    await folderField.fill(empty);
+    await page.getByRole("button", { name: "Open folder" }).click();
+    await expect(page.locator("#readout-project")).toHaveText(basename(empty));
+    await expect(page.locator("#drawer-settings")).toBeHidden();
+    await expect(page.locator(".message")).toHaveCount(0);
+    await expect(page.locator("#workspace-caption")).toContainText(empty);
+
+    await page.locator("#readout-project").click();
+    await folderField.fill(original);
+    await page.getByRole("button", { name: "Open folder" }).click();
+    await expect(page.locator("#readout-project")).toHaveText(basename(original));
+    await expect(reply).toHaveCount(1, { timeout: 15000 });
+    await expect(reply).toContainText(/settings test/i);
+  } finally {
+    await rm(empty, { recursive: true, force: true });
+  }
+});
+
+test("with finished work, “Belay that” says no work is running, and speed changes stop at the fastest", async ({ page }) => {
+  const spoken = spokenText(page);
+  await launch(page, "refusal-idle");
+  await startListening(page);
+  const expected = ["No work is running.", "Speaking at the fastest speed.", "This is already the fastest speaking speed."];
+  await expect.poll(() => spoken.filter((text) => expected.includes(text)), { timeout: 40000 }).toEqual(expected);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  expect(await page.evaluate(() => localStorage.getItem("picard-speaking-speed"))).toBe("1.2");
+  await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
+});
+
+for (const [mode, refusal, waiting] of [
+  ["refusal-approval", "A decision is needed first. Choose Allow once or Deny on screen.", "Approval required."],
+  ["refusal-question", "Please answer the question on screen first.", "Additional information required."],
+  ["refusal-busy", "Work is in progress. Say “Belay that” to cancel it first.", undefined],
+] as const) {
+  test(`${mode}: “New log entry” is refused while the current entry needs attention, and the entry stays open`, async ({ page }) => {
+    const spoken = spokenText(page);
+    await launch(page, mode);
+    await startListening(page);
+    if (waiting) await expect(page.getByRole("heading", { name: waiting })).toBeVisible({ timeout: 15000 });
+    else await expect(page.getByRole("button", { name: "Belay that", exact: true })).toBeVisible({ timeout: 15000 });
+    await expect.poll(() => spoken, { timeout: 20000 }).toContain(refusal);
+    expect(spoken).not.toContain("Standing by for a new log entry.");
+    await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
+    if (waiting) await expect(page.getByRole("heading", { name: waiting })).toBeVisible();
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+  });
+}
 
 test("the Belay that button cancels spoken work", async ({ page }) => {
   await launch(page, "long");

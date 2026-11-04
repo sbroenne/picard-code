@@ -9,6 +9,7 @@ import { firstSentence, replyFailed, speakable, spokenReply, spokenSummary, type
 import { Utterance } from "../shared/utterance.js";
 import { addressed, changedSpeed, interruptsSpeech, voiceCommand } from "../shared/wake.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
+import { errorMessage } from "../shared/messages.js";
 import type { FormField, FormRequest } from "../shared/types.js";
 import { speakingDocument } from "../server/azure-speech.js";
 import { DEFAULT_MAI_VOICE, describeSpeechSettings, mergeSpeechSettings, needsListenerMigration, speechFromSettings, loadSpeech } from "../server/speech.js";
@@ -483,4 +484,46 @@ test("voice transport rejects other websites, requires a listening request, and 
   socket.send(Buffer.alloc(3));
   const error = await next("error");
   assert.match(error.type === "error" ? error.message : "", /complete 16-bit/);
+});
+
+test("a check that a resumed voice interrupted never finishes a later pause, and a finished thought starts afresh", () => {
+  const detector = new Utterance();
+  assert.equal(detector.update(0.9, 160), "start");
+  assert.equal(detector.update(0, 200), "check");
+  const stale = detector.revision;
+  assert.equal(detector.update(0.9, 32), undefined, "The Captain keeps speaking.");
+  assert.equal(detector.update(0, 200), "check");
+  assert.equal(detector.finishCheck(stale, true), false, "The earlier check belongs to a pause that ended.");
+  assert.equal(detector.active, true);
+  assert.equal(detector.finishCheck(detector.revision, false), false);
+  assert.equal(detector.update(0, 2800), "end", "An unfinished thought ends after the longer pause.");
+  assert.equal(detector.active, false);
+  assert.equal(detector.update(0.9, 64), "start", "The next words open a new request.");
+});
+
+test("spoken text keeps impossible dates, reads line breaks and quotations, and explains a skipped question", () => {
+  assert.equal(speakable("Due 2026-13-01 or 2026-02-00."), "Due 2026-13-01 or 2026-02-00.");
+  assert.equal(speakable("Due 2026-02-03."), "Due February 3, 2026.");
+  assert.equal(spokenSummary("First line  \nsecond line."), "First line second line.");
+  assert.equal(spokenSummary("> Quoted report.\n\nAfter."), "Quoted report. After.");
+  const skipped = { id: "skip", role: "assistant" as const, parts: [{ id: "tool", type: "tool" as const, text: "question\nThe user dismissed this question", status: "error" as const }] };
+  assert.equal(spokenReply(skipped), "Question skipped. The work has stopped.");
+});
+
+test("a form with several questions is answered on screen, and silence asks again for an answer", () => {
+  const field = { key: "name", type: "string" as const, title: "Name" };
+  const form: FormRequest = { id: "form", sessionID: "ses", title: "Details", fields: [field, { key: "age", type: "string", title: "Age" }] };
+  assert.equal(canAskAloud(form), false);
+  assert.equal(spokenQuestion(form), "Additional information is required. Please answer the questions on screen.");
+  assert.deepEqual(matchSpokenAnswer(field, "  "), { retry: "Please give your answer." });
+  assert.deepEqual(matchSpokenAnswer({ ...field, options: [{ label: "Yes", value: "yes" }, { label: "No", value: "no" }] }, ""), { retry: "Please choose Yes or No." });
+});
+
+test("error wording prefers an Error's message, then nested data, then a message or name, and otherwise explains", () => {
+  assert.equal(errorMessage(new TypeError("Bad input.")), "Bad input.");
+  assert.equal(errorMessage(Object.assign(new Error("Top problem."), { data: { message: "Hidden detail." } })), "Top problem.");
+  assert.equal(errorMessage({ data: { message: "Nested problem." }, message: "Outer." }), "Nested problem.");
+  assert.equal(errorMessage({ message: "Plain problem." }), "Plain problem.");
+  assert.equal(errorMessage({ name: "ProviderAuthError" }), "ProviderAuthError");
+  for (const value of [undefined, "text", 5, { message: 5 }]) assert.equal(errorMessage(value), "OpenCode could not complete the request. Check its setup and try again.");
 });

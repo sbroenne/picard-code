@@ -201,3 +201,16 @@ test("request options are allowlisted and instructions preserve identity in ever
     assert.match(instructions, subject === "Picard" ? /fictional adventures, not Patrick Stewart/ : /Patrick Stewart is the actor/);
   }
 });
+
+test("tribute options must be an object, story requests name their subject, and facts start a new round once all are seen", () => {
+  for (const value of [null, [], "spoken", 1]) assert.throws(() => checkTributeRequest(value), /Provide valid tribute options/);
+  assert.equal(tributeSubject("Tell me a story about Patrick Stewart"), "Patrick Stewart");
+  assert.equal(tributeSubject("Tell me a Picard anecdote"), "Picard");
+  assert.equal(tributeSubject("Tell me a story about myself"), "Picard", "A story about myself is about the Captain.");
+  assert.throws(() => new TributeCycle([{ ...TRIBUTE_ENTRIES[0]!, id: "" }]));
+  const cycle = new TributeCycle(TRIBUTE_ENTRIES.slice(0, 2), [], () => 0);
+  const select = () => (cycle as unknown as { select(): { id: string } }).select();
+  const ids = [select(), select(), select()].map((entry) => entry.id);
+  assert.deepEqual(ids.slice(0, 2).sort(), TRIBUTE_ENTRIES.slice(0, 2).map((entry) => entry.id).sort());
+  assert.equal(cycle.seenIDs.length, 1, "A new round forgets the earlier one.");
+});

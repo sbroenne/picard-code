@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs, { mkdtemp, mkdir, readFile, writeFile, rm, realpath, symlink, rename } from "node:fs/promises";
+import fs, { chmod, mkdtemp, mkdir, readFile, writeFile, rm, realpath, symlink, rename } from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,6 +39,10 @@ async function setup(extra: Partial<AppOptions> = {}, initialSpeech?: Record<str
     headers: { Cookie: cookie, ...(data === undefined ? {} : { "Content-Type": "application/json", "X-Picard-Request": "1" }), ...headers },
     body: data === undefined ? undefined : JSON.stringify(data),
   });
+  // Sends an exact body, for checks that ordinary JSON requests cannot reach.
+  const raw = (path: string, body: string) => fetch(`${app.origin}/api/${path}`, {
+    method: "POST", headers: { Cookie: cookie, "Content-Type": "application/json", "X-Picard-Request": "1" }, body,
+  });
   const login = async () => {
     const response = await request("connect", { token: app.token });
     assert.equal(response.status, 200);
@@ -52,7 +56,7 @@ async function setup(extra: Partial<AppOptions> = {}, initialSpeech?: Record<str
     await fixture.close();
     await rm(temporary, { recursive: true });
   };
-  return { app, fixture, request, login, cleanup, directory, other, temporary, modelFile, wikipediaRequests };
+  return { app, fixture, request, raw, login, cleanup, directory, other, temporary, modelFile, wikipediaRequests };
 }
 
 test("available models, including free models, never count as a confirmed model choice", async (t) => {
@@ -288,6 +292,66 @@ test("reply media is authenticated, confined to its Project, validated, and seek
   assert.equal((await head.arrayBuffer()).byteLength, 0);
   context.fixture.sessions.delete(root.id);
   assert.notEqual((await context.request(path())).status, 200, "deleted entries cannot serve old references");
+});
+
+test("reply media checks every format's signature and explains each refusal", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  const session = context.fixture.createSession(context.directory, "Media formats");
+  const webm = Buffer.concat([Buffer.from([26, 69, 223, 163]), Buffer.alloc(8), Buffer.from("webm"), Buffer.alloc(8)]);
+  const formats: [string, string, Buffer][] = [
+    ["photo.jpg", "image/jpeg", Buffer.concat([Buffer.from([255, 216, 255, 224]), Buffer.alloc(20)])],
+    ["photo.jpeg", "image/jpeg", Buffer.concat([Buffer.from([255, 216, 255, 225]), Buffer.alloc(20)])],
+    ["old.gif", "image/gif", Buffer.concat([Buffer.from("GIF87a"), Buffer.alloc(20)])],
+    ["new.gif", "image/gif", Buffer.concat([Buffer.from("GIF89a"), Buffer.alloc(20)])],
+    ["still.webp", "image/webp", Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBP"), Buffer.alloc(20)])],
+    ["clip.mp4", "video/mp4", Buffer.concat([Buffer.alloc(4), Buffer.from("ftyp"), Buffer.alloc(20)])],
+    ["clip.webm", "video/webm", webm],
+  ];
+  for (const [name, , bytes] of formats) {
+    await writeFile(join(context.directory, name), bytes);
+    await writeFile(join(context.directory, `wrong-${name}`), Buffer.concat([Buffer.from("not media "), bytes]));
+  }
+  // Near misses: a Matroska file that is not WebM, a sound file in the same RIFF wrapper as WebP, an unknown GIF version,
+  // a JPEG start with the wrong third byte, and a WEBP marker without the RIFF wrapper.
+  await writeFile(join(context.directory, "other.webm"), Buffer.concat([webm.subarray(0, 4), Buffer.alloc(20)]));
+  await writeFile(join(context.directory, "sound.webp"), Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WAVE"), Buffer.alloc(20)]));
+  await writeFile(join(context.directory, "future.gif"), Buffer.concat([Buffer.from("GIF90a"), Buffer.alloc(20)]));
+  await writeFile(join(context.directory, "short.jpg"), Buffer.concat([Buffer.from([255, 216, 0, 224]), Buffer.alloc(20)]));
+  await writeFile(join(context.directory, "unwrapped.webp"), Buffer.concat([Buffer.from("RIFX"), Buffer.alloc(4), Buffer.from("WEBP"), Buffer.alloc(20)]));
+  await writeFile(join(context.directory, "notes.txt"), "plain words");
+  // Windows accounts without Developer Mode cannot create file links; the check is skipped only there.
+  const linked = await symlink(join(context.directory, "notes.txt"), join(context.directory, "notes.png")).then(() => true, (error: NodeJS.ErrnoException) => {
+    if (process.platform === "win32" && error.code === "EPERM") return false;
+    throw error;
+  });
+  await writeFile(join(context.directory, "locked.png"), Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  const refs = [...formats.flatMap(([name]) => [name, `wrong-${name}`]), "other.webm", "sound.webp", "future.gif", "short.jpg", "unwrapped.webp", "notes.png", "locked.png"];
+  context.fixture.messages.get(session.id)!.push({
+    id: "media-reply", type: "assistant", time: { created: 1 },
+    content: [{ type: "text", text: refs.map((href) => `![Original test media](${href})`).join("\n") }],
+  });
+  const media = (href: string) => context.request(`conversations/${session.id}/media/media-reply?${new URLSearchParams({ href, project: context.directory })}`);
+  const refused = async (href: string, status: number, error: string) => {
+    const response = await media(href);
+    assert.deepEqual({ status: response.status, body: await response.json() }, { status, body: { error } }, href);
+  };
+  await context.login();
+  for (const [name, type, bytes] of formats) {
+    const response = await media(name);
+    assert.equal(response.status, 200, name);
+    assert.equal(response.headers.get("content-type"), type, name);
+    assert.equal(response.headers.get("accept-ranges"), "bytes", name);
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes, name);
+    await refused(`wrong-${name}`, 415, "The media file does not match its format.");
+  }
+  for (const nearMiss of ["other.webm", "sound.webp", "future.gif", "short.jpg", "unwrapped.webp"]) await refused(nearMiss, 415, "The media file does not match its format.");
+  if (linked) await refused("notes.png", 415, "This media format cannot be shown. Use PNG, JPEG, GIF, WebP, MP4, or WebM.");
+  // Windows and administrators can read a file without read permission, so only check where the permission holds.
+  if (process.platform !== "win32" && process.getuid?.() !== 0) {
+    await chmod(join(context.directory, "locked.png"), 0);
+    await refused("locked.png", 403, "This media file could not be read. Check its file permissions.");
+  }
 });
 
 test("a parent-directory swap cannot serve media from outside the Project", async (t) => {
@@ -551,6 +615,78 @@ test("a retrying officer keeps the main entry retrying even when another officer
   assert.equal(state.statuses[parent.id]?.message, "Provider temporarily unavailable.");
 });
 
+// Heartbeats keep the live connection open, so a missing update would otherwise wait forever.
+test("the live connection ignores other folders, moved and unknown entries, and clears a retry once work resumes", { timeout: 15000 }, async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const parent = context.fixture.createSession(context.directory, "Briefing");
+  const moving = context.fixture.createSession(context.directory, "Moving");
+  const foreign = context.fixture.createSession(context.other, "Foreign");
+  const stream = await context.request("events");
+  const reader = stream.body!.getReader();
+  t.after(() => reader.cancel());
+  let observed = "";
+  const until = async (text: string, times = 1) => {
+    while (observed.split(text).length <= times) {
+      const chunk = await reader.read();
+      if (chunk.done) assert.fail(`The live connection closed before ${text} arrived: ${observed}`);
+      observed += new TextDecoder().decode(chunk.value);
+    }
+  };
+  const delta = (sessionID: string, text: string) => context.fixture.publish(context.directory, "session.text.delta", { sessionID, assistantMessageID: `msg_${text}`, ordinal: 0, delta: text });
+  await until('"connected":true');
+  delta(foreign.id, "Foreign");
+  context.fixture.publish(context.directory, "session.deleted", { sessionID: "ses_never_known" });
+  context.fixture.sessions.get(moving.id)!.location.directory = context.other;
+  context.fixture.publish(context.directory, "session.moved", { sessionID: moving.id });
+  delta(moving.id, "Moved");
+  delta(parent.id, "Sentinel");
+  await until('"delta":"Sentinel"');
+  assert.doesNotMatch(observed, /Foreign|Moved|"connected":false/);
+
+  context.fixture.active.add(parent.id);
+  context.fixture.publish(context.directory, "session.retry.scheduled", { sessionID: parent.id, error: { message: "Provider temporarily unavailable." } });
+  await until('"type":"retry"');
+  assert.equal((await (await context.request("state")).json() as AppState).statuses[parent.id]?.type, "retry");
+  context.fixture.publish(context.directory, "session.step.started", { sessionID: parent.id });
+  delta(parent.id, "Resumed");
+  await until('"delta":"Resumed"');
+  assert.equal((await (await context.request("state")).json() as AppState).statuses[parent.id]?.type, "busy");
+
+  context.fixture.publish(context.directory, "session.retry.scheduled", { sessionID: parent.id, error: { message: "Provider temporarily unavailable." } });
+  await until('"type":"retry"', 2);
+  context.fixture.active.delete(parent.id);
+  await context.request("state");
+  context.fixture.active.add(parent.id);
+  assert.equal((await (await context.request("state")).json() as AppState).statuses[parent.id]?.type, "busy", "a retry from earlier work is not shown for new work");
+});
+
+test("a crew entry that points back to itself is reported instead of hanging the live connection", { timeout: 15000 }, async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const first = context.fixture.createSession(context.directory, "First");
+  const second = context.fixture.createSession(context.directory, "Second", first.id);
+  context.fixture.sessions.get(first.id)!.parentID = second.id;
+  const stream = await context.request("events");
+  const reader = stream.body!.getReader();
+  t.after(() => reader.cancel());
+  let observed = "";
+  while (!observed.includes('"connected":true')) {
+    const chunk = await reader.read();
+    if (chunk.done) assert.fail(`The live connection closed before it connected: ${observed}`);
+    observed += new TextDecoder().decode(chunk.value);
+  }
+  context.fixture.publish(context.directory, "session.text.delta", { sessionID: second.id, assistantMessageID: "msg_loop", ordinal: 0, delta: "Loop" });
+  while (!observed.includes('"connected":false')) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    observed += new TextDecoder().decode(chunk.value);
+  }
+  assert.match(observed, /OpenCode reported a crew entry that points back to itself\./);
+});
+
 test("only explicit local HTTP server addresses are accepted", () => {
   assert.equal(localServerUrl("http://localhost:4096"), "http://127.0.0.1:4096");
   for (const value of ["https://127.0.0.1:4096", "http://example.com", "http://127.0.0.1.example.com", "http://user:secret@127.0.0.1:4096", "http://127.0.0.1:4096/path"]) {
@@ -589,6 +725,31 @@ test("local browser access needs the launch token; unrelated sites and hosts are
   assert.match(page.headers.get("content-security-policy")!, /frame-ancestors 'none'/);
   assert.doesNotMatch(await page.text(), new RegExp(context.app.token));
   assert.equal((await fetch(`${context.app.origin}/%2e%2e%5cpackage.json`)).status, 403);
+});
+
+test("requests must be small JSON objects with real words, and nothing reaches OpenCode otherwise", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const session = await (await context.request("conversations", {})).json();
+  const send = `conversations/${session.id}/send`;
+  const refused = async (response: Response, status: number, error: string) => {
+    assert.equal(response.status, status);
+    assert.equal((await response.json()).error, error);
+  };
+  await refused(await context.raw(send, "{\"text\": "), 400, "The request is not valid JSON.");
+  await refused(await context.raw(send, "[]"), 400, "The request must be a JSON object.");
+  await refused(await context.raw(send, "null"), 400, "The request must be a JSON object.");
+  await refused(await context.raw(send, JSON.stringify({ text: "x".repeat(130_000) })), 413, "That message is too long. Keep it under 128 KB.");
+  const model = { providerID: "github-copilot", modelID: "fixture-model" };
+  await refused(await context.request(send, { ...model, text: "   " }), 400, "Provide a valid text.");
+  await refused(await context.request(send, { ...model, text: 7 }), 400, "Provide a valid text.");
+  await refused(await context.request(send, { ...model, text: "x".repeat(32_001) }), 400, "Provide a valid text.");
+  await refused(await context.request(send, { ...model, text: "Status", modelID: "m".repeat(257) }), 400, "Provide a valid modelID.");
+  await refused(await context.request(send, { text: "Status", modelID: "fixture-model" }), 400, "Provide a valid providerID.");
+  assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/prompt")), false);
+  assert.equal((await context.request(send, { ...model, text: "  Status report  " })).status, 202);
+  assert.deepEqual(context.fixture.requests.find((request) => request.path.endsWith("/prompt"))?.data, { text: "Status report" });
 });
 
 test("computer sounds include the arrival call and require the local browser connection", async (t) => {
@@ -835,8 +996,16 @@ test("answers are checked against the question before they reach OpenCode", () =
     { key: "page", type: "external", title: "Page", url: "https://example.com" },
   ];
   assert.deepEqual(checkAnswer(fields, { pick: "a", free: "anything", many: ["x"], ok: true, count: 3 }), { pick: "a", free: "anything", many: ["x"], ok: true, count: 3 });
-  for (const bad of [undefined, [], {}, { pick: "b" }, { free: " " }, { many: ["z"] }, { ok: "yes" }, { count: 1.5 }, { page: "x" }, { unknown: "x" }]) {
-    assert.throws(() => checkAnswer(fields, bad), /./, JSON.stringify(bad));
+  // Each refusal names its own reason, so a missing check cannot pass by failing some other way.
+  const refusals: [unknown, string][] = [
+    [undefined, "Answer the question before continuing."], [["a"], "Answer the question before continuing."], [{}, "Answer the question before continuing."],
+    [{ pick: "b" }, "Choose one of the offered answers."], [{ free: " " }, "Write an answer for Free."], [{ free: "x".repeat(4097) }, "Write an answer for Free."],
+    [{ many: "x" }, "Choose answers for Many."], [{ many: ["z"] }, "Choose only the offered answers."], [{ ok: "yes" }, "Answer yes or no for Okay."],
+    [{ count: 1.5 }, "Enter a number for Count."], [{ count: "3" }, "Enter a number for Count."],
+    [{ page: "x" }, "That answer does not match the question."], [{ unknown: "x" }, "That answer does not match the question."],
+  ];
+  for (const [bad, message] of refusals) {
+    assert.throws(() => checkAnswer(fields, bad), { status: 400, message }, JSON.stringify(bad)?.slice(0, 80));
   }
 });
 
@@ -852,6 +1021,8 @@ test("OpenCode events become the few browser updates the screen needs", () => {
       [{ type: "state" }, { type: "changed", sessionID: "s" }, { type: "finished", sessionID: "s", outcome }]);
   }
   assert.deepEqual(browserEvents(event("permission.asked", { sessionID: "s" })), [{ type: "state" }]);
+  assert.deepEqual(browserEvents(event("session.execution.started", { sessionID: "s" })), [{ type: "state" }]);
+  assert.deepEqual(browserEvents(event("session.retry.scheduled", { sessionID: "s", error: { message: "Busy." } })), [{ type: "retry", sessionID: "s", message: "Busy." }]);
   assert.deepEqual(browserEvents(event("session.text.started", { sessionID: "s" })), []);
 });
 
@@ -886,6 +1057,31 @@ test("stored terminal outcomes recover missed live events without inventing comp
   history.push({ id: "i", type: "idle", outcome: "succeeded", time: { created: 3 } });
   assert.equal(chatMessages(history).at(-1)?.outcome, "succeeded");
   assert.equal(chatMessages(history).length, 2);
+});
+
+test("stored outcomes after a reply mark that reply, keep its officer, and add an error only when one is missing", () => {
+  const at = { created: 1 };
+  const reply = (id: string, extra: Record<string, unknown> = {}) => ({ id, type: "assistant", content: [{ type: "text", text: "Report." }], time: at, ...extra });
+  const declined = { type: "tool", id: "t", name: "shell", state: { status: "error", input: {}, error: { type: "aborted", message: "The user declined this tool call" } } };
+  const history = [
+    reply("done", { agent: "picard-data" }), { id: "i1", type: "idle", outcome: "succeeded", time: at },
+    reply("failed"), { id: "i2", type: "idle", outcome: "failed", error: { type: "provider", message: "The provider stopped answering." }, time: at },
+    reply("vague"), { id: "i3", type: "idle", outcome: "failed", time: at },
+    reply("stopped"), { id: "i4", type: "idle", outcome: "interrupted", time: at },
+    reply("own error", { error: { type: "provider", message: "Rate limit reached." } }), { id: "i5", type: "idle", outcome: "failed", error: { type: "provider", message: "Later summary." }, time: at },
+    { id: "declined", type: "assistant", content: [declined], time: at }, { id: "i6", type: "idle", outcome: "interrupted", time: at },
+    reply("unnamed", { error: { type: "provider", message: "" } }),
+  ] as unknown as SessionMessage[];
+  const chat = chatMessages(history);
+  assert.deepEqual(chat.map(({ id, outcome, error, speaker }) => ({ id, outcome, error, speaker })), [
+    { id: "done", outcome: "succeeded", error: undefined, speaker: "picard-data" },
+    { id: "failed", outcome: "failed", error: "The provider stopped answering.", speaker: undefined },
+    { id: "vague", outcome: "failed", error: "OpenCode could not complete the request.", speaker: undefined },
+    { id: "stopped", outcome: "interrupted", error: STOPPED, speaker: undefined },
+    { id: "own error", outcome: "failed", error: "Rate limit reached.", speaker: undefined },
+    { id: "declined", outcome: "interrupted", error: undefined, speaker: undefined },
+    { id: "unnamed", outcome: "failed", error: "OpenCode could not complete the request.", speaker: undefined },
+  ]);
 });
 
 test("with no provider signed in, setup is needed and nothing is invented", async (t) => {
