@@ -481,8 +481,8 @@ test("while work runs, the conversation says who is working and what they are do
   const line = (await working.boundingBox())!;
   expect(line.y).toBeGreaterThan(request.y);
   await expect(page.locator(".message-error")).toHaveCount(0);
-  await expect(page.locator(".step-failures summary")).toHaveText("1 step did not work");
   await expect(page.locator(".message.current[data-role=assistant]").last()).toContainText("Test stand-in: Captain, no real news was searched.", { timeout: 15000 });
+  await expect(page.locator(".step-failures summary")).toHaveText("1 step did not work");
   await expect(page.locator(".message.current[data-role=assistant] .message-header strong").last()).toHaveText("Data");
   await expect(working).toBeHidden();
   // The real error stays readable, word for word, when opened.

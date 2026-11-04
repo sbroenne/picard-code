@@ -1077,6 +1077,9 @@ If the checker fails or takes more than five seconds, listening stops with
 the actual error; an unfinished request is not sent as a fallback. Switching
 the microphone on again starts a fresh worker when the previous one failed.
 The failed request is never resent automatically.
+Checks run one at a time. Cancelling one discards its result, not another
+browser's check. The time limit still replaces a stuck process before the
+next check starts.
 
 Model judgments are not a guarantee against every early cutoff.
 The earlier evaluation matched 39 of 40 labels in a small
@@ -1084,8 +1087,10 @@ The earlier evaluation matched 39 of 40 labels in a small
 but protected only 4 of 16 digitally inserted pauses in generated
 speech. Those are limited samples, not an accuracy guarantee. Generated-audio
 browser checks cover both real Nemotron/Kokoro and real Azure speech with
-OpenCode on Apple silicon. Physical microphones, room noise, other accents,
-Windows and Linux have not yet been checked for this pause detector.
+OpenCode on Apple silicon. Automated server tests also cover the pause-check
+protocol and recovery on Windows, Linux and macOS, using labelled stand-ins.
+Physical microphones, room noise, other accents and real Smart Turn model
+execution on Windows and Linux have not yet been checked.
 If you use a custom `localPython` path, that environment must already provide
 NumPy and ONNX Runtime. Automatic preparation does not repair custom paths.
 See [third-party notices](THIRD_PARTY_NOTICES.md) for the model license.

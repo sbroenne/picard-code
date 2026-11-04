@@ -59,7 +59,7 @@ test("an incomplete prediction has a bounded wait; resets, short noises and the 
   assert.equal(long.update(0.9, 1), "end");
 });
 
-async function worker(t: TestContext) {
+async function worker(t: TestContext, startupDelay = 0) {
   const folder = await mkdtemp(resolve(".picard-test-turn-worker-"));
   t.after(() => rm(folder, { recursive: true, force: true }));
   const path = join(folder, "stand-in.mjs");
@@ -67,14 +67,16 @@ async function worker(t: TestContext) {
 import { createInterface } from "node:readline";
 const send = (data) => console.log(JSON.stringify(data));
 const pending = new Map();
-send({type:"ready"});
+let blocked = false;
+setTimeout(() => send({type:"ready"}), Number(process.argv[2]));
 createInterface({input:process.stdin}).on("line", (line) => {
   const data = JSON.parse(line);
   if (data.method === "cancel") { clearTimeout(pending.get(data.id)); pending.delete(data.id); return; }
+  if (blocked) return;
   const first = Buffer.from(data.audio,"base64")[0];
   if (first === 3) { send({id:data.id,type:"done"}); return; }
   if (first === 8) { process.exit(1); return; }
-  if (first === 9) { process.on("SIGTERM",()=>{}); return; }
+  if (first === 9) { blocked = true; process.on("SIGTERM",()=>{}); return; }
   const finish = () => {
     send({id:data.id,type:"turn",probability:first===2?2:first===0?0.2:first===5?0.5:first===7?null:0.9});
     if (first === 6) send({id:data.id,type:"turn",probability:0.9});
@@ -83,7 +85,7 @@ createInterface({input:process.stdin}).on("line", (line) => {
   if (first === 4) pending.set(data.id,setTimeout(finish,1000)); else finish();
 });
 `);
-  const detector = await connectTurnDetector(process.execPath, [path]);
+  const detector = await connectTurnDetector(process.execPath, [path, String(startupDelay)]);
   t.after(() => detector.close());
   return detector;
 }
@@ -108,14 +110,15 @@ test("the local protocol validates completion scores and keeps cancellation sepa
   assert.equal(await detector.complete(Buffer.from([1, 0]), signal), true);
 });
 
-test("the checker bounds pending work and can start fresh after active requests are stopped", async (t) => {
+test("the checker bounds pending work and skips a cancelled queued check", async (t) => {
   const detector = await worker(t);
   const stopped = new AbortController();
-  const first = assert.rejects(detector.complete(Buffer.from([4, 0]), stopped.signal), /aborted|stopped/);
+  const first = detector.complete(Buffer.from([4, 0]), AbortSignal.timeout(3000));
   const second = assert.rejects(detector.complete(Buffer.from([4, 0]), stopped.signal), /aborted|stopped/);
   await assert.rejects(detector.complete(Buffer.from([1, 0]), stopped.signal), /earlier check/);
   stopped.abort();
-  await Promise.all([first, second]);
+  await second;
+  assert.equal(await first, true);
   assert.equal(await detector.complete(Buffer.from([1, 0]), AbortSignal.timeout(3000)), true);
 });
 
@@ -138,6 +141,38 @@ test("a failed worker rejects that request and a fresh worker handles a later mi
   assert.equal(await detector.complete(Buffer.from([1, 0]), AbortSignal.timeout(5000)), true);
   await detector.close();
   await assert.rejects(detector.complete(Buffer.from([1, 0]), AbortSignal.timeout(5000)), /stopped/);
+});
+
+test("cancelling during recovery does not close the worker needed by another check", { timeout: 5000 }, async (t) => {
+  const detector = await worker(t, 200);
+  await assert.rejects(detector.complete(Buffer.from([8, 0]), AbortSignal.timeout(3000)), /Local speech stopped/);
+  const cancelled = new AbortController();
+  const first = assert.rejects(detector.complete(Buffer.from([1, 0]), cancelled.signal), /aborted|stopped/);
+  await wait(20);
+  const next = detector.complete(Buffer.from([1, 0]), AbortSignal.timeout(3000));
+  cancelled.abort();
+  await first;
+  assert.equal(await next, true);
+});
+
+test("microphone-off cannot leave stuck inference cached or discard another browser's queued check", { timeout: 15000 }, async (t) => {
+  const detector = await worker(t);
+  const cancelled = new AbortController();
+  const first = assert.rejects(detector.complete(Buffer.from([9, 0]), cancelled.signal), /aborted|stopped/);
+  await wait(20);
+  const next = detector.complete(Buffer.from([1, 0]), AbortSignal.timeout(12000));
+  cancelled.abort();
+  await first;
+  assert.equal(await next, true);
+});
+
+test("closing the checker stops both active and queued work without reopening a worker", { timeout: 5000 }, async (t) => {
+  const detector = await worker(t);
+  const first = assert.rejects(detector.complete(Buffer.from([4, 0]), AbortSignal.timeout(3000)), /stopped/);
+  const next = assert.rejects(detector.complete(Buffer.from([1, 0]), AbortSignal.timeout(3000)), /stopped/);
+  await wait(20);
+  await detector.close();
+  await Promise.all([first, next]);
 });
 
 test("a hung worker is killed after its deadline, never retried, and the next request can recover", { timeout: 15000 }, async (t) => {

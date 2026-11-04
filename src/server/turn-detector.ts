@@ -48,6 +48,7 @@ export async function connectTurnDetector(program: string, args: string[], signa
     return loading;
   };
   let pending = 0;
+  let queue: Promise<unknown> = Promise.resolve();
   try {
     await open(signal);
     signal?.throwIfAborted();
@@ -57,32 +58,50 @@ export async function connectTurnDetector(program: string, args: string[], signa
   }
   return {
     async complete(audio, requestSignal) {
+      requestSignal.throwIfAborted();
       if (!audio.length || audio.length % 2 || audio.length > 256000) throw new Error("Pause detection needs up to eight seconds of complete audio samples.");
       if (pending >= 2) throw new Error("Pause detection is still finishing an earlier check. Please try again.");
       pending++;
-      let active: LocalWorker | undefined;
-      const timeout = AbortSignal.timeout(5000);
-      const stopped = AbortSignal.any([requestSignal, timeout, ...(signal ? [signal] : [])]);
-      try {
-        let probability: number | undefined;
-        active = await open(stopped);
-        for await (const result of active.request("check-turn", { audio: Buffer.from(audio).toString("base64") }, stopped)) {
-          if (result.type === "done") break;
-          if (result.type !== "turn" || probability !== undefined || typeof result.probability !== "number" || !Number.isFinite(result.probability) || result.probability < 0 || result.probability > 1) {
-            throw new Error("Pause detection returned an invalid completion score.");
+      // Python finishes one inference at a time. Cancellation drops the caller's result,
+      // not the worker's deadline; later checks wait until it finishes or is retired.
+      const operation = queue.then(async () => {
+        let active: LocalWorker | undefined;
+        let checking = false;
+        const timeout = AbortSignal.timeout(5000);
+        const stopped = AbortSignal.any([timeout, ...(signal ? [signal] : [])]);
+        try {
+          requestSignal.throwIfAborted();
+          let probability: number | undefined;
+          active = await open(stopped);
+          requestSignal.throwIfAborted();
+          checking = true;
+          for await (const result of active.request("check-turn", { audio: Buffer.from(audio).toString("base64") }, stopped)) {
+            if (result.type === "done") break;
+            if (result.type !== "turn" || probability !== undefined || typeof result.probability !== "number" || !Number.isFinite(result.probability) || result.probability < 0 || result.probability > 1) {
+              throw new Error("Pause detection returned an invalid completion score.");
+            }
+            probability = result.probability;
           }
-          probability = result.probability;
-        }
-        if (probability === undefined) throw new Error("Pause detection returned no completion score.");
-        return probability > 0.5;
-      } catch (error) {
-        // Never retry or submit the failed request. A later microphone attempt starts a fresh worker.
-        if (active && !requestSignal.aborted && !signal?.aborted) await retire(active);
-        if (timeout.aborted && !requestSignal.aborted && !signal?.aborted) {
-          throw new Error("Pause detection did not finish within five seconds. The spoken request was not sent. Switch the microphone on to try again.");
-        }
-        throw error;
-      } finally { pending--; }
+          if (probability === undefined) throw new Error("Pause detection returned no completion score.");
+          return probability > 0.5;
+        } catch (error) {
+          // Never retry or submit the failed request. The next queued check may start a fresh worker.
+          if (active && checking && !signal?.aborted) await retire(active);
+          if (timeout.aborted && !signal?.aborted) {
+            throw new Error("Pause detection did not finish within five seconds. The spoken request was not sent. Switch the microphone on to try again.");
+          }
+          throw error;
+        } finally { pending--; }
+      });
+      queue = operation.then(() => undefined, () => undefined);
+      return new Promise<boolean>((resolve, reject) => {
+        const abort = () => reject(requestSignal.reason);
+        requestSignal.addEventListener("abort", abort, { once: true });
+        operation.then(
+          (complete) => { requestSignal.removeEventListener("abort", abort); resolve(complete); },
+          (error: unknown) => { requestSignal.removeEventListener("abort", abort); reject(error); },
+        );
+      });
     },
     close,
   };
