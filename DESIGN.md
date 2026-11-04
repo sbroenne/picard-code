@@ -28,8 +28,9 @@ per line and uses generous line spacing.
 
 The app is designed for a computer screen, with a side panel, current log
 entry, and computer console. The latest request and reply are prominent;
-earlier messages are smaller. The console shows the current state and next
-step, listening lights, a microphone button, and stopping controls when needed.
+earlier messages are smaller. The console shows the current activity and next
+step, listening lights, a microphone button with its own channel readout, and
+stopping controls when needed.
 There is no typing box or phone layout.
 
 First setup uses one central LCARS flow: connect an AI provider if needed,
@@ -95,9 +96,28 @@ speech is already set up. There is no separate confirmation screen.
 Unavailable models have a direct Refresh connection action. Supporting details
 stay under About this choice, not in the main setup steps.
 Connection readiness means OpenCode is connected and the confirmed model is available.
-Standing by, listening, understanding, working, speaking, reconnecting, unanswered
-questions, and approval requests have visible labels. Errors name the problem
-and the recovery step.
+Keep microphone availability separate from computer activity. The small channel
+readout beside the microphone shows Opening channel until startup finishes,
+then Channel open through silence and detected speech. Channel closed means
+the microphone is off; Channel paused explains an explicit media pause. Browser
+sound restrictions show Click to open channel, not a false ready state.
+
+The large heading normally follows Standing by, Accessing, Transmitting,
+then Standing by. Detected speech does not change it. Final recognition uses
+"Checking what you said." in the supporting line, and sending uses "Sending
+your request." without claiming acceptance. Accessing covers accepted work and
+preparing its spoken reply; explain the latter beneath the heading.
+Transmitting begins with actual reply audio and says "The computer is speaking."
+It is independent of the microphone switch.
+
+Decision needed and Answer needed take priority over ordinary activity,
+including spoken explanations; keep the required action visible. Approvals
+still require a deliberate on-screen choice. Keep real connection and setup
+problems explicit. Errors name the problem and the recovery step.
+Heading colours follow the displayed activity, not internal speech phases.
+Microphone lights can show speech without repeatedly changing the heading.
+Only changed status text is written to the live readouts, avoiding repeated
+screen-reader announcements on redraw.
 
 The microphone switches on when speech is ready and an available model has
 been confirmed, subject to browser permission

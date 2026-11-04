@@ -404,8 +404,13 @@ not rank the models or select OpenCode's default for you.
 
 The main screen shows only the current log entry: the messages, any
 question or approval waiting for you, and the computer console with one large
-status (for example Standing by, Channel open, Understanding, Accessing,
-Transmitting or Decision needed) and a line saying what to do next. The console also holds
+activity (Standing by, Accessing or Transmitting) and a line saying what to do
+next. **Transmitting** means the computer is speaking its reply, not sending your
+request. **Decision needed** and **Answer needed** take priority when a response
+is required. A separate readout beside the microphone shows **Opening channel**,
+**Channel open**, **Channel closed** or **Channel paused**, so you can still see
+whether the microphone is enabled while the computer works or speaks.
+The console also holds
 **Stop speaking** and **Belay that** when they apply, and the microphone
 button; the row of lights beside it shows listening, and turns blue and moves
 while work runs. While the request runs, a line at the end of the conversation
@@ -593,8 +598,10 @@ on-screen button.
   "Computer, mute") also switches it off. Reloading the page switches it back
   on. Switching it off and back on keeps the current log entry; follow-ups
   still need no "Computer". Saying "Computer" again also continues that entry.
-- The microphone stays on. While the room is quiet, the console shows
-  **Standing by** and nothing leaves your computer. A voice detector (Silero,
+- The microphone stays on. Its readout stays **Channel open** through silence
+  and speech; the large **Standing by** heading does not change just because
+  someone starts talking. While the room is quiet, no microphone audio leaves
+  your computer. A voice detector (Silero,
   included with Picard Code and run inside your browser) tells speech
   apart from steady background noise such as a fan. When someone starts
   talking, that speech (including the half second before it, so the first word
