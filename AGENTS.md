@@ -234,6 +234,14 @@ server checks are skipped for documentation, website and development-only tool
 changes; the required browser check runs only the website tests. Unknown paths
 and manual runs use the full checks. A failed changed-file check blocks merging.
 
+When a check fails, investigate and fix failures caused by the change before
+calling it ready. For a separate problem, find or open a GitHub issue with
+reproduction steps and evidence, then work on it separately. Do not leave it
+only as a known failure in a pull request or handoff. Passing on a rerun does
+not resolve an intermittent failure. Keep the pull request's check results
+accurate and link the issue; never hide a failure, skip the check or weaken
+its assertions to get a pass.
+
 The browser checks use a labeled test stand-in for OpenCode, a fake
 microphone and silent stand-in sounds. When you change OpenCode, speech or conversation behavior, also run the
 matching real check from [the developer guide](docs/DEVELOPMENT.md#real-service-checks) (`test:live`, `test:speech:live`,
