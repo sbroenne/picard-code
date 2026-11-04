@@ -35,7 +35,7 @@ const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there",
   : process.argv.includes("--briefing-repeat") ? ["Computer, have Data and Riker brief me when Data's action is denied but a second succeeds", ""]
   : process.argv.includes("--briefing-failure") ? ["Computer, have Data and Riker brief me when Data's action is denied", ""]
   : process.argv.includes("--briefing-recovered") ? ["Computer, have Data and Riker brief me after a recovered action", ""]
-  : process.argv.includes("--briefing") ? ["Computer, have Data and Riker brief me on the next step", ""]
+  : process.argv.includes("--briefing") ? ["Computer, have Data and Riker brief me on the next step, Riker first", ""]
   : process.argv.includes("--crew") ? ["Computer, have Data and Geordi look at the repair", ""]
   : process.argv.includes("--officer") ? ["Computer, I wanted to have an answer from Data", ""]
   : process.argv.includes("--news") ? ["Computer, get the news from Data", ""]
@@ -60,6 +60,7 @@ const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there",
   : process.argv.includes("--fresh-starlog") ? ["Computer, hello there", "New starlog entry", "Is anyone there"]
   : process.argv.includes("--showcase") ? ["Computer, Mr. Data, why do the shields read full when they are failing?", "Computer, Number One, fix it now or after we reach Starbase 74?", ""]
   : process.argv.includes("--example") ? ["Computer, why is the settings test failing?", ""]
+  : process.argv.includes("--explanation") ? ["Computer, give me a full spoken answer", ""]
   : process.argv.includes("--broken") ? ["Computer, the model is broken", ""]
   : process.argv.includes("--missing-outcome") ? ["Computer, show a reply without an ending", ""]
   : ["Computer, hello there", "Hello again", ""];

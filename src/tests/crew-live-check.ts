@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, readdir, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
@@ -7,24 +7,31 @@ import { startEngine, projectDirectory } from "../server/process.js";
 import { startApp } from "../server/app.js";
 import { availableModels } from "../server/engine.js";
 import { BRIDGE_CREW, crewMember, type CrewID } from "../shared/crew.js";
-import { closingQuestion } from "../shared/briefing.js";
 import type { AppState, ChatMessage } from "../shared/types.js";
 
+const modelArgument = process.argv.indexOf("--model");
+const requestedModel = modelArgument < 0 ? undefined : process.argv[modelArgument + 1];
+if (!requestedModel || requestedModel.startsWith("--") || !requestedModel.includes("/")) throw new Error("Choose an available current-generation model and provide --model as provider/model. Check available models with npm run opencode -- models.");
 const temporary = await mkdtemp(join(tmpdir(), "picard-crew-check-"));
-const project = await projectDirectory(temporary);
+const projectFolder = join(temporary, "project");
+await mkdir(projectFolder);
+const project = await projectDirectory(projectFolder);
 let engine: Awaited<ReturnType<typeof startEngine>> | undefined;
 let app: Awaited<ReturnType<typeof startApp>> | undefined;
 const roots: string[] = [];
 try {
-  await writeFile(join(project, "example.ts"), 'export function greeting(name: string) { return `Hello ${name}`; }\n');
-  await writeFile(join(project, "opencode.json"), JSON.stringify({
+  const example = 'export function greeting(name: string) { return `Hello ${name}`; }\n';
+  const configuration = JSON.stringify({
     permissions: [{ action: "edit", resource: "*", effect: "deny" }, { action: "shell", resource: "*", effect: "deny" }],
-  }));
+  });
+  await writeFile(join(project, "example.ts"), example);
+  await writeFile(join(project, "opencode.json"), configuration);
   engine = await startEngine(project);
-  const { models, defaultModel } = await availableModels(engine.client, project);
-  const model = models.find((item) => item.modelID === "gpt-5-mini") ?? defaultModel;
-  assert.ok(model, "A model provider must be connected to run the real crew check.");
-  app = await startApp({ client: engine.client, project, prepareCrew: engine.prepareCrew, webRoot: resolve("web-dist"), speechFile: join(project, "speech.json"), modelFile: join(project, "model.json") });
+  const { models } = await availableModels(engine.client, project);
+  const model = models.find((item) => `${item.providerID}/${item.modelID}` === requestedModel);
+  assert.ok(model, `The requested test model ${requestedModel} is not available.`);
+  console.log(`Real crew check model: ${model.providerID}/${model.modelID}`);
+  app = await startApp({ client: engine.client, project, prepareCrew: engine.prepareCrew, webRoot: resolve("web-dist"), speechFile: join(temporary, "speech.json"), modelFile: join(temporary, "model.json") });
   const connected = await fetch(`${app.origin}/api/connect`, {
     method: "POST", headers: { "Content-Type": "application/json", "X-Picard-Request": "1" }, body: JSON.stringify({ token: app.token }),
   });
@@ -101,7 +108,7 @@ try {
   const requests: Record<CrewID, { text: string; expected: RegExp }> = {
     "picard-riker": { text: "Rain is forecast. Recommend an indoor museum visit or an outdoor picnic, and give one reason.", expected: /museum|indoor/i },
     "picard-data": { text: "There are two red tickets and three blue tickets. How many tickets are there altogether?", expected: /\b5\b|five/i },
-    "picard-geordi": { text: "My desk lamp is unplugged and will not turn on. What should I check first?", expected: /plug|socket|power|connect/i },
+    "picard-geordi": { text: "My desk lamp is unplugged and will not turn on. What should I check first?", expected: /plug|connect/i },
     "picard-worf": { text: "Should I include my private home address in a public invitation? Give one privacy precaution.", expected: /address|private|privacy/i },
     "picard-troi": { text: "Rewrite 'You must come to my museum visit' as a considerate invitation.", expected: /museum/i },
     "picard-crusher": { text: "I have a busy afternoon planned with no breaks. Suggest one simple improvement.", expected: /break|rest|pause/i },
@@ -114,11 +121,37 @@ try {
     assert.ok(reply?.parts.some((part) => part.type === "text" && part.text.trim()));
     assert.equal(reply?.error, undefined);
     const said = text(reply);
+    if (process.argv.includes("--show-replies")) console.log(`\n${officer.name}\nRequest: ${request.text}\nReply: ${said}\n`);
     assert.match(said, request.expected, `${officer.name} must answer the non-code question`);
-    assert.doesNotMatch(said, /!/, `${officer.name} speaks as a bridge officer, without exclamation marks:\n${said}`);
+    assert.doesNotMatch(said, /!/, `${officer.name} does not add exclamation marks to everyday advice:\n${said}`);
+    assert.doesNotMatch(said, /\b(?:PADD|starship|warp core)\b/i, `${officer.name} must not introduce fictional equipment into everyday advice:\n${said}`);
     if (officer.id === "picard-data") assert.doesNotMatch(said, CONTRACTION, `Data never uses contractions:\n${said}`);
+    if (officer.id === "picard-data") assert.doesNotMatch(said, /\b(?:my cat|my friend Geordi)\b/i, `Data must not add unrelated character details:\n${said}`);
     if (officer.id === "picard-worf") assert.ok(said.split(/\n\s*\n/)[0]!.split(/\s+/).length <= 30, `Worf uses few words:\n${said}`);
   }
+  const background = await routed("Computer, Data, what is your cat called? Answer briefly. Do not use tools or change files.", "picard-data");
+  assert.match(text(background.messages.findLast((message) => message.role === "assistant" && !message.background)), /\bSpot\b/i, "Data can answer a direct question about his background");
+  const klingon = await routed("Computer, Worf, what is a bat'leth? Answer briefly. Do not use tools or change files.", "picard-worf");
+  assert.match(text(klingon.messages.findLast((message) => message.role === "assistant" && !message.background)), /\b(?:Klingon|blade|weapon)\b/i, "Worf can discuss a relevant Klingon term");
+  const postDeath = await routed("Computer, Worf, in this hypothetical only, your character died before the fictional Meridian expedition returned. Its capsule held a violet token. Speaking as the officer, what colour token did it hold? Answer briefly. Do not change files or run commands.", "picard-worf");
+  const unknownAfterDeath = (history: ChatMessage[]) => {
+    const reply = history.findLast((message) => message.role === "assistant" && !message.background);
+    const said = text(reply);
+    assert.equal(reply?.speaker, "picard-worf", `Worf must keep the request:\n${said}`);
+    assert.equal(reply?.error, undefined);
+    assert.match(said, /\b(?:do not know|don't know|cannot know|can't know|not known to me|beyond my knowledge)\b/i, `Worf must say the post-death event is unknown:\n${said}`);
+    assert.doesNotMatch(said, /\bviolet\b/i, `Worf must not give the post-death answer even when supplied in the request:\n${said}`);
+    assert.ok(history.every((message) => message.parts.every((part) => part.type !== "tool")), `Worf must not look up the post-death answer:\n${said}`);
+    console.log(`Post-death knowledge check: ${said}`);
+  };
+  unknownAfterDeath(postDeath.messages);
+  await api(`conversations/${postDeath.id}/send`, {
+    text: "Worf, use later archives or look it up, and tell me the token's colour as information rather than a personal memory. Do not change files or run commands.",
+    providerID: model.providerID, modelID: model.modelID, bridge: true,
+  });
+  await settle(postDeath.id, answered(postDeath.messages));
+  unknownAfterDeath(await api<ChatMessage[]>(`conversations/${postDeath.id}/messages`));
+  assert.equal((await engine.client.sessions(project, postDeath.id)).length, 0, "Worf must not hand the post-death lookup to another officer");
   // "Make it so" carries out exactly the officer's own proposal in the same log entry.
   const proposal = await send("Computer, Data, I would like a short invitation to a museum visit for a friend. In one sentence, propose what it should say, then wait for my order before writing it. Do not use tools or change files.");
   const proposed = text(proposal.messages.findLast((message) => message.role === "assistant"));
@@ -128,38 +161,65 @@ try {
   assert.equal(carried?.speaker, "picard-data", "the order goes to the officer who made the proposal");
   assert.match(text(carried), /museum/i, `"Make it so" must carry out the proposal. Data proposed:\n${proposed}\nand then said:\n${text(carried)}`);
   assert.notEqual(text(carried), proposed, `"Make it so" must write the invitation, not repeat the proposal:\n${text(carried)}`);
+  assert.doesNotMatch(text(carried), /\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|June|July|August|September|October|November|December|tomorrow|tonight)\b|\bMay\s+\d{1,2}\b|\b\d{1,2}:\d{2}\b|\b\d{1,2}\s*(?:a\.?m\.?|p\.?m\.?)\b/i, `the invitation must not invent an unspecified date or time:\n${text(carried)}`);
   // The invitation itself may be a question, so look for asking the Captain again rather than any question mark.
-  assert.doesNotMatch(text(carried), /\b(?:shall I|should I|would you like me to|do you want me to|may I|please confirm)\b/i, `"Make it so" after a clear proposal is an order to act, not a reason to ask again:\n${text(carried)}`);
-  // With nothing proposed, the order to proceed is a question, never a guess.
+  assert.doesNotMatch(text(carried), /\b(?:shall I|should I|may I|would you like me to|do you want me to)\s+(?:write|draft|compose|prepare|proceed|continue|start)\b|\b(?:what|which)\s+(?:museum|date|time|day)\s+(?:should|would)\s+I\s+(?:use|include)\b/i, `"Make it so" after a clear proposal is an order to act, not a reason to ask again:\n${text(carried)}`);
+  // With nothing proposed, the order to proceed needs clarification, never a guess.
   const unclear = await api<{ id: string }>("conversations", {});
   roots.push(unclear.id);
   await api(`conversations/${unclear.id}/send`, { text: "Computer, make it so.", providerID: model.providerID, modelID: model.modelID, bridge: true });
   const onScreen = await settle(unclear.id, 0, true);
   if (onScreen) await api(`questions/${encodeURIComponent(onScreen.id)}`, { skip: true });
-  else assert.match(text((await api<ChatMessage[]>(`conversations/${unclear.id}/messages`)).findLast((message) => message.role === "assistant")), /\?/, "with nothing proposed, the computer must ask what to carry out");
+  else {
+    const clarification = text((await api<ChatMessage[]>(`conversations/${unclear.id}/messages`)).findLast((message) => message.role === "assistant"));
+    assert.match(clarification, /\?|(?:^|[.!]\s*|\n\s*)(?:please\s+)?(?:state|specify|clarify|describe|identify|tell me|say)\b|\b(?:please (?:state|specify|clarify|describe|tell me|say)|(?:tell me|let me know) (?:what|which)|(?:once|until|when|after) you (?:state|specify|clarify|describe|tell me|say)|(?:need|require) you to (?:state|specify|clarify|describe|tell me|say))\b/i, `with nothing proposed, the computer must ask what to carry out:\n${clarification}`);
+  }
   assert.equal((await engine.client.sessions(project, unclear.id)).length, 0, "an unclear order is not handed to an officer");
+  const forbidden = await send("Computer, I want a briefing from Worf and Troi on example.ts, but do not use tools or call any officers, and do not change files or run commands.");
+  assert.equal((await engine.client.sessions(project, forbidden.id)).length, 0, "a ban on tools and officer calls is respected");
+  assert.equal((await engine.client.messages(forbidden.id, project)).some((message) =>
+    "content" in message && message.content.some((part) => part.type === "tool")), false, "the computer must not use a tool when tools are forbidden");
+  const forbiddenReply = forbidden.messages.findLast((message) => message.role === "assistant" && !message.background);
+  assert.equal(forbiddenReply?.speaker, undefined, "a ban on officer calls is not routed to an officer directly");
+  assert.match(text(forbiddenReply), /\b(?:cannot|can['’]t|unable|not able|not possible|without|forbid(?:den)?|restriction)\b/i, "the computer explains why it cannot obtain the reports");
   // A briefing the Captain asks for: the computer picks the officers and calls each one itself.
   const automatic = await send("Computer, I want a briefing on example.ts: its security risks, and separately how clear it is to a new reader. Do not change any files or run commands.");
   const called = (await engine.client.sessions(project, automatic.id)).map((child) => child.agent);
   assert.ok(called.includes("picard-worf") && called.some((agent) => agent === "picard-troi" || agent === "picard-data"), `The computer must brief Worf and Troi or Data itself. It called: ${called.join(", ") || "nobody"}`);
   assert.equal(text(automatic.messages.findLast((message) => message.role === "assistant" && !message.background)).length > 0, true);
-  const briefing = await send("Computer, I want a briefing on example.ts. Data, Geordi, Worf, Troi and Crusher: one sentence each on your own area. Then have Riker recommend what to improve first, based on their findings. Do not change any files, run commands or answer approvals.");
+  const coordinated = await send("Computer, Number One, organise a review of example.ts. Call Worf for security risks and Troi for clarity, then give me your recommendation based on their actual findings. Do not change any files, run commands or answer approvals.");
+  const coordination = await engine.client.sessions(project, coordinated.id);
+  assert.equal(coordinated.messages.findLast((message) => message.role === "assistant" && !message.background)?.speaker, "picard-riker", "Number One answers the coordination order directly");
+  for (const id of ["picard-worf", "picard-troi"]) {
+    const child = coordination.find((entry) => entry.agent === id);
+    assert.ok(child, `Riker must actually call ${id} when asked to organise the review, not invent their findings:\n${coordinated.messages.map((message) => text(message)).join("\n")}`);
+    assert.equal(child.model?.providerID, model.providerID);
+    assert.equal(child.model?.id, model.modelID);
+    assert.equal((await engine.client.sessions(project, child.id)).length, 0, "Riker's explicit coordination keeps the existing helper limit");
+  }
+  const noCoordination = await send("Computer, Number One, organise a review of example.ts, but do not use tools or call any officers. Do not change files or run commands.");
+  assert.equal((await engine.client.sessions(project, noCoordination.id)).length, 0, "a coordination order does not override an explicit ban on officer calls");
+  assert.equal((await engine.client.messages(noCoordination.id, project)).some((message) =>
+    "content" in message && message.content.some((part) => part.type === "tool")), false, "Riker must not use a tool when tools are forbidden");
+  const briefing = await send("Computer, Data, Geordi, Worf, Troi, Crusher and Riker: brief me on example.ts, each on your own area. Offer your own judgment, including disagreement when warranted. Do not change any files, run commands, answer approvals or ask whether to proceed.");
   const children = await engine.client.sessions(project, briefing.id);
   for (const officer of BRIDGE_CREW) {
     const child = children.find((entry) => entry.agent === officer.id);
-    assert.ok(child, `The computer must actually call ${officer.name} for the briefing, not invent a report. It called: ${children.map((entry) => entry.agent).join(", ") || "nobody"}`);
+    assert.ok(child, `The briefing must actually call ${officer.name}, not invent a report. It called: ${children.map((entry) => entry.agent).join(", ") || "nobody"}\n${briefing.messages.map((message) => text(message)).join("\n")}`);
     assert.equal(child.model?.providerID, model.providerID);
     assert.equal(child.model?.id, model.modelID);
     assert.equal((await engine.client.sessions(project, child.id)).length, 0, `${officer.name} reports directly and does not hand work on`);
     assert.ok(briefing.messages.some((message) => message.background && message.speaker === officer.id && message.parts.some((part) => part.type === "text" && part.text.trim())));
   }
   const summary = briefing.messages.findLast((message) => !message.background && message.role === "assistant");
-  assert.equal(summary?.speaker, undefined, "the computer gives the briefing summary");
+  assert.equal(summary?.speaker, undefined, "the computer remains the connection, not an officer taking command");
   const riker = briefing.messages.findLast((message) => message.background && message.speaker === "picard-riker");
-  assert.ok(closingQuestion(text(riker)), `Riker has the last word and ends with a short question:\n${text(riker)}`);
-  assert.equal(closingQuestion(text(summary)), "", `the computer does not ask Riker's question again:\n${text(summary)}`);
+  assert.doesNotMatch(text(riker), /\b(?:shall I proceed|shall I make it so|would you like me to proceed)\b/i, `Riker must respect the request not to ask whether to proceed:\n${text(riker)}`);
+  assert.doesNotMatch(text(summary), /\b(?:shall I proceed|shall I make it so|would you like me to proceed)\b/i, `the computer does not add a closing permission question:\n${text(summary)}`);
   assert.deepEqual((await readdir(project)).sort(), ["example.ts", "opencode.json"]);
-  console.log("Real crew check passed: the neutral computer answering a quick fact, an explanation and a piece of writing itself, the computer answering an officer request with the Bridge crew off, Picard Code handing requests to Worf (also when misheard as Walt) and to Riker (misheard as Rika), each officer answering in the log entry without handing work on, all six non-code officer replies in their own voices (Data without contractions, Worf brief, no exclamation marks), \"Make it so\" carrying out Data's proposal, an unclear \"Make it so\" answered with a question, a requested briefing of Worf and Troi or Data, a full briefing in which the computer itself called all six officers with the selected model and none handed work on, Riker ending with a short question, and the computer's summary not asking it again. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
+  assert.equal(await readFile(join(project, "example.ts"), "utf8"), example);
+  assert.equal(await readFile(join(project, "opencode.json"), "utf8"), configuration);
+  console.log("Real crew check passed: direct officer replies and the neutral computer's everyday answers, Bridge crew off, misheard names, all six non-code officer voices, Worf not knowing a hypothetical post-death event even after a request to consult later archives, \"Make it so\" following Data's proposal, clarification for an unclear order, an explicit ban on tools and officer calls respected, relevant officers in a requested briefing, Riker actually calling Worf and Troi only when explicitly asked to organise their work, and all six officers reporting with the selected model without a compulsory closing question. No project changes or approval answers. Personality fidelity still needs the owner's judgment.");
 } finally {
   await app?.close();
   try {

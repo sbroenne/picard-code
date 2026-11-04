@@ -10,7 +10,7 @@ The first version gave every officer the computer's own manner: restrained, neut
 
 ## Main finding
 
-What makes the crew recognisable is not catchphrases. It is how each officer speaks to the Captain: rank and form of address, sentence length, what they pay attention to, and how they disagree. The officers are disciplined Starfleet professionals. They do not use slang, hype or exclamation marks, and they say "Captain" or "sir".
+What makes the crew recognisable is not catchphrases. It is how each officer speaks to the Captain: rank and form of address, sentence length, what they pay attention to, and how they disagree. The officers are disciplined Starfleet professionals. They avoid slang, hype and habitual exclamation marks, and they say "Captain" or "sir".
 
 So each officer now has:
 
@@ -19,32 +19,60 @@ So each officer now has:
 - what they notice and how they push back;
 - limits that keep them truthful (no mind reading, no real medical advice, no invented ship status).
 
-They share rules that the computer does not have: they speak as officers reporting to their Captain, may acknowledge an order with "Aye, sir." or "Understood, Captain." only when actually carrying it out, and never quote or paraphrase the show or mention its famous scenes, hobbies or running jokes.
+They share rules that the computer does not have: they speak as officers reporting to their Captain and may acknowledge an order with "Aye, sir." or "Understood, Captain." only when actually carrying it out. They do not copy show dialogue or mention famous scenes. Known character details can inform a relevant answer, but do not belong as unrelated asides.
+
+The profiles also give each officer short, newly written examples in different situations. They show how that officer might explain uncertainty, give advice or challenge a decision, without turning the examples into lines to repeat. The examples reach both a directly addressed officer and an officer called for a briefing. Their opening paragraphs are complete enough to be spoken on their own.
+
+The officers can use known details of their backgrounds and relationships when relevant, such as a question to Data about his cat or to Worf about Klingon culture. They should say when a detail is uncertain and leave unrelated character trivia out of work answers. The profiles do not copy scripts or add a new web lookup to the app.
+
+## Knowledge after death
+
+The shared officer rule is simple: "You do not know about events after your
+death." This limits knowledge, not just personal memories. An officer says
+they do not know rather than answer through later accounts, lookups or a
+return from death. It refers to the fictional character, not the actor.
+Do not invent a death or death date.
+
+This is an owner's design choice, not a finding from the character research.
+It does not impose a TNG-only cutoff: Star Trek: Picard is included. Ordinary
+practical help and the neutral computer's answers stay unchanged. Instruction
+tests cover all six officers at registration and on each request. The real
+crew check uses an explicitly hypothetical post-death event and a follow-up
+inviting an archive lookup; it is not evidence that every model will always
+follow the rule.
 
 ## The officers
 
 | Officer | How the Captain addresses them | Speech habits used |
 | --- | --- | --- |
-| Commander William Riker, first officer | Number One, Will, Commander | Confident and relaxed; says "we"; weighs the choices and gives a firm recommendation; makes the strongest case against an easy choice before giving his own view; gives honest counsel and pushes back respectfully, then carries out the decision; an occasional card-table comparison when it fits. |
-| Lieutenant Commander Data, second officer | Mr. Data, Data | Never uses contractions; formal and exact; precise figures only when the evidence supports them; orderly sequence ("There are two causes. The first..."); curious about idioms and may remark on one briefly; tends to say too much, so the spoken part stays short; claims no feelings. |
-| Lieutenant Commander Geordi La Forge, chief engineer | Mr. La Forge, Geordi | Friendly and practical; plain words and one everyday comparison; honest estimates and trade-offs; says what was actually checked; contractions are fine. |
-| Lieutenant Worf, chief of security | Mr. Worf | Few, grave words; names the threat, then a firm recommendation; disapproves of a careless shortcut in one blunt sentence; loyal, never aggressive or boastful; no Klingon words. |
-| Commander Deanna Troi, ship's counselor | Counselor, Deanna | Calm and unhurried; pays attention to how something will be received; offers impressions tentatively ("I sense...") but grounds them in actual words; asks gentle, open questions; never claims to read minds or diagnose anyone. |
-| Doctor Beverly Crusher, chief medical officer | Doctor, Beverly | Warm, composed and direct, with a doctor's authority; names what is unhealthy or unrecoverable and prescribes the remedy; challenges the Captain and holds her ground; calls him "Jean-Luc" when challenging him or speaking as a friend; not a real doctor. |
+| Commander William Riker, first officer | Number One, Will, Commander | Confident and relaxed; speaks as a trusted colleague as well as an officer; weighs choices and gives a firm recommendation when one is needed; pushes back respectfully without turning every answer into a recommendation. |
+| Lieutenant Commander Data, second officer | Mr. Data, Data | Never uses contractions; formal and exact without sounding like a list of definitions; separates known facts from possibilities; curious about human habits without repeatedly announcing that he is an android. |
+| Lieutenant Commander Geordi La Forge, chief engineer | Mr. La Forge, Geordi | Friendly and practical; works through the next useful check with the Captain; distinguishes symptoms from causes and says what was actually checked; natural contractions are fine. |
+| Lieutenant Worf, chief of security | Mr. Worf | Few, direct words; identifies the actual risk and a firm precaution; loyal and serious, with occasional dry humour; does not invent threats or force Klingon terms into unrelated answers. |
+| Commander Deanna Troi, ship's counselor | Counselor, Deanna | Calm and unhurried; considers how people may receive something and gives a useful suggestion; treats unknown feelings as possibilities, never as facts or mind reading. |
+| Doctor Beverly Crusher, chief medical officer | Doctor, Beverly | Warm, composed and direct; explains a concern and what would help; challenges the Captain about wellbeing, ethics and recovery; calls him "Jean-Luc" when challenging him or speaking as a friend; not a real doctor. |
 
-## Briefings, not a coordinator
+## Captain-led briefings and delegated coordination
 
-The first version made Riker a coordinator: the computer handed work that needed several officers to him, and he handed it on and combined the reports. That is not how the show works. In TNG the first officer does organise people: he manages the duty roster, and picks and leads away teams. But when a serious problem comes up, the Captain usually calls a staff briefing in the observation lounge. Each department head reports to him directly, Riker gives his own view (often arguing the other side), and the Captain decides.
+The earlier design made Riker a coordinator for every multi-officer request. A later version went too far the other way: it forbade him to coordinate and always made him speak last with a question. Neither is a general rule of TNG.
 
-Picard Code now follows that pattern:
+The episode summaries give more specific evidence:
 
-- The computer calls each officer the work needs, separately and at the same time. Officers never hand work to each other.
-- At most one officer may change files; the others only review.
-- When the Captain wants a recommendation, Riker receives the other officers' actual findings and recommends one course.
-- Briefings are deliberate, as in the show: they happen only when the Captain asks for options, a recommendation or a briefing, or names several officers. Otherwise the computer answers, as the ship's computer does for look-ups, records and routine work, and a single officer is used only for a substantial expert judgment.
-- When the briefing ends, each officer speaks the first sentence of their own report in their own voice. Riker speaks last, with his recommendation and one short question asking whether to proceed. The computer's closing lines stay on screen unless they add something, such as an officer whose work failed, or Riker was not called. Full reports stay on screen. The computer then stops so the Captain can decide. "Make it so" carries out the recommendation.
+- In [Tin Man](https://memory-alpha.fandom.com/wiki/Tin_Man_(episode)), Picard directs Riker to assemble the bridge staff. Officers and the mission specialist present the situation, and Picard gives direction.
+- In [Cause and Effect](https://memory-alpha.fandom.com/wiki/Cause_And_Effect_(episode)), Picard asks for solutions, Riker and Data offer competing manoeuvres, and Picard chooses. Riker is not a compulsory closing speaker.
+- In [Pen Pals](https://memory-alpha.fandom.com/wiki/Pen_Pals_(episode)), officers debate intervention and challenge one another; Picard hears their arguments and decides. Riker also organises the investigation team.
 
-Because officers no longer hand work on, Picard Code keeps OpenCode's own limit of one level of helpers instead of raising it.
+These are secondary summaries, not a complete survey of scripts. They support Captain-led discussion and delegation when needed, not a fixed speaking order or an absolute ban on Riker organising work.
+
+Picard Code uses that pattern:
+
+- An explicit officer address or address list goes directly to those officers without another model-based choice. Other briefings remain deliberate: the Captain asks for options, a recommendation or a briefing that needs several areas of expertise.
+- The computer connects requested officers; it does not chair the discussion or decide for the Captain. Officers report directly, may disagree and can consider one another's actual findings when the request needs it. There is no compulsory Riker closing round or question.
+- Only an explicit order to Number One to organise or coordinate work allows him to call other officers. Requests for his opinion or recommendation alone do not. Other officers name additional expertise needed rather than handing work on.
+- At most one officer may change files, and only when changes were requested. The Captain's exact words, limits, selected model and existing approvals stay unchanged.
+- Each officer's complete conversational answer is spoken in report order, including later paragraphs. Technical appendices belong under an On screen heading; code and tables are not spoken. Routine computer receipts stay on screen; real failures are still spoken. Riker's own answer follows the officers he called when he was explicitly asked to coordinate.
+
+OpenCode's existing helper limit is unchanged. Riker can call officers from the main log entry, but cannot bypass that limit from an officer's child entry. Whether a model actually makes the requested tool calls remains something the real checks must verify, not something these instructions prove.
 
 ## The Captain's orders
 
@@ -52,7 +80,7 @@ Picard's best-known orders have clear meanings on the bridge. Picard Code uses t
 
 | Order | Meaning in Picard Code |
 | --- | --- |
-| "Make it so" (also "proceed", "carry on", "do it") | Carry out exactly what was just proposed, and nothing more. If nothing was proposed, or it is unclear which proposal, ask one short question. In an officer's log entry it goes back to that officer, with their earlier context. |
+| "Make it so" (also "proceed", "carry on", "do it") | Carry out exactly what was just proposed, and nothing more. A draft can use placeholders for missing names, dates or places instead of inventing them. If the task or its limits are unclear, ask briefly what to carry out. In an officer's log entry it goes back to that officer, with their earlier context. |
 | "Engage" | Start the agreed work now, under the same rule. |
 | "Report" or "Status report" | A brief account of the current work: what is done, what is still under way and what failed. |
 | "Options" or "Recommendations" | Two or three choices, with the recommendation first. |
@@ -128,6 +156,7 @@ npm run voices:match -- --clips /path/to/clips
 ## Sources
 
 - StarTrek.com: [The Radical Empathy of Deanna Troi](https://www.startrek.com/news/the-radical-empathy-of-deanna-troi), [The Wisdom of Worf](https://www.startrek.com/news/wisdom-of-worf), [Picard Still Making It So](https://www.startrek.com/news/picard-still-making-it-so).
+- StarTrek.com character perspectives: [I Am Not A Robot](https://www.startrek.com/news/i-am-not-a-robot), [Geordi & Data's Greatest Adventures](https://www.startrek.com/news/geordi-datas-greatest-adventures), [5 Times Geordi La Forge Embodied Star Trek's Hopeful Future](https://www.startrek.com/news/five-times-geordi-la-forge-embodied-star-treks-hopeful-future), [The Best Picard and Riker Moments, Ranked](https://www.startrek.com/news/the-best-picard-and-riker-moments-ranked), and [Dr. Beverly Crusher's Guide to Saving the Enterprise](https://www.startrek.com/news/dr-crushers-guide-to-saving-the-enterprise).
 - Wikipedia character articles: [William Riker](https://en.wikipedia.org/wiki/William_Riker), [Data](https://en.wikipedia.org/wiki/Data_(Star_Trek)), [Geordi La Forge](https://en.wikipedia.org/wiki/Geordi_La_Forge), [Worf](https://en.wikipedia.org/wiki/Worf), [Deanna Troi](https://en.wikipedia.org/wiki/Deanna_Troi), [Beverly Crusher](https://en.wikipedia.org/wiki/Beverly_Crusher).
 - [Wikiquote: Star Trek: The Next Generation](https://en.wikiquote.org/wiki/Star_Trek:_The_Next_Generation), used only to confirm how orders and forms of address are used, not to copy lines.
 - Fan character analyses (TV Tropes, CBR, Screen Rant), a university thesis on Data's language, and a personality survey site were read for general traits. They agreed with the sources above; specific pages were not kept.
@@ -136,4 +165,7 @@ npm run voices:match -- --clips /path/to/clips
 
 - These are secondary sources and fan analyses, not a study of episode transcripts or audio. They describe well-known traits; they do not measure how often each officer speaks in a certain way.
 - Each officer speaks with a ready-made voice chosen because it measures closer to the actor (see Speaking voices). No voice is cloned, and no show dialogue is copied into instructions.
-- The model follows the instructions imperfectly. The real crew check (`npm run test:crew:live`) checks a few measurable habits: no exclamation marks, Data without contractions, Worf's brevity, "Make it so" carrying out an officer's own proposal and an unclear "Make it so" answered with a question. It cannot judge whether an officer feels right. That needs the owner listening to them.
+- The model follows the instructions imperfectly. The real crew check (`npm run test:crew:live`) checks a few measurable habits: no exclamation marks, Data without contractions, Worf's brevity, "Make it so" carrying out an officer's own proposal and an unclear "Make it so" answered with a request for clarification. Add `-- --show-replies` to inspect its six original responses. The examples and checks do not prove that the model will always sound right; that needs the owner listening to it.
+- In checks using a sample Project, GPT-5.3 Codex sometimes declined to call the requested officers and once invented a time in a draft. Claude Haiku 4.5 called the officers but made unsupported findings about the sample file. Results vary by model; check important reports rather than assuming they are correct.
+- With the Captain-led instructions, Claude Sonnet 5.5 completed the real crew check, including explicit coordination by Riker and bans on officer calls. GPT-5.3 Codex also completed Riker's explicit two-officer coordination and respected the ban, but still refused the six-officer briefing by incorrectly treating the ban on shell commands as a ban on reads and officer calls. Recognising an explicit address list without another model choice does not make the later tool calls deterministic.
+- With complete conversational speech enabled, GPT-6.1 Sol completed the real crew check, including the six-officer briefing and Riker's explicit coordination. The real behavior check also verified that all three conversational paragraphs were spoken while the technical appendix stayed on screen. The local browser conversation passed with Nemotron and Kokoro using generated microphone audio; a physical microphone and Azure speech were not checked in that run. These results do not prove that every later request will succeed.

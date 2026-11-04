@@ -251,7 +251,6 @@ function consoleStatus(): [string, string] {
   if (!state.selectedModel) return ["Setup needed", "Open Computer intelligence, choose an AI model, and confirm your choice."];
   if (voice.mediaPaused) return ["Listening paused", "Pause the video or close its player to listen again."];
   if (voice.phase === "speaking") return ["Speaking", voice.microphone ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."];
-  if (voice.phase === "cue") return ["Standing by", "A new tribute fact is on screen."];
   if (voice.speechPending) return ["Preparing reply", ""];
   if (voice.microphone && voice.waitingForClick) return ["Standing by", "Click anywhere to start listening."];
   if (voice.phase === "listening") return ["Listening", ""];
@@ -330,7 +329,7 @@ function voiceControls() {
     ? "Switch to this computer: Nemotron listens and Kokoro speaks, with no Azure account needed."
     : "Nemotron listens and Kokoro speaks on this computer. No Azure account is needed.";
   element("prepare-local-speech").textContent = azureInUse ? "Use this computer instead" : "Prepare the computer";
-  element("stop-speaking").hidden = !voice.speechPending || voice.phase === "cue";
+  element("stop-speaking").hidden = !voice.speechPending;
   checkHeldBack();
 }
 
@@ -410,7 +409,6 @@ function completeVoiceReply() {
     display.fact = fact;
     display.factShownAt = new Date();
     saveTributeValue("picard-tribute-seen", JSON.stringify(tributeCycle.seenIDs));
-    tail = { cue: "tribute-fact", valid: stillCurrent };
   }
   if (display.fact || display.invitation || display.story || display.reference) {
     tributeDisplay.set(key, display);

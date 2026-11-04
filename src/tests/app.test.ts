@@ -316,10 +316,19 @@ test("direct crew requests keep words and models unchanged; missing crew fails e
     assert.equal(context.fixture.sessions.get(session.id)?.agent, officer.id);
     assert.equal(context.fixture.sessions.get(session.id)?.model?.providerID, "other-provider");
     assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text });
-    assert.match(context.fixture.instructions.get(session.id)!["picard-manner"]!, new RegExp(`This reply is from ${officer.name}`));
+    assert.match(context.fixture.instructions.get(session.id)!["picard-manner"]!, new RegExp(`Answer the Captain directly as ${officer.name}`));
   }
   const generated = () => context.fixture.requests.filter((request) => request.path.endsWith("/generate"));
   assert.equal(generated().length, 0, "an officer named by the Captain needs no officer check");
+  for (const text of ["Computer, will help be available offline?", "Computer, will read-only access prevent writes?"]) {
+    const entry = await (await context.request("conversations", {})).json();
+    const before = generated().length;
+    context.fixture.crewChoices.push("computer");
+    assert.equal((await context.request(`conversations/${entry.id}/send`, { text, providerID: "other-provider", modelID: "other" })).status, 202);
+    assert.equal(generated().length, before + 1, "an ambiguous will question uses the officer check");
+    assert.equal(context.fixture.sessions.get(entry.id)?.agent, "build");
+    assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text });
+  }
   const ordinary = await (await context.request("conversations", {})).json();
   context.fixture.crewChoices.push("picard-worf");
   const misheard = "Computer, Walt, check this for risks.";
@@ -327,7 +336,7 @@ test("direct crew requests keep words and models unchanged; missing crew fails e
   assert.ok(String(generated().at(-1)?.data.prompt).endsWith(`"""\n${misheard}\n"""`), "Picard Code asks who handles the Captain's exact words");
   assert.equal(context.fixture.sessions.get(ordinary.id)?.agent, "picard-worf", "Picard Code hands a request for one officer to that officer");
   assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text: misheard });
-  assert.match(context.fixture.instructions.get(ordinary.id)!["picard-manner"]!, /This reply is from Worf/);
+  assert.match(context.fixture.instructions.get(ordinary.id)!["picard-manner"]!, /Answer the Captain directly as Worf/);
   while (context.fixture.active.has(ordinary.id)) await new Promise((resolve) => setTimeout(resolve, 20));
   context.fixture.crewChoices.push("computer");
   assert.equal((await context.request(`conversations/${ordinary.id}/send`, { text: "What is the capital of France?", providerID: "other-provider", modelID: "other" })).status, 202);
@@ -337,8 +346,27 @@ test("direct crew requests keep words and models unchanged; missing crew fails e
   const briefing = await (await context.request("conversations", {})).json();
   context.fixture.crewChoices.push("picard-worf, picard-troi");
   assert.equal((await context.request(`conversations/${briefing.id}/send`, { text: "Computer, look over the sign-in page.", providerID: "other-provider", modelID: "other" })).status, 202);
-  assert.equal(context.fixture.sessions.get(briefing.id)?.agent, "build", "the computer runs a briefing");
+  assert.equal(context.fixture.sessions.get(briefing.id)?.agent, "build", "the computer connects the officers' reports without taking command");
   assert.ok(context.fixture.instructions.get(briefing.id)!["picard-manner"]!.trimEnd().endsWith(crewBriefing(["picard-worf", "picard-troi"])));
+  const named = await (await context.request("conversations", {})).json();
+  const checksBeforeNames = generated().length;
+  const address = "Computer, Data, Geordi and Worf: brief me, but do not change any files.";
+  assert.equal((await context.request(`conversations/${named.id}/send`, { text: address, providerID: "other-provider", modelID: "other" })).status, 202);
+  assert.equal(generated().length, checksBeforeNames, "an explicit address list needs no model-based officer choice");
+  assert.equal(context.fixture.sessions.get(named.id)?.agent, "build", "a list is not reduced to its first officer");
+  assert.ok(context.fixture.instructions.get(named.id)!["picard-manner"]!.trimEnd().endsWith(crewBriefing(["picard-data", "picard-geordi", "picard-worf"])));
+  assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text: address });
+  for (const coordinate of [
+    "Computer, Number One, organise a review with Worf and Troi. Do not edit files.",
+    "Computer, Number One, have Worf review example.ts and then give me your recommendation. Do not edit files.",
+  ]) {
+    const riker = await (await context.request("conversations", {})).json();
+    assert.equal((await context.request(`conversations/${riker.id}/send`, { text: coordinate, providerID: "other-provider", modelID: "other" })).status, 202);
+    assert.equal(generated().length, checksBeforeNames, "the coordination order goes straight to Number One");
+    assert.equal(context.fixture.sessions.get(riker.id)?.agent, "picard-riker");
+    assert.match(context.fixture.instructions.get(riker.id)!["picard-manner"]!, /Only when the Captain explicitly asks you to organise or coordinate work/);
+    assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text: coordinate });
+  }
   const unchosen = await (await context.request("conversations", {})).json();
   const prompts = context.fixture.requests.filter((request) => request.path.endsWith("/prompt")).length;
   context.fixture.crewChoices.push(null);
@@ -371,6 +399,36 @@ test("direct crew requests keep words and models unchanged; missing crew fails e
   assert.equal(response.status, 502);
   assert.match((await response.json()).error, /bridge crew is not available/);
   assert.equal(context.fixture.requests.filter((request) => request.path.endsWith("/prompt")).length, before);
+});
+
+test("short orders stay with the current officer without overriding explicit requests or Bridge crew off", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  assert.equal((await context.request("model", { providerID: "other-provider", modelID: "other" })).status, 200);
+  const session = await (await context.request("conversations", {})).json();
+  const send = async (text: string, bridge = true) => {
+    while (context.fixture.active.has(session.id)) await new Promise((resolve) => setTimeout(resolve, 20));
+    const response = await context.request(`conversations/${session.id}/send`, { text, providerID: "other-provider", modelID: "other", bridge });
+    assert.equal(response.status, 202, text);
+  };
+  await send("Computer, Data, suggest a plan.");
+  assert.equal(context.fixture.sessions.get(session.id)?.agent, "picard-data");
+  const choices = () => context.fixture.requests.filter((request) => request.path.endsWith("/generate")).length;
+  const before = choices();
+  await send("Computer, make it so.");
+  assert.equal(choices(), before, "the current officer does not need another model-based choice");
+  assert.equal(context.fixture.sessions.get(session.id)?.agent, "picard-data");
+  assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text: "Computer, make it so." });
+
+  context.fixture.crewChoices.push("picard-troi");
+  await send("Do not make it so; ask Troi instead.");
+  assert.equal(choices(), before + 1, "a negated or more specific request still goes through the officer check");
+  assert.equal(context.fixture.sessions.get(session.id)?.agent, "picard-troi");
+  await send("Computer, Worf, proceed.");
+  assert.equal(context.fixture.sessions.get(session.id)?.agent, "picard-worf", "an explicit officer takes precedence");
+  await send("Make it so.", false);
+  assert.equal(context.fixture.sessions.get(session.id)?.agent, "build", "Bridge crew off still returns the order to the computer");
 });
 
 test("related crew activity, approvals and history belong to one log entry, including after the parent stops", async (t) => {
@@ -518,7 +576,6 @@ test("computer sounds include the arrival call and require the local browser con
   const context = await setup({ soundFolder: folder });
   t.after(context.cleanup);
   await writeFile(join(folder, "startup.mp3"), "stand-in arrival call");
-  await writeFile(join(folder, "tribute-fact.mp3"), "stand-in tribute cue");
   assert.equal((await context.request("sounds/startup")).status, 401);
   assert.equal((await context.request("sounds/tribute-fact")).status, 401);
   await context.login();
@@ -526,10 +583,7 @@ test("computer sounds include the arrival call and require the local browser con
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-type"), "audio/mpeg");
   assert.equal(await response.text(), "stand-in arrival call");
-  const tribute = await context.request("sounds/tribute-fact");
-  assert.equal(tribute.status, 200);
-  assert.equal(tribute.headers.get("content-type"), "audio/mpeg");
-  assert.equal(await tribute.text(), "stand-in tribute cue");
+  assert.equal((await context.request("sounds/tribute-fact")).status, 404);
   assert.equal((await context.request("sounds/request-accepted")).status, 404);
   assert.equal((await context.request("sounds/unknown")).status, 404);
 });

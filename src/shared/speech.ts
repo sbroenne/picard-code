@@ -72,7 +72,6 @@ export class Utterance {
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const FILE_TYPES = "ts|tsx|js|jsx|mjs|cjs|json|md|py|toml|ya?ml|txt|html|css|lock|sh|ps1|cs|go|rs|java|wav|env";
-const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s+/;
 const ABBREVIATIONS = new Set(["AI", "API", "CD", "CI", "CLI", "CPU", "CSS", "CSV", "DNS", "GPU", "HTML", "HTTP", "HTTPS", "ID", "IP", "JSON", "JWT", "OS", "PDF", "PR", "SDK", "SQL", "SSH", "TCP", "TTS", "UI", "URI", "URL", "UTC", "UUID", "UX", "XML", "YAML"]);
 
 function speakableCode(code: string) {
@@ -103,55 +102,52 @@ export function speakable(text: string) {
       .map((word) => /^[A-Z][A-Z0-9]+$/.test(word) && !ABBREVIATIONS.has(word) ? word.toLowerCase() : word).join(" "));
 }
 
-function itemLabel(line: string) {
-  const item = line.replace(LIST_ITEM, "").trim();
-  const head = item.split(/:\s|\s[—–-]\s/)[0]!.trim();
-  return (head || item).replace(/[.;,]+$/, "");
+function spokenInline(tokens: Token[]): string {
+  return tokens.map((token) => {
+    switch (token.type) {
+      case "text": return token.tokens ? spokenInline(token.tokens) : token.text;
+      case "escape": case "image": return token.text;
+      case "codespan": return speakableCode(token.text);
+      case "strong": case "em": case "del": case "link": return token.tokens ? spokenInline(token.tokens) : token.text;
+      case "br": return " ";
+      default: return "";
+    }
+  }).join("");
 }
 
-function joinList(items: string[]) {
-  const shown = items.slice(0, 5).map(itemLabel);
-  const extra = items.length - shown.length;
-  if (extra > 0) shown.push(`${extra} more on screen`);
-  return shown.length < 3 ? shown.join(" and ") : `${shown.slice(0, -1).join(", ")}, and ${shown.at(-1)}`;
+function sentence(text: string) {
+  return !text || /[.!?:]$/.test(text) ? text : `${text}.`;
 }
 
-export function stripUnderscoreEmphasis(text: string) {
-  return text.replace(/(^|[^\w])__?([^_\n]+?)__?(?=[^\w]|$)/g, "$1$2");
+function spokenBlocks(tokens: Token[]): string[] {
+  const blocks: string[] = [];
+  for (const token of tokens) {
+    // A heading marks the appendix; the same words inside a code sample do not end speech.
+    if (token.type === "heading" && /^on screen$/i.test((token.tokens ? spokenInline(token.tokens) : token.text).trim())) break;
+    switch (token.type) {
+      case "paragraph": case "text":
+        blocks.push(token.tokens ? spokenInline(token.tokens) : token.text);
+        break;
+      case "heading":
+        blocks.push(sentence(token.tokens ? spokenInline(token.tokens) : token.text));
+        break;
+      case "list":
+        blocks.push(...token.items.map((item: Tokens.ListItem) => sentence(spokenBlocks(item.tokens).join(" "))));
+        break;
+      case "blockquote":
+        blocks.push(...token.tokens ? spokenBlocks(token.tokens) : [token.text]);
+        break;
+    }
+  }
+  return blocks;
 }
 
-/** Builds a complete short spoken answer from a written reply; detail stays on screen. */
+/** Speaks the conversational answer; code, tables and the marked appendix stay on screen. */
 export function spokenSummary(text: string) {
-  const prose = stripUnderscoreEmphasis(text.replace(/```[\s\S]*?(?:```|$)/g, "")
-    .replace(/!?\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/`([^`\n]+)`/g, (_whole, code: string) => speakableCode(code))
-    .replace(/`/g, "")
-    .replace(/\*+/g, ""))
-    .replace(/^\s{0,3}(?:#{1,6}|>)\s*/gm, "")
-    .trim();
-  if (!prose) return "The result is on screen.";
-  const blocks = prose.split(/\n\s*\n/);
-  const lines = blocks[0]!.split("\n").map((line) => line.trim()).filter(Boolean);
-  let items = lines.filter((line) => LIST_ITEM.test(line));
-  const lead = lines.filter((line) => !LIST_ITEM.test(line)).join(" ").replace(/\s+/g, " ").trim();
-  if (!items.length && lead.endsWith(":") && blocks[1]) {
-    const next = blocks[1].split("\n").map((line) => line.trim()).filter(Boolean);
-    if (next.length && next.every((line) => LIST_ITEM.test(line))) items = next;
-  }
-  let paragraph = items.length ? `${lead ? `${lead} ` : ""}${joinList(items)}.`
-    : lead.endsWith(":") ? `${lead.replace(/:$/, ".")} The details are on screen.`
-    : lead;
-  paragraph = speakable(paragraph).replace(/\s+/g, " ").trim();
-  if (paragraph.length <= 420) return paragraph;
-  const sentences = paragraph.match(/[^.!?]+[.!?]+(?:\s|$)/g) ?? [];
-  let result = "";
-  for (const sentence of sentences) {
-    if ((result + sentence).length > 360) break;
-    result += sentence;
-  }
-  return result.trim()
-    ? `${result.trim()} The full result is on screen.`
-    : "The reply needs a detailed explanation. Please read the result on screen.";
+  let spoken = speakable(spokenBlocks(lexer(text, { gfm: true })).join(" ")).replace(/\s+/g, " ").trim();
+  if (!spoken) return "The result is on screen.";
+  if (spoken.endsWith(":")) spoken = `${spoken.slice(0, -1)}. The details are on screen.`;
+  return spoken;
 }
 
 /** Chooses what to say about a finished reply, including replies that end with a refused or failed action. */
@@ -179,3 +175,4 @@ export function spokenReply(message: ReplyMessage) {
   if (failed.length) return "Unable to complete the request. The action failed. The details are on screen.";
   return "The work finished without a written reply.";
 }
+import { lexer, type Token, type Tokens } from "marked";

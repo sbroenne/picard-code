@@ -7,14 +7,13 @@ import type { SpokenPart } from "../src/shared/briefing";
 /** One stretch of a spoken reply; an officer's part is spoken in that officer's own voice. */
 export type { SpokenPart };
 
-type Cue = "startup" | "request-accepted" | "input-failed" | "request-failed" | "tribute-fact";
+type Cue = "startup" | "request-accepted" | "input-failed" | "request-failed";
 // The downloaded recordings differ in loudness; these keep each one quiet.
-const CUE_VOLUME: Record<Cue, number> = { startup: 0.15, "request-accepted": 1, "input-failed": 0.5, "request-failed": 0.08, "tribute-fact": 0.15 };
+const CUE_VOLUME: Record<Cue, number> = { startup: 0.15, "request-accepted": 1, "input-failed": 0.5, "request-failed": 0.08 };
 
 /** "standby" listens on this computer only; "listening" sends one utterance to the listening service. */
-export type ConsolePhase = "off" | "standby" | "listening" | "thinking" | "speaking" | "cue";
-export interface FollowOnSpeech { text: string; valid(): boolean; started?(): void }
-export type FollowOn = FollowOnSpeech | { cue: "tribute-fact"; valid(): boolean };
+export type ConsolePhase = "off" | "standby" | "listening" | "thinking" | "speaking";
+export interface FollowOn { text: string; valid(): boolean; started?(): void }
 
 export class VoiceConversation {
   microphone = false;
@@ -30,7 +29,6 @@ export class VoiceConversation {
   private speechRevision = 0;
   private followOn?: FollowOn;
   private optionalSpeech = false;
-  private optionalCue = false;
   private socket?: WebSocket;
   private media?: MediaStream;
   private context?: AudioContext;
@@ -89,7 +87,7 @@ export class VoiceConversation {
   }
   private state(phase: ConsolePhase) {
     this.phase = phase;
-    const enabled = !this.mediaPaused && this.microphone && !this.handling && !this.optionalCue && (phase === "standby" || phase === "listening" || this.speechPending);
+    const enabled = !this.mediaPaused && this.microphone && !this.handling && (phase === "standby" || phase === "listening" || this.speechPending);
     this.capture?.port.postMessage(enabled);
     if (!enabled) { this.resetDetection(); this.queue = undefined; }
     this.hooks.changed();
@@ -119,7 +117,7 @@ export class VoiceConversation {
     let cue = this.cues.get(name);
     if (!cue) {
       cue = (async () => {
-        const response = await fetch(`/api/sounds/${name}`, name === "tribute-fact" ? { signal: AbortSignal.timeout(30_000) } : undefined);
+        const response = await fetch(`/api/sounds/${name}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return await context.decodeAudioData(await response.arrayBuffer());
       })().catch((error: unknown) => {
@@ -136,17 +134,16 @@ export class VoiceConversation {
     if (this.context !== context || revision !== this.revision || this.recording) return false;
     if (name === "startup") return context.state === "running" && !this.cueSource && !this.speechPending && !this.handling
       && (this.phase === "off" || this.phase === "standby");
-    if (name === "tribute-fact") return context.state === "running" && this.microphone && this.optionalCue && !this.handling;
     // The failure sound plays just before its spoken explanation, so it is allowed while that speech waits.
     return this.microphone && this.phase !== "listening" && (!this.speechPending || name === "request-failed");
   }
   /** Plays one short sound. Resolves when it ends or is stopped. Listening or computer speech stops it. */
-  private async sound(name: Cue, valid = () => true) {
+  private async sound(name: Cue) {
     const context = this.context;
     const revision = this.revision;
-    if (!context || !valid() || !this.canSound(context, revision, name)) return;
+    if (!context || !this.canSound(context, revision, name)) return;
     const buffer = await this.loadCue(context, name);
-    if (!buffer || !valid() || !this.canSound(context, revision, name)) return;
+    if (!buffer || !this.canSound(context, revision, name)) return;
     this.stopCue();
     const source = context.createBufferSource();
     const volume = context.createGain();
@@ -278,7 +275,6 @@ export class VoiceConversation {
   /** One 20 ms packet of microphone audio. Nothing leaves this computer until speech starts. */
   private heard(packet: ArrayBuffer) {
     if (this.mediaPaused || !this.microphone || this.socket?.readyState !== WebSocket.OPEN) return;
-    if (this.optionalCue) return;
     if (this.handling || !this.recording && this.phase !== "standby" && !this.speechPending) return;
     if (!this.recording && (this.cueSource || performance.now() - this.cueEnded < 200)) {
       // The computer's own sound is not a request.
@@ -299,7 +295,7 @@ export class VoiceConversation {
     });
   }
   private listened(packet: ArrayBuffer, change: ReturnType<Utterance["update"]>) {
-    if (this.mediaPaused || !this.microphone || this.socket?.readyState !== WebSocket.OPEN || this.optionalCue) return;
+    if (this.mediaPaused || !this.microphone || this.socket?.readyState !== WebSocket.OPEN) return;
     if (this.handling || !this.recording && this.phase !== "standby" && !this.speechPending) return;
     if (this.turnCheck && this.turnCheck.revision !== this.utterance.revision) this.turnCheck = undefined;
     if (!this.recording) {
@@ -441,18 +437,6 @@ export class VoiceConversation {
               const next = this.followOn;
               this.followOn = undefined;
               if (!this.recording && !this.handling && next?.valid()) {
-                if ("cue" in next) {
-                  this.receivingAudio = false;
-                  this.optionalCue = true;
-                  this.state("cue");
-                  void this.sound(next.cue, () => data.id === this.speechRevision && next.valid()).then(() => {
-                    if (data.id !== this.speechRevision || !this.speechPending) return;
-                    this.optionalCue = false;
-                    this.speechPending = false;
-                    this.resume();
-                  });
-                  return;
-                }
                 this.speak(next.text);
                 this.optionalSpeech = true;
                 next.started?.();
@@ -547,7 +531,6 @@ export class VoiceConversation {
     const text = parts.map((part) => part.text).join(" ");
     this.followOn = undefined;
     this.optionalSpeech = false;
-    this.optionalCue = false;
     if (this.socket?.readyState !== WebSocket.OPEN) return;
     this.clearAudio();
     this.followOn = followOn;
@@ -574,7 +557,6 @@ export class VoiceConversation {
   stopSpeaking() {
     this.followOn = undefined;
     this.optionalSpeech = false;
-    this.optionalCue = false;
     this.speechPending = false;
     ++this.speechRevision;
     this.clearAudio();
@@ -584,12 +566,11 @@ export class VoiceConversation {
   /** Discards tribute audio without cutting off the useful answer. */
   cancelFollowOn() {
     this.followOn = undefined;
-    if (this.optionalSpeech || this.optionalCue) this.stopSpeaking();
+    if (this.optionalSpeech) this.stopSpeaking();
   }
   close() {
     this.followOn = undefined;
     this.optionalSpeech = false;
-    this.optionalCue = false;
     this.speechPending = false;
     this.handling = false;
     ++this.speechRevision;
