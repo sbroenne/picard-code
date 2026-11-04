@@ -83,12 +83,9 @@ if (smartTurn && speech) speech.turnDetector = {
     async complete(_audio, signal) {
       const first = ++turnChecks === 1;
       if (process.argv.includes("--smart-turn-error")) throw new Error("Test-only pause checker failure.");
-      if (first && process.argv.includes("--smart-turn-late")) {
-        await new Promise<void>((done) => setTimeout(done, 2000));
-        return true;
-      }
       signal.throwIfAborted();
-      return !first;
+      // The browser test holds this result until speech resumes or the microphone is off.
+      return process.argv.includes("--smart-turn-late") || !first;
     },
     async close() {},
   };

@@ -236,7 +236,7 @@ and manual runs use the full checks. A failed changed-file check blocks merging.
 
 The browser checks use a labeled test stand-in for OpenCode, a fake
 microphone and silent stand-in sounds. When you change OpenCode, speech or conversation behavior, also run the
-matching real check from the README (`test:live`, `test:speech:live`,
+matching real check from [the developer guide](docs/DEVELOPMENT.md#real-service-checks) (`test:live`, `test:speech:live`,
 `test:speech:local`, `test:conversation:live`, `test:behavior:live`). Most of
 these make real model requests and some make small Azure charges. Report
 plainly which real checks ran and which could not.

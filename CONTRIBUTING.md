@@ -85,15 +85,6 @@ Vite and its compatible Rolldown override are pinned to versions available
 through the approved feed; check both compatibility and download availability
 before updating them.
 
-OpenCode's platform packages are optional so npm can select the right one for
-each computer. If your configured feed is missing the locked version, `npm ci`
-can finish without OpenCode; the included-program check in `npm test` catches
-that missing download. Ask the feed administrator to make that version
-available. A maintainer can instead refresh all six OpenCode lock entries to
-one available, compatible OpenCode 2 version using npm, then check a clean
-install and `npm run test:live`. Keep the dependency ranges, platform choices
-and integrity checks; do not add a different registry or download workaround.
-
 Before each commit, choose the checks that match the change.
 For changes only to documentation, the project website (`site/`),
 development-only tools (`tools/`), or `browser-tests/site.spec.ts`, run:
@@ -127,8 +118,8 @@ If Chromium is missing, run `npx playwright install chromium`. Windows users
 should use `npm.cmd` for commands with `--` arguments.
 
 These checks use a test stand-in for OpenCode and generated audio. When changing
-models, speech, or conversation behavior, also run the matching real checks in
-README. They can require your own sign-in,
+models, speech, or conversation behavior, also run the matching real checks in the
+[developer guide](docs/DEVELOPMENT.md#real-service-checks). They can require your own sign-in,
 model downloads, or paid Azure/model requests. Report exactly what ran and what
 could not; never submit credentials to CI.
 

@@ -205,21 +205,79 @@ async function controlledMicrophone(page: import("@playwright/test").Page, phras
   return { checks, commits, requests, bytes: () => audioBytes, start: () => page.evaluate(() => (window as unknown as { startMicrophone(): void }).startMicrophone()) };
 }
 
+/** Hold real test-service results until the test has reached the state they must arrive in. */
+async function holdTurnResults(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    const received: number[] = [];
+    Object.assign(window, { receivedTurnResults: received });
+    const NativeWebSocket = window.WebSocket;
+    window.WebSocket = class extends NativeWebSocket {
+      constructor(...args: ConstructorParameters<typeof WebSocket>) {
+        super(...args);
+        this.addEventListener("message", (event: MessageEvent) => {
+          if (typeof event.data !== "string") return;
+          const data = JSON.parse(event.data);
+          // Mark receipt after the app's synchronous message handler has run.
+          if (data.type === "turn-result") setTimeout(() => received.push(data.id), 0);
+        });
+      }
+    };
+  });
+  const pending: { id: number; complete: boolean; message: string; browser: import("@playwright/test").WebSocketRoute }[] = [];
+  await page.routeWebSocket("**/api/speech", (browser) => {
+    const server = browser.connectToServer();
+    server.onMessage((message) => {
+      if (typeof message === "string") {
+        const data = JSON.parse(message);
+        if (data.type === "turn-result") {
+          pending.push({ id: data.id, complete: data.complete, message, browser });
+          return;
+        }
+      }
+      browser.send(message);
+    });
+  });
+  return {
+    pending,
+    async release(index: number) {
+      const result = pending[index];
+      if (!result) throw new Error("No pause detection result is waiting.");
+      result.browser.send(result.message);
+      await expect.poll(() => page.evaluate(() => (window as unknown as { receivedTurnResults: number[] }).receivedTurnResults)).toContain(result.id);
+    },
+  };
+}
+
 for (const mode of ["smart-turn", "smart-turn-late"] as const) {
   test(`${mode}: a thinking pause stays in one request and resumed speech rejects stale completion`, async ({ page }) => {
     const capture = await controlledMicrophone(page);
+    const results = await holdTurnResults(page);
     await launch(page, mode);
     await startListening(page);
     await capture.start();
-    await expect.poll(capture.bytes, { timeout: 10000 }).toBeGreaterThan(32000 * 3);
+    await expect.poll(() => results.pending.length, { timeout: 10000 }).toBe(1);
     expect(capture.checks).toHaveLength(1);
     expect(capture.commits).toEqual([]);
     expect(capture.requests).toEqual([]);
+    expect(results.pending[0]!.complete).toBe(mode === "smart-turn-late");
+    if (mode === "smart-turn") await results.release(0);
+    await expect.poll(() => results.pending.length, { timeout: 10000 }).toBe(2);
+    expect(capture.checks).toHaveLength(2);
+    if (mode === "smart-turn-late") {
+      await results.release(0);
+      const afterStaleResult = capture.bytes();
+      // Another detected packet proves queued completion work did not stop capture.
+      await expect.poll(capture.bytes).toBeGreaterThan(afterStaleResult);
+    }
+    expect(capture.commits).toEqual([]);
+    expect(capture.requests).toEqual([]);
+    expect(results.pending[1]!.complete).toBe(true);
+    const releasedAt = capture.bytes();
+    await results.release(1);
     await expect.poll(() => capture.commits.length, { timeout: 10000 }).toBe(1);
     expect(capture.checks).toHaveLength(2);
     expect(capture.commits[0]).toBeGreaterThan(32000 * 4);
-    expect(capture.commits[0]).toBeLessThan(32000 * 5.5);
-    expect(capture.commits[0]! - capture.checks[1]!).toBeLessThan(32000 * 0.5);
+    expect(capture.commits[0]! - releasedAt).toBeLessThan(32000 * 0.5);
     await expect.poll(() => capture.requests.length).toBe(1);
     await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
     await expect(page.locator(".message[data-role=user]")).toContainText("Computer, hello there");
@@ -239,12 +297,13 @@ test("Smart Turn stops visibly on checker failure without submitting an unfinish
 
 test("microphone off during a Smart Turn check discards its late completion", async ({ page }) => {
   const capture = await controlledMicrophone(page);
+  const results = await holdTurnResults(page);
   await launch(page, "smart-turn-late");
   await startListening(page);
   await capture.start();
-  await expect.poll(() => capture.checks.length, { timeout: 10000 }).toBe(1);
+  await expect.poll(() => results.pending.length, { timeout: 10000 }).toBe(1);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
-  await page.waitForTimeout(2800);
+  await results.release(0);
   expect(capture.commits).toEqual([]);
   expect(capture.requests).toEqual([]);
   await expect(status(page)).toHaveText("Microphone off");

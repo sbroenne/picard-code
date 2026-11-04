@@ -27,7 +27,11 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole("link", { name: "Help shape the computer", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Watch the video on YouTube" })).toHaveAttribute("href", "https://youtu.be/_OKnpwS9dOI");
     await expect(page.locator(".console figcaption")).toContainText("staged example conversation");
-    await expect(page.locator("#start pre code")).toHaveText("npx picard-code");
+    await expect(page.locator("#start pre code")).toHaveText([
+      "npx picard-code",
+      "git clone https://github.com/sbroenne/picard-code.git\ncd picard-code\nnpm install\nnpm run build\nnpm start",
+    ]);
+    await expect(page.getByRole("heading", { name: "Or run a repository clone" })).toBeVisible();
     await expect(page.locator("#start .intro")).toContainText("Prepare the computer");
     await expect(page.locator("#start .intro")).toContainText("Advanced setup");
     await expect(page.locator(".site-footer")).toContainText("Not connected with or endorsed by Sir Patrick Stewart");

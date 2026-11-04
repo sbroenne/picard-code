@@ -91,6 +91,10 @@ Picard Code and a copy of the official OpenCode 2
 instead. You do not need to install OpenCode, Python or anything else
 yourself. OpenCode 1 is not supported.
 
+Prefer to keep a local copy of the source instead of using npx? Follow
+[Run from source](#run-from-source) below. Both ways open the same app and
+use the same first-run setup.
+
 Before the computer starts listening, choose an **AI model** in
 **Computer intelligence** and choose **Use this model**. For the best experience, choose the most capable
 model your provider offers; it may cost more or take longer to answer.
@@ -168,7 +172,9 @@ Code itself in npm's cache; `npx picard-code@latest` gets the newest version.
 
 ## Run from source
 
-To change Picard Code itself, you also need **Git**:
+As an alternative to `npx picard-code`, you can download the repository,
+build it and run your local copy. You need **Git** as well as Node.js 24 or
+newer. Open a terminal and run:
 
 ```sh
 git clone https://github.com/sbroenne/picard-code.git
@@ -178,29 +184,21 @@ npm run build
 npm start
 ```
 
-For live browser updates while developing, use `npm run dev` instead of
-`npm start`. For Azure MAI on both sides, run
-`npm run dev -- --listening mai --speaking mai`. Vite updates browser code
-and styles automatically; changes to the page itself reload it. Restart the
-command after changing server code. This development mode stays on
-`127.0.0.1`, uses the real app and its normal sign-in checks, and does not
-change the normal launch or your saved speech choices.
-If the browser cannot open, the servers keep running so you can open the
-printed live-updates address yourself. Windows shutdown stops the app's
-child processes too.
-After building, `node --test tools/dev.test.mjs tools/dev-server.test.mjs`
-checks launcher failures and shutdown, live style updates and the development
-server's local connection checks.
+Your browser opens automatically. Keep the terminal open while using Picard
+Code; press **Ctrl+C** to stop it. Choose your **AI provider** and **AI model**
+when asked, then choose **Prepare the computer** to set up local listening
+and speaking. You need a microphone and speakers or headphones.
+
+Starting from this folder selects the Picard Code repository as the Project.
+Use the **Project** tile in the app to choose the folder you want to work on.
+
+For later starts, open a terminal in your `picard-code` folder and run
+`npm start` again. You only need to install and build again after updating
+the source.
 
 Choose speech in the app as described in [Get started](#get-started).
-If you prefer to download local speech from the terminal before starting,
-`npm run setup:speech` is optional. These use the same `.picard-code` folder.
-In PowerShell, use `npm.cmd` for
-commands with `--` options, for example
-`npm.cmd start -- --project "C:\Users\you\source\my-project"`; some npm
-PowerShell wrappers otherwise drop the `--`. `npm run opencode -- auth login`
-does the same as `npx picard-code opencode auth login` below.
-See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes.
+For changing Picard Code itself, see the
+[developer guide](docs/DEVELOPMENT.md) and [contribution guide](CONTRIBUTING.md).
 
 ## Bridge crew
 
@@ -346,24 +344,6 @@ than bypassed. In both cases Picard Code still starts: the terminal explains
 why the crew is unavailable, and the computer answers every request itself. With `--connect`, ordinary computer requests remain available;
 crew requests require the server to have the matching crew definitions and
 permission rules. Naming an officer then reports that the crew is unavailable.
-
-`npm run test:crew:live` checks real officer replies and a few measurable voice
-habits (no exclamation marks, Data without contractions, Worf brief), "Make it
-so" carrying out an officer's own proposal, an unclear "Make it so" answered
-with a request for clarification, a quick fact, an explanation and a piece of
-writing kept by the computer, requests needing an officer's judgment handed to
-the right officer without naming them (including misheard names), and real
-briefings with real officer calls and Number One calling officers when
-explicitly asked to organise their work. It also checks that a ban on tools
-or officer calls is respected and Worf does not know a hypothetical
-post-death event, even when asked to use later archives. It cannot judge whether an
-officer sounds right; that needs you. Add `-- --show-replies` to print the six
-generated officer replies for review. The check makes model requests, may incur
-provider charges, and never answers an approval itself.
-
-First confirm a current-generation model with `npm run opencode -- models`,
-then run `npm run test:crew:live -- --model provider/model`.
-The check requires this explicit choice and does not change your saved choice.
 
 ## Connect a model provider
 
@@ -982,19 +962,10 @@ but can only be changed in the file. File paths are resolved from the launch
 folder; if launching outside this repository, use absolute local paths. Launch
 options apply only until speech settings are saved from the page.
 
-The shared interfaces are in `src/server/speech-types.ts`. A listener accepts
-one channel of signed little-endian 16-bit audio at 16,000 samples per second,
-reports understood words, and commits a turn on request. A speaker streams
-the same audio format at 24,000 samples per second. Both receive a cancellation
-signal; `close()` releases owned workers. Selection happens in
-`src/server/speech.ts`, without changes to the browser's conversation controls.
-See [third-party notices](THIRD_PARTY_NOTICES.md) before redistributing local
-dependencies or downloaded models.
-
 ## The computer's manner
 
 Picard Code sends its own conversation instructions with every request, as
-OpenCode's per-request system instructions (`src/server/instructions.ts`).
+OpenCode's per-request system instructions.
 It does not use an optional skill, and it never writes an `AGENTS.md` or
 other rules file into your project, so your project's own development rules
 stay as they are.
@@ -1095,101 +1066,6 @@ If you use a custom `localPython` path, that environment must already provide
 NumPy and ONNX Runtime. Automatic preparation does not repair custom paths.
 See [third-party notices](THIRD_PARTY_NOTICES.md) for the model license.
 
-## Checks
-
-For changes only to documentation or the project website, use
-`npx playwright test browser-tests/site.spec.ts`. It checks website layouts
-and documentation links without building the app. App, dependency, setup and
-check configuration changes still need full checks; see
-[AGENTS.md](AGENTS.md#checks) and [CONTRIBUTING.md](CONTRIBUTING.md#make-and-check-a-change).
-
-```sh
-npm run check
-npm run build
-npm test
-npm run test:browser
-npm run test:live
-npm run test:speech:live
-npm run test:speech:local
-npm run test:conversation:live
-npm.cmd run test:conversation:live -- --local
-npm.cmd run test:conversation:live -- --local --interrupt
-npm.cmd run test:conversation:live -- --local --quiet-interrupt
-npm run test:behavior:live
-```
-
-`check` finds likely mistakes and unused code with oxlint, then checks the
-types of the server and browser code.
-
-The server and browser tests use a clearly labeled local test server that follows
-OpenCode 2's connection format, through Picard Code's own OpenCode client. They cover live replies, saved
-conversations, approvals, questions, folder boundaries, browser request
-protection, safe text rendering, and the desktop layout. They do not claim
-to have called a real model or executed a shell command. Speech tests use an
-artificial browser microphone and simulated speakers, with an explicitly separate speech test service
-to check automatic turns, follow-up context, listening during playback,
-deliberate approvals, and separate stopping controls. They also use silent
-stand-in sound files to check that each computer sound plays once at the right
-moment, never while listening, and not for answers to questions or cancelled work.
-
-`test:live` starts **real OpenCode**, checks its health, project folder, saved
-conversation, live updates, and approval/question requests, then removes its
-own check conversation and shuts its server down. It does not make a paid model
-request. A real model reply needs a signed-in provider.
-
-`test:speech:live` makes small, chargeable requests to the configured **real
-Azure** services. It synthesizes an original short test phrase and sends the
-generated audio through MAI's live listening connection, checking both final
-words and live word updates. It does not capture your microphone or call
-a model.
-
-`test:speech:local` performs real CPU Kokoro synthesis and Nemotron recognition. It feeds audio
-at microphone pace, checks live Nemotron words before commit, names and
-negations, and listening/speaking cancellation followed by fresh listening.
-It saves an original sample under `.picard-voice/samples` and never changes
-saved speech choices. Generated speech does not test a physical microphone.
-
-`test:conversation:live` checks the complete real MAI browser path using
-generated microphone audio, OpenCode, a real model from your signed-in provider, saved
-messages, live text updates, and real spoken playback. `--local` checks the
-same path with Nemotron and Kokoro. Both explicitly confirm
-their test model using a throwaway settings file.
-Add `--model provider/model` to choose a particular available model for the
-check, for example
-`npm run test:conversation:live -- --local --model github-copilot/gpt-5.3-codex`.
-This does not change your saved Picard Code model or speech choices.
-Both paths exercise the real local completion model through the browser's
-captured audio and confirm that a pause was checked before submission.
-Prepare speech first as described in [Natural pauses](#natural-pauses).
-Add `--interrupt` to play a generated request into the browser's capture path
-while a real spoken answer is playing. It checks that playback stops, the
-new request keeps its name and negation, and no stop-work request is sent.
-This tests overlapping speech, not a physical microphone or speaker echo.
-Use `--quiet-interrupt` instead to check a softer request spoken while an
-answer is playing. The voice detector decides by how speech sounds, not by
-volume alone, so softer speech can still start listening.
-These checks make real model requests;
-the MAI variant also makes chargeable Azure requests. Earlier versions of both
-passed on the Windows development machine before the OpenCode 2 migration;
-those results do not verify the current version. They remove their own check conversations and
-save screenshots and generated audio in the ignored samples folder.
-
-`test:behavior:live` holds a six-turn conversation with a real model from your signed-in
-provider through Picard Code's own local interface, in a temporary project
-outside this repository. It checks a short investigation, a follow-up, a
-correction, "show me", OpenCode's real question with a spoken-style answer,
-and a refused command approval that must not run. It writes the full exchange
-to `.picard-voice/samples/behavior-transcript.md`. Model wording varies; the
-check verifies behavior, not exact words. First confirm a current-generation
-model with `npm run opencode -- models`, then pass `-- --model provider/model`.
-The check requires this explicit choice and does not change your saved choice.
-
-Quiet, very short words or a long pause inside a sentence may need a repeat.
-Interrupting playback uses **Stop speaking**, not voice-over-voice detection.
-
-If Playwright reports a missing browser, run `npx playwright install chromium`
-and repeat the browser checks.
-
 ## If something goes wrong
 
 - **Missing OpenCode:** Picard Code uses an OpenCode 2 found on your PATH,
@@ -1256,6 +1132,7 @@ This first version does not include file attachments or a full file editor.
 
 ## Developing Picard Code
 
+- [Developer guide](docs/DEVELOPMENT.md): live updates, speech services and checks.
 - [CONTRIBUTING.md](CONTRIBUTING.md): welcome areas, proposal guidance, and review.
 - [SUPPORT.md](SUPPORT.md): questions and troubleshooting.
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): respectful participation and reporting.
