@@ -7,6 +7,12 @@ import { saveModelSettings } from "../src/server/model-settings";
 
 const first = JSON.stringify(["github-copilot", "fixture-model"]);
 const other = JSON.stringify(["other-provider", "other"]);
+// Original silent stand-in, not a downloaded computer recording.
+const silentSound = Buffer.alloc(44 + 4800);
+silentSound.write("RIFF"); silentSound.writeUInt32LE(silentSound.length - 8, 4); silentSound.write("WAVEfmt ", 8);
+silentSound.writeUInt32LE(16, 16); silentSound.writeUInt16LE(1, 20); silentSound.writeUInt16LE(1, 22);
+silentSound.writeUInt32LE(24000, 24); silentSound.writeUInt32LE(48000, 28);
+silentSound.writeUInt16LE(2, 32); silentSound.writeUInt16LE(16, 34); silentSound.write("data", 36); silentSound.writeUInt32LE(4800, 40);
 
 async function launch(page: Page, args: string[] = []) {
   const child = spawn(process.execPath, ["dist/tests/browser-launch.js", "--model-setup", ...args], { stdio: ["ignore", "pipe", "pipe"] });
@@ -21,6 +27,8 @@ async function launch(page: Page, args: string[] = []) {
     child.once("exit", () => reject(new Error("The model setup test server stopped.")));
   });
   page.on("close", () => child.kill());
+  // The test server has no sound files; a silent stand-in keeps a missing-sound notice from replacing the error under test.
+  await page.route("**/api/sounds/*", (route) => route.fulfill({ contentType: "audio/wav", body: silentSound }));
   await page.goto(url);
   if (args.includes("--provider-error")) await expect(page.getByRole("alert")).toContainText("Test provider lookup failed.");
   else await expect(page.locator("#status")).not.toHaveText("Starting up");
