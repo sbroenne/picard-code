@@ -791,7 +791,8 @@ function renderMessages() {
     for (const part of failures) article.append(make("p", "message-error", part.text));
     if (message.error) article.append(make("p", "message-error", message.error));
     // A real failure in the reply shows in a red alert frame; the exact error text stays as it is.
-    if (failures.length || message.error) {
+    // Work the Captain stopped is not a failure, so it stays unframed.
+    if (failures.length || message.error && message.outcome !== "interrupted") {
       article.dataset.alert = "red";
       const label = make("span", "alert-label", "Red alert");
       label.setAttribute("aria-hidden", "true");
@@ -1652,7 +1653,7 @@ function startVoiceSystems() {
 }
 
 // Each part of Ship's systems carries a short panel code, as on an LCARS console. The codes are decoration only.
-const settingsParts = { provider: ["Connect your AI provider", "orange", "SYS 02"], model: ["Computer intelligence", "blue", "SYS 03"], project: ["Project folder", "tan", "SYS 04"], voice: ["Speech", "lilac", "SYS 05"], about: ["About", "red", "SYS 06"] } as const;
+const settingsParts = { provider: ["Connect your AI provider", "orange", "SYS 01"], model: ["Computer intelligence", "blue", "SYS 02"], project: ["Project folder", "tan", "SYS 03"], voice: ["Speech", "lilac", "SYS 04"], about: ["About", "red", "SYS 05"] } as const;
 type SettingsPart = keyof typeof settingsParts;
 /** Each side panel tile opens its own part, for example #settings/voice. Without one, open what still needs doing. */
 function showSettingsPart(requested?: string) {

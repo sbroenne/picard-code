@@ -648,6 +648,8 @@ test("crew activity and decisions return after reload, and Belay that stops the 
   await expect(page.locator("#approvals")).toBeEmpty();
   await expect(page.getByRole("button", { name: "Belay that", exact: true })).toBeHidden();
   await expect(page.locator(".message.current[data-role=assistant]:not(.crew-report)")).toContainText("Work stopped before it finished.");
+  // Work the Captain stopped is not a failure, so it gets no red alert.
+  await expect(page.locator(".message[data-alert]")).toHaveCount(0);
 });
 
 test("Computer interrupts playback, then the next request keeps its exact words", async ({ page }) => {

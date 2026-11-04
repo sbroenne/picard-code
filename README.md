@@ -448,7 +448,7 @@ screen; there is no phone layout.
   deleted until it is stopped.
 - **Ship’s systems** (`#settings/…`): there is no Settings button. Each tile in the
   side panel opens its own part of the ship’s systems, with a short LCARS panel
-  code (SYS 02 to SYS 06): **AI provider** the sign-in steps,
+  code (SYS 01 to SYS 05): **AI provider** the sign-in steps,
   **Computer intelligence** the AI model, **Project** the folder,
   **Listen · Speak** the speech services, and the tribute badge **About**.
   Choosing the same tile again
