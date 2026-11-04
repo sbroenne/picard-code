@@ -57,6 +57,7 @@ export function speechScope(files, before, after) {
   if (files.some((file) => file === "package.json" || file === "package-lock.json")) {
     if (!before || !after) throw new Error("Speech dependency changes need both package manifests and locks.");
     localSpeech ||= !isDeepStrictEqual(packageInputs(before, ["ws", "typescript"]), packageInputs(after, ["ws", "typescript"]))
+      || before.manifest.scripts?.["setup:speech"] !== after.manifest.scripts?.["setup:speech"]
       || before.manifest.scripts?.["test:speech:local"] !== after.manifest.scripts?.["test:speech:local"]
       || before.manifest.scripts?.build !== after.manifest.scripts?.build;
     browserSpeech ||= !isDeepStrictEqual(packageInputs(before, ["@ricky0123/vad-web", "onnxruntime-web", "vite", "typescript", "@playwright/test"]),

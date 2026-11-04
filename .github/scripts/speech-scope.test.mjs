@@ -113,6 +113,17 @@ test("installed optional peers are model inputs even when another package brough
   assert.deepEqual(speechScope(["package-lock.json"], after, updated), nativeOnly);
 });
 
+test("changing, removing or adding the speech preparation command selects only local checks", () => {
+  const before = fixture();
+  before.manifest.scripts = { "setup:speech": "node scripts/setup-speech.mjs" };
+  const after = structuredClone(before);
+  after.manifest.scripts["setup:speech"] += " --listening nemotron --speaking kokoro";
+  assert.deepEqual(speechScope(["package.json"], before, after), nativeOnly);
+  delete after.manifest.scripts["setup:speech"];
+  assert.deepEqual(speechScope(["package.json"], before, after), nativeOnly);
+  assert.deepEqual(speechScope(["package.json"], after, before), nativeOnly);
+});
+
 test("model commands and Node runtime changes are relevant, unrelated npm scripts are not", () => {
   const before = fixture();
   const after = fixture();
