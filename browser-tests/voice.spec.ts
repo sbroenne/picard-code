@@ -451,6 +451,21 @@ test("officers keep their report order without moving Riker last", async ({ page
   await expect(riker.locator(".rank")).toHaveAttribute("title", "Commander");
   await expect(riker.locator(".rank-pips")).toHaveText("●●●");
   await expect(page.locator(".crew-report").filter({ has: page.getByText("Data", { exact: true }) })).toHaveAttribute("data-division", "operations");
+  // Division colours must not be mistaken for a red alert, the computer or a yellow alert.
+  const colours = await page.evaluate(() => {
+    const probe = document.body.appendChild(document.createElement("i"));
+    const value = (name: string) => {
+      probe.style.color = `var(${name})`;
+      return getComputedStyle(probe).color.match(/\d+/g)!.slice(0, 3).map(Number);
+    };
+    const result = { command: value("--command"), operations: value("--operations"), red: value("--red"), orange: value("--orange"), gold: value("--gold") };
+    probe.remove();
+    return result;
+  });
+  const apart = (a: number[], b: number[]) => Math.hypot(...a.map((value, i) => value - b[i]));
+  expect(apart(colours.command, colours.red)).toBeGreaterThan(40);
+  expect(apart(colours.operations, colours.orange)).toBeGreaterThan(40);
+  expect(apart(colours.operations, colours.gold)).toBeGreaterThan(40);
   await expect.poll(() => spoken.at(-1), { timeout: 15000 }).toEqual([
     { text: "Test stand-in: I recommend the smaller repair, Captain.", speaker: "picard-riker" },
     { text: "Test stand-in: Data found a small repair.", speaker: "picard-data" },
