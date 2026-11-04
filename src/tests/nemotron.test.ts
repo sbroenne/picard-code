@@ -13,6 +13,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import { connectNemotron, nemotronSpeech } from "../server/nemotron-speech.js";
 import { canSetUpLocalSpeech, localSpeechReady } from "../server/speech.js";
 import { downloadVerified, nemotronArchive, NEMOTRON_MODEL, NEMOTRON_NOTICES, NEMOTRON_VERSION, setupNemotron } from "../../scripts/setup-nemotron.mjs";
+import { TURN_MODEL } from "../../scripts/setup-turn.mjs";
 
 async function fixture(t: TestContext) {
   const server = createServer();
@@ -167,6 +168,22 @@ test("Nemotron platform selection preserves explicit alternatives on unsupported
   assert.throws(() => nemotronArchive("darwin", "x64"), /own Azure speech resource/);
 });
 
+test("unsupported computers do not suggest Azure when pause detection cannot run", { timeout: 5000 }, async (t) => {
+  const home = await mkdtemp(resolve(".picard-test-setup-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const script = `Object.defineProperty(process, "platform", { value: "freebsd" });
+    process.argv = ["node", "setup-speech", "--listening", "mai", "--speaking", "mai"];
+    await import(${JSON.stringify(new URL("../../scripts/setup-speech.mjs", import.meta.url).href)});`;
+  const child = spawn(process.execPath, ["--input-type=module", "-e", script], { env: { ...process.env, HOME: home, USERPROFILE: home } });
+  let errors = "";
+  child.stderr.on("data", (chunk) => { errors += chunk; });
+  const [code] = await once(child, "close");
+  assert.equal(code, 1);
+  assert.match(errors, /Pause detection supports macOS, Windows, and Linux/);
+  assert.doesNotMatch(errors, /Choose Azure/);
+  assert.deepEqual(await readdir(home), [], "Unsupported setup must stop before downloading anything.");
+});
+
 test("local readiness and custom paths concern only the selected speech services", async (t) => {
   const folder = await mkdtemp(resolve(".picard-test-speech-"));
   t.after(() => rm(folder, { recursive: true, force: true }));
@@ -174,15 +191,15 @@ test("local readiness and custom paths concern only the selected speech services
   await writeFile(present, "");
   const record = { localPython: present, whisperModel: present, kokoroModel: present, kokoroVoices: present,
     nemotronProgram: join(folder, "missing"), nemotronModel: join(folder, "missing") };
-  assert.equal(await localSpeechReady({ ...record, nemotronProgram: present, nemotronModel: present, listening: "nemotron", speaking: "kokoro" }), true);
-  assert.equal(await localSpeechReady({ ...record, listening: "nemotron", speaking: "kokoro" }), false);
-  assert.equal(await localSpeechReady({ ...record, listening: "mai", speaking: "mai" }), true);
+  assert.equal(await localSpeechReady({ ...record, nemotronProgram: present, nemotronModel: present, listening: "nemotron", speaking: "kokoro" }, true, true), true);
+  assert.equal(await localSpeechReady({ ...record, listening: "nemotron", speaking: "kokoro" }, true, true), false);
+  assert.equal(await localSpeechReady({ ...record, listening: "mai", speaking: "mai" }, false, false), true);
   assert.equal(await localSpeechReady({ ...record, listening: "nemotron", speaking: "kokoro" }, false, true), true);
   assert.equal(canSetUpLocalSpeech({ listening: "nemotron", speaking: "mai", whisperModel: "/old/custom/whisper" }), true);
   assert.equal(canSetUpLocalSpeech({ listening: "nemotron", speaking: "mai", nemotronModel: "/custom/nemotron" }), false);
 });
 
-test("the standard Nemotron model is ready only with its NVIDIA licence and notice", { timeout: 10_000 }, async (t) => {
+test("speech readiness includes pause detection for local and Azure choices and keeps the model notices", { timeout: 10_000 }, async (t) => {
   const home = await mkdtemp(resolve(".picard-test-home-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const models = join(home, ".picard-code", "voice", "models");
@@ -190,9 +207,9 @@ test("the standard Nemotron model is ready only with its NVIDIA licence and noti
   const program = join(home, "nemo-speech");
   await writeFile(program, "");
   await writeFile(join(models, NEMOTRON_MODEL), "");
-  const ready = async () => {
+  const ready = async (listening = "nemotron") => {
     const script = `const { localSpeechReady } = await import(${JSON.stringify(new URL("../server/speech.js", import.meta.url).href)});
-      process.stdout.write(String(await localSpeechReady({ listening: "nemotron", speaking: "mai", nemotronProgram: ${JSON.stringify(program)} })));`;
+      process.stdout.write(String(await localSpeechReady({ listening: ${JSON.stringify(listening)}, speaking: "mai", nemotronProgram: ${JSON.stringify(program)} })));`;
     const child = spawn(process.execPath, ["--input-type=module", "-e", script], { env: { ...process.env, HOME: home, USERPROFILE: home } });
     let output = "";
     child.stdout.on("data", (chunk) => { output += chunk; });
@@ -204,7 +221,20 @@ test("the standard Nemotron model is ready only with its NVIDIA licence and noti
   await writeFile(join(models, NEMOTRON_NOTICES[0]), "");
   assert.equal(await ready(), "false");
   await writeFile(join(models, NEMOTRON_NOTICES[1]), "");
+  assert.equal(await ready(), "false", "Completion detection is required even with an installed listener.");
+  assert.equal(await ready("mai"), "false", "Azure speech also needs local completion detection.");
+  await writeFile(join(models, TURN_MODEL), "");
+  await writeFile(join(models, "smart-turn-LICENSE.txt"), "");
+  const python = join(home, ".picard-code", "voice", process.platform === "win32" ? "Scripts" : "bin", process.platform === "win32" ? "python.exe" : "python");
+  await mkdir(join(python, ".."), { recursive: true });
+  await writeFile(python, "");
   assert.equal(await ready(), "true");
+  assert.equal(await ready("mai"), "true", "Azure-only preparation does not need Kokoro or Nemotron weights.");
+  await rm(join(models, NEMOTRON_NOTICES[0]));
+  assert.equal(await ready(), "false", "Adding pause detection must not weaken the existing model licence requirement.");
+  assert.equal(await ready("mai"), "true", "Azure does not need Nemotron's notices.");
+  await rm(python);
+  assert.equal(await ready("mai"), "false", "The model alone cannot run without Python.");
 });
 
 test("speech downloads verify checksums, preserve a previous file on failure, and can retry", async (t) => {
@@ -228,6 +258,26 @@ test("speech downloads verify checksums, preserve a previous file on failure, an
   assert.deepEqual(await readFile(file), bytes);
   await downloadVerified(url, file, expected);
   assert.equal(requests, 2, "A verified existing model is not downloaded again.");
+});
+
+test("a cancelled model download removes only its partial file and preserves the previous model", { timeout: 10_000 }, async (t) => {
+  const folder = await mkdtemp(resolve(".picard-test-download-"));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const target = join(folder, "model");
+  await writeFile(target, "previous model");
+  const server = createServer((_request, response) => { response.write("generated incomplete model"); });
+  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>((done) => server.close(() => done())); });
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const controller = new AbortController();
+  const download = downloadVerified(`http://127.0.0.1:${address.port}/generated-model`, target, "0".repeat(64), controller.signal);
+  const rejected = assert.rejects(download, /aborted/);
+  while (!(await readdir(folder)).some((file) => file.endsWith(".download"))) await wait(10);
+  controller.abort();
+  await rejected;
+  assert.equal(await readFile(target, "utf8"), "previous model");
+  assert.deepEqual(await readdir(folder), ["model"]);
 });
 
 test("a stopped download is removed on retry without touching a running process's files", { timeout: 10_000 }, async (t) => {

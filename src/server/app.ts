@@ -19,7 +19,7 @@ import { addressedOfficers, chosenCrew, continuesOfficer, crewMember, type CrewI
 import { requireCrew, verifiedCrew } from "./crew.js";
 import { attachSpeech } from "./speech-bridge.js";
 import type { SpeechSelection, SpeechService } from "./speech-types.js";
-import { canSetUpLocalSpeech, describeSpeechSettings, localSpeechReady, mergeSpeechSettings, needsListenerMigration, readSpeechSettings, saveSpeechSettings, setUpLocalSpeech, speechFromSettings, speechSettingsFile } from "./speech.js";
+import { canSetUpLocalSpeech, checkSpeechSetup, describeSpeechSettings, localSpeechReady, mergeSpeechSettings, needsListenerMigration, readSpeechSettings, saveSpeechSettings, setUpLocalSpeech, speechFromSettings, speechSettingsFile } from "./speech.js";
 
 class HttpError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -171,9 +171,11 @@ export async function startApp(options: AppOptions) {
     ? mergeSpeechSettings(savedSpeech, {
       ...describeSpeechSettings(savedSpeech),
       speaking: savedSpeech.speaking ?? "kokoro",
-    }) : undefined;
-  const migration = migrationSettings && options.speechOverrides?.speaking
-    ? { ...migrationSettings, speaking: options.speechOverrides.speaking } : migrationSettings;
+    }) : savedSpeech;
+  const preparedSettings = migrationSettings ? {
+    ...migrationSettings, ...Object.fromEntries(Object.entries(options.speechOverrides ?? {}).filter(([, value]) => value !== undefined)),
+  } : undefined;
+  const migration = preparedSettings && (needsListenerMigration(savedSpeech) || !await localReady(preparedSettings)) ? preparedSettings : undefined;
   const migrationDownload = migration ? !await localReady(migration) : false;
   const setUpLocal = options.setUpLocalSpeech ?? setUpLocalSpeech;
   const localFiles = async (record: Record<string, unknown> | undefined) => ({
@@ -181,6 +183,7 @@ export async function startApp(options: AppOptions) {
     kokoro: await localReady(record, false, true),
   });
   const localDownload = async (record: Record<string, unknown>): Promise<SpeechSelection> => {
+    await checkSpeechSetup(record);
     const files = await localFiles(record);
     const listening = record.listening !== "mai" && !files.nemotron;
     const speaking = record.speaking !== "mai" && !files.kokoro;
@@ -215,7 +218,7 @@ export async function startApp(options: AppOptions) {
   };
 
   const beginSpeechSetup = (record: Record<string, unknown>, download: boolean, savedRecord = record) => {
-    const job: NonNullable<typeof localSetup> = { state: "running", step: download ? "Starting the download" : "Starting local speech" };
+    const job: NonNullable<typeof localSetup> = { state: "running", step: download ? "Starting the download" : "Starting speech" };
     localSetup = job;
     localSetupChoice = { record, savedRecord };
     notifyState();
@@ -501,8 +504,7 @@ export async function startApp(options: AppOptions) {
           try { record = mergeSpeechSettings(await readSpeechSettings(speechFile), data); }
           catch (error) { throw new HttpError(400, errorMessage(error)); }
           if (localSetup?.state === "running") throw new HttpError(409, "The speech download is still running. Wait for it to finish.");
-          const listening = record.listening !== "mai", speaking = record.speaking === "kokoro";
-          if ((listening || speaking) && !await localReady(record, listening, speaking)) {
+          if (!await localReady(record)) {
             await localDownload(record);
             json(response, 202, beginSpeechSetup(record, true));
             return;

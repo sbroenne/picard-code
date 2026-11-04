@@ -1,4 +1,4 @@
-// Downloads only the selected local speech services, inside .picard-code.
+// Prepares pause detection and the selected local speech services inside .picard-code.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { access, mkdir, rename, rm, writeFile } from "node:fs/promises";
@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { nemotronArchive, setupNemotron } from "./setup-nemotron.mjs";
+import { setupTurn } from "./setup-turn.mjs";
 
 const { values } = parseArgs({ args: process.argv.slice(process.argv[2] === "setup-speech" ? 3 : 2), options: {
   listening: { type: "string", default: "nemotron" }, speaking: { type: "string", default: "kokoro" },
@@ -26,6 +27,7 @@ const env = { ...process.env };
 const UV_VERSION = "0.13.6";
 const UV = {
   "darwin-arm64": ["aarch64-apple-darwin.tar.gz", "60fbd5c8a1ed681845eea28d9d622fcde03c51e91a43465b64a1e17db1ed3472"],
+  "darwin-x64": ["x86_64-apple-darwin.tar.gz", "63ba17fdda55ad1a230d4b37fc6017ffa10c23688c83818bd3bfdf914c652a02"],
   "win32-x64": ["x86_64-pc-windows-msvc.zip", "a2a8820d5eea32f08ef467ef3b7f66883a9b076d5737a2fc2fbb5f458d1bb50f"],
   "win32-arm64": ["x86_64-pc-windows-msvc.zip", "a2a8820d5eea32f08ef467ef3b7f66883a9b076d5737a2fc2fbb5f458d1bb50f"],
   "linux-x64": ["x86_64-unknown-linux-gnu.tar.gz", "f29c3e94ffabd7e6f3ba521dba169a9b7ec12100bf3257087f0f24f6123f3645"],
@@ -33,11 +35,11 @@ const UV = {
 };
 
 function unsupported() {
-  if (!UV[`${process.platform}-${process.arch}`]) return "Local speech runs on Apple silicon Macs, on Windows, and on Linux with an x64 or arm64 processor.";
-  if (process.platform === "darwin" && Number(release().split(".")[0]) < 23) return "Local speech needs macOS 14 or newer.";
+  if (!UV[`${process.platform}-${process.arch}`]) return "Pause detection supports macOS, Windows, and Linux on x64 or arm64 processors.";
+  if (process.platform === "darwin" && Number(release().split(".")[0]) < 23) return "Pause detection needs macOS 14 or newer.";
   if (process.platform === "linux") {
     const [major, minor] = (process.report.getReport().header.glibcVersionRuntime ?? "0.0").split(".").map(Number);
-    if (major * 1000 + minor < 2028) return "Local speech needs Linux with glibc 2.28 or newer, which most desktop Linux versions since 2019 have.";
+    if (major * 1000 + minor < 2028) return "Pause detection needs Linux with glibc 2.28 or newer, which most desktop Linux versions since 2019 have.";
   }
 }
 
@@ -88,15 +90,17 @@ try {
     throw new Error("Choose nemotron or mai for listening, and kokoro or mai for speaking.");
   }
   const reason = unsupported();
-  if (reason) throw new Error(`${reason} Choose Azure MAI speech in the Listen · Speak tile instead.`);
+  if (reason) throw new Error(reason);
   if (listening === "nemotron") nemotronArchive();
-  if (speaking === "kokoro") {
+  {
     const program = await uv();
     run(program, ["venv", "--allow-existing", "--python", windowsArm ? "cpython-3.11-windows-x86_64-none" : "3.11", voice],
       `Creating the Python 3.11 environment in ${voice}${windowsArm ? " (Intel-compatible, run through Windows' emulation)" : ""}...`);
-    run(program, ["pip", "install", "--python", python, "-r", join(scripts, "requirements-kokoro.txt")], "Installing the speaking packages...");
-    run(python, [join(scripts, "setup-local-speech.py"), join(voice, "models")], "Downloading and checking the Kokoro model and voices...");
+    run(program, ["pip", "install", "--python", python, "-r", join(scripts, speaking === "kokoro" ? "requirements-kokoro.txt" : "requirements-turn.txt")], "Installing the selected speech packages...");
+    if (speaking === "kokoro") run(python, [join(scripts, "setup-local-speech.py"), join(voice, "models")], "Downloading and checking the Kokoro model and voices...");
   }
+  console.log("\nDownloading and checking the local pause detection model (about 9 MB)...");
+  await setupTurn(home);
   if (listening === "nemotron") await setupNemotron(home);
   console.log(`\nThe selected speech files are ready (${listening} listening, ${speaking} speaking). Saved speech choices have not changed.`);
 } catch (error) {

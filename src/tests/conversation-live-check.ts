@@ -181,6 +181,7 @@ try {
   await expect(page.getByRole("status")).toHaveText("Microphone off", { timeout: 30_000 });
   assert.ok(sentAudio > 16000, "Actual browser microphone audio must reach the chosen listener.");
   assert.ok(receivedAudio > 16000, "Actual chosen speaking service must return audible-length audio.");
+  assert.ok(commands.includes("check-turn"), "The real Smart Turn worker must check a browser-captured pause before the request is sent.");
   if (!interrupt) assert.equal(audioWhileSpeaking, 0, "Playback must not be transcribed as another user request.");
   await expect(page.locator(".message[data-role=user]")).toHaveCount(interrupt ? 2 : 1);
   sessionID = (await engine.client.sessions(project))[0]?.id;
@@ -190,7 +191,7 @@ try {
   if (observationError) throw observationError;
   assert.ok((deltas.get(sessionID) ?? 0) > 0, "The real model answer must produce live text updates, not only a saved final reply.");
   await page.screenshot({ path: resolve(directory, `${name}-conversation.png`), fullPage: true });
-  console.log(`Real ${name} browser conversation passed: synthesized test microphone, automatic turn submission, OpenCode + ${choice.provider} ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, ${interrupt ? `${quiet ? "a quiet" : "a"} spoken interruption with the exact request preserved, ` : ""}mute and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
+  console.log(`Real ${name} browser conversation passed: synthesized test microphone, real local Smart Turn pause detection, automatic turn submission, OpenCode + ${choice.provider} ${choice.modelID}, ${deltas.get(sessionID)} live text updates, saved reply, real spoken playback, ${interrupt ? `${quiet ? "a quiet" : "a"} spoken interruption with the exact request preserved, ` : ""}mute and no self-listening. Screenshot: .picard-voice\\samples\\${name}-conversation.png`);
 } finally {
   controller.abort();
   await observation;

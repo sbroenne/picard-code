@@ -39,7 +39,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => { await rm(folder, { recursive: true }); });
 
-async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "fresh-starlog" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "faster" | "speed-follow-up" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome" | "explanation") {
+async function launch(page: import("@playwright/test").Page, mode?: "resume" | "approval" | "question" | "unclear" | "slow" | "long" | "choose" | "unsafe" | "fresh" | "fresh-starlog" | "sleep" | "separate" | "tribute" | "picard" | "picard-decline" | "stewart" | "stewart-about" | "picard-story" | "repo" | "crew" | "briefing" | "briefing-failure" | "briefing-recovered" | "briefing-repeat" | "briefing-late-failure" | "briefing-copy" | "briefing-filename" | "briefing-failure-copy" | "briefing-failure-only" | "briefing-parent-failure" | "officer" | "news" | "interrupt" | "interrupt-room" | "faster" | "speed-follow-up" | "interrupt-approval" | "interrupt-request" | "interrupt-final" | "no-speech" | "example" | "showcase" | "broken" | "missing-outcome" | "explanation" | "smart-turn" | "smart-turn-late" | "smart-turn-error") {
   // Record each computer sound that starts, and the voice status at that moment.
   await page.addInitScript((lengths) => {
     const decoded = new WeakSet<AudioBuffer>();
@@ -172,6 +172,82 @@ async function holdSpeaking(page: import("@playwright/test").Page) {
 }
 
 test.setTimeout(60000);
+
+async function thinkingPauseAudio(page: import("@playwright/test").Page) {
+  await page.addInitScript((voice) => {
+    const original = AudioContext.prototype.createMediaStreamSource;
+    AudioContext.prototype.createMediaStreamSource = function () {
+      const destination = this.createMediaStreamDestination();
+      const audio = this.createBuffer(1, 16000 * 20, 16000);
+      // One-second phrases, with a two-second thinking pause between them.
+      audio.getChannelData(0).set(voice, 8000);
+      audio.getChannelData(0).set(voice, 56000);
+      const source = this.createBufferSource();
+      source.buffer = audio;
+      source.connect(destination);
+      Object.assign(window, { startThinkingPause: () => source.start() });
+      return original.call(this, destination.stream);
+    };
+  }, Array.from(syntheticVoice(1, 0.1)));
+  let audioBytes = 0;
+  const checks: number[] = [];
+  const commits: number[] = [];
+  const requests: string[] = [];
+  page.on("websocket", (socket) => socket.on("framesent", ({ payload }) => {
+    if (typeof payload !== "string") audioBytes += payload.length;
+    else if (JSON.parse(payload).type === "check-turn") checks.push(audioBytes);
+    else if (JSON.parse(payload).type === "commit") commits.push(audioBytes);
+  }));
+  page.on("request", (request) => {
+    if (request.method() === "POST" && /\/api\/conversations\/[^/]+\/send$/.test(request.url())) requests.push(request.url());
+  });
+  return { checks, commits, requests, bytes: () => audioBytes, start: () => page.evaluate(() => (window as unknown as { startThinkingPause(): void }).startThinkingPause()) };
+}
+
+for (const mode of ["smart-turn", "smart-turn-late"] as const) {
+  test(`${mode}: a thinking pause stays in one request and resumed speech rejects stale completion`, async ({ page }) => {
+    const capture = await thinkingPauseAudio(page);
+    await launch(page, mode);
+    await startListening(page);
+    await capture.start();
+    await expect.poll(capture.bytes, { timeout: 10000 }).toBeGreaterThan(32000 * 3);
+    expect(capture.checks).toHaveLength(1);
+    expect(capture.commits).toEqual([]);
+    expect(capture.requests).toEqual([]);
+    await expect.poll(() => capture.commits.length, { timeout: 10000 }).toBe(1);
+    expect(capture.checks).toHaveLength(2);
+    expect(capture.commits[0]).toBeGreaterThan(32000 * 4);
+    expect(capture.commits[0]).toBeLessThan(32000 * 5.5);
+    expect(capture.commits[0]! - capture.checks[1]!).toBeLessThan(32000 * 0.5);
+    await expect.poll(() => capture.requests.length).toBe(1);
+    await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
+    await expect(page.locator(".message[data-role=user]")).toContainText("Computer, hello there");
+  });
+}
+
+test("Smart Turn stops visibly on checker failure without submitting an unfinished request", async ({ page }) => {
+  const capture = await thinkingPauseAudio(page);
+  await launch(page, "smart-turn-error");
+  await startListening(page);
+  await capture.start();
+  await expect(page.locator("#notice")).toContainText("Test-only pause checker failure.", { timeout: 10000 });
+  await expect(status(page)).toHaveText("Microphone off");
+  expect(capture.commits).toEqual([]);
+  expect(capture.requests).toEqual([]);
+});
+
+test("microphone off during a Smart Turn check discards its late completion", async ({ page }) => {
+  const capture = await thinkingPauseAudio(page);
+  await launch(page, "smart-turn-late");
+  await startListening(page);
+  await capture.start();
+  await expect.poll(() => capture.checks.length, { timeout: 10000 }).toBe(1);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await page.waitForTimeout(2800);
+  expect(capture.commits).toEqual([]);
+  expect(capture.requests).toEqual([]);
+  await expect(status(page)).toHaveText("Microphone off");
+});
 
 test("\"Computer, speak faster\" confirms at the faster speed, is not sent as a request, and later replies keep the speed", async ({ page }) => {
   const frames: { text?: string; speed?: number }[] = [];
@@ -405,8 +481,8 @@ test("while work runs, the conversation says who is working and what they are do
   const line = (await working.boundingBox())!;
   expect(line.y).toBeGreaterThan(request.y);
   await expect(page.locator(".message-error")).toHaveCount(0);
-  await expect(page.locator(".step-failures summary")).toHaveText("1 step did not work");
   await expect(page.locator(".message.current[data-role=assistant]").last()).toContainText("Test stand-in: Captain, no real news was searched.", { timeout: 15000 });
+  await expect(page.locator(".step-failures summary")).toHaveText("1 step did not work");
   await expect(page.locator(".message.current[data-role=assistant] .message-header strong").last()).toHaveText("Data");
   await expect(working).toBeHidden();
   // The real error stays readable, word for word, when opened.
