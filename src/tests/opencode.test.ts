@@ -74,7 +74,8 @@ test("models set in OpenCode's settings are read in either form, and anything el
   assert.deepEqual(await client.configuredModels("/project"), []);
 });
 
-test("crew entries are read page by page, and a repeated page is reported instead of looping", async (t) => {
+// A broken repeat check would keep asking for the same page forever, so the test has a deadline.
+test("crew entries are read page by page, and a repeated page is reported instead of looping", { timeout: 10000 }, async (t) => {
   const session = (id: string) => ({ id });
   let pages: Record<string, { data: { id: string }[]; cursor?: { next?: string | null } }> = {};
   const { client, seen } = await stub(t, (request, response) => {

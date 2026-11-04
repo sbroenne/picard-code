@@ -312,14 +312,21 @@ test("reply media checks every format's signature and explains each refusal", as
     await writeFile(join(context.directory, name), bytes);
     await writeFile(join(context.directory, `wrong-${name}`), Buffer.concat([Buffer.from("not media "), bytes]));
   }
-  // Near misses: a Matroska file that is not WebM, a sound file in the same RIFF wrapper as WebP, and an unknown GIF version.
+  // Near misses: a Matroska file that is not WebM, a sound file in the same RIFF wrapper as WebP, an unknown GIF version,
+  // a JPEG start with the wrong third byte, and a WEBP marker without the RIFF wrapper.
   await writeFile(join(context.directory, "other.webm"), Buffer.concat([webm.subarray(0, 4), Buffer.alloc(20)]));
   await writeFile(join(context.directory, "sound.webp"), Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WAVE"), Buffer.alloc(20)]));
   await writeFile(join(context.directory, "future.gif"), Buffer.concat([Buffer.from("GIF90a"), Buffer.alloc(20)]));
+  await writeFile(join(context.directory, "short.jpg"), Buffer.concat([Buffer.from([255, 216, 0, 224]), Buffer.alloc(20)]));
+  await writeFile(join(context.directory, "unwrapped.webp"), Buffer.concat([Buffer.from("RIFX"), Buffer.alloc(4), Buffer.from("WEBP"), Buffer.alloc(20)]));
   await writeFile(join(context.directory, "notes.txt"), "plain words");
-  await symlink(join(context.directory, "notes.txt"), join(context.directory, "notes.png"));
+  // Windows accounts without Developer Mode cannot create file links; the check is skipped only there.
+  const linked = await symlink(join(context.directory, "notes.txt"), join(context.directory, "notes.png")).then(() => true, (error: NodeJS.ErrnoException) => {
+    if (process.platform === "win32" && error.code === "EPERM") return false;
+    throw error;
+  });
   await writeFile(join(context.directory, "locked.png"), Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-  const refs = [...formats.flatMap(([name]) => [name, `wrong-${name}`]), "other.webm", "sound.webp", "future.gif", "notes.png", "locked.png"];
+  const refs = [...formats.flatMap(([name]) => [name, `wrong-${name}`]), "other.webm", "sound.webp", "future.gif", "short.jpg", "unwrapped.webp", "notes.png", "locked.png"];
   context.fixture.messages.get(session.id)!.push({
     id: "media-reply", type: "assistant", time: { created: 1 },
     content: [{ type: "text", text: refs.map((href) => `![Original test media](${href})`).join("\n") }],
@@ -338,8 +345,8 @@ test("reply media checks every format's signature and explains each refusal", as
     assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes, name);
     await refused(`wrong-${name}`, 415, "The media file does not match its format.");
   }
-  for (const nearMiss of ["other.webm", "sound.webp", "future.gif"]) await refused(nearMiss, 415, "The media file does not match its format.");
-  await refused("notes.png", 415, "This media format cannot be shown. Use PNG, JPEG, GIF, WebP, MP4, or WebM.");
+  for (const nearMiss of ["other.webm", "sound.webp", "future.gif", "short.jpg", "unwrapped.webp"]) await refused(nearMiss, 415, "The media file does not match its format.");
+  if (linked) await refused("notes.png", 415, "This media format cannot be shown. Use PNG, JPEG, GIF, WebP, MP4, or WebM.");
   // Windows and administrators can read a file without read permission, so only check where the permission holds.
   if (process.platform !== "win32" && process.getuid?.() !== 0) {
     await chmod(join(context.directory, "locked.png"), 0);
@@ -608,7 +615,8 @@ test("a retrying officer keeps the main entry retrying even when another officer
   assert.equal(state.statuses[parent.id]?.message, "Provider temporarily unavailable.");
 });
 
-test("the live connection ignores other folders, moved and unknown entries, and clears a retry once work resumes", async (t) => {
+// Heartbeats keep the live connection open, so a missing update would otherwise wait forever.
+test("the live connection ignores other folders, moved and unknown entries, and clears a retry once work resumes", { timeout: 15000 }, async (t) => {
   const context = await setup();
   t.after(context.cleanup);
   await context.login();
@@ -654,7 +662,7 @@ test("the live connection ignores other folders, moved and unknown entries, and 
   assert.equal((await (await context.request("state")).json() as AppState).statuses[parent.id]?.type, "busy", "a retry from earlier work is not shown for new work");
 });
 
-test("a crew entry that points back to itself is reported instead of hanging the live connection", async (t) => {
+test("a crew entry that points back to itself is reported instead of hanging the live connection", { timeout: 15000 }, async (t) => {
   const context = await setup();
   t.after(context.cleanup);
   await context.login();

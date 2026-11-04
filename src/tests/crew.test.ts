@@ -43,10 +43,15 @@ test("agent loading gives up after its deadline, a missing crew is reported, and
   let now = 1000;
   t.mock.method(Date, "now", () => now);
   let calls = 0;
-  client.agents = async () => { if (++calls === 3) now += 6000; return [build]; };
+  client.agents = async () => {
+    if (++calls > 3) throw new Error("Agent loading kept waiting after its deadline.");
+    if (calls === 3) now += 6000;
+    return [build];
+  };
   assert.deepEqual(await loadedAgents(client, ".", true), [build]);
   assert.equal(calls, 3);
   t.mock.restoreAll();
+  client.agents = async () => [build];
   await assert.rejects(requireCrew(client, "."), { message: CREW_UNAVAILABLE });
   client.agents = async () => crew;
   assert.deepEqual(await requireCrew(client, "."), crew);
