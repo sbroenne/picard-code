@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs, { mkdtemp, mkdir, readFile, writeFile, rm, realpath, symlink, rename } from "node:fs/promises";
+import fs, { chmod, mkdtemp, mkdir, readFile, writeFile, rm, realpath, symlink, rename } from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -292,6 +292,59 @@ test("reply media is authenticated, confined to its Project, validated, and seek
   assert.equal((await head.arrayBuffer()).byteLength, 0);
   context.fixture.sessions.delete(root.id);
   assert.notEqual((await context.request(path())).status, 200, "deleted entries cannot serve old references");
+});
+
+test("reply media checks every format's signature and explains each refusal", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  const session = context.fixture.createSession(context.directory, "Media formats");
+  const webm = Buffer.concat([Buffer.from([26, 69, 223, 163]), Buffer.alloc(8), Buffer.from("webm"), Buffer.alloc(8)]);
+  const formats: [string, string, Buffer][] = [
+    ["photo.jpg", "image/jpeg", Buffer.concat([Buffer.from([255, 216, 255, 224]), Buffer.alloc(20)])],
+    ["photo.jpeg", "image/jpeg", Buffer.concat([Buffer.from([255, 216, 255, 225]), Buffer.alloc(20)])],
+    ["old.gif", "image/gif", Buffer.concat([Buffer.from("GIF87a"), Buffer.alloc(20)])],
+    ["new.gif", "image/gif", Buffer.concat([Buffer.from("GIF89a"), Buffer.alloc(20)])],
+    ["still.webp", "image/webp", Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WEBP"), Buffer.alloc(20)])],
+    ["clip.mp4", "video/mp4", Buffer.concat([Buffer.alloc(4), Buffer.from("ftyp"), Buffer.alloc(20)])],
+    ["clip.webm", "video/webm", webm],
+  ];
+  for (const [name, , bytes] of formats) {
+    await writeFile(join(context.directory, name), bytes);
+    await writeFile(join(context.directory, `wrong-${name}`), Buffer.concat([Buffer.from("not media "), bytes]));
+  }
+  // Near misses: a Matroska file that is not WebM, a sound file in the same RIFF wrapper as WebP, and an unknown GIF version.
+  await writeFile(join(context.directory, "other.webm"), Buffer.concat([webm.subarray(0, 4), Buffer.alloc(20)]));
+  await writeFile(join(context.directory, "sound.webp"), Buffer.concat([Buffer.from("RIFF"), Buffer.alloc(4), Buffer.from("WAVE"), Buffer.alloc(20)]));
+  await writeFile(join(context.directory, "future.gif"), Buffer.concat([Buffer.from("GIF90a"), Buffer.alloc(20)]));
+  await writeFile(join(context.directory, "notes.txt"), "plain words");
+  await symlink(join(context.directory, "notes.txt"), join(context.directory, "notes.png"));
+  await writeFile(join(context.directory, "locked.png"), Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  const refs = [...formats.flatMap(([name]) => [name, `wrong-${name}`]), "other.webm", "sound.webp", "future.gif", "notes.png", "locked.png"];
+  context.fixture.messages.get(session.id)!.push({
+    id: "media-reply", type: "assistant", time: { created: 1 },
+    content: [{ type: "text", text: refs.map((href) => `![Original test media](${href})`).join("\n") }],
+  });
+  const media = (href: string) => context.request(`conversations/${session.id}/media/media-reply?${new URLSearchParams({ href, project: context.directory })}`);
+  const refused = async (href: string, status: number, error: string) => {
+    const response = await media(href);
+    assert.deepEqual({ status: response.status, body: await response.json() }, { status, body: { error } }, href);
+  };
+  await context.login();
+  for (const [name, type, bytes] of formats) {
+    const response = await media(name);
+    assert.equal(response.status, 200, name);
+    assert.equal(response.headers.get("content-type"), type, name);
+    assert.equal(response.headers.get("accept-ranges"), "bytes", name);
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes, name);
+    await refused(`wrong-${name}`, 415, "The media file does not match its format.");
+  }
+  for (const nearMiss of ["other.webm", "sound.webp", "future.gif"]) await refused(nearMiss, 415, "The media file does not match its format.");
+  await refused("notes.png", 415, "This media format cannot be shown. Use PNG, JPEG, GIF, WebP, MP4, or WebM.");
+  // Windows and administrators can read a file without read permission, so only check where the permission holds.
+  if (process.platform !== "win32" && process.getuid?.() !== 0) {
+    await chmod(join(context.directory, "locked.png"), 0);
+    await refused("locked.png", 403, "This media file could not be read. Check its file permissions.");
+  }
 });
 
 test("a parent-directory swap cannot serve media from outside the Project", async (t) => {
@@ -992,6 +1045,31 @@ test("stored terminal outcomes recover missed live events without inventing comp
   history.push({ id: "i", type: "idle", outcome: "succeeded", time: { created: 3 } });
   assert.equal(chatMessages(history).at(-1)?.outcome, "succeeded");
   assert.equal(chatMessages(history).length, 2);
+});
+
+test("stored outcomes after a reply mark that reply, keep its officer, and add an error only when one is missing", () => {
+  const at = { created: 1 };
+  const reply = (id: string, extra: Record<string, unknown> = {}) => ({ id, type: "assistant", content: [{ type: "text", text: "Report." }], time: at, ...extra });
+  const declined = { type: "tool", id: "t", name: "shell", state: { status: "error", input: {}, error: { type: "aborted", message: "The user declined this tool call" } } };
+  const history = [
+    reply("done", { agent: "picard-data" }), { id: "i1", type: "idle", outcome: "succeeded", time: at },
+    reply("failed"), { id: "i2", type: "idle", outcome: "failed", error: { type: "provider", message: "The provider stopped answering." }, time: at },
+    reply("vague"), { id: "i3", type: "idle", outcome: "failed", time: at },
+    reply("stopped"), { id: "i4", type: "idle", outcome: "interrupted", time: at },
+    reply("own error", { error: { type: "provider", message: "Rate limit reached." } }), { id: "i5", type: "idle", outcome: "failed", error: { type: "provider", message: "Later summary." }, time: at },
+    { id: "declined", type: "assistant", content: [declined], time: at }, { id: "i6", type: "idle", outcome: "interrupted", time: at },
+    reply("unnamed", { error: { type: "provider", message: "" } }),
+  ] as unknown as SessionMessage[];
+  const chat = chatMessages(history);
+  assert.deepEqual(chat.map(({ id, outcome, error, speaker }) => ({ id, outcome, error, speaker })), [
+    { id: "done", outcome: "succeeded", error: undefined, speaker: "picard-data" },
+    { id: "failed", outcome: "failed", error: "The provider stopped answering.", speaker: undefined },
+    { id: "vague", outcome: "failed", error: "OpenCode could not complete the request.", speaker: undefined },
+    { id: "stopped", outcome: "interrupted", error: STOPPED, speaker: undefined },
+    { id: "own error", outcome: "failed", error: "Rate limit reached.", speaker: undefined },
+    { id: "declined", outcome: "interrupted", error: undefined, speaker: undefined },
+    { id: "unnamed", outcome: "failed", error: "OpenCode could not complete the request.", speaker: undefined },
+  ]);
 });
 
 test("with no provider signed in, setup is needed and nothing is invented", async (t) => {

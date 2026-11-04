@@ -21,7 +21,11 @@ if (process.argv.includes("--no-default-model")) fixture.setConfiguredModel(unde
 if (process.argv.includes("--opencode-account")) fixture.setIntegrations([{ id: "opencode", connections: [{ type: "credential" }] }]);
 // Each utterance hears the next phrase; the last one repeats. Within a task everything said is sent,
 // so most end in silence ("").
-const phrases = process.argv.includes("--interrupt") ? ["Computer, hello there", "Computer", "Keep the exact name and do not change files.", ""]
+const phrases = process.argv.includes("--refusal-idle") ? ["Computer, hello there", "Computer, belay that", "Computer, speak fastest", "Computer, speak faster", ""]
+  : process.argv.includes("--refusal-approval") ? ["Computer, request an approval", "New log entry", ""]
+  : process.argv.includes("--refusal-question") ? ["Computer, ask a question and let me choose", "New log entry", ""]
+  : process.argv.includes("--refusal-busy") ? ["Computer, take a very slow look", "New log entry", ""]
+  : process.argv.includes("--interrupt") ? ["Computer, hello there", "Computer", "Keep the exact name and do not change files.", ""]
   : process.argv.includes("--interrupt-request") || process.argv.includes("--interrupt-final") ? ["Computer, hello there", "Computer, keep the exact name and do not change files.", ""]
   : process.argv.includes("--interrupt-room") ? ["Computer, hello there", "Hello again", ""]
   : process.argv.includes("--speed-follow-up") ? ["Computer, hello there", "Computer, speak slowest", "Hello again", ""]

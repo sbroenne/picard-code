@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { BRIDGE_CREW, chosenCrew, continuesOfficer, addressedOfficer, addressedOfficers, repeatsReport } from "../shared/crew.js";
-import { crewConfiguration, loadedAgents, verifiedCrew } from "../server/crew.js";
+import { CREW_UNAVAILABLE, crewConfiguration, loadedAgents, requireCrew, verifiedCrew } from "../server/crew.js";
+import { checkVersion } from "../server/engine.js";
 import { OpenCode, type AgentInfo, type PermissionRule } from "../server/opencode.js";
 import { chatMessages } from "../server/history.js";
 import { CAPTAINS_ORDERS, COMPUTER_MANNER, CREW_KEPT, computerInstructions, computerManner, crewBriefing, crewChoice } from "../server/instructions.js";
@@ -28,6 +29,33 @@ test("startup and reload wait for real agents without swallowing errors or cance
   client.agents = async () => { throw new Error("The agent request failed."); };
   await assert.rejects(loadedAgents(client, "."), /The agent request failed/);
   await assert.rejects(loadedAgents(client, ".", false, AbortSignal.abort()), { name: "AbortError" });
+});
+
+test("agent loading gives up after its deadline, a missing crew is reported, and only OpenCode 2 is accepted", async (t) => {
+  const permissions: PermissionRule[] = [{ action: "edit", resource: "*", effect: "ask" }];
+  const build: AgentInfo = { id: "build", mode: "primary", permissions };
+  const crew: AgentInfo[] = [
+    build,
+    ...Object.entries(crewConfiguration(permissions).agents).map(([id, agent]): AgentInfo => ({ ...agent, id, mode: "all", permissions })),
+  ];
+  const client = new OpenCode("http://127.0.0.1:1", "test");
+  // The clock jumps past the five-second deadline on the third check, so the wait ends without real delay.
+  let now = 1000;
+  t.mock.method(Date, "now", () => now);
+  let calls = 0;
+  client.agents = async () => { if (++calls === 3) now += 6000; return [build]; };
+  assert.deepEqual(await loadedAgents(client, ".", true), [build]);
+  assert.equal(calls, 3);
+  t.mock.restoreAll();
+  await assert.rejects(requireCrew(client, "."), { message: CREW_UNAVAILABLE });
+  client.agents = async () => crew;
+  assert.deepEqual(await requireCrew(client, "."), crew);
+  for (const version of ["1.14.2", "0.2.0", "12.0.0", "20.1.0", "v2.1.0"]) {
+    client.info = async () => ({ version }) as Awaited<ReturnType<OpenCode["info"]>>;
+    await assert.rejects(checkVersion(client), { message: `Picard Code needs OpenCode 2, but this OpenCode is version ${version}. Update it from https://opencode.ai, or set PICARD_OPENCODE_PATH to an OpenCode 2 program.` }, version);
+  }
+  client.info = async () => ({ version: "2.3.1" }) as Awaited<ReturnType<OpenCode["info"]>>;
+  assert.equal(await checkVersion(client), "2.3.1");
 });
 
 test("explicit address lists select every named officer without mistaking mentions or negations for orders", () => {
