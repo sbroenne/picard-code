@@ -175,7 +175,7 @@ Add `--model provider/model` to choose a particular available model for the
 check. This does not change your saved Picard Code model or speech choices.
 Both paths exercise the real local completion model through the browser's
 captured audio and confirm that a pause was checked before submission.
-Prepare speech first as described in [Natural pauses](../README.md#natural-pauses).
+Prepare speech first as described in [Natural pauses](USER_GUIDE.md#natural-pauses).
 Add `--interrupt` to play a generated request into the browser's capture path
 while a real spoken answer is playing. It checks that playback stops, the
 new request keeps its name and negation, and no stop-work request is sent.
