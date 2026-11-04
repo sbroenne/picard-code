@@ -129,12 +129,29 @@ function status(page: import("@playwright/test").Page) {
   return page.getByRole("status");
 }
 
+async function watchStatus(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    const headings: string[] = [];
+    Object.assign(window, { consoleHeadings: headings });
+    document.addEventListener("DOMContentLoaded", () => {
+      const readout = document.getElementById("status")!;
+      const record = () => {
+        const text = readout.textContent ?? "";
+        headings.push(text);
+      };
+      new MutationObserver(record).observe(readout, { childList: true, subtree: true, characterData: true });
+      record();
+    });
+  });
+  return () => page.evaluate(() => (window as unknown as { consoleHeadings: string[] }).consoleHeadings);
+}
+
 /** Listening starts by itself; if the browser wants a click before playing sound, one click on the visible status text gives it. */
 async function startListening(page: import("@playwright/test").Page) {
   await expect.poll(async () => `${await status(page).textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 15000 })
-    .toMatch(/Standing by|Channel open|Understanding|Click anywhere/);
+    .toMatch(/Standing by|Click anywhere/);
   if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#status-detail").click();
-  await expect(status(page)).toHaveText(/Standing by|Channel open|Understanding/, { timeout: 15000 });
+  await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
 }
 
 type Spoken = { text: string; speaker?: string }[];
@@ -161,6 +178,10 @@ function spokenText(page: import("@playwright/test").Page) {
 
 function sounds(page: import("@playwright/test").Page) {
   return page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => !sound.startsWith("startup:")));
+}
+
+async function soundNames(page: import("@playwright/test").Page) {
+  return (await sounds(page)).map((sound) => sound.split(":")[0]);
 }
 
 /** Hold a speaking request before the test voice can produce any audio. */
@@ -218,6 +239,134 @@ async function holdSpeaking(page: import("@playwright/test").Page) {
 }
 
 test.setTimeout(60000);
+
+test("console clarity: startup waits for permission and the open channel stays stable through speech and recognition", async ({ page }) => {
+  const headings = await watchStatus(page);
+  const microphone = await controlledMicrophone(page, [0.1]);
+  await page.addInitScript(() => {
+    const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = async (constraints) => {
+      await new Promise<void>((done) => Object.assign(window, { releaseMicrophone: done }));
+      return original(constraints);
+    };
+  });
+  let transcript: (() => void) | undefined;
+  await page.routeWebSocket("**/api/speech", (browser) => {
+    const server = browser.connectToServer();
+    server.onMessage((message) => {
+      if (typeof message === "string" && JSON.parse(message).type === "transcript") {
+        transcript = () => browser.send(message);
+      } else browser.send(message);
+    });
+  });
+  await launch(page, "example");
+  await expect(status(page)).toHaveText("Opening channel", { timeout: 3000 });
+  await expect(page.locator("#voice-channel")).toHaveText("Opening channel");
+  expect(await headings()).not.toContain("Standing by");
+  await page.evaluate(() => (window as unknown as { releaseMicrophone(): void }).releaseMicrophone());
+  await startListening(page);
+  await expect(page.locator("#voice-channel")).toHaveText("Channel open");
+  await microphone.start();
+  await expect(page.locator("#voice-partial")).toContainText("Computer");
+  await expect(status(page)).toHaveText("Standing by");
+  await expect.poll(() => !!transcript, { timeout: 15000 }).toBe(true);
+  await expect(page.locator("#status-detail")).toHaveText("Checking what you said.");
+  await expect(status(page)).toHaveText("Standing by");
+  await expect(page.locator("#voice-channel")).toHaveText("Channel open");
+  expect(await headings()).not.toContain("Understanding");
+  expect(await headings()).not.toContain("Channel open");
+  transcript!();
+  await expect(status(page)).toHaveText("Transmitting", { timeout: 15000 });
+  await expect(page.locator("#status-detail")).toContainText("The computer is speaking.");
+  await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
+  await expect(status(page)).toHaveText("Standing by");
+  await expect(page.locator("#voice-channel")).toHaveText("Channel open");
+  const sequence = await headings();
+  expect(sequence.slice(sequence.indexOf("Opening channel"))).toEqual([
+    "Opening channel", "Standing by", "Accessing", "Transmitting", "Standing by",
+  ]);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("console clarity: sending is not shown as accepted work and a real failure closes the channel", async ({ page }) => {
+  const microphone = await controlledMicrophone(page, [0.1]);
+  const speaking = await holdSpeaking(page);
+  let send: import("@playwright/test").Route | undefined;
+  await page.route(/\/api\/conversations\/[^/]+\/send$/, (route) => { send = route; });
+  await launch(page, "example");
+  await startListening(page);
+  await microphone.start();
+  await expect.poll(() => !!send, { timeout: 15000 }).toBe(true);
+  await expect(status(page)).toHaveText("Standing by");
+  await expect(page.locator("#status-detail")).toHaveText("Sending your request.");
+  await send!.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Test stand-in: the request was not accepted." }) });
+  await expect.poll(() => !!speaking.pending()).toBe(true);
+  speaking.fail("Test stand-in: the speaking connection failed.");
+  await expect(page.locator("#voice-channel")).toHaveText("Channel closed");
+  await expect(status(page)).toHaveText("Channel closed");
+  await expect(page.locator("#notice")).toContainText("Test stand-in: the speaking connection failed.");
+  expect(await soundNames(page)).not.toContain("request-accepted");
+});
+
+for (const keyboard of [false, true]) {
+  test(`console clarity: ${keyboard ? "keyboard" : "button"} microphone switching does not hide work or playback`, async ({ page }, info) => {
+    const headings = await watchStatus(page);
+    const microphone = await controlledMicrophone(page, [0.1]);
+    const speaking = await holdSpeaking(page);
+    await launch(page, "slow");
+    await startListening(page);
+    await microphone.start();
+    await expect(status(page)).toHaveText("Accessing", { timeout: 15000 });
+    await expect(page.locator("#voice-channel")).toHaveText("Channel open");
+    if (keyboard) await page.keyboard.press("m");
+    else await page.getByRole("button", { name: "Switch microphone off" }).click();
+    await expect(page.locator("#voice-channel")).toHaveText("Channel closed");
+    await expect(status(page)).toHaveText("Accessing");
+    await expect.poll(() => !!speaking.pending(), { timeout: 25000 }).toBe(true);
+    await expect(status(page)).toHaveText("Accessing");
+    await expect(page.locator("#status-detail")).toHaveText("Preparing the spoken reply.");
+    speaking.release();
+    await expect(status(page)).toHaveText("Transmitting", { timeout: 15000 });
+    await expect(page.locator("#voice-channel")).toHaveText("Channel closed");
+    await expect(page.locator("#status-detail")).toHaveText("The computer is speaking. Choose Stop speaking to interrupt.");
+    if (keyboard) await page.keyboard.press("m");
+    else await page.getByRole("button", { name: "Switch microphone on" }).click();
+    await expect(page.locator("#voice-channel")).toHaveText("Channel open");
+    await expect(status(page)).toHaveText("Transmitting");
+    await page.screenshot({ path: info.outputPath("console-test-stand-in.png"), fullPage: true });
+    await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
+    await expect(status(page)).toHaveText("Standing by");
+    expect(await headings()).not.toContain("Understanding");
+    expect(await headings()).not.toContain("Preparing reply");
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+    await expect(status(page)).toHaveText("Channel closed");
+  });
+}
+
+for (const mode of ["approval", "question"] as const) {
+  test(`console clarity: a pending ${mode} stays prominent while its explanation is spoken`, async ({ page }) => {
+    const microphone = await controlledMicrophone(page, [0.1]);
+    const speaking = await holdSpeaking(page);
+    await launch(page, mode);
+    await startListening(page);
+    await microphone.start();
+    const heading = mode === "approval" ? "Decision needed" : "Answer needed";
+    await expect(status(page)).toHaveText(heading, { timeout: 15000 });
+    await expect.poll(() => !!speaking.pending()).toBe(true);
+    speaking.release();
+    await expect(page.getByRole("button", { name: "Stop speaking", exact: true })).toBeVisible();
+    await expect(page.locator("#status-detail")).toContainText("The computer is speaking.");
+    await expect(status(page)).toHaveText(heading);
+    await expect(page.locator("#voice-console")).toHaveAttribute("data-activity", "attention");
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+    await expect(page.locator("#voice-channel")).toHaveText("Channel closed");
+    await expect(status(page)).toHaveText(heading);
+    await page.getByRole("button", { name: "Stop speaking", exact: true }).click();
+    await expect(status(page)).toHaveText(heading);
+    if (mode === "approval") await expect(page.locator("#status-detail")).toHaveText("Choose Allow once or Deny on screen.");
+    else await expect(page.locator("#status-detail")).toHaveText("Answer the question on screen.");
+  });
+}
 
 /** Start test speech only after the microphone and the real voice detector are ready. */
 async function controlledMicrophone(page: import("@playwright/test").Page, phraseStarts = [0.5, 3.5]) {
@@ -787,18 +936,18 @@ test("the arrival call plays once at startup, not when switching the microphone 
   await startListening(page);
   const arrivals = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
   await expect.poll(arrivals).toHaveLength(1);
-  expect((await arrivals())[0]).toMatch(/^startup: (Ready|Starting microphone|Standing by)$/);
+  expect((await arrivals())[0]).toMatch(/^startup: (Opening channel|Standing by)$/);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   await page.getByRole("button", { name: "Switch microphone on" }).click();
   await startListening(page);
   await page.getByRole("button", { name: "New log entry", exact: true }).click();
-  await expect(status(page)).toHaveText(/Standing by|Channel open|Understanding/, { timeout: 15000 });
+  await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   expect(await arrivals()).toHaveLength(1);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   await page.reload();
   await startListening(page);
   await expect.poll(arrivals).toHaveLength(1);
-  expect((await arrivals())[0]).toMatch(/^startup: (Ready|Starting microphone|Standing by)$/);
+  expect((await arrivals())[0]).toMatch(/^startup: (Opening channel|Standing by)$/);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
@@ -856,7 +1005,9 @@ test("a slow arrival sound never interrupts a spoken request", async ({ page }) 
   await launch(page);
   await startListening(page);
   await capture.start();
-  await expect(status(page)).toHaveText("Channel open");
+  await expect(status(page)).toHaveText("Standing by");
+  await expect(page.locator("#voice-channel")).toHaveText("Channel open");
+  await expect.poll(capture.bytes).toBeGreaterThan(0);
   const loaded = page.waitForResponse("**/api/sounds/startup");
   release();
   await (await loaded).finished();
@@ -903,7 +1054,8 @@ test("start-up: the first answer waits while its voice is preparing, then appear
   await expect.poll(() => voice.pending()?.message ?? "", { timeout: 15000 }).toContain("All systems online");
   voice.release();
   await expect.poll(() => voice.pending()?.message ?? "", { timeout: 15000 }).toMatch(/"speak"/);
-  await expect(status(page)).toHaveText("Preparing reply");
+  await expect(status(page)).toHaveText("Accessing");
+  await expect(page.locator("#status-detail")).toHaveText("Preparing the spoken reply.");
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(0);
   voice.release();
   await expect(status(page)).toHaveText("Transmitting", { timeout: 15000 });
@@ -959,7 +1111,7 @@ test("listening stays on; “Computer” starts a task, follow-ups need no “Co
   await expect(page.locator(".message.current")).toHaveCount(2);
   await expect(page.locator(".message.earlier")).toHaveCount(2);
   await expect(page.locator(".message[data-role=user]")).toHaveCount(2);
-  expect(await sounds(page)).toEqual(["request-accepted: Understanding", "request-accepted: Understanding"]);
+  expect(await soundNames(page)).toEqual(["request-accepted", "request-accepted"]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: info.outputPath("spoken-conversation.png"), fullPage: true });
 
@@ -967,12 +1119,12 @@ test("listening stays on; “Computer” starts a task, follow-ups need no “Co
   await expect(status(page)).toHaveText("Channel closed");
   await expect(page.locator("#status-detail")).toHaveText("Click the microphone button or press M to switch it on.");
   await page.getByRole("button", { name: "Switch microphone on" }).click();
-  await expect(status(page)).toHaveText(/Standing by|Channel open|Understanding/, { timeout: 15000 });
+  await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   // The M key switches it off and on too.
   await page.keyboard.press("m");
   await expect(status(page)).toHaveText("Channel closed");
   await page.keyboard.press("m");
-  await expect(status(page)).toHaveText(/Standing by|Channel open|Understanding/, { timeout: 15000 });
+  await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 
   // The app always opens with the microphone on, even after it was switched off. The browser may want one click first.
@@ -1344,7 +1496,7 @@ test("spoken work asks for deliberate approval; voice cannot approve", async ({ 
   await page.getByRole("button", { name: "Deny", exact: true }).click();
   await expect(status(page)).toHaveText("Channel closed");
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
-  expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
+  expect(await soundNames(page)).toEqual(["request-accepted"]);
 });
 
 test("a question is asked aloud; a negated reply is not taken as a choice; a clear spoken choice is sent", async ({ page }) => {
@@ -1362,7 +1514,7 @@ test("a question is asked aloud; a negated reply is not taken as a choice; a cle
   await expect(status(page)).toHaveText("Channel closed");
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
   // Spoken answers to the question do not play the request-accepted sound.
-  expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
+  expect(await soundNames(page)).toEqual(["request-accepted"]);
 });
 
 test("silence makes no sound; speech not addressed to the computer is not sent and plays the input-failed sound", async ({ page }) => {
@@ -1383,13 +1535,13 @@ test("long work plays only the accepted sound, and “Stop” cancels it within 
   await expect(page.locator("#status-detail")).toHaveText("Say “Belay that” to cancel.", { timeout: 15000 });
   // No sound plays while the work continues.
   await page.waitForTimeout(3000);
-  expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
+  expect(await soundNames(page)).toEqual(["request-accepted"]);
   await expect.poll(() => spoken.at(-1), { timeout: 15000 }).toBe("Work stopped, Captain.");
-  await expect(status(page)).toHaveText(/Transmitting|Preparing reply|Standing by/);
+  await expect(status(page)).toHaveText(/Transmitting|Accessing|Standing by/);
   await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   // Stopping by voice is not a failure, so no failure sound plays.
-  expect(await sounds(page)).toEqual(["request-accepted: Understanding"]);
+  expect(await soundNames(page)).toEqual(["request-accepted"]);
 });
 
 test("a denied action plays the failure sound once, then speaks the result", async ({ page }) => {
@@ -1401,7 +1553,7 @@ test("a denied action plays the failure sound once, then speaks the result", asy
   await page.getByRole("button", { name: "Deny", exact: true }).click();
   await expect.poll(() => spoken.at(-1), { timeout: 10000 }).toBe("Request denied. The action was not carried out.");
   await page.getByRole("button", { name: "Switch microphone off" }).click();
-  expect(await sounds(page)).toEqual(["request-accepted: Understanding", "request-failed: Preparing reply"]);
+  expect(await soundNames(page)).toEqual(["request-accepted", "request-failed"]);
 });
 
 test("Allow once lets the requested action go ahead", async ({ page }, info) => {
@@ -1539,7 +1691,7 @@ test("replies show code safely, and the conversation reopens after reload", asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.reload();
   await expect(page.locator("#messages pre")).toContainText("const safe = true;");
-  await expect(status(page)).toHaveText(/Standing by|Channel open|Understanding/, { timeout: 15000 });
+  await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   await page.screenshot({ path: info.outputPath("conversation-screen.png"), fullPage: true });
 });
 
@@ -1620,7 +1772,7 @@ test("“Stop listening”, even without “Computer”, is acknowledged and ret
   await page.locator("#status").click();
   await expect(status(page)).toHaveText("Channel closed");
   await page.getByRole("button", { name: "Switch microphone on" }).click();
-  await expect(status(page)).toHaveText(/Standing by|Channel open|Understanding|Transmitting/, { timeout: 15000 });
+  await expect(status(page)).toHaveText(/Standing by|Transmitting/, { timeout: 15000 });
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
@@ -1645,7 +1797,8 @@ test("the reply waits while the voice is preparing, then appears when it starts"
   await launch(page, "example");
   await startListening(page);
   await expect.poll(() => !!voice.pending(), { timeout: 15000 }).toBe(true);
-  await expect(status(page)).toHaveText("Preparing reply");
+  await expect(status(page)).toHaveText("Accessing");
+  await expect(page.locator("#status-detail")).toHaveText("Preparing the spoken reply.");
   await expect(page.locator("#working")).toContainText("Preparing the reply.");
   // OpenCode has finished, so the scanning bar no longer shows; the written line stays.
   await expect(page.locator("#working .scan-bar")).toBeHidden();
@@ -1670,7 +1823,8 @@ for (const scenario of [
     await launch(page, scenario.mode);
     await startListening(page);
     await expect.poll(() => !!voice.pending(), { timeout: 15000 }).toBe(true);
-    await expect(status(page)).toHaveText("Preparing reply");
+    await expect(status(page)).toHaveText("Accessing");
+    await expect(page.locator("#status-detail")).toHaveText("Preparing the spoken reply.");
     await expect(page.locator(".message[data-role=assistant]")).toHaveCount(0);
     await expect(page.locator(scenario.selector)).toHaveCount(0);
     await expect(page.locator(".tribute-invitation")).toHaveCount(0);
@@ -1706,7 +1860,8 @@ test("an automatic fact and its reply wait for the voice", async ({ page }) => {
   await expect(page.locator(".tribute-fact")).toHaveCount(0);
   await expect(page.locator(".message[data-role=user]")).toHaveCount(2, { timeout: 25000 });
   await expect.poll(() => !!voice.pending(), { timeout: 15000 }).toBe(true);
-  await expect(status(page)).toHaveText("Preparing reply");
+  await expect(status(page)).toHaveText("Accessing");
+  await expect(page.locator("#status-detail")).toHaveText("Preparing the spoken reply.");
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(2);
   await expect(page.locator(".tribute-fact")).toHaveCount(0);
   voice.release();
@@ -1722,7 +1877,8 @@ test("an old speaking state cannot reveal a reply before its audio starts", asyn
   await expect.poll(() => !!voice.pending(), { timeout: 15000 }).toBe(true);
   voice.staleSpeaking();
   await page.waitForTimeout(200);
-  await expect(status(page)).toHaveText("Preparing reply");
+  await expect(status(page)).toHaveText("Accessing");
+  await expect(page.locator("#status-detail")).toHaveText("Preparing the spoken reply.");
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(0);
   voice.release();
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
@@ -1736,7 +1892,8 @@ test("the reply stays hidden until the first audio is ready to play", async ({ p
   await expect.poll(() => !!voice.pending(), { timeout: 15000 }).toBe(true);
   voice.startWithoutAudio();
   await page.waitForTimeout(200);
-  await expect(status(page)).toHaveText("Preparing reply");
+  await expect(status(page)).toHaveText("Accessing");
+  await expect(page.locator("#status-detail")).toHaveText("Preparing the spoken reply.");
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(0);
   voice.release();
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
@@ -1849,7 +2006,7 @@ for (const path of ["**/api/conversations", "**/api/conversations/*/send"]) {
     const speech = timeline.find((item) => item.name === "speech")!;
     expect(speech.at).toBeGreaterThanOrEqual(cue.end - 0.01);
     expect(cue.capture).toBe(false);
-    await expect(status(page)).toHaveText(/Standing by|Channel open/, { timeout: 15000 });
+    await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
     await expect(page.locator("#notice-text")).toHaveText(message);
     expect(spoken).toEqual([message]);
     expect((await sounds(page)).map((sound) => sound.split(":")[0])).toEqual(["input-failed"]);
@@ -1880,7 +2037,7 @@ test("an everyday answer and its question are spoken while the exact code stays 
   await expect.poll(() => spoken[0], { timeout: 15000 })
     .toBe("The settings test fails because the default voice replaces the saved choice when the app starts. Shall I make that change and run the test again?");
   await expect(status(page)).not.toHaveText("Transmitting", { timeout: 15000 });
-  await expect(status(page)).toHaveText(/Standing by|Channel open/, { timeout: 15000 });
+  await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   await page.screenshot({ path: info.outputPath("example-answer.png"), fullPage: true });
 });
 
@@ -1903,7 +2060,7 @@ test("the website example: Data and Riker answer, then a Picard personnel file a
   const fact = page.locator("#messages > .tribute-fact[data-subject=picard]");
   await expect(fact).toHaveCount(1, { timeout: 15000 });
   await expect(fact.locator(".tribute-record-title small")).toHaveText("Personnel file");
-  await expect(status(page)).toHaveText(/Standing by|Channel open/, { timeout: 15000 });
+  await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   await page.screenshot({ path: info.outputPath("site-example.png"), fullPage: true });
   expect(spoken).toHaveLength(2);
   if (capture) {

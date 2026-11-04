@@ -151,7 +151,8 @@ test("actual video playback pauses capture, survives updates, and respects a man
       Object.assign(window, { playingVideo: item });
       await item.play();
     });
-    await expect(page.locator("#status")).toHaveText("Listening paused");
+    await expect(page.locator("#status")).toHaveText("Standing by");
+    await expect(page.locator("#voice-channel")).toHaveText("Channel paused");
     await expect.poll(capture).toBe(false);
     context.fixture.publish(context.project, "session.step.ended", { sessionID: context.session.id });
     await page.waitForTimeout(500);
@@ -182,7 +183,8 @@ test("only opened YouTube and Vimeo players pause listening, and closing or leav
       await expect(page.getByTitle(label, { exact: true })).toBeVisible();
       const frame = page.getByTitle(label, { exact: true });
       await expect(frame).toHaveAttribute("referrerpolicy", label.startsWith("YouTube") ? "origin" : "no-referrer");
-      await expect(page.locator("#status")).toHaveText("Listening paused");
+      await expect(page.locator("#status")).toHaveText("Standing by");
+      await expect(page.locator("#voice-channel")).toHaveText("Channel paused");
       await expect.poll(capture).toBe(false);
       await frame.evaluate((item) => Object.assign(window, { openMediaFrame: item }));
       context.fixture.publish(context.project, "session.step.ended", { sessionID: context.session.id });
@@ -280,12 +282,12 @@ test("a new spoken decision stops an open player before the computer speaks", as
     await utterance();
     await expect(page.locator(".message[data-role=user]").last()).toContainText("take a very slow look");
     await page.getByRole("button", { name: "Open player: YouTube example" }).click();
-    await expect(page.locator("#status")).toHaveText("Listening paused");
+    await expect(page.locator("#voice-channel")).toHaveText("Channel paused");
     context.fixture.permissions.push({ id: "test-media-decision", sessionID: session.id, action: "shell", resources: ["test-only command"] });
     context.fixture.publish(context.project, "permission.asked", { sessionID: session.id });
     await expect(page.getByRole("heading", { name: "Approval required." })).toBeVisible();
     await expect(page.locator("iframe")).toHaveCount(0);
-    await expect(page.locator("#status")).not.toHaveText("Listening paused");
+    await expect(page.locator("#voice-channel")).toHaveText("Channel open");
     await expect.poll(() => context.speech.said.some((item) => item.text.includes("approval is required"))).toBe(true);
   } finally { await context.cleanup(); }
 });

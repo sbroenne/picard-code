@@ -244,34 +244,44 @@ function autoListen() {
   void perform(() => voice.activate());
 }
 
-/** One status for the whole screen, with a short line saying what to do next. */
-function consoleStatus(): [string, string] {
-  if (!state) return ["Starting up", ""];
-  if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open."];
-  if (speechPreparation?.state === "running") return ["Preparing speech", speechPreparation.step];
-  if (speechPreparation?.state === "failed" && !state.speech?.configured) return ["Speech unavailable", "Read the error above, then choose Try again."];
+type ConsoleActivity = "ready" | "work" | "speaking" | "attention" | "unavailable";
+
+function channelStatus(): [string, string] {
+  if (voice.opening) return ["Opening channel", "opening"];
+  if (!voice.microphone) return ["Channel closed", "closed"];
+  if (voice.mediaPaused) return ["Channel paused", "paused"];
+  if (voice.waitingForClick) return ["Click to open channel", "paused"];
+  return ["Channel open", "open"];
+}
+
+/** Activity and required decisions stay separate from the enabled microphone. */
+function consoleStatus(): [string, string, ConsoleActivity] {
+  if (!state) return ["Starting up", "", "unavailable"];
+  if (!connected) return ["Reconnecting", "Keep Picard Code's terminal open.", "unavailable"];
+  if (speechPreparation?.state === "running") return ["Preparing speech", speechPreparation.step, "work"];
+  if (speechPreparation?.state === "failed" && !state.speech?.configured) return ["Speech unavailable", "Read the error above, then choose Try again.", "unavailable"];
   if (!state.models.length) return ["Setup needed", modelSetupPart() === "provider"
     ? "Connect an AI provider: open AI provider."
-    : "No models are available. Open Computer intelligence to refresh the connection."];
-  if (!state.selectedModel) return ["Setup needed", "Open Computer intelligence, choose an AI model, and confirm your choice."];
-  if (voice.mediaPaused) return ["Listening paused", "Pause the video or close its player to listen again."];
-  if (voice.phase === "speaking") return ["Transmitting", voice.microphone ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."];
-  if (voice.speechPending) return ["Preparing reply", ""];
-  if (voice.microphone && voice.waitingForClick) return ["Standing by", "Click anywhere to start listening."];
-  if (voice.phase === "listening") return ["Channel open", ""];
-  if (voice.microphone && voice.phase === "thinking") return ["Understanding", ""];
-  const listening = voice.microphone && voice.phase === "standby";
-  if (state.permissions.some((item) => logEntryID(item) === selected)) return ["Decision needed", "Choose Allow once or Deny on screen."];
-  if (listening && askedQuestion()) return ["Answer needed", "Say your answer, or choose it on screen."];
-  if (pending()) return ["Answer needed", "Answer the question on screen."];
+    : "No models are available. Open Computer intelligence to refresh the connection.", "attention"];
+  if (!state.selectedModel) return ["Setup needed", "Open Computer intelligence, choose an AI model, and confirm your choice.", "attention"];
+  const listening = voice.microphone && !voice.waitingForClick && !voice.mediaPaused;
+  const speaking = voice.phase === "speaking" ? "The computer is speaking. " : "";
+  if (state.permissions.some((item) => logEntryID(item) === selected)) return ["Decision needed", `${speaking}Choose Allow once or Deny on screen.`, "attention"];
+  if (pending()) return ["Answer needed", `${speaking}${listening && askedQuestion() ? "Say your answer, or choose it on screen." : "Answer the question on screen."}`, "attention"];
+  if (voice.phase === "speaking") return ["Transmitting", `${speaking}${listening ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."}`, "speaking"];
   const stopHint = !listening ? "Choose Belay that to cancel." : inTask() ? "Say “Belay that” to cancel." : "Say “Computer, belay that” to cancel.";
-  if (selected && state.statuses[selected]?.type === "retry") return ["Retrying", stopHint];
-  if (busy() || submitting) return ["Accessing", stopHint];
-  if (historyLoading) return ["Loading", ""];
-  if (listening) return ["Standing by", Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New log entry”." : "Say “Computer”, then your request."];
-  if (voice.opening) return ["Starting microphone", ""];
-  if (!state.speech?.configured) return ["Computer voice offline", ""];
-  return ["Channel closed", "Click the microphone button or press M to switch it on."];
+  const work = selected ? state.statuses[selected] : undefined;
+  if (work?.type === "retry") return ["Accessing", `Retrying. ${work.message ? `${work.message} ` : ""}${stopHint}`, "work"];
+  if (busy()) return ["Accessing", stopHint, "work"];
+  if (voice.speechPending || !submitting && heldBack && heldBack.session === selected) return ["Accessing", "Preparing the spoken reply.", "work"];
+  if (submitting) return ["Standing by", "Sending your request.", "ready"];
+  if (historyLoading) return ["Loading", "", "unavailable"];
+  if (voice.opening || voice.microphone && voice.waitingForClick) return ["Opening channel", voice.waitingForClick ? "Click anywhere to start listening." : "", "unavailable"];
+  if (voice.mediaPaused && voice.microphone) return ["Standing by", "Pause the video or close its player to listen again.", "ready"];
+  if (listening) return ["Standing by", voice.phase === "thinking" ? "Checking what you said."
+    : Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New log entry”." : "Say “Computer”, then your request.", "ready"];
+  if (!state.speech?.configured) return ["Computer voice offline", "", "unavailable"];
+  return ["Channel closed", "Click the microphone button or press M to switch it on.", "unavailable"];
 }
 
 function voiceControls() {
@@ -306,9 +316,13 @@ function voiceControls() {
   const skip = element<HTMLAnchorElement>("skip-to-computer");
   skip.href = startUp ? "#first-run-setup" : !step && (speechPreparation || preparing) ? "#speech-preparation" : !step && offline ? "#speech-first-start" : "#voice-console";
   skip.textContent = startUp ? "Skip to start-up" : !step && (offline || preparing) ? "Skip to speech setup" : "Skip to the computer status";
-  const [status, detail] = consoleStatus();
-  element("status").textContent = status;
-  element("status-detail").textContent = detail;
+  const [status, detail, activity] = consoleStatus();
+  const [channel, channelState] = channelStatus();
+  if (element("status").textContent !== status) element("status").textContent = status;
+  if (element("status-detail").textContent !== detail) element("status-detail").textContent = detail;
+  if (element("voice-channel").textContent !== channel) element("voice-channel").textContent = channel;
+  element("voice-channel").dataset.state = channelState;
+  element("voice-console").dataset.activity = activity;
   const toggle = element<HTMLButtonElement>("listen-toggle");
   toggle.hidden = !state?.speech?.configured;
   toggle.setAttribute("aria-label", voice.microphone ? "Switch microphone off" : "Switch microphone on");
