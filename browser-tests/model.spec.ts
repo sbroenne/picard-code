@@ -133,6 +133,19 @@ test("without a sign-in, the computer core step gives the order and the free mod
   await expect(page.getByRole("heading", { name: "Connect your AI provider" })).toBeVisible();
 });
 
+test("the Computer intelligence tile during start-up opens the model step, not the side panel", async ({ page }) => {
+  await launch(page, ["--free-models"]);
+  await begin(page);
+  await expect(title(page)).toHaveText("Computer core offline");
+  await page.getByRole("link", { name: /^Computer intelligence/ }).click();
+  await expect(title(page)).toHaveText("Computer intelligence");
+  await expect(page.locator('[data-system="intelligence"]')).toHaveAttribute("aria-current", "step");
+  await expect(page.locator("#drawer-settings")).toBeHidden();
+  await page.getByRole("link", { name: /^AI provider/ }).click();
+  await expect(title(page)).toHaveText("Computer core offline");
+  await expect(page.locator("#drawer-settings")).toBeHidden();
+});
+
 test("an existing OpenCode account skips the computer core step even with only free models", async ({ page }) => {
   await launch(page, ["--free-models", "--opencode-account"]);
   await expect(page.locator("#readout-provider")).toHaveText("Connected");

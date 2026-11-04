@@ -15,8 +15,9 @@ For documentation and website-only changes, report
 `npx playwright test browser-tests/site.spec.ts` and its result.
 For other changes, say which of `npm run check`, `npm run build`, `npm test`, and
 `npx playwright test` ran and what happened. See AGENTS.md for the check rules.
-For changed model or speech behavior,
-include the matching real checks or explain why they could not run.
+For changed OpenCode, speech, conversation or start-up behavior, name each
+matching real check and its result, or explain why it could not run.
+For a bug fix or new behavior, name the test that fails without the change.
 Label stand-in screenshots and generated audio honestly.
 If you ran the `ponytail-review` skill, give its verdict and what you fixed.
 

@@ -11,5 +11,6 @@ repository. In short:
 - Do not commit show recordings, models, samples or local settings; downloads and settings live in `~/.picard-code`.
 - Never raise the version or publish to npm on your own; only the owner releases (see docs/RELEASING.md).
 - For a change users will notice, add a release note with `npx changeset` (patch, never major).
+- Every bug fix and new behavior needs a test that fails without it; for screens and flows, test the side routes too (see AGENTS.md).
 - Before committing, use the checks in AGENTS.md: website tests for documentation and website-only changes; full checks for app, setup, dependency and check configuration changes.
 - Maintainers and coding agents: before opening a pull request, review the complete branch diff with the `ponytail-review` skill.

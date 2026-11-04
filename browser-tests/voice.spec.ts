@@ -841,11 +841,42 @@ test("start-up: the first answer brings the senior officers to report, and Dismi
   await expect(page.locator("#crew-roster")).toContainText("Number One, what are our options?");
   await expect.poll(() => spoken.join(" | ")).toContain("Your senior officers are standing by.");
   expect(spoken[0]).toBe("All systems online. Say “Computer”, then give your order.");
+  // Reloading during the officers' report keeps it until the Captain dismisses it.
+  await page.reload();
+  await expect(page.locator("#first-run-title")).toHaveText("Senior officers reporting");
+  await expect(page.locator("#crew-roster li")).toHaveCount(6);
   await page.getByRole("button", { name: "Dismissed" }).click();
   await expect(page.locator("#first-run-setup")).toBeHidden();
   await expect(page.locator("#voice-console")).toBeFocused();
   await page.reload();
   await expect(page.locator("#first-run-setup")).toBeHidden();
+});
+
+test("start-up: the first answer waits while its voice is preparing, then appears when it starts", async ({ page }) => {
+  const voice = await holdSpeaking(page);
+  await launch(page, "example", ["--model-setup"]);
+  await page.getByRole("button", { name: "Begin start-up" }).click();
+  await page.getByRole("button", { name: "Open a channel" }).click();
+  // The first held line is the welcome; let it through, then hold the answer's voice.
+  await expect.poll(() => voice.pending()?.message ?? "", { timeout: 15000 }).toContain("All systems online");
+  voice.release();
+  await expect.poll(() => voice.pending()?.message ?? "", { timeout: 15000 }).toMatch(/"speak"/);
+  await expect(status(page)).toHaveText("Preparing reply");
+  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(0);
+  voice.release();
+  await expect(status(page)).toHaveText("Speaking", { timeout: 15000 });
+  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1);
+});
+
+test("start-up: a failed first order keeps start-up waiting for an answer and does not call the officers", async ({ page }) => {
+  await launch(page, "broken", ["--model-setup"]);
+  await page.getByRole("button", { name: "Begin start-up" }).click();
+  await page.getByRole("button", { name: "Open a channel" }).click();
+  await expect(page.locator(".message-error")).toContainText("The test model cannot be reached.", { timeout: 15000 });
+  await expect(page.locator("#first-run-title")).toHaveText("All systems online");
+  await expect(page.locator("#crew-roster")).toBeHidden();
+  await page.reload();
+  await expect(page.locator("#first-run-title")).toHaveText("All systems online");
 });
 
 test("start-up: the next order ends the officers' report", async ({ page }) => {
