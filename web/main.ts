@@ -273,6 +273,8 @@ function consoleStatus(): [string, string, ConsoleActivity] {
   const speaking = voice.phase === "speaking" ? "The computer is speaking. " : "";
   if (state.permissions.some((item) => logEntryID(item) === selected)) return ["Decision needed", `${speaking}Choose Allow once or Deny on screen.`, "attention"];
   if (pending()) return ["Answer needed", `${speaking}${listening && !voice.speechPending && askedQuestion() ? "Say your answer, or choose it on screen." : "Answer the question on screen."}`, "attention"];
+  // A browser sound pause stops the voice where it is; the replies still to come wait for it.
+  if (voice.phase === "speaking" && voice.microphone && voice.waitingForClick) return ["Transmitting", "The browser paused sound. Click the microphone, or press M, to hear the rest.", "speaking"];
   if (voice.phase === "speaking") return ["Transmitting", `${speaking}${listening ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."}`, "speaking"];
   const stopHint = !listening ? "Choose Belay that to cancel." : inTask() ? "Say “Belay that” to cancel." : "Say “Computer, belay that” to cancel.";
   const work = selected ? state.statuses[selected] : undefined;

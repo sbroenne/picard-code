@@ -38,11 +38,11 @@ export class VoiceConversation {
   private nextAudio = 0;
   private receivingAudio = false;
   private audioStarted = false;
-  private playbackTimer?: ReturnType<typeof setTimeout>;
   // The parts of the reply being spoken, and the one whose audio arrives next.
   private parts: SpokenPart[] = [];
   private nextPart?: SpokenPart;
-  private partTimers = new Set<ReturnType<typeof setTimeout>>();
+  // Waits that follow the audio clock: part starts and the end of playback.
+  private audioTimers = new Set<ReturnType<typeof setTimeout>>();
   private utterance = new Utterance();
   private detector?: SpeechDetector;
   private frames = new SpeechFrames();
@@ -108,9 +108,8 @@ export class VoiceConversation {
     this.preRoll = [];
   }
   private clearAudio() {
-    clearTimeout(this.playbackTimer);
-    for (const timer of this.partTimers) clearTimeout(timer);
-    this.partTimers.clear();
+    for (const timer of this.audioTimers) clearTimeout(timer);
+    this.audioTimers.clear();
     this.nextPart = undefined;
     this.receivingAudio = false;
     this.audioStarted = false;
@@ -445,7 +444,7 @@ export class VoiceConversation {
             this.nextPart = this.parts[data.index];
           } else if (data.type === "audio-end") {
             if (!this.speechPending || data.id !== this.speechRevision) return;
-            this.playbackTimer = setTimeout(() => {
+            this.atAudioTime(Math.max(this.nextAudio, this.context?.currentTime ?? 0) + 0.25, () => {
               if (!this.speechPending || data.id !== this.speechRevision) return;
               const next = this.followOn;
               this.followOn = undefined;
@@ -459,7 +458,7 @@ export class VoiceConversation {
               this.speechPending = false;
               this.optionalSpeech = false;
               this.resume();
-            }, Math.max(0, this.nextAudio - (this.context?.currentTime ?? 0)) * 1000 + 250);
+            });
           } else if (data.type === "error") this.fail(data.message);
         } catch (error) {
           this.fail(error instanceof Error ? error.message : "The voice response could not be read.");
@@ -484,16 +483,26 @@ export class VoiceConversation {
     const part = this.nextPart;
     if (part) {
       this.nextPart = undefined;
-      const timer = setTimeout(() => {
-        this.partTimers.delete(timer);
-        this.hooks.partStarted?.(part);
-      }, Math.max(0, this.nextAudio - this.context.currentTime) * 1000);
-      this.partTimers.add(timer);
+      this.atAudioTime(this.nextAudio, () => this.hooks.partStarted?.(part));
     }
     this.nextAudio += audio.duration;
     this.sources.add(source);
     source.onended = () => { this.sources.delete(source); source.disconnect(); };
     if (!this.audioStarted) { this.audioStarted = true; this.state("speaking"); }
+  }
+
+  /**
+   * Runs `then` once the audio clock reaches `at` (in seconds). When the browser pauses sound
+   * the clock stops, so this keeps waiting rather than running before the audio is heard.
+   */
+  private atAudioTime(at: number, then: () => void) {
+    const left = at - (this.context?.currentTime ?? at);
+    if (left <= 0.005) { then(); return; }
+    const timer = setTimeout(() => {
+      this.audioTimers.delete(timer);
+      this.atAudioTime(at, then);
+    }, Math.max(20, left * 1000));
+    this.audioTimers.add(timer);
   }
 
   /** Returns to standby: listening on this computer for the next utterance, if listening is possible now. */

@@ -2215,6 +2215,42 @@ for (const route of ["Stop speaking", "Switch microphone off", "a speaking failu
   });
 }
 
+test("in a briefing, a reply already queued to play waits while the browser has paused sound, and appears when sound resumes", async ({ page }) => {
+  // Pause sound as soon as Data's first audio reaches the browser, while Riker is still speaking.
+  let paused: Promise<void> | undefined;
+  let later = false;
+  await page.routeWebSocket("**/api/speech", (browser) => {
+    const server = browser.connectToServer();
+    browser.onMessage((message) => server.send(message));
+    server.onMessage((message) => {
+      browser.send(message);
+      if (typeof message === "string") {
+        const data = JSON.parse(message) as { type: string; index?: number };
+        if (data.type === "part-start" && data.index! > 0) later = true;
+      } else if (later && !paused) paused = pauseAudio();
+    });
+  });
+  const pauseAudio = await blockAudioUntilInteraction(page);
+  await launch(page, "briefing");
+  await startListening(page);
+  const replies = briefingReplies(page);
+  await expect.poll(() => !!paused, { timeout: 20000 }).toBe(true);
+  await paused;
+  await expect(status(page)).toHaveText("Transmitting");
+  await expect(page.locator("#status-detail")).toHaveText("The browser paused sound. Click the microphone, or press M, to hear the rest.");
+  // Riker's audio and Data's start (about 1.3 seconds) would long be over on a running clock.
+  await page.waitForTimeout(3000);
+  await expect(replies.data).toHaveCount(0);
+  await expect(replies.close).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Stop speaking" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume listening" }).click();
+  await expect(replies.data).toBeVisible({ timeout: 15000 });
+  await expect(replies.riker).toBeVisible();
+  await expect(replies.close).toBeVisible();
+  await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
 for (const scenario of [
   { label: "a Wikipedia source", mode: "picard", tribute: false, selector: ".wikipedia-source a", source: /Jean-Luc_Picard$/ },
   { label: "a source and story invitation", mode: "stewart-about", tribute: true, selector: ".wikipedia-source a", source: /Patrick_Stewart$/ },
