@@ -58,8 +58,7 @@ npm run build
 npm start
 ```
 
-The same browser app and first-run setup open, using the clone as the project.
-You can switch folders with the **Project** tile if needed.
+The same browser app and first-run setup open.
 For later starts, run `npm start` from the clone.
 [More about running from source](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#run-from-source).
 
@@ -100,7 +99,8 @@ somewhere else and select a different project:
 npx picard-code --project "full path to your project"
 ```
 
-You can also change the folder with the **Project** tile in the app.
+When running from source, the clone is selected as the project.
+You can change the folder with the **Project** tile in the app if needed.
 
 ## Guides and help
 
