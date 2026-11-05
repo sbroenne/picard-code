@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
 const prepare = readFileSync(new URL("../workflows/prepare-release.yml", import.meta.url), "utf8");
@@ -87,15 +89,20 @@ test("release notes are prepared before App access and no notes skip both write 
   assert.equal(result.stdout.trim(), "No release notes are waiting.");
 });
 
-test("failed package installation or note preparation never marks a release ready", () => {
+test("failed package installation or note preparation never marks a release ready", (t) => {
+  const folder = mkdtempSync(join(tmpdir(), "picard-release-checks-"));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const output = join(folder, "output");
   for (const failed of ["ci", "run", ""]) {
+    writeFileSync(output, "");
     const result = spawnSync("bash", ["-euc", `
       find() { printf '.changeset/example.md\\n'; }
       npm() { test "$1" != "$FAILED"; }
       ${step("Prepare the release notes")}
-    `], { encoding: "utf8", env: { ...process.env, FAILED: failed, GITHUB_OUTPUT: "/dev/stdout" } });
+    `], { encoding: "utf8", env: { ...process.env, FAILED: failed, GITHUB_OUTPUT: output } });
     assert.equal(result.status === 0, failed === "", result.stderr);
-    assert.equal(result.stdout, failed === "" ? "ready=true\n" : "");
+    assert.equal(result.stdout, "");
+    assert.equal(readFileSync(output, "utf8"), failed === "" ? "ready=true\n" : "");
   }
 });
 
