@@ -17,7 +17,7 @@ choosing one:
 ```sh
 npm run build
 npm run opencode -- models
-node --test tools/record-intro.test.mjs video/edit.test.mjs
+node --test tools/record-intro.test.mjs video/edit.test.mjs video/quality.test.mjs
 node tools/record-intro.mjs --model github-copilot/gpt-6.1-sol
 ```
 
@@ -45,6 +45,31 @@ To record only the site again for an existing take, run
 `node tools/record-site.mjs video/out/episode-…`. After the work, the take
 opens the Captain's log so the finished entry can be shown. A take takes five minutes or more. Do not use this tool on a private
 project.
+
+### Picture quality
+
+YouTube compresses every upload again and gives 1080p videos little detail,
+so small interface text goes soft. The episode is therefore made and
+uploaded in 4K (3840×2160), which gets YouTube's sharper streams even for
+people watching at 1080p. The rules live in
+[`video/quality.mjs`](../video/quality.mjs), and each step checks them:
+
+- The app is shown in its 1280×720 layout at three times the pixel density.
+  Chrome's own screen recorder only delivers the layout size, so the
+  recorder takes real screenshots instead, about 12 a second. The take
+  stops if fewer than 6 a second were captured.
+- The finished site is shown in its 1920×1080 layout at twice the pixel
+  density, one frame per thirtieth of a second of scroll, so the scroll is
+  smooth however long each screenshot takes.
+- `video/build.mjs` refuses footage or screenshots that are not 4K, and
+  encodes them almost without loss.
+- `npm run render` renders at `--resolution 4k` with `--crf 12` and
+  lossless PNG frames, and `video/youtube.mjs` refuses a render that is not
+  3840×2160.
+
+Do not lower these to save time or disk space; a sharp recording cannot be
+made from a soft one. Takes recorded before these rules have to be recorded
+again.
 
 ## Build and render the episode
 
@@ -80,18 +105,18 @@ narration into the ignored `video/assets/` folder. Never commit them, and do
 not use recordings of actors' voices. `video/index.html` is generated; edit
 `edit.json` instead.
 
-The episode folder's `youtube/` folder gets the chapter list, SRT captions
+The episode folder's `youtube/` folder gets the chapter list, WebVTT captions shown at the top of the picture
 and a plain transcript for YouTube's automatic caption timing.
 
 ## Make the YouTube pack
 
-Render the episode to `picard-code-episode.mp4` in the episode folder. The
+Render the episode in 4K to `picard-code-episode.mp4` in the episode folder. The
 thumbnail is drawn over the episode's real console screenshot
 (`briefing.png`), with the tribute in the conversation area and what the app
 does in the status area.
 
 ```sh
-cd video && npx -y hyperframes@0.9.15 render -o ../video/out/episode-EXAMPLE/picard-code-episode.mp4 --quality delivery --video-frame-format png --keyframe-interval 2 --no-best-effort
+cd video && npm run render -- -o ../video/out/episode-EXAMPLE/picard-code-episode.mp4
 cd .. && node video/youtube.mjs video/out/episode-EXAMPLE
 ```
 
@@ -102,7 +127,9 @@ YouTube's level (about −14 LUFS; the picture is copied unchanged), a
 descriptions, and `upload.txt` with titles, tags, settings and the pinned
 comment. The words come from [`video/youtube.json`](../video/youtube.json).
 Review the whole video, thumbnail, sound levels, words and caption
-timing before publication.
+timing before publication. Upload `youtube/picard-code-episode.mp4`, the 4K
+file; YouTube shows 4K a while after the upload, once it has finished
+processing, so check the quality menu offers 2160p before sharing the link.
 Keep all footage, audio, transcripts and local settings out of git.
 Publishing on YouTube needs the owner's explicit approval.
 

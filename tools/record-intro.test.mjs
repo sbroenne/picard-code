@@ -8,11 +8,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
 import { installRecording } from "./record-intro-browser.mjs";
-import { recordSite, SITE_SCROLL } from "./record-site.mjs";
+import { recordSite, SITE_END, SITE_SCROLL } from "./record-site.mjs";
+import { startCapture } from "./capture-frames.mjs";
+import { FOOTAGE, SITE, SITE_FPS, UPLOAD, mediaSize, pixels } from "../video/quality.mjs";
 import { addressedOfficers } from "../dist/shared/crew.js";
 import { TRIBUTE_ENTRIES } from "../dist/shared/tribute-data.js";
 import { TributeCycle } from "../dist/shared/tribute.js";
-import { CAPTAINS_LOG, ORDERS, TRIBUTE_FACT, captainVoice, checkTribute, tightenPauses, chapterList, demoPermissions, screenAlert, sentEvent, srt, srtTime, tributeCue } from "./intro-episode.mjs";
+import { CAPTAINS_LOG, ORDERS, TRIBUTE_FACT, captainVoice, checkTribute, tightenPauses, chapterList, demoPermissions, screenAlert, sentEvent, cueTime, vtt, tributeCue } from "./intro-episode.mjs";
 
 const execute = promisify(execFile);
 
@@ -141,12 +143,12 @@ test("chapters follow YouTube's rules", () => {
   assert.throws(() => chapterList([chapters[0], { start: 9, title: "Short" }, chapters[2]], 103), /"Opening"/);
 });
 
-test("captions are valid SRT and reject empty or overlapping lines", () => {
-  assert.equal(srtTime(3723.4567), "01:02:03,457");
-  assert.equal(srt([{ start: 0, end: 1.5, text: "Computer." }, { start: 1.5, end: 3, text: "Go ahead." }]),
-    "1\n00:00:00,000 --> 00:00:01,500\nComputer.\n\n2\n00:00:01,500 --> 00:00:03,000\nGo ahead.\n");
-  assert.throws(() => srt([{ start: 2, end: 2, text: "x" }]), /no duration/);
-  assert.throws(() => srt([{ start: 0, end: 3, text: "a" }, { start: 2, end: 4, text: "b" }]), /overlaps/);
+test("captions are WebVTT shown at the top of the picture, and reject empty or overlapping lines", () => {
+  assert.equal(cueTime(3723.4567), "01:02:03.457");
+  assert.equal(vtt([{ start: 0, end: 1.5, text: "Computer." }, { start: 1.5, end: 3, text: "Go ahead." }]),
+    "WEBVTT\n\n00:00:00.000 --> 00:00:01.500 line:0% position:50% align:center\nComputer.\n\n00:00:01.500 --> 00:00:03.000 line:0% position:50% align:center\nGo ahead.\n");
+  assert.throws(() => vtt([{ start: 2, end: 2, text: "x" }]), /no duration/);
+  assert.throws(() => vtt([{ start: 0, end: 3, text: "a" }, { start: 2, end: 4, text: "b" }]), /overlaps/);
 });
 
 test("the browser records generated input and actual output without playing the input through the speakers", { timeout: 20000 }, async () => {
@@ -231,11 +233,54 @@ test("the site the crew built is recorded with one slow scroll to its bottom, so
     assert.deepEqual(result.errors, []);
     assert.equal(result.distance, 3000 - 1080);
     assert.ok(Math.abs(result.top - result.distance) < 1, "the scroll ends at the bottom of the page");
-    assert.ok((await stat(join(folder, "site.webm"))).size > 0);
+    const site = JSON.parse(await readFile(join(folder, "site.json"), "utf8"));
+    assert.equal(site.frames.length, SITE_SCROLL.duration * SITE_FPS + 1, "one frame for the top, then one per thirtieth of a second of scroll");
+    assert.equal(site.frames[1].time, SITE_SCROLL.start + 1 / SITE_FPS);
+    assert.equal(site.end, SITE_END);
+    assert.deepEqual(await mediaSize(join(folder, "site-frames", site.frames.at(-1).file)), UPLOAD, "the site is captured at 4K, not stretched");
     assert.ok((await stat(join(folder, "site.png"))).size > 0);
     assert.ok(SITE_SCROLL.start >= 1 && SITE_SCROLL.start + SITE_SCROLL.duration <= 6, "the scroll fits the edit's site shot, from 1 s to 6 s");
   } finally {
     await browser.close();
     await rm(folder, { recursive: true, force: true });
   }
+});
+
+test("the app is captured at full pixel density, so its text is sharp in a 4K video", { timeout: 30000 }, async () => {
+  const folder = await mkdtemp(join(tmpdir(), "picard-capture-"));
+  const browser = await chromium.launch();
+  try {
+    const context = await browser.newContext({ viewport: { width: FOOTAGE.width, height: FOOTAGE.height }, deviceScaleFactor: FOOTAGE.scale });
+    const page = await context.newPage();
+    await page.setContent("<p style='font: 16px sans-serif'>Captain's log</p>");
+    const capture = startCapture(page, folder);
+    await page.waitForTimeout(1500);
+    const frames = await capture.stop();
+    assert.ok(frames.length >= 3, `only ${frames.length} frames in 1.5 seconds`);
+    assert.ok(frames.every((frame, index) => index === 0 || frame.time > frames[index - 1].time), "frames are in the order they were taken");
+    assert.deepEqual(await mediaSize(join(folder, frames.at(-1).file)), UPLOAD);
+    await context.close();
+  } finally {
+    await browser.close();
+    await rm(folder, { recursive: true, force: true });
+  }
+});
+
+test("a capture that fails is reported when it stops, not hidden", { timeout: 30000 }, async () => {
+  const folder = await mkdtemp(join(tmpdir(), "picard-capture-"));
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    const capture = startCapture(page, folder);
+    await page.close();
+    await assert.rejects(capture.stop(), /closed/);
+  } finally {
+    await browser.close();
+    await rm(folder, { recursive: true, force: true });
+  }
+});
+
+test("the app and site layouts fill a 4K frame exactly", () => {
+  assert.deepEqual(pixels(FOOTAGE), UPLOAD);
+  assert.deepEqual(pixels(SITE), UPLOAD);
 });

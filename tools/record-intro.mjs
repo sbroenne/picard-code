@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 import { chromium, expect } from "@playwright/test";
 import { installRecording } from "./record-intro-browser.mjs";
 import { recordSite } from "./record-site.mjs";
+import { startCapture } from "./capture-frames.mjs";
+import { FOOTAGE, checkFrameRate } from "../video/quality.mjs";
 import { CAPTAINS_LOG, ORDERS, TRIBUTE_FACT, captainVoice, checkTribute, tightenPauses, demoPermissions, screenAlert, sentEvent, tributeCue } from "./intro-episode.mjs";
 import { TRIBUTE_ENTRIES } from "../dist/shared/tribute-data.js";
 import { startEngine } from "../dist/server/process.js";
@@ -32,20 +34,10 @@ await writeFile(join(project, "opencode.json"), `${JSON.stringify(demoPermission
 const modelFile = join(settings, "model.json");
 const speechFile = join(settings, "speech.json");
 const controller = new AbortController();
-let speech, engine, app, browser;
-let frameWriting = Promise.resolve();
-let frameError;
-const frames = [];
+let speech, engine, app, browser, capture;
 const events = [];
 const timeline = [];
 const now = () => Date.now() / 1000;
-
-async function captureFrame(session, event) {
-  const file = `${String(frames.length).padStart(6, "0")}.jpg`;
-  frames.push({ file, time: event.metadata.timestamp });
-  await writeFile(join(framesFolder, file), Buffer.from(event.data, "base64"));
-  await session.send("Page.screencastFrameAck", { sessionId: event.sessionId });
-}
 
 try {
   engine = await startEngine(project);
@@ -67,7 +59,7 @@ try {
   await setupSounds(soundFolder, controller.signal);
   app = await startApp({ client: engine.client, project, speech, modelFile, speechFile, soundFolder, webRoot: join(root, "web-dist"), prepareCrew: engine.prepareCrew });
   browser = await chromium.launch({ args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--mute-audio", "--autoplay-policy=no-user-gesture-required"] });
-  const context = await browser.newContext({ permissions: ["microphone"], viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 });
+  const context = await browser.newContext({ permissions: ["microphone"], viewport: { width: FOOTAGE.width, height: FOOTAGE.height }, deviceScaleFactor: FOOTAGE.scale });
   const page = await context.newPage();
   await page.addInitScript(installRecording);
   // The app's own Personnel file appears under Data's report; see tributeCue.
@@ -105,11 +97,7 @@ try {
   assert.ok((await startupSound).ok(), "The startup sound did not load.");
   await waitForSound("startup");
   const recordingStart = await page.evaluate(() => window.startDemoRecording());
-  const session = await context.newCDPSession(page);
-  session.on("Page.screencastFrame", (event) => {
-    frameWriting = frameWriting.then(() => captureFrame(session, event)).catch((error) => { frameError = error; });
-  });
-  await session.send("Page.startScreencast", { format: "jpeg", quality: 90, maxWidth: 1920, maxHeight: 1080, everyNthFrame: 1 });
+  capture = startCapture(page, framesFolder);
 
   const seen = new Set();
   let last = "";
@@ -189,9 +177,9 @@ try {
   }
   await page.waitForTimeout(1500);
   const audio = await page.evaluate(() => window.finishDemoRecording());
-  await session.send("Page.stopScreencast");
-  await frameWriting;
-  if (frameError) throw frameError;
+  const frames = await capture.stop();
+  capture = undefined;
+  const frameRate = checkFrameRate(frames);
   await writeFile(join(output, "audio.webm"), Buffer.from(audio.audio, "base64"));
 
   await page.locator(CAPTAINS_LOG.link).click();
@@ -238,13 +226,14 @@ try {
     preparedDemo: true, generatedCaptainVoice: "bm_daniel", actorImitation: false,
     demoPermissions: demoPermissions(), audioStart: recordingStart,
     tribute: { id: tribute.id, subject: tribute.subject, text: tribute.text, after: "report" },
-    frames, events, timeline, turns, result, transcript,
+    frameRate, frames, events, timeline, turns, result, transcript,
   }, null, 2));
   console.log(`Recorded. Tests: ${result.tests ? `${result.tests.command} ${result.tests.passed ? "passed" : "FAILED"}` : "none found"}.`);
-  console.log(`Saved to ${output}.`);
+  console.log(`App footage: ${frames.length} frames at ${frameRate.toFixed(1)} a second, ${FOOTAGE.width * FOOTAGE.scale}×${FOOTAGE.height * FOOTAGE.scale} pixels. Saved to ${output}.`);
 } finally {
   controller.abort();
-  try { await frameWriting; }
+  // Only reached here after an earlier failure; keep that error, not the capture's.
+  try { await capture?.stop().catch(() => {}); }
   finally {
     try { await browser?.close(); }
     finally {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildCaptions, draftEdit, frameList, layout, mergeRanges, rootComposition, silences, speechTimes, spokenStardate, transcript } from "./edit.mjs";
-import { chapterList, srt } from "../tools/intro-episode.mjs";
+import { chapterList, vtt } from "../tools/intro-episode.mjs";
 
 test("stardates are read digit by digit", () => {
   assert.equal(spokenStardate("-296154.7"), "minus two nine six one five four point seven");
@@ -12,6 +12,10 @@ test("each frame is held for as long as it was on screen", () => {
   const list = frameList([{ file: "a.jpg", time: 10 }, { file: "b.jpg", time: 10.5 }], 12);
   assert.match(list, /a\.jpg'\nduration 0\.5000\nfile 'frames\/b\.jpg'\nduration 1\.5000\nfile 'frames\/b\.jpg'\n$/);
   assert.throws(() => frameList([{ file: "a.jpg", time: 13 }], 12), /after the recording ended/);
+});
+
+test("the site frames are listed from their own folder", () => {
+  assert.match(frameList([{ file: "a.jpg", time: 0 }], 1, "site-frames"), /^file 'site-frames\/a\.jpg'\nduration 1\.0000\nfile 'site-frames\/a\.jpg'\n$/);
 });
 
 test("frames the browser delivered out of order play in the order they were shown", () => {
@@ -176,7 +180,7 @@ test("the episode follows the storyboard: tribute, hook, title, briefing, make i
   assert.equal(plan.duration, 15 + 4 + 6 + 12 + 2 + 2 + 5 + 5 + 6 + 15);
   assert.deepEqual(plan.chapters.map((chapter) => [chapter.start, chapter.title]), [[0, "Why we built it"], [19, "The briefing"], [37, "Make it so"], [51, "Captain’s log"]]);
   assert.doesNotThrow(() => chapterList(plan.chapters, plan.duration));
-  assert.doesNotThrow(() => srt(plan.captions));
+  assert.doesNotThrow(() => vtt(plan.captions));
   assert.equal(plan.captions[0].text, "Picard: Captain Picard never typed.");
   // The tribute comes first, on screen from the first frame; the Captain's hook follows it.
   const opening = plan.clips.find((clip) => clip.composition === "opening");

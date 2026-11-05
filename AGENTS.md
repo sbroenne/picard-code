@@ -86,6 +86,10 @@ Advanced setup for people with their own subscription and deployed models.
   in `~/.picard-code`; live-check samples go to the ignored
   `.picard-voice/samples`. Keep license notices for anything downloaded or
   included in the npm package.
+- **Videos are made and uploaded in 4K.** YouTube blurs small interface
+  text in 1080p uploads. Follow the picture quality rules in
+  [tools/README.md](tools/README.md#picture-quality); the recorder, build and
+  upload steps check them. Never lower them to save time or disk space.
 
 ## How the computer talks
 

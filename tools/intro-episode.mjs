@@ -116,20 +116,23 @@ export function chapterList(chapters, total) {
   }).join("\n");
 }
 
-/** Formats seconds as an SRT time stamp. */
-export function srtTime(seconds) {
+/** Formats seconds as a WebVTT time stamp. */
+export function cueTime(seconds) {
   const total = Math.round(seconds * 1000);
   const part = (value, size = 2) => String(value).padStart(size, "0");
-  return `${part(Math.floor(total / 3600000))}:${part(Math.floor(total / 60000) % 60)}:${part(Math.floor(total / 1000) % 60)},${part(total % 1000, 3)}`;
+  return `${part(Math.floor(total / 3600000))}:${part(Math.floor(total / 60000) % 60)}:${part(Math.floor(total / 1000) % 60)}.${part(total % 1000, 3)}`;
 }
 
-/** Writes caption cues as SRT, rejecting overlapping or empty cues. */
-export function srt(cues) {
-  return cues.map((cue, index) => {
+/**
+ * Writes caption cues as WebVTT, rejecting overlapping or empty cues. Each cue sits at the top of the
+ * picture, so it never covers the console's microphone and status at the bottom; SRT cannot say where.
+ */
+export function vtt(cues) {
+  return `WEBVTT\n\n${cues.map((cue, index) => {
     if (!(cue.end > cue.start)) throw new Error(`Caption ${index + 1} has no duration.`);
     if (index && cue.start < cues[index - 1].end) throw new Error(`Caption ${index + 1} overlaps the one before.`);
-    return `${index + 1}\n${srtTime(cue.start)} --> ${srtTime(cue.end)}\n${cue.text}\n`;
-  }).join("\n");
+    return `${cueTime(cue.start)} --> ${cueTime(cue.end)} line:0% position:50% align:center\n${cue.text}\n`;
+  }).join("\n")}`;
 }
 
 /** The side-panel link and drawer for the Captain's log, as the app's own browser checks use them. */
