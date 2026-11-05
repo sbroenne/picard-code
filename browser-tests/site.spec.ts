@@ -85,7 +85,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard");
     await expect(page.locator("main h1, main h2").first()).toHaveText(/tribute/i);
     await expect(page.getByRole("link", { name: "Help shape the computer", exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Watch the video on YouTube" })).toHaveAttribute("href", "https://youtu.be/_OKnpwS9dOI");
+    await expect(page.getByRole("link", { name: "Watch the video on YouTube" })).toHaveAttribute("href", "https://youtu.be/KP6VPTm2a6E");
     const screenshots = page.locator(".screenshots figure");
     await expect(screenshots).toHaveCount(3);
     for (const [index, name] of ["Current log entry", "The bridge crew", "Captain’s log"].entries()) {

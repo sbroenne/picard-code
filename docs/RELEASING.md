@@ -80,7 +80,7 @@ coding agents never do.
 ## The launch video and YouTube channel
 
 The short video is on the [Picard Code channel](https://www.youtube.com/@PicardCode)
-at <https://youtu.be/_OKnpwS9dOI>, linked from the website and README.
+at <https://youtu.be/KP6VPTm2a6E>, linked from the website and README.
 
 The new intro is a short TNG episode, first of all a tribute to Sir Patrick
 Stewart and Captain Jean-Luc Picard. It opens on "Picard Code: a tribute to"
