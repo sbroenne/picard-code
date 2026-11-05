@@ -1,14 +1,14 @@
 # Picard Code: conversation and voice direction
 
-> **Status.** These notes describe the earlier conversation fixes and listening comparison. The voice selection described here has since been replaced by fixed computer and crew voices; see [bridge-crew-voices.md](bridge-crew-voices.md#speaking-voices). Audio samples are not stored in this repository; the measurement files are in [audition-data](audition-data/).
+> **Status: historical evaluation.** These notes record the earlier conversation fixes and listening comparison, not the current product specification. The app now speaks complete conversational answers, handles single questions aloud, and supports spoken interruption. The computer uses fixed Alloy and Iris voices, and Nemotron has replaced Whisper. See the [current user guide](../USER_GUIDE.md#spoken-requests) and [later voice comparison and checks](bridge-crew-voices.md#evidence-limits). Audio samples are not stored in this repository; the measurement files are in [audition-data](audition-data/).
 
-## Why the current version does not yet achieve the tribute
+## Limitations at the initial evaluation
 
-The current implementation proves that listening, coding, and playback connect. It does not prove that the interaction resembles the Enterprise computer.
+At that evaluation, the implementation proved that listening, coding, and playback connected. It did not prove that the interaction resembled the Enterprise computer.
 
-The following findings come from the implemented code, not from listening to its audio:
+The following findings came from the code at that evaluation, not from listening to its audio:
 
-| Current behavior | Why it weakens the intended experience | Direction to evaluate |
+| Behavior at that evaluation | Why it weakened the intended experience | Direction evaluated |
 |---|---|---|
 | One general instruction asks for a brief opening paragraph. | An operational answer, explanation, clarification, and approval need different shapes; shortening a chat response is not sufficient. | Choose the response shape according to the actual situation. |
 | Speech is selected from the first paragraph once work finishes. | The spoken channel is an excerpt of a written answer, rather than a deliberately composed conversational turn. | Provide a concise spoken answer alongside the full visible result, grounded in the same facts. |
@@ -175,18 +175,18 @@ The user should judge both conversation wording and audible delivery. Record whi
 
 The recorded listening judgment at that time was: "the british computer voices are better." That earlier implementation used British MAI Emily with neutral style and British Kokoro `bf_emma`, with other voices selectable. This was a preference for British delivery, not a claim of TNG authenticity. It has since been replaced by fixed Alloy and Iris computer voices after the actor comparison and the owner's decision to remove voice selection.
 
-The demonstrated spoken-answer and clarification problems still require fixes; changing the voice cannot repair them.
+At that stage, the demonstrated spoken-answer and clarification problems still required fixes; changing the voice could not repair them.
 
 At this stage, visible input restyling and voice-over-voice interruption were excluded until a further explicit decision. Spoken interruption was subsequently requested and implemented as described below. Spoken clarification must use OpenCode's actual pending question and preserve choices and permission boundaries. Every implemented change needs real behavior checks, not merely convincing sample audio.
 
 Do not describe the research as acoustically complete, or the app as faithful, solely because the speech connection passes its checks.
 
 
-## What was implemented and checked
+## Earlier fixes and checks
 
-These changes follow the objective findings above. They do not settle whether the conversation feels like TNG; that remains the user's judgment.
+These changes followed the objective findings above. The table records the earlier implementation, not every later change. In particular, speech now includes all conversational paragraphs before an On screen appendix, not just the first paragraph. Whether the exchange feels like TNG remains the owner's judgment.
 
-| Finding | What Picard Code now does |
+| Finding | Earlier implementation |
 |---|---|
 | Speech was cut from the first paragraph of a written answer. | Picard Code's always-supplied instructions ask for a complete spoken first paragraph of one to three sentences. Detail follows for the screen. If a reply still opens with a list, the list items are spoken; a lead-in ending in a colon becomes a full sentence with a pointer to the screen. |
 | Identifiers, paths, timestamps and links were read literally or lost their meaning. | Speech only, never the screen: `src/config.ts:3` becomes "src slash config dot ts, line 3"; `MAX_RETRIES` becomes "max retries"; timestamps become dates; links become "the link on screen". The written reply keeps the exact text. |
@@ -200,7 +200,7 @@ not running work. Requests keep their original words. Browser echo cancellation
 and rejection of words repeated from the current answer guard against the
 computer hearing itself; a click on the computer panel and **Stop speaking**
 remain available. Browser checks use a simulated microphone, not room acoustics.
-Physical microphone and speaker echo remains unchecked.
+This evaluation did not check physical microphone and speaker echo.
 
 Not implemented, by decision: rewriting requests in a captain's style.
 Approvals always need a button press.
@@ -222,8 +222,16 @@ Replies finished 2.6 to 8.5 seconds after sending. That excludes listening and s
 
 Also passed on the same day: real MAI listening and Emily speaking, real local Whisper and Kokoro `bf_emma` on the CPU, and full browser conversations through both speech paths using a synthesized test microphone.
 
-### Still unverified
+### Not verified in that evaluation
 
 - A physical microphone in a real room, including echo from loudspeakers.
 - macOS and Linux.
 - Whether the wording, voice and timing now feel right. This needs the user's listening review.
+
+These are limits of that historical run, not a current platform-support list.
+Later Nemotron/Kokoro and complete-answer checks are recorded in
+[the bridge-crew evidence](bridge-crew-voices.md#evidence-limits);
+current local-speech check coverage is described in
+[the developer guide](../DEVELOPMENT.md#which-github-checks-run-real-speech).
+The owner's Windows ARM Nemotron check is recorded in
+[the user guide](../USER_GUIDE.md#local-nemotron-and-kokoro-setup).

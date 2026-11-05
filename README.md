@@ -37,7 +37,7 @@ Open a terminal in your project folder and run:
 npx picard-code
 ```
 
-Your browser opens and guides you through setup.
+Your browser opens. Choose **Begin start-up** to bring the computer online.
 [First-run details](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#get-started).
 
 ### Run from source

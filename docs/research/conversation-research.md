@@ -4,6 +4,12 @@ Research and design recommendations, 31 October 2026.
 
 > **Status.** This is the research that shaped Picard Code's conversation rules. It is kept as written, with its evidence limits. Recommendations are not all implemented: the optional captain-style rendering of requests is **not** built. Spoken interruption is now implemented, but physical microphone and speaker echo still needs checking. See [voice-and-conversation-direction.md](voice-and-conversation-direction.md) for what was implemented and checked.
 
+The service preferences, sound choices and proposed examples below are
+historical, not current setup instructions. Nemotron and Kokoro are now the
+default; Whisper is retired, there is no typing fallback, and four computer
+sounds download automatically at startup. See the [current user guide](../USER_GUIDE.md)
+and [later crew checks](bridge-crew-voices.md#evidence-limits).
+
 ## Main finding
 
 The convincing tribute is not a collection of stock phrases. It is the relationship between a person who gives purposeful instructions and a computer that understands the current context, supplies the requested information, asks for missing details, and respects limits.
