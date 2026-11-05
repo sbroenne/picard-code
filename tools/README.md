@@ -2,8 +2,8 @@
 
 The tools in [`voice-match/`](voice-match/) helped choose the fixed speaking
 voices for the computer and six bridge officers. They compare ready-made
-Kokoro and Azure MAI voices with reference clips. **They do not clone voices,
-train models, or turn the recordings into new speech.**
+Kokoro and Azure MAI voices with reference clips.
+**They do not clone voices, train models, or turn the recordings into new speech.**
 
 The reference clips stay on the owner's computer. No recordings, transcripts,
 or clip names are included in the saved comparison report. The tools are for
@@ -150,8 +150,8 @@ Existing sample files are reused, so changed sentences or speaking settings
 need a fresh output folder to avoid comparing stale audio. Rendering supports
 `--output`, and matching supports `--samples`.
 
-The default matching command **overwrites the repository's comparison
-report**. For an exploratory run, keep the output outside the repository:
+The default matching command **overwrites the repository's comparison report**.
+For an exploratory run, keep the output outside the repository:
 
 ```sh
 npm run voices:match -- --clips "/path/to/reference-clips" --report "$HOME/.picard-code/voice-match/comparison.json"

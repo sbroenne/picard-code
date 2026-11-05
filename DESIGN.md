@@ -33,11 +33,16 @@ step, listening lights, a microphone button with its own listening label, and
 stopping controls when needed.
 There is no typing box or phone layout.
 
-First setup uses one central LCARS flow: connect an AI provider if needed,
-choose an AI model, then prepare speech. The three-step readout follows the
-current stage, including speech downloads and retries. Reuse the same provider
-and model controls in the central panel and later settings drawers; do not
-keep separate copies or save a choice merely because the list changed.
+First start-up uses one central LCARS flow. Begin start-up brings three ship's
+systems online: Computer core (the AI provider), Computer intelligence (the AI
+model) and Communications (the microphone). Reuse an existing OpenCode sign-in;
+Begin start-up confirms the Captain's own OpenCode default model when available.
+Otherwise the Captain chooses and confirms an AI model. Open a channel enables
+the microphone once speech is ready. The voice systems prepare in the background,
+with actual steps, errors and retry shown in a bar below the central panel.
+Reuse the same provider and model controls in the central panel and later
+Ship's systems drawers; do not keep separate copies or save a choice merely
+because the list changed.
 Speech service names, download information and Prepare the computer stay
 together. Downloads and failures show actual steps and retry beside the error.
 Keep AI provider and AI model errors inside the same first-run frame.
@@ -56,30 +61,33 @@ Captain's log and the Project, Computer intelligence, and Listen · Speak tiles
 open in a slide-out, as do AI provider in the top bar and About from the header dedication.
 Choosing it again, Current log entry, Escape, or the log entry beside it closes
 the slide-out. The Tribute tile is an On/Off switch, not a slide-out. Stardate
-shows the fan-formula date, with the ordinary date on hover.
+shows the fan-formula stardate, including its hover text.
 
 ## States and access
 
 The AI provider setting, headed Connect your AI provider, uses a Captain-facing
 LCARS connection frame with a copyable terminal command, a clear Refresh
 connection action, and real
-connection results. OpenCode owns sign-in. On first setup, show Connect first
-only when no providers are connected; already-connected providers go straight
-to Computer intelligence, even when no usable models are listed. Detect
+connection results. OpenCode owns sign-in. After Begin start-up, show the
+Computer core sign-in order only when no providers are connected.
+Reuse connected providers; a provider with no usable models opens Computer
+intelligence for recovery rather than repeating sign-in. Detect
 connections from OpenCode's provider and connection information, not the model list; a failed
 lookup is an error, not an empty connection list. Keep credentials and account
-details on the server. Default OpenCode models remain an explicit optional
-path through a secondary LCARS-style Continue without connecting button.
-Explain that it offers OpenCode's default models and recommend connecting a
-provider for the best experience. Hide both the button and explanation when
-that path is unavailable. A saved OpenCode choice does not prompt connection
-onboarding again.
-The first setup shows Connect AI provider, Choose AI model, and Set up speech,
-highlighting only the current step. Supporting connection and permission
-information stays under About the connection. Computer intelligence also
-links to Connect so the Captain can add providers later.
-The Computer intelligence setting labels its selector AI model and requires
-an explicit confirmed choice, even when OpenCode offers free models.
+details on the server. OpenCode's few free models remain an explicit optional
+path through the Skip sign-in for now and use OpenCode's few free models link.
+Show the link only when those models are available and no provider is connected.
+A saved OpenCode choice does not prompt first-run sign-in again.
+The first-run readout shows Computer core, Computer intelligence and
+Communications, marking the current system and those already online.
+Supporting connection and permission information stays under About the
+connection. Computer intelligence also links to Connect so the Captain can add
+providers later.
+The Computer intelligence setting labels its selector AI model. A new choice
+requires Confirm this model during first start-up or Use this model later,
+even when OpenCode offers free models. Begin start-up can confirm a default
+the Captain already set in OpenCode; never treat an automatic model choice
+from OpenCode as the Captain's default.
 Recommend the most capable model available without
 inventing a ranking, and explain the possible cost and speed trade-off.
 The confirmed choice is saved on this computer for every Project, separately
@@ -91,8 +99,9 @@ instruction. Computer intelligence gives brief guidance for the actual state:
 first selection, saved choice, an unconfirmed change, or recovery. It uses an
 LCARS-style control frame and a colored status readout. A saved choice is
 clearly marked, and Use this model stays off until the choice changes.
-That action saves the choice and opens speech setup, or closes settings if
-speech is already set up. There is no separate confirmation screen.
+During first start-up, confirming the model advances to Communications while
+voice preparation continues separately. Later, Use this model saves the choice
+and closes the drawer when speech is ready. There is no separate confirmation screen.
 Unavailable models have a direct Refresh connection action. Supporting details
 stay under About this choice, not in the main setup steps.
 Connection readiness means OpenCode is connected and the confirmed model is available.
@@ -135,17 +144,18 @@ screen-reader announcements on redraw.
 
 The microphone switches on when speech is ready and an available model has
 been confirmed, subject to browser permission
-and sound restrictions. "Computer" starts a task; follow-ups within it need no
-prefix. Standing by still listens; the microphone button or M key stops capture
-once it is listening.
+and sound restrictions. "Computer" addresses the computer; follow-ups need no
+prefix. Standing by still listens; the microphone button or M key stops capture.
 Only an explicit spoken request or the New log entry tile starts a new entry.
 Microphone changes, standing by and page refreshes do not start a new entry.
 Requests heard during work or a pending decision are not sent. Live understood
 words and "Not sent" feedback remain visible without a routine Send step.
 Microphone off, Stop speaking, and Belay that (stop work) are separate controls.
-Playback and settings pause listening; interruption uses Stop speaking.
+Listening stays available during spoken replies: "Computer", Stop speaking
+or a click on the computer panel stops playback without stopping work.
+Video playback, computer sounds and open Ship's systems panels pause listening.
 Azure listening can receive speech before "Computer" is recognized.
-Optional computer sounds are quiet, play once at a real event (accepted,
+Computer sounds are quiet, play once at a real event (startup, accepted,
 not understood, failed or denied), never while listening,
 and never stand in for the written or spoken explanation.
 

@@ -148,8 +148,8 @@ request. A real model reply needs a signed-in provider.
 
 ### Listening and speaking
 
-`test:speech:live` makes small, chargeable requests to the configured **real
-Azure** services. It synthesizes an original short test phrase and sends the
+`test:speech:live` makes small, chargeable requests to the configured
+**real Azure** services. It synthesizes an original short test phrase and sends the
 generated audio through MAI's live listening connection, checking both final
 words and live word updates. It does not capture your microphone or call
 an AI model.
@@ -175,7 +175,7 @@ Add `--model provider/model` to choose a particular available model for the
 check. This does not change your saved Picard Code model or speech choices.
 Both paths exercise the real local completion model through the browser's
 captured audio and confirm that a pause was checked before submission.
-Prepare speech first as described in [Natural pauses](../README.md#natural-pauses).
+Prepare speech first as described in [Natural pauses](USER_GUIDE.md#natural-pauses).
 Add `--interrupt` to play a generated request into the browser's capture path
 while a real spoken answer is playing. It checks that playback stops, the
 new request keeps its name and negation, and no stop-work request is sent.

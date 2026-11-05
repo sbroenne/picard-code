@@ -22,7 +22,7 @@ Advanced setup for people with their own subscription and deployed models.
 - `src/server/`: local server, OpenCode connection, speech services, launcher.
 - `src/shared/`: code used by both server and browser (spoken wording, question matching, messages).
 - `web/`: the browser interface. `web/voice.ts` owns microphone, playback and computer sounds.
-- `scripts/`: local speech worker and setup scripts, plus the optional sound download.
+- `scripts/`: local speech worker and setup scripts, including startup sound downloads.
 - `src/tests/` and `browser-tests/`: checks (see below).
 - `docs/research/`: conversation and voice research, with its evidence limits.
 
