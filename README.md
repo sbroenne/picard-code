@@ -31,7 +31,7 @@ supported computers can use your own Azure speech resource under
 **Advanced setup**. See the
 [full requirements](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#get-started).
 
-In a terminal, run:
+Open a terminal in your project folder and run:
 
 ```sh
 npx picard-code
@@ -44,13 +44,7 @@ Local speech downloads automatically, with progress and any real errors shown.
 OpenCode 2 is included if you do not already have it; Python and speech
 packages are prepared for you.
 
-Keep the terminal open. Press **Ctrl+C** to stop. To select another folder:
-
-```sh
-npx picard-code --project "full path to your project"
-```
-
-You can also use the **Project** tile in the app.
+Keep the terminal open. Press **Ctrl+C** to stop.
 
 ## Give an order
 
@@ -78,7 +72,9 @@ approval first. When an approval is requested, choose **Allow once** or
 **Deny** on screen; voice cannot grant it.
 [Read about permissions and privacy](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#spoken-requests).
 
-## Run from source
+## Advanced
+
+### Run from source
 
 With Git and Node.js installed:
 
@@ -92,6 +88,17 @@ npm start
 
 Choose your own project with the **Project** tile.
 [More about running from source](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#run-from-source).
+
+### Choose another project
+
+Picard Code uses the terminal's current folder by default. To launch from
+somewhere else and select a different project:
+
+```sh
+npx picard-code --project "full path to your project"
+```
+
+You can also change the folder with the **Project** tile in the app.
 
 ## Guides and help
 
