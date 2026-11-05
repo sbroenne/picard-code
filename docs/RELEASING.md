@@ -76,17 +76,28 @@ coding agents never do.
 The short video is on the [Picard Code channel](https://www.youtube.com/@PicardCode)
 at <https://youtu.be/_OKnpwS9dOI>, linked from the website and README.
 
-The refreshed intro leaves first-run setup for a separate guide. It shows
-the current interface with clearly labeled staged examples, not live model
-results. Its speech uses ready-made Kokoro voices, including the app's
-Alloy computer voice, Liam for Data and Michael for Riker. It contains no
-downloaded show sounds.
+The refreshed intro leaves first-run setup for a separate guide. It records
+the actual app: Data investigates an original release-board example without
+editing, then Geordi repairs it and runs the original checks. The browser
+shows the real corrected result. Requests use a prepared stock Kokoro voice
+through the real browser microphone path, not a physical microphone. Replies,
+file changes, and check results come from real OpenCode and speech services.
+Waiting is visibly shortened; the short edit excerpts Data's report.
+It contains no downloaded show sounds.
 
-Its source is `video/index.html`, a
+Follow [Record the actual app](../tools/README.md#record-the-actual-app)
+to record and render it with separate demo settings, without changing the
+owner's saved choices. `tools/record-intro.mjs` captures the original project,
+timestamps, actual browser playback, and check evidence.
+`tools/render-intro.mjs` makes the edit, captions, and proposed YouTube wording.
+Generated media stays in the ignored `video/out/real-intro-*` folder.
+Review the entire video and caption alignment before uploading.
+
+The earlier still-image composition remains in `video/index.html`, a
 [HyperFrames](https://github.com/heygen-com/hyperframes) composition;
 `video/assets/` and `video/out/` are ignored by git. Generated media is
 not committed, including any older renders containing the TrekCore startup
-call. To make the intro again (needs ffmpeg and an existing local Kokoro setup;
+call. To reproduce that earlier composition (needs ffmpeg and an existing local Kokoro setup;
 do not change saved speech choices to render it):
 
 1. Capture the screens and spoken text from the labeled test stand-in:
@@ -119,7 +130,8 @@ YouTube needs a 1280×720 thumbnail (also kept as `site/assets/video.png`, the
 clickable video picture on the website), an 800×800 channel picture (the logo
 from `site/assets/mark.svg`) and a 2560×1440 channel banner. Keep the banner's
 words inside the centre 1546×423, which is all that phones show. The video description lists what the app uses,
-says the examples are staged and the voices are stock Kokoro voices,
+explains the prepared project, generated requests, real replies and edits,
+and says the voices are stock Kokoro voices,
 and ends with the same unofficial-tribute and
 trademark lines as the website. An end screen needs a second video or a
 playlist, so add one when there is more than one video.

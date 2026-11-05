@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Release board</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #10131c; color: #edf0fa; font: 24px system-ui, sans-serif; }
+  main { max-width: 1300px; margin: 100px auto; padding: 0 64px; }
+  .eyebrow { color: #a0a8bb; font-size: 18px; letter-spacing: .15em; text-transform: uppercase; }
+  h1 { margin: 18px 0 48px; font-size: 76px; letter-spacing: -.06em; line-height: 1; }
+  #verdict { padding: 30px 38px; border: 2px solid #49dab1; border-radius: 18px; background: #153c34; color: #70efd0; font-size: 44px; font-weight: 800; }
+  #verdict.blocked { border-color: #ff778e; background: #40232f; color: #ff9aab; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 28px; }
+  article { padding: 28px; border: 1px solid #373e52; border-radius: 18px; background: #1c2231; }
+  h2 { margin: 0 0 28px; font-size: 26px; }
+  .passed { color: #70efd0; }
+  .failed { color: #ff9aab; }
+  footer { margin-top: 40px; color: #a0a8bb; font-size: 18px; }
+</style>
+<main>
+  <div class="eyebrow">Your next release</div>
+  <h1>Can we launch?</h1>
+  <div id="verdict"></div>
+  <div class="cards"></div>
+  <footer>Original example project. No customer data.</footer>
+</main>
+<script type="module">
+  import { readyToLaunch } from "./status.mjs";
+  const checks = [
+    { name: "Website", passed: true },
+    { name: "Sign-in", passed: true },
+    { name: "Checkout", passed: false },
+  ];
+  const ready = readyToLaunch(checks);
+  const verdict = document.querySelector("#verdict");
+  verdict.textContent = ready ? "READY TO LAUNCH" : "LAUNCH BLOCKED";
+  verdict.classList.toggle("blocked", !ready);
+  for (const check of checks) {
+    const card = document.createElement("article");
+    const title = document.createElement("h2");
+    title.textContent = check.name;
+    const result = document.createElement("div");
+    result.className = check.passed ? "passed" : "failed";
+    result.textContent = check.passed ? "Passed" : "Failed";
+    card.append(title, result);
+    document.querySelector(".cards").append(card);
+  }
+</script>
+</html>

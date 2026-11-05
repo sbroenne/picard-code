@@ -1,4 +1,67 @@
-# Voice matching
+# Record the actual app
+
+The intro uses a real Picard Code browser, real local listening and speaking,
+and a real OpenCode model. It does not inject replies or manufacture check
+results. The Captain's original prepared lines use the stock Kokoro Daniel
+voice through the browser microphone path. This is not a physical microphone
+recording or an imitation of an actor.
+
+You need ffmpeg and the installed Playwright browser.
+First prepare local Nemotron, Smart Turn and Kokoro using the normal setup.
+Do not change the owner's saved choices to make a recording. Build the app
+and check the current models before selecting one:
+
+```sh
+npm run build
+npm run opencode -- models
+node --test tools/record-intro.test.mjs
+node tools/record-intro.mjs --model github-copilot/gpt-6.1-sol
+```
+
+The recording creates a fresh original release-board project and separate
+settings under the ignored `video/out/real-intro-*` folder. The example
+deliberately starts with a misleading launch decision: one passing check
+allows launch even when checkout fails. Its checks live in `checks.mjs`,
+not an automatically discovered test file. Data reads without editing;
+Geordi repairs and tests. Actual browser frames carry recording timestamps,
+and a browser audio recorder captures the actual speaking output and the
+prepared requests. Computer sounds are not supplied for this recording.
+All owned services close afterward. Do not use this tool on a private project.
+
+The run fails rather than declaring success if the requested words are lost,
+the untouched-file check fails, the repair does not pass the original checks,
+the browser does not show the corrected result, or real speech reports an
+error. It does not answer OpenCode permission requests or questions for the
+owner; those can prevent a recording from completing.
+
+Use the folder printed by the recorder:
+
+```sh
+node tools/render-intro.mjs video/out/real-intro-EXAMPLE
+```
+
+That makes the full-report edit, with the actual before and after, spoken
+orders and replies, two clearly marked shortened waits, and short original
+opening and closing narration. The source supports a shorter Data excerpt
+with `--data-end SECONDS`; measure a silent sentence boundary in that
+recording first. The first paragraph becomes its caption text. Do not reuse
+an earlier run's timing or cut away an important warning.
+
+The folder holds the plain MP4, a 1280-by-720 thumbnail, SRT, top-positioned
+VTT, proposed YouTube wording, `edit.json`, and `captioned.html`. From that folder, make the
+top-caption version with:
+
+```sh
+npx hyperframes@0.8.226 render --composition captioned.html --output picard-code-real-intro-captioned.mp4 --fps 24 --workers 2 --no-best-effort
+```
+
+Review the whole recording, words, cuts, and caption alignment before
+publication. Within-clip caption times are estimates, not forced alignment.
+Keep all generated footage, audio, raw transcripts and local settings out of
+git. Only share the chosen deliverables, not the raw settings or launch URL.
+Publishing on YouTube still needs the owner's explicit approval.
+
+## Voice matching
 
 The tools in [`voice-match/`](voice-match/) helped choose the fixed speaking
 voices for the computer and six bridge officers. They compare ready-made
