@@ -42,6 +42,7 @@ test("each spoken sentence is timed from its measured length, with the handover 
 function recording() {
   return {
     frames: [{ file: "0.jpg", time: 100 }],
+    tribute: { id: "picard-tea", subject: "Picard", text: "Earl Grey tea is one of Picard's recurring preferences." },
     turns: [
       { order: "computer", say: "Computer.", spoken: { start: 101, end: 102 } },
       { order: "briefing", say: "Number One, Mr Data, two sentences each: options.", spoken: { start: 105, end: 108 }, settled: 160 },
@@ -140,13 +141,14 @@ function edit() {
       briefing: [{ from: 0, to: 6, speech: [speech("Picard", 1, 2, "Computer.")] }, { from: 20, to: 32, speech: [speech("Riker", 21, 30, "Two options, Captain.")], plate: { name: "Commander Riker", duty: "First officer", colour: "#dd6666" } }],
       work: [{ from: 50, to: 52, speech: [], caption: "Writing code · waiting cut" }, { from: 60, to: 62, speech: [] }],
     },
-    site: { from: 1, to: 7 },
+    tribute: { caption: "Tribute · Personnel file" },
+    site: { from: 1, to: 4 },
   };
 }
 
 test("the episode follows the storyboard: tribute, hook, title, briefing, make it so, Captain's log, end board", () => {
   const plan = layout(edit(), spoken, sounds);
-  assert.equal(plan.duration, 15 + 4 + 6 + 12 + 2 + 2 + 6 + 6 + 15);
+  assert.equal(plan.duration, 15 + 4 + 6 + 12 + 2 + 2 + 3 + 3 + 6 + 15);
   assert.deepEqual(plan.chapters.map((chapter) => [chapter.start, chapter.title]), [[0, "Why we built it"], [19, "The briefing"], [37, "Make it so"], [47, "Captain’s log"]]);
   assert.doesNotThrow(() => chapterList(plan.chapters, plan.duration));
   assert.doesNotThrow(() => srt(plan.captions));
@@ -160,7 +162,7 @@ test("the episode follows the storyboard: tribute, hook, title, briefing, make i
   }
   assert.deepEqual(plan.captions.find((cue) => cue.text.startsWith("Riker")), { start: 26, end: 35, text: "Riker: Two options, Captain." });
   assert.deepEqual(plan.clips.filter((clip) => clip.kind === "composition" && clip.track === 0).map((clip) => [clip.composition, clip.start, clip.duration]), [["opening", 0, 15], ["title", 15, 4], ["end", 53, 15]]);
-  assert.equal(plan.clips.filter((clip) => clip.src === "assets/sounds/beep-caption.mp3").length, 2, "a bridge beep on each work cut");
+  assert.equal(plan.clips.filter((clip) => clip.src === "assets/sounds/beep-caption.mp3").length, 3, "a bridge beep on each work cut and the Personnel file");
   assert.match(rootComposition(plan.clips), /data-composition-id="main" data-start="0" data-duration="68"/);
   assert.equal(transcript(plan.captions).split("\n")[0], "Picard: Captain Picard never typed.");
 });
@@ -229,4 +231,24 @@ test("the Captain's arrival hail opens the tribute on its own, and the theme wai
   const heard = plan.clips.filter((clip) => clip.kind === "audio" && clip !== hail && clip.src !== "assets/hum.wav");
   assert.ok(heard.every((clip) => clip.start >= hail.start + hail.duration || clip.start + clip.duration <= hail.start), "nothing else sounds over the hail");
   assert.ok(theme.start >= dedicationEnd, "the theme belongs to the title, not the tribute");
+});
+
+test("Data's report is followed by the app's real Personnel file for three seconds, then the site for three", () => {
+  const plan = layout(edit(), spoken, sounds);
+  const tribute = plan.clips.find((clip) => clip.src === "assets/tribute.png");
+  assert.deepEqual([tribute?.kind, tribute?.className, tribute?.start, tribute?.duration], ["image", "still", 41, 3], "right after the work act");
+  const caption = plan.clips.find((clip) => clip.composition === "caption" && clip.variables.text === "Tribute · Personnel file");
+  assert.ok(caption && caption.start >= 41 && caption.start + caption.duration <= 44, "its caption stays on the still");
+  assert.ok(plan.clips.some((clip) => clip.src === "assets/sounds/beep-caption.mp3" && clip.start === 41));
+  const site = plan.clips.find((clip) => clip.src === "assets/site.mp4");
+  assert.deepEqual([site.start, site.duration], [44, 3]);
+  assert.throws(() => layout({ ...edit(), tribute: { caption: "Tribute · Personnel file of the Captain" } }, spoken, sounds), /too long/);
+  assert.throws(() => layout({ ...edit(), tribute: undefined }, spoken, sounds), /Record again: this take has no tribute record/);
+
+  // The cut takes the record from the take; a take without it is recorded again, not faked.
+  const cut = draftEdit(recording(), [], "-296154.7", speech());
+  assert.deepEqual(cut.tribute, { caption: "Tribute · Personnel file", fact: "Earl Grey tea is one of Picard's recurring preferences." });
+  assert.deepEqual(cut.site, { from: 1, to: 4 });
+  const { tribute: _record, ...without } = recording();
+  assert.throws(() => draftEdit(without, [], "-296154.7", speech()), /Record again: this take has no tribute record after Data's report/);
 });

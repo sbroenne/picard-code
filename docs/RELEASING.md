@@ -87,8 +87,9 @@ Stewart and Captain Jean-Luc Picard. It opens on "Picard Code: a tribute to"
 them both, then says why Picard Code exists:
 Captain Picard never typed. Around that is a real recording of the app: the
 Captain hears one sentence each from Riker and Data, says "Make it so", and
-the crew builds a small tribute site; Data runs the tests and reports, and
-the finished entry appears in the Captain's log. Approvals are given before
+the crew builds a small tribute site; Data runs the tests and reports, the
+app shows one of its Personnel file records, and the finished entry appears
+in the Captain's log. Approvals are given before
 recording, so none appear on screen. Replies, edits and check results come
 from real OpenCode and speech services; only waiting is cut, and the whole
 episode stays under 100 seconds. Follow

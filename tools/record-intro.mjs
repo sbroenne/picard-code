@@ -7,7 +7,8 @@ import { resolve, join, dirname, extname, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, expect } from "@playwright/test";
 import { installRecording } from "./record-intro-browser.mjs";
-import { CAPTAINS_LOG, ORDERS, captainVoice, tightenPauses, demoPermissions, screenAlert, sentEvent } from "./intro-episode.mjs";
+import { CAPTAINS_LOG, ORDERS, TRIBUTE_FACT, captainVoice, checkTribute, tightenPauses, demoPermissions, screenAlert, sentEvent, tributeCue } from "./intro-episode.mjs";
+import { TRIBUTE_ENTRIES } from "../dist/shared/tribute-data.js";
 import { startEngine } from "../dist/server/process.js";
 import { startApp } from "../dist/server/app.js";
 import { availableModels } from "../dist/server/engine.js";
@@ -71,6 +72,12 @@ try {
   const context = await browser.newContext({ permissions: ["microphone"], viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 });
   const page = await context.newPage();
   await page.addInitScript(installRecording);
+  // The app's own Personnel file appears under Data's report; see tributeCue.
+  const tribute = TRIBUTE_ENTRIES.find((entry) => entry.id === TRIBUTE_FACT);
+  await page.addInitScript(({ random, seen }) => {
+    Math.random = () => random;
+    localStorage.setItem("picard-tribute-seen", JSON.stringify(seen));
+  }, tributeCue(TRIBUTE_ENTRIES));
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("websocket", (socket) => {
@@ -174,6 +181,12 @@ try {
     assert.match(heard, order.heard, `Nemotron heard "${heard}" for "${order.say}".`);
     const settled = await settle(order);
     await page.screenshot({ path: join(output, `${order.id}.png`) });
+    const records = page.locator(".tribute-fact");
+    checkTribute(order.id, await records.allInnerTexts(), tribute);
+    if (await records.count()) {
+      await records.last().scrollIntoViewIfNeeded();
+      await page.screenshot({ path: join(output, "tribute.png") });
+    }
     turns.push({ order: order.id, say: order.say, heard, spoken, settled });
   }
   await page.waitForTimeout(1500);
@@ -246,6 +259,7 @@ try {
     model: requested, listening: "nemotron", speaking: "kokoro",
     preparedDemo: true, generatedCaptainVoice: "bm_daniel", actorImitation: false,
     demoPermissions: demoPermissions(), audioStart: recordingStart,
+    tribute: { id: tribute.id, subject: tribute.subject, text: tribute.text, after: "report" },
     frames, events, timeline, turns, result, transcript,
   }, null, 2));
   console.log(`Recorded. Tests: ${result.tests ? `${result.tests.command} ${result.tests.passed ? "passed" : "FAILED"}` : "none found"}.`);

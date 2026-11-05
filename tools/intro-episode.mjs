@@ -6,6 +6,30 @@ export const ORDERS = [
   { id: "report", say: "Mr Data, please run the tests and report in one sentence.", heard: /Data\W+please run the tests and report in one sentence/i },
 ];
 
+/** The reviewed Personnel file the app shows after Data's report: the Captain's Earl Grey. */
+export const TRIBUTE_FACT = "picard-tea";
+
+/**
+ * Fixes the app's own random draw for the take, as the browser tests do. With Tribute on, the app shows a
+ * record after two to five successful answers; this makes it three, the answered orders, so the record
+ * appears under Data's report. Every other reviewed entry counts as already seen, so the app picks
+ * TRIBUTE_FACT. The record itself is drawn by the real app from its reviewed list.
+ */
+export function tributeCue(entries, chosen = TRIBUTE_FACT) {
+  const answers = ORDERS.filter((order) => order.heard).length;
+  return { random: (answers - 2 + 0.5) / 4, seen: entries.map((entry) => entry.id).filter((id) => id !== chosen) };
+}
+
+/** Refuses a take whose tribute record came early, never came, or is not the chosen fact. `shown` lists the records' text. */
+export function checkTribute(order, shown, fact) {
+  if (order !== "report") {
+    if (shown.length) throw new Error(`Record again: a tribute record appeared after "${order}"; the episode shows it after Data's report.`);
+    return;
+  }
+  if (shown.length !== 1) throw new Error(`Record again: no tribute record appeared after Data's report (${shown.length} shown).`);
+  if (!shown[0].includes(fact.text)) throw new Error(`Record again: the tribute record after Data's report was not "${fact.text}".`);
+}
+
 /** The text Kokoro speaks for the Captain: no commas, because Smart Turn may end the turn at any pause. */
 export function captainVoice(order) {
   return order.say.replace(/[,:;]/g, "");

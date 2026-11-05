@@ -33,8 +33,11 @@ it rather than saving a recording that hides it; grant what is needed in
 `demoPermissions` or fix the cause, then record again. It also stops when
 Nemotron did not hear an order word for word. Kokoro's pauses inside the
 Captain's orders are shortened, so the app does not end his turn halfway.
-After the work, the take opens the Captain's log so the finished entry can be
-shown. A take takes five minutes or more. Do not use this tool on a private
+The recorder fixes the app's random draw, as the browser tests do, so the
+app's own Personnel file record (the Captain's Earl Grey, chosen in
+`TRIBUTE_FACT`) appears under Data's report; the take stops if it appears
+early, late or with another fact. After the work, the take opens the Captain's
+log so the finished entry can be shown. A take takes five minutes or more. Do not use this tool on a private
 project.
 
 ## Build and render the episode

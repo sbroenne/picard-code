@@ -9,7 +9,9 @@ import { join } from "node:path";
 import { chromium } from "@playwright/test";
 import { installRecording } from "./record-intro-browser.mjs";
 import { addressedOfficers } from "../dist/shared/crew.js";
-import { CAPTAINS_LOG, ORDERS, captainVoice, tightenPauses, chapterList, demoPermissions, readSrt, screenAlert, sentEvent, srt, srtTime } from "./intro-episode.mjs";
+import { TRIBUTE_ENTRIES } from "../dist/shared/tribute-data.js";
+import { TributeCycle } from "../dist/shared/tribute.js";
+import { CAPTAINS_LOG, ORDERS, TRIBUTE_FACT, captainVoice, checkTribute, tightenPauses, chapterList, demoPermissions, readSrt, screenAlert, sentEvent, srt, srtTime, tributeCue } from "./intro-episode.mjs";
 
 const execute = promisify(execFile);
 
@@ -57,6 +59,32 @@ test("Data's test order is shown on screen exactly as spoken; a misheard order i
   for (const misheard of ["Mister Data tested and report in one sentence", "Mister Dayta run the tests and report in one sentence"]) {
     assert.doesNotMatch(misheard, report.heard, misheard);
   }
+});
+
+test("the app's own tribute cycle shows the chosen Personnel file right after Data's report, and not before", () => {
+  const fact = TRIBUTE_ENTRIES.find((entry) => entry.id === TRIBUTE_FACT);
+  assert.equal(fact?.subject, "Picard", "a Personnel file record, not one about Sir Patrick");
+  const cue = tributeCue(TRIBUTE_ENTRIES);
+  assert.ok(!cue.seen.includes(TRIBUTE_FACT) && cue.seen.length === TRIBUTE_ENTRIES.length - 1);
+  // The same class and settings the page builds when it loads, with its random draw fixed as the recorder fixes it.
+  const cycle = new TributeCycle(TRIBUTE_ENTRIES, cue.seen, () => cue.random);
+  cycle.setEnabled(true);
+  const answered = ORDERS.filter((order) => order.heard);
+  assert.equal(answered.at(-1).id, "report");
+  const shown = answered.map((order) => cycle.completed({
+    id: order.id, outcome: "succeeded", blocked: false, explicit: false,
+    reply: { id: order.id, role: "assistant", parts: [{ type: "text", text: "Done, Captain." }] },
+  }));
+  assert.deepEqual(shown.map((entry) => entry?.id), [undefined, undefined, TRIBUTE_FACT]);
+});
+
+test("a take is refused when the tribute record is missing, early or a different fact", () => {
+  const fact = TRIBUTE_ENTRIES.find((entry) => entry.id === TRIBUTE_FACT);
+  assert.doesNotThrow(() => checkTribute("briefing", [], fact));
+  assert.doesNotThrow(() => checkTribute("report", [`Personnel file\nJean-Luc Picard\n${fact.text}\nSource`], fact));
+  assert.throws(() => checkTribute("engage", ["Personnel file"], fact), /Record again: a tribute record appeared after "engage"/);
+  assert.throws(() => checkTribute("report", [], fact), /Record again: no tribute record appeared after Data's report/);
+  assert.throws(() => checkTribute("report", ["Personnel file\nPicard was born in La Barre."], fact), /Record again: the tribute record after Data's report was not/);
 });
 
 test("the Captain's generated voice has no gap long enough for the app to end his turn mid-order", () => {

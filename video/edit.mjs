@@ -214,6 +214,7 @@ function slices(from, to, busy, count, length) {
  * edit are seconds from the first recorded frame.
  */
 export function draftEdit(recording, pauses, stardate, speech) {
+  if (!recording.tribute?.text) throw new Error("Record again: this take has no tribute record after Data's report.");
   const zero = recording.frames[0].time;
   const at = (time) => time - zero;
   const acts = { briefing: [], work: [] };
@@ -283,11 +284,12 @@ export function draftEdit(recording, pauses, stardate, speech) {
       "Menusound-System_Confirm_Beep.mp3": "beep-caption.mp3",
     },
     acts,
-    site: { from: 1, to: 7 },
+    tribute: { caption: "Tribute · Personnel file", fact: recording.tribute.text },
+    site: { from: 1, to: 4 },
   };
 }
 
-const SCENES = { opening: 15, title: 4, still: 6, end: 15 };
+const SCENES = { opening: 15, title: 4, tribute: 3, still: 6, end: 15 };
 /**
  * The opening's beats, in seconds: the dedication to Sir Patrick and the Captain first, then each hook line
  * from when the Captain starts saying it until its words leave. The opening composition is timed from these.
@@ -299,7 +301,7 @@ export const LONGEST_CUT = 100;
 
 /**
  * Lays the whole episode out on one timeline, as in the storyboard: the dedication and hook, the title, the
- * briefing, the crew at work, the site they built, the Captain's log and the end board.
+ * briefing, the crew at work, the app's tribute record, the site they built, the Captain's log and the end board.
  * `spoken` and `sounds` are lengths in seconds.
  */
 export function layout(edit, spoken, sounds) {
@@ -358,6 +360,13 @@ export function layout(edit, spoken, sounds) {
 
   act("briefing", "The briefing");
   act("work", "Make it so");
+  // The app's own Personnel file under Data's report, as recorded; silent, as in the app.
+  if (!edit.tribute) throw new Error("Record again: this take has no tribute record after Data's report.");
+  if (edit.tribute.caption.length > LONGEST_CAPTION) throw new Error(`The caption "${edit.tribute.caption}" is too long; it would run under the app's PICARD CODE title. Keep it to ${LONGEST_CAPTION} characters.`);
+  add({ kind: "image", className: "still", src: "assets/tribute.png", start: time, duration: SCENES.tribute, track: 0 });
+  add({ kind: "composition", composition: "caption", start: time + 0.2, duration: SCENES.tribute - 0.2, track: 1 + (overlay++ % 2), variables: { text: edit.tribute.caption } });
+  chirp("beep-caption.mp3", time);
+  time += SCENES.tribute;
   const site = edit.site.to - edit.site.from;
   add({ kind: "video", className: "site", src: "assets/site.mp4", start: time, duration: site, mediaStart: edit.site.from, track: 0 });
   time += site;

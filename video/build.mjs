@@ -40,6 +40,8 @@ await execute("ffmpeg", ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0
 await execute("ffmpeg", ["-y", "-loglevel", "error", "-i", join(episode, "site.webm"), "-an", "-vf", "fps=30,format=yuv420p",
   "-c:v", "libx264", "-crf", "16", join(assets, "site.mp4")]);
 await copyFile(join(episode, "captains-log.png"), join(assets, "captains-log.png"));
+assert.ok(existsSync(join(episode, "tribute.png")), "Record again: this take has no screen of the tribute record after Data's report.");
+await copyFile(join(episode, "tribute.png"), join(assets, "tribute.png"));
 
 const pauses = silences((await execute("ffmpeg", ["-hide_banner", "-nostats", "-i", join(assets, "footage.mp4"), "-af", "silencedetect=noise=-38dB:d=0.28", "-f", "null", "-"], { maxBuffer: 1 << 26 })).stderr);
 const python = join(homedir(), ".picard-code", "voice", "bin", "python3");
