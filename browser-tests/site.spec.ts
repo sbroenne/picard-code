@@ -18,12 +18,19 @@ test("the npm and GitHub README is a short front page with a launch command and 
 
 test("the README and linked guides keep working repository links and section anchors", async ({ page }) => {
   const repository = "https://github.com/sbroenne/picard-code/blob/main/";
-  const sources = ["README.md", "docs/USER_GUIDE.md", "SUPPORT.md", "CONTRIBUTING.md", "docs/DEVELOPMENT.md", "tools/README.md", "site/index.html", "web/index.html"];
+  const sources = ["README.md", "PRODUCT.md", "DESIGN.md", "docs/USER_GUIDE.md", "SUPPORT.md", "CONTRIBUTING.md", "docs/DEVELOPMENT.md", "docs/research/bridge-crew-voices.md", "tools/README.md", "site/index.html", "web/index.html"];
   const documents = new Map<string, { links: string[]; anchors: string[] }>();
   const document = async (path: string) => {
     const saved = documents.get(path);
     if (saved) return saved;
     const text = await readFile(resolve(path), "utf8");
+    if (path.endsWith(".md")) {
+      marked.walkTokens(marked.lexer(text), (token) => {
+        if (token.type === "strong" || token.type === "em") {
+          expect(token.raw, `${path}: keep emphasis on one source line for Markdown previews`).not.toContain("\n");
+        }
+      });
+    }
     const html = path.endsWith(".md") ? await marked.parse(text) : text;
     const parsed = await page.evaluate((html) => {
       const doc = new DOMParser().parseFromString(html, "text/html");

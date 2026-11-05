@@ -51,8 +51,9 @@ screen.
 ### How it works
 
 A small local browser app. OpenCode does the coding, with any model provider it
-supports, and keeps every log entry. Like the ship's computer, it
-listens all the time and acts only on requests that start with "Computer".
+supports, and keeps every log entry in Captain's log. With the channel open,
+say "Computer" to address it. Follow-ups need no prefix until you return to
+Standing by; the next addressed request continues the Current log entry.
 By default, listening (Nemotron) and speaking (Kokoro) run on this computer,
 with no cloud account. Your own Azure MAI resource can be chosen instead, for
 either side or both, under **Advanced setup**. Saved Whisper listening choices
@@ -393,7 +394,7 @@ Computer intelligence labels the selector **AI model** and shows **Model saved**
 after confirmation. First-time guidance recommends a capable model; saved
 choices and recovery have their own wording rather than repeating the welcome.
 **Use this model** stays off until you choose a different model. Later changes
-use settings drawers; there is no extra confirmation screen. **About this choice**
+use Ship's systems drawers; there is no extra confirmation screen. **About this choice**
 explains where the choice is remembered; if the saved model is unavailable,
 **Refresh connection** is offered in the same panel.
 
@@ -416,7 +417,7 @@ whether the microphone is enabled while the computer works or speaks.
 The console also holds
 **Stop speaking** and **Belay that** when they apply, and the microphone
 button; the row of lights beside it shows listening, and turns blue and moves
-while work runs. While the request runs, a line at the end of the conversation
+while work runs. While the request runs, a line at the end of the log entry
 also says so and who is on it, such as "Data is working on it.", with what is
 happening now when OpenCode reports it, such as "Searching the web.", and a
 moving LCARS scanning bar. They show only while OpenCode reports the work as
@@ -583,16 +584,18 @@ A failed lookup is explained; it does not silently use old or invented informati
 Automatic facts, reviewed story replies and repository questions make no
 Wikipedia requests.
 
-Optional speech follows the answer only after playback finishes. **Stop
-speaking**, microphone off, switching log entries or projects, Ship’s systems,
+Optional speech follows the answer only after playback finishes.
+**Stop speaking**, microphone off, switching log entries or projects, Ship’s systems,
 errors and disconnection discard pending extras. Saying "Computer" during an
 answer stops spoken playback and pending extras; approvals still need an
 on-screen button.
 
 ### Spoken requests
 
-- The app always opens with the microphone on; the browser asks for
-  microphone access the first time. Listening pauses while a setting is open. If the browser blocks
+- On first start-up, choose **Open a channel** once the voice systems are
+  online. Later starts open the channel when speech and the confirmed AI model
+  are ready; the browser asks for microphone access the first time.
+  Listening pauses while Ship's systems are open. If the browser blocks
   sound until you interact, the screen says "Click anywhere to start listening."
 - The **microphone button** beside the status lights, or the **M** key,
   switches the microphone off (the button turns red and crossed out, and the
@@ -612,14 +615,14 @@ on-screen button.
   [Smart Turn pause detector](#natural-pauses) checks whether a thought sounds
   finished, so an unfinished-sounding thought gets more time without adding
   a long delay to every request.
-- **Start a task with "Computer"**, for example "Computer, explain this
-  project". Before a task starts, anything else is shown as "Not sent",
+- **Address the computer with "Computer"**, for example "Computer, explain this
+  project". While Standing by, anything else is shown as "Not sent",
   plays the not-understood sound and is dropped. Saying "Computer" on its own plays the accepted sound and gives you
   about eight seconds to say the request.
-- **Within a task, "Computer" is not needed.** Once the first request is
+- **Follow-ups need no "Computer".** Once the first request is
   sent, everything said is sent to the model, with your words unchanged, until
   you say "new log entry" or "stop listening" (or choose New log entry, Captain’s log or another
-  project). Keep other people's talk out of earshot during a task, or say
+  project). Keep other people's talk out of earshot during the exchange, or say
   "stop listening".
 - **"Stop listening"** (or "stand by", "that will be all") is always
   understood, with or without "Computer". The computer beeps, says "Standing
@@ -627,9 +630,9 @@ on-screen button.
   the log entry on screen. Work already running carries on, and the microphone
   stays on.
 - **"Belay that"** (or "stop", "cancel that", "never mind"; with "Computer"
-  before a task) cancels the current work, the same as the **Belay that** button.
+  while Standing by) cancels the current work, the same as the **Belay that** button.
 - **"Speak faster"**, **"Speak slower"** and **"Normal speed"** (with
-  "Computer" before a task) change how fast the computer and officers speak,
+  "Computer" while Standing by) change how fast the computer and officers speak,
   in small steps from 0.8 to 1.2 times normal. **"Speak fastest"** and
   **"Speak slowest"** go straight to either end. The computer confirms at the new
   speed, and this browser remembers it.
@@ -644,10 +647,11 @@ on-screen button.
   running, a question is waiting, or a decision is needed are not sent: with
   "Computer" you get a short spoken reminder; without it, a "Not sent"
   line on screen and the not-understood sound.
-- The computer speaks a complete short answer, usually one to three
-  sentences. Detailed code and results stay on screen. File names, settings
-  and dates are spoken in a listenable form ("src slash app dot ts, line 3")
-  while the screen keeps the exact text. Follow-ups, corrections and
+- The computer speaks the complete conversational answer, including later
+  paragraphs of explanations, stories and officer reports. Technical detail,
+  code and tables stay under **On screen**. File names and settings are spoken
+  in a listenable form ("src slash app dot ts, line 3"); dates and times use
+  Stardates, while the screen keeps the exact text. Follow-ups, corrections and
   "show me" stay in the same log entry.
 - **Say "Computer" to interrupt an answer**, then give your request, or say
   "Computer" and the request together. Like Alexa or Google Assistant, other
@@ -721,10 +725,10 @@ approval, and Picard Code never starts OpenCode with its `--auto` option.
 Installed extensions and agent configuration also matter.
 
 The interface runs locally, but OpenCode sends messages and relevant project
-content to the model provider you chose. Because the microphone stays on, **MAI listening
-sends any speech it hears to Azure** to find out whether it starts with
+content to the model provider you chose. Because the microphone stays on,
+**MAI listening sends any speech it hears to Azure** to find out whether it starts with
 "Computer", even speech not meant for the computer; quiet room sound is not
-sent. "Computer" starts a task; once it starts, follow-up speech also goes to
+sent. "Computer" addresses the computer; after the first request, follow-up speech also goes to
 the model without that prefix until you return to standing by. MAI speaking
 sends reply text to Azure. Nemotron and Kokoro process their audio locally.
 With both local speech services, speech is processed on this computer.
@@ -915,8 +919,8 @@ cover the service.
 
 The easiest way is the **Listen · Speak** tile in the side panel. Choose the listening and
 speaking services, fill in your resource (only the fields the chosen services
-need are shown), and choose **Save and
-apply**. The new speech setup starts right away, with no restart. If it cannot
+need are shown), and choose **Save and apply**.
+The new speech setup starts right away, with no restart. If it cannot
 start (for example a wrong region), the error is shown, the file is not
 changed, and the speech setup that was working stays in use.
 
@@ -955,7 +959,7 @@ into the local server's memory on startup, and again when you save speech
 settings, using the specified subscription.
 It does not change the CLI's default subscription or create access grants.
 Alternatively, set `PICARD_AZURE_SPEECH_KEY` in the launch process's
-environment using your own secure local setup. Never paste keys into chat,
+environment using your own secure local setup. Never paste keys into log entries,
 browser addresses, or committed files.
 
 The browser receives no Azure key or account credentials. Only microphone
@@ -992,8 +996,8 @@ It does not use an optional skill, and it never writes an `AGENTS.md` or
 other rules file into your project, so your project's own development rules
 stay as they are.
 
-The instructions ask for a restrained ship-computer manner: a complete short
-complete spoken answer first, technical detail under On screen, short follow-ups
+The instructions ask for a restrained ship-computer manner: a complete
+spoken answer first, technical detail under On screen, short follow-ups
 understood from context, one focused question when something is missing,
 specific reasons when information is unavailable, and completion reports only
 for work that actually happened. Stock phrases such as "Working" are not
@@ -1001,9 +1005,9 @@ repeated as catchphrases. Exact names, negations, limits and approvals in your
 request are kept as you said them; your request is never rewritten.
 
 This changes phrasing, not OpenCode's tools or approval rules. The voice is a
-prebuilt voice, not a performer's clone or a show recording. The research
-behind these choices is in
-[docs/research](research/conversation-research.md).
+prebuilt voice, not a performer's clone or a show recording. The
+[bridge crew notes](research/bridge-crew-voices.md) explain the current
+officer instructions, voice choices and evidence limits.
 
 ## Reuse an existing OpenCode server
 
@@ -1035,7 +1039,7 @@ then removed from the address bar.
 
 Project data and work controls require that private browser connection. Requests
 from other websites are rejected. Other websites
-cannot use the interface to start work or read conversations. Provider
+cannot use the interface to start work or read log entries. Provider
 configuration and credentials are not sent to the browser. Model output is
 rendered as Markdown with unsafe HTML removed by DOMPurify, not executed as
 scripts. These protections are not a barrier
@@ -1161,5 +1165,5 @@ This first version does not include file attachments or a full file editor.
 - [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md): respectful participation and reporting.
 - [SECURITY.md](../SECURITY.md): private security reports and supported versions.
 - [AGENTS.md](../AGENTS.md): rules for people and coding agents changing this repository.
-- [Conversation research](research/conversation-research.md) and
-  [voice and conversation direction](research/voice-and-conversation-direction.md).
+- [Bridge crew notes](research/bridge-crew-voices.md): officer instructions,
+  the Captain's orders, voice comparisons and evidence limits.
