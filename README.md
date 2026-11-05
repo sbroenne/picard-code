@@ -37,14 +37,8 @@ Open a terminal in your project folder and run:
 npx picard-code
 ```
 
-Your browser opens for the current project folder. Choose **Begin start-up**,
-connect your AI provider, confirm an AI model and open a channel. Existing
-OpenCode sign-ins and your chosen default model can skip those steps.
-Local speech downloads automatically, with progress and any real errors shown.
-OpenCode 2 is included if you do not already have it; Python and speech
-packages are prepared for you.
-
-Keep the terminal open. Press **Ctrl+C** to stop.
+Your browser opens and guides you through setup.
+[First-run details](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#get-started).
 
 ### Run from source
 
