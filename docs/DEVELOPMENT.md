@@ -157,7 +157,9 @@ request. A real model reply needs a signed-in provider.
 `test:speech:live` makes small, chargeable requests to the configured
 **real Azure** services. It synthesizes an original short test phrase and sends the
 generated audio through MAI's live listening connection, checking both final
-words and live word updates. It does not capture your microphone or call
+words and live word updates. It also speaks a long, number-heavy answer
+piece by piece at the slowest speed, as the app does, so each piece stays
+under the service's audio limit. It does not capture your microphone or call
 an AI model.
 
 `test:speech:local` performs real CPU Kokoro synthesis and Nemotron recognition. It feeds audio
@@ -165,7 +167,8 @@ at microphone pace, checks live Nemotron words before commit, names and
 negations, and listening/speaking cancellation followed by fresh listening.
 It also asks the real Smart Turn worker to distinguish a complete request
 from an unfinished one, cancels a prediction and checks a fresh prediction.
-It saves an original sample under `.picard-voice/samples` and neither reads
+It speaks a long, number-heavy answer piece by piece at the slowest speed,
+so each piece stays under Kokoro's audio limit. It saves an original sample under `.picard-voice/samples` and neither reads
 nor changes saved speech choices. These short examples do not establish
 general recognition or pause-detection accuracy. Generated speech does not
 test a physical microphone.
