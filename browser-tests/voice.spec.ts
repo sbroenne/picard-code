@@ -436,6 +436,40 @@ async function holdSpeaking(page: import("@playwright/test").Page) {
 
 test.setTimeout(60000);
 
+/** Let the first officer's voice play, then hold the next part of the spoken reply and everything after it. */
+async function holdLaterParts(page: import("@playwright/test").Page) {
+  let held: (string | Buffer)[] | undefined;
+  let done = false;
+  let route: import("@playwright/test").WebSocketRoute | undefined;
+  await page.routeWebSocket("**/api/speech", (browser) => {
+    const server = browser.connectToServer();
+    route = browser;
+    browser.onMessage((message) => server.send(message));
+    server.onMessage((message) => {
+      if (!held && !done && typeof message === "string") {
+        const data = JSON.parse(message) as { type: string; index?: number };
+        if (data.type === "part-start" && data.index! > 0) held = [];
+      }
+      if (held) held.push(message);
+      else browser.send(message);
+    });
+  });
+  const stop = () => {
+    if (!held) throw new Error("No part of the reply is being held.");
+    const waiting = held;
+    held = undefined;
+    done = true;
+    return waiting;
+  };
+  return {
+    holding: () => !!held,
+    release: () => { for (const message of stop()) route!.send(message); },
+    /** Lets later voice messages through but never plays the held part. */
+    drop: () => { stop(); },
+    fail: (message: string) => { stop(); route!.send(JSON.stringify({ type: "error", message })); },
+  };
+}
+
 for (const keyboard of [false, true]) {
   test(`console clarity: a browser-paused channel waits for ${keyboard ? "Space" : "a panel click"}, not microphone switching`, async ({ page }) => {
     const microphone = await controlledMicrophone(page, [0.1]);
@@ -2115,6 +2149,105 @@ test("the reply waits while the voice is preparing, then appears when it starts"
   voice.release();
   await expect(status(page)).toHaveText("Transmitting", { timeout: 15000 });
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+function briefingReplies(page: import("@playwright/test").Page) {
+  return {
+    riker: page.locator(".crew-report", { hasText: "Test stand-in: I recommend the smaller repair, Captain." }),
+    data: page.locator(".crew-report", { hasText: "Test stand-in: Data found a small repair." }),
+    close: page.locator(".message[data-role=assistant]:not(.crew-report)", { hasText: "The reports are on screen." }),
+  };
+}
+
+test("in a briefing, each officer's reply appears when that officer's voice starts, and the log entry title ends at a whole word", async ({ page }) => {
+  const voice = await holdLaterParts(page);
+  await launch(page, "briefing");
+  await startListening(page);
+  const replies = briefingReplies(page);
+  await expect.poll(() => voice.holding(), { timeout: 20000 }).toBe(true);
+  // Riker is speaking; Data has not started, so Data's reply and the computer's receipt wait.
+  await expect(replies.riker).toBeVisible();
+  await expect(status(page)).toHaveText("Transmitting");
+  await expect(page.locator("#working")).toBeHidden();
+  await expect(replies.data).toHaveCount(0);
+  await expect(replies.close).toHaveCount(0);
+  voice.release();
+  await expect(replies.data).toBeVisible({ timeout: 15000 });
+  await expect(replies.close).toBeVisible();
+  await expect(replies.riker).toBeVisible();
+  await expect(status(page)).not.toHaveText("Transmitting", { timeout: 15000 });
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await page.getByRole("link", { name: "Captain’s log" }).click();
+  const title = "have Data and Riker brief me on the next step for a tribute…";
+  await expect(page.locator("#conversations .log-title")).toHaveText(title);
+  await page.locator("#conversations .conversation-button", { hasText: title }).click();
+  await expect(page.locator(".message[data-role=user]")).toContainText("Computer, have Data and Riker brief me on the next step for a tribute site to Sir Patrick with a stardate clock, Riker first");
+  for (const reply of Object.values(replies)) await expect(reply).toBeVisible();
+});
+
+for (const route of ["Stop speaking", "Switch microphone off", "a speaking failure", "New log entry, then reopening it from the Captain’s log"] as const) {
+  test(`in a briefing, ${route} shows every officer's reply`, async ({ page }) => {
+    const voice = await holdLaterParts(page);
+    await launch(page, "briefing");
+    await startListening(page);
+    const replies = briefingReplies(page);
+    await expect.poll(() => voice.holding(), { timeout: 20000 }).toBe(true);
+    await expect(replies.riker).toBeVisible();
+    await expect(replies.data).toHaveCount(0);
+    if (route === "a speaking failure") {
+      voice.fail("Test stand-in: the voice stopped.");
+      await expect(page.locator("#notice")).toContainText("Test stand-in: the voice stopped.");
+      await expect(page.locator("#voice-channel")).toHaveText("Microphone off");
+    } else {
+      voice.drop();
+      await page.waitForTimeout(300);
+      await expect(replies.data).toHaveCount(0);
+      if (route.startsWith("New log entry")) {
+        await page.getByRole("button", { name: "New log entry", exact: true }).click();
+        await expect(page.locator(".message")).toHaveCount(0);
+        await page.getByRole("link", { name: "Captain’s log" }).click();
+        await page.locator("#conversations .conversation-button", { hasText: "have Data and Riker" }).click();
+      } else await page.getByRole("button", { name: route, exact: true }).click();
+    }
+    for (const reply of Object.values(replies)) await expect(reply).toBeVisible({ timeout: 5000 });
+    if (route === "Stop speaking" || route.startsWith("New log entry")) await page.getByRole("button", { name: "Switch microphone off" }).click();
+  });
+}
+
+test("in a briefing, a reply already queued to play waits while the browser has paused sound, and appears when sound resumes", async ({ page }) => {
+  // Pause sound as soon as Data's first audio reaches the browser, while Riker is still speaking.
+  let paused: Promise<void> | undefined;
+  let later = false;
+  await page.routeWebSocket("**/api/speech", (browser) => {
+    const server = browser.connectToServer();
+    browser.onMessage((message) => server.send(message));
+    server.onMessage((message) => {
+      browser.send(message);
+      if (typeof message === "string") {
+        const data = JSON.parse(message) as { type: string; index?: number };
+        if (data.type === "part-start" && data.index! > 0) later = true;
+      } else if (later && !paused) paused = pauseAudio();
+    });
+  });
+  const pauseAudio = await blockAudioUntilInteraction(page);
+  await launch(page, "briefing");
+  await startListening(page);
+  const replies = briefingReplies(page);
+  await expect.poll(() => !!paused, { timeout: 20000 }).toBe(true);
+  await paused;
+  await expect(status(page)).toHaveText("Transmitting");
+  await expect(page.locator("#status-detail")).toHaveText("The browser paused sound. Click the microphone, or press M, to hear the rest.");
+  // Riker's audio and Data's start (about 1.3 seconds) would long be over on a running clock.
+  await page.waitForTimeout(3000);
+  await expect(replies.data).toHaveCount(0);
+  await expect(replies.close).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Stop speaking" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume listening" }).click();
+  await expect(replies.data).toBeVisible({ timeout: 15000 });
+  await expect(replies.riker).toBeVisible();
+  await expect(replies.close).toBeVisible();
+  await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 

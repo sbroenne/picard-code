@@ -2,7 +2,8 @@ import "./style.css";
 import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings, SpeechSetupProgress } from "../src/shared/types";
 import { errorMessage } from "../src/shared/messages";
 import { replyFailed, spokenSummary } from "../src/shared/speech";
-import { spokenParts } from "../src/shared/briefing";
+import { spokenParts, type SpokenPart } from "../src/shared/briefing";
+import { logEntryTitle } from "../src/shared/log-title";
 import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../src/shared/questions";
 import { addressed, changedSpeed, isSpeedCommand, SPEAKING_SPEEDS, type SpeedCommand, voiceCommand } from "../src/shared/wake";
 import { VoiceConversation, type FollowOn } from "./voice";
@@ -59,10 +60,14 @@ const live = new Map<string, { sessionID: string; messageID: string; partType: "
 let voiceTurn: { session: string; known: Set<string>; request: string; storyID?: string; outcome?: ExecutionOutcome; reference?: TributeEntry["source"] } | undefined;
 /**
  * The voice leads: replies to a spoken request stay off screen until the voice starts saying them.
+ * In a briefing, each officer's reply appears when that officer starts speaking (`shown`).
  * They appear at once when there is nothing to wait for: speech ended or failed, the work stopped
  * without a reply, a decision or question is waiting, or the log entry changed.
  */
-let heldBack: { session: string; known: Set<string>; speaking: boolean; timer?: ReturnType<typeof setTimeout> } | undefined;
+let heldBack: {
+  session: string; known: Set<string>; speaking: boolean; timer?: ReturnType<typeof setTimeout>;
+  plan?: SpokenPart[]; voiced?: boolean; shown: Set<string>;
+} | undefined;
 // Longest wait for the voice to start before the reply is shown anyway.
 const VOICE_LEAD_LIMIT = 20_000;
 let tributeEnabled = true;
@@ -97,6 +102,7 @@ const voice = new VoiceConversation({
   },
   canListen: () => !!state?.selectedModel && connected && state.speech?.setup?.state !== "running" && speechPreparation?.state !== "running",
   beforeSpeak: () => players.stop(),
+  partStarted: (part) => revealSpoken(part),
 });
 const players = new ReplyPlayers({ paused: (value) => { if (value) cancelTributeSpeech(); voice.pauseForMedia(value); } });
 
@@ -267,12 +273,14 @@ function consoleStatus(): [string, string, ConsoleActivity] {
   const speaking = voice.phase === "speaking" ? "The computer is speaking. " : "";
   if (state.permissions.some((item) => logEntryID(item) === selected)) return ["Decision needed", `${speaking}Choose Allow once or Deny on screen.`, "attention"];
   if (pending()) return ["Answer needed", `${speaking}${listening && !voice.speechPending && askedQuestion() ? "Say your answer, or choose it on screen." : "Answer the question on screen."}`, "attention"];
+  // A browser sound pause stops the voice where it is; the replies still to come wait for it.
+  if (voice.phase === "speaking" && voice.microphone && voice.waitingForClick) return ["Transmitting", "The browser paused sound. Click the microphone, or press M, to hear the rest.", "speaking"];
   if (voice.phase === "speaking") return ["Transmitting", `${speaking}${listening ? "Say “Computer” or click this panel to interrupt." : "Choose Stop speaking to interrupt."}`, "speaking"];
   const stopHint = !listening ? "Choose Belay that to cancel." : inTask() ? "Say “Belay that” to cancel." : "Say “Computer, belay that” to cancel.";
   const work = selected ? state.statuses[selected] : undefined;
   if (work?.type === "retry") return ["Accessing", `Retrying. ${work.message ? `${work.message} ` : ""}${stopHint}`, "work"];
   if (busy()) return ["Accessing", stopHint, "work"];
-  if (voice.speechPending || !submitting && heldBack && heldBack.session === selected) return ["Accessing", "Preparing the spoken reply.", "work"];
+  if (voice.speechPending || !submitting && heldBack && heldBack.session === selected && !heldBack.voiced) return ["Accessing", "Preparing the spoken reply.", "work"];
   if (submitting) return ["Standing by", "Sending your request.", "ready"];
   if (historyLoading) return ["Loading", "", "unavailable"];
   if (voice.opening) return ["Not listening", "Starting the microphone. Allow access if your browser asks.", "unavailable"];
@@ -356,7 +364,25 @@ function voiceControls() {
 }
 
 function isHeldBack(message: ChatMessage) {
-  return !!heldBack && heldBack.session === selected && message.role === "assistant" && !heldBack.known.has(message.id);
+  return !!heldBack && heldBack.session === selected && message.role === "assistant"
+    && !heldBack.known.has(message.id) && !heldBack.shown.has(message.id);
+}
+
+/**
+ * Shows each spoken reply as its voice starts. Replies that are not spoken, such as the
+ * computer's "The reports are on screen.", appear with the last part.
+ */
+function revealSpoken(part: SpokenPart) {
+  const plan = heldBack?.plan;
+  const at = plan?.indexOf(part) ?? -1;
+  if (!heldBack || heldBack.session !== selected || at < 0) return;
+  heldBack.voiced = true;
+  clearTimeout(heldBack.timer);
+  heldBack.timer = undefined;
+  if (at === plan!.length - 1) { releaseHeldBack(); return; }
+  for (const started of plan!.slice(0, at + 1)) if (started.message) heldBack.shown.add(started.message);
+  scheduleRender();
+  renderWorking();
 }
 
 function releaseHeldBack() {
@@ -369,17 +395,20 @@ function releaseHeldBack() {
 
 function checkHeldBack() {
   if (!heldBack) return;
+  // A reply with several parts appears part by part (`revealSpoken`), not all at once when the voice starts.
+  const spoken = heldBack.speaking && (!voice.speechPending || voice.phase === "speaking" && (heldBack.plan?.length ?? 0) < 2);
   const done = heldBack.session !== selected || !voice.connected || !voice.microphone || pending()
-    || (heldBack.speaking ? voice.phase === "speaking" || !voice.speechPending : !voiceTurn && !submitting);
+    || (heldBack.speaking ? spoken : !voiceTurn && !submitting);
   if (done) releaseHeldBack();
   // Finished work whose reply is never spoken must still appear.
-  else if (!heldBack.timer && !busy() && !submitting) heldBack.timer = setTimeout(releaseHeldBack, VOICE_LEAD_LIMIT);
+  else if (!heldBack.timer && !heldBack.voiced && !busy() && !submitting) heldBack.timer = setTimeout(releaseHeldBack, VOICE_LEAD_LIMIT);
 }
 
 /** Called just before a held-back reply is spoken; the text appears when the voice starts. */
-function speakHeldBack() {
+function speakHeldBack(plan: SpokenPart[]) {
   if (!heldBack) return;
   heldBack.speaking = true;
+  heldBack.plan = plan;
   clearTimeout(heldBack.timer);
   heldBack.timer = setTimeout(releaseHeldBack, VOICE_LEAD_LIMIT);
 }
@@ -394,8 +423,6 @@ function completeVoiceReply() {
   const turn = voiceTurn;
   voiceTurn = undefined;
   const failed = failedReport(reply);
-  if (failed && heldBack) { releaseHeldBack(); renderMessages(); }
-  else speakHeldBack();
   const successful = outcome === "succeeded" && !failed && !declinedReply(reply);
   const at = messages.indexOf(reply);
   const failures = officerFailures(messages, at, turn.known);
@@ -406,6 +433,9 @@ function completeVoiceReply() {
   const reportCopy = repeated ? reports.find((report) => repeatsReport(written(reply), written(report), crewMember(report.speaker)!.name)) : undefined;
   // Keep tribute records with the visible answer when the computer's repeated report is hidden.
   const answer = !failed && reports.length === 1 && (!written(reply).trim() || repeated) ? reports[0]! : reply;
+  const plan = spokenParts(reply, answer, successful ? reports : [], { failed: failures, repeated }).filter((part) => part.text.trim());
+  if (failed && heldBack) { releaseHeldBack(); renderMessages(); }
+  else speakHeldBack(plan);
   const key = `${turn.session}:${(reportCopy ?? answer).id}`;
   const display: { fact?: TributeEntry; factShownAt?: Date; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] } = {};
   if (successful && turn.reference) display.reference = turn.reference;
@@ -442,7 +472,7 @@ function completeVoiceReply() {
     tributeDisplay.set(key, display);
     scheduleRender();
   }
-  voice.speak(spokenParts(reply, answer, successful ? reports : [], { failed: failures, repeated }), failed, tail);
+  voice.speak(plan, failed, tail);
 }
 
 /** Failed assignments called for this request, after any recovery in the same assignment. */
@@ -1126,7 +1156,7 @@ function renderWorking() {
   checkHeldBack();
   const node = element("working");
   const status = selected ? state?.statuses[selected] : undefined;
-  const preparing = !!heldBack && heldBack.session === selected;
+  const preparing = !!heldBack && heldBack.session === selected && !heldBack.voiced;
   const show = !!state && (!!status || submitting || preparing) && !pending();
   node.hidden = !show;
   if (!show) return;
@@ -1356,7 +1386,7 @@ async function sendMessage(spoken: string, requestedStoryID?: string) {
   controls();
   notice();
   try {
-    if (!selected) await newConversation((addressed(text) || text).slice(0, 60));
+    if (!selected) await newConversation(logEntryTitle(text));
     const id = selected!;
     const subject = explicitStorySubject(text);
     const stories = TRIBUTE_ENTRIES.filter((entry) => entry.story && entry.subject === subject);
@@ -1364,7 +1394,7 @@ async function sendMessage(spoken: string, requestedStoryID?: string) {
     const storyID = requestedStoryID ?? (subject ? stories[randomIndex(stories.length, Math.random)]!.id : undefined);
     voiceTurn = { session: id, known: new Set(messages.map((message) => message.id)), request: text, storyID };
     releaseHeldBack();
-    if (voice.connected) heldBack = { session: id, known: voiceTurn.known, speaking: false };
+    if (voice.connected) heldBack = { session: id, known: voiceTurn.known, speaking: false, shown: new Set() };
     const accepted = await api<{ accepted: boolean; reference?: TributeEntry["source"] }>(`conversations/${encodeURIComponent(id)}/send`, { text, ...choice, bridge: bridgeEnabled, speed: voice.speed, tribute: { mode: tributeMode(tributeEnabled), ...(storyID ? { storyID } : {}) } });
     if (voiceTurn) voiceTurn.reference = accepted.reference;
     voice.acknowledge();

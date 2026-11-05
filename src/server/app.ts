@@ -14,6 +14,7 @@ import { computerManner, crewChoice } from "./instructions.js";
 import { checkTributeRequest, explicitStorySubject, storyAcceptance, tributeSubject } from "../shared/tribute.js";
 import { TRIBUTE_ENTRIES } from "../shared/tribute-data.js";
 import { SPEAKING_SPEEDS } from "../shared/wake.js";
+import { logEntryTitle } from "../shared/log-title.js";
 import { wikipediaReader, type WikipediaArticle } from "./wikipedia.js";
 import { addressedOfficers, chosenCrew, continuesOfficer, crewMember, type CrewID } from "../shared/crew.js";
 import { requireCrew, verifiedCrew } from "./crew.js";
@@ -660,7 +661,7 @@ export async function startApp(options: AppOptions) {
             // With the Bridge crew off, every request goes to the computer, including follow-ups in an officer's log entry.
             const agent = !bridge ? "build" : officer?.id ?? (chosen.length === 1 ? chosen[0]! : crewMember(session.agent) ? "build" : session.agent);
             if (agent && session.agent !== agent) await client.setAgent(id, project, agent);
-            if (session.title === "New log entry" || session.title === "New conversation") await client.rename(id, project, text.slice(0, 60));
+            if (session.title === "New log entry" || session.title === "New conversation") await client.rename(id, project, logEntryTitle(text));
             // Picard Code's conversation manner travels with the conversation, not as a file in the project.
             await client.setInstructions(id, project, "picard-manner", computerManner(text, tribute, wikipedia, { agent, onDuty, briefing: chosen.length > 1 ? chosen : undefined, offDuty: !bridge, speed }));
             await client.prompt(id, project, text);

@@ -6,6 +6,8 @@ export type SpeechEvent =
   | { type: "partial"; text: string }
   | { type: "transcript"; text: string }
   | { type: "audio-start"; rate: number; id: number }
+  // The audio that follows begins this part of the spoken reply, counted from 0.
+  | { type: "part-start"; id: number; index: number }
   | { type: "audio-end"; id: number }
   | { type: "turn-result"; id: number; complete: boolean }
   | { type: "error"; message: string };
