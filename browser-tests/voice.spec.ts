@@ -1332,8 +1332,34 @@ test("a missing arrival sound is reported, without preventing listening", async 
   await launch(page);
   await expect(page.getByText("The startup sound could not be loaded: HTTP 404. Restart Picard Code to check and download its sounds.", { exact: true })).toBeVisible();
   await startListening(page);
+  await expect(page.getByText("The startup sound could not be loaded: HTTP 404. Restart Picard Code to check and download its sounds.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
+
+for (const mode of [undefined, "no-speech", "broken"] as const) {
+  test(`the arrival call plays before systems finish loading (${mode ?? "saved speech"})`, async ({ playwright }) => {
+    const browser = await playwright.chromium.launch({ args: [
+      "--disable-audio-output", "--autoplay-policy=no-user-gesture-required",
+    ] });
+    let release!: () => void;
+    const ready = new Promise<void>((done) => { release = done; });
+    try {
+      const page = await browser.newPage();
+      await page.route("**/api/state", async (route) => { await ready; await route.continue(); });
+      const loadingState = page.waitForRequest("**/api/state");
+      const opening = launch(page, mode);
+      opening.catch(() => undefined);
+      await loadingState;
+      const arrivals = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
+      await expect.poll(arrivals).toHaveLength(1);
+      await expect(page.locator("#status")).toHaveText("Starting up");
+      release();
+      await opening;
+      await page.getByRole("link", { name: /With deepest respect/ }).click();
+      expect(await arrivals()).toHaveLength(1);
+    } finally { release(); await browser.close(); }
+  });
+}
 
 test("the arrival call waits for a click and works before speech is set up", async ({ playwright }) => {
   const browser = await playwright.chromium.launch({ args: [
@@ -1343,7 +1369,9 @@ test("the arrival call waits for a click and works before speech is set up", asy
   try {
     const page = await browser.newPage();
     await blockAudioUntilInteraction(page);
+    const loaded = page.waitForResponse("**/api/sounds/startup");
     await launch(page, "no-speech");
+    await (await loaded).finished();
     const played = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds);
     expect(await played()).toEqual([]);
     await page.locator("#speech-first-start-title").click();
@@ -1373,6 +1401,27 @@ test("a slow arrival sound never interrupts a spoken request", async ({ page }) 
   const arrivals = await page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
   expect(arrivals).toEqual([]);
   await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("opening the microphone does not discard an arrival sound that is still loading", async ({ playwright }) => {
+  const browser = await playwright.chromium.launch({ args: [
+    "--disable-audio-output", "--autoplay-policy=no-user-gesture-required",
+    "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream",
+  ] });
+  let release!: () => void;
+  const ready = new Promise<void>((done) => { release = done; });
+  try {
+    const page = await browser.newPage({ permissions: ["microphone"] });
+    await controlledMicrophone(page, [0.5]);
+    await page.route("**/api/sounds/startup", async (route) => { await ready; await route.continue(); });
+    await launch(page);
+    await startListening(page);
+    const loaded = page.waitForResponse("**/api/sounds/startup");
+    release();
+    await (await loaded).finished();
+    const arrivals = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
+    await expect.poll(arrivals).toHaveLength(1);
+  } finally { release(); await browser.close(); }
 });
 
 test("start-up: the first answer brings the senior officers to report, and Dismissed returns the bridge", async ({ page }) => {
