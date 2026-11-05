@@ -1,5 +1,13 @@
 # Picard Code release notes
 
+## 1701.4.7
+
+### Patch Changes
+
+- [#81](https://github.com/sbroenne/picard-code/pull/81) [`1156569`](https://github.com/sbroenne/picard-code/commit/1156569e975cd58d856d6e79f3760184c9947d64) - Keep earlier error messages visible when another error arrives, so a missing computer sound cannot hide why start-up failed. Repeated copies of the same error appear only once.
+
+- [#79](https://github.com/sbroenne/picard-code/pull/79) [`dc2c369`](https://github.com/sbroenne/picard-code/commit/dc2c369f2e7324d4447ae7b31a96c8b5bbb25cd2) - Long spoken answers are now spoken completely at every speaking speed. Before, a reply of several paragraphs could stop partway with "Kokoro returned incomplete or oversized audio" and switch the microphone off.
+
 ## 1701.4.6
 
 ### Patch Changes

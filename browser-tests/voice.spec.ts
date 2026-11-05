@@ -5,7 +5,7 @@ import { basename, resolve, join } from "node:path";
 import { spawn } from "node:child_process";
 import { TRIBUTE_ENTRIES } from "../src/shared/tribute-data";
 import { formatStardate } from "../src/shared/stardate";
-import type { ChatMessage } from "../src/shared/types";
+import type { AppState, ChatMessage } from "../src/shared/types";
 import { syntheticVoice } from "../src/tests/test-audio";
 
 const folder = resolve(`.picard-test-voice-audio-${process.pid}`);
@@ -186,6 +186,170 @@ async function startListening(page: import("@playwright/test").Page) {
   await expect(page.locator("#voice-channel")).toHaveText("Listening");
 }
 
+/** Drop the real event stream, then reopen it without unrelated updates masking recovery. */
+async function controlLiveConnection(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    const NativeEventSource = window.EventSource;
+    window.EventSource = class extends EventTarget {
+      private source: EventSource;
+      constructor(url: string | URL) {
+        super();
+        const connect = (recovery = false) => {
+          const source = new NativeEventSource(url);
+          source.addEventListener("message", (event) => {
+            if (!recovery || JSON.parse(event.data).type === "connection") {
+              this.dispatchEvent(new MessageEvent("message", { data: event.data }));
+            }
+          });
+          source.addEventListener("error", () => this.dispatchEvent(new Event("error")));
+          return source;
+        };
+        this.source = connect();
+        Object.assign(window, {
+          disconnectTestEvents: () => {
+            this.source.close();
+            this.dispatchEvent(new Event("error"));
+          },
+          reconnectTestEvents: () => { this.source = connect(true); },
+        });
+      }
+      close() { this.source.close(); }
+    } as unknown as typeof EventSource;
+  });
+  return {
+    disconnect: () => page.evaluate(() => (window as unknown as { disconnectTestEvents(): void }).disconnectTestEvents()),
+    reconnect: () => page.evaluate(() => (window as unknown as { reconnectTestEvents(): void }).reconnectTestEvents()),
+  };
+}
+
+for (const recovery of ["approval", "question"] as const) {
+  test(`live connection recovery restores saved replies and ${recovery} without reloading`, async ({ page }) => {
+    const connection = await controlLiveConnection(page);
+    let navigations = 0;
+    page.on("framenavigated", (frame) => { if (frame === page.mainFrame()) navigations++; });
+    await launch(page, "example");
+    await startListening(page);
+    await expect(page.locator(".message[data-role=assistant]")).toContainText("The settings test fails", { timeout: 15000 });
+    await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+    const entryID = await page.locator(".message[data-role=user]").getAttribute("data-session-id");
+    expect(entryID).toBeTruthy();
+    const origin = new URL(page.url()).origin;
+    const readState = async (): Promise<AppState> => {
+      const response = await page.request.get(`${origin}/api/state`);
+      expect(response.ok()).toBe(true);
+      return response.json();
+    };
+    const readMessages = async (): Promise<ChatMessage[]> => {
+      const response = await page.request.get(`${origin}/api/conversations/${entryID}/messages`);
+      expect(response.ok()).toBe(true);
+      return response.json();
+    };
+    const initial = await readState();
+    const send = async (text: string) => {
+      const response = await page.request.post(`${origin}/api/conversations/${entryID}/send`, {
+        headers: { "x-picard-request": "1" },
+        data: { text, ...initial.selectedModel, bridge: false },
+      });
+      expect(response.ok()).toBe(true);
+      expect(await response.json()).toMatchObject({ accepted: true });
+    };
+    const navigationsBefore = navigations;
+    await connection.disconnect();
+    await expect(status(page)).toHaveText("Reconnecting");
+    await expect(page.locator("#notice-text")).toContainText("The live connection stopped.");
+
+    // The same OpenCode stand-in keeps working while this browser cannot receive events.
+    await send("hello from the disconnected test page");
+    await expect.poll(async () => (await readMessages()).filter((message) => message.outcome === "succeeded").length).toBe(2);
+    const saved = (await readMessages()).findLast((message) => message.outcome === "succeeded")!;
+    await expect(page.locator(`[data-message-id="${saved.id}"]`)).toHaveCount(0);
+    await send(recovery === "approval" ? "request an approval" : "ask a question and let me choose");
+    await expect.poll(async () => recovery === "approval" ? (await readState()).permissions.length : (await readState()).questions.length).toBe(1);
+    await expect(page.getByRole("heading", { name: recovery === "approval" ? "Approval required." : "Additional information required." })).toHaveCount(0);
+    await expect(status(page)).toHaveText("Reconnecting");
+    await connection.reconnect();
+    await expect(page.locator(`[data-message-id="${saved.id}"]`)).toContainText(saved.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n"));
+    await expect(page.locator("#notice-text")).toBeEmpty();
+    await expect(page.locator("#voice-channel")).toHaveText("Microphone off");
+    expect(navigations).toBe(navigationsBefore);
+    await expect(page.locator(".message[data-role=user]")).toHaveCount(3);
+    expect(await page.locator(".message[data-role=user]").last().getAttribute("data-session-id")).toBe(entryID);
+    await expect(status(page)).toHaveText(recovery === "approval" ? "Decision needed" : "Answer needed");
+    await expect(page.getByRole("heading", { name: recovery === "approval" ? "Approval required." : "Additional information required." })).toBeVisible();
+    if (recovery === "approval") {
+      await expect(page.getByRole("button", { name: "Allow once", exact: true })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "Deny", exact: true })).toBeEnabled();
+    } else {
+      await expect(page.getByRole("radio", { name: "Small change" })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "Skip question", exact: true })).toBeEnabled();
+    }
+  });
+}
+
+test("live connection recovery does not announce an unfinished reply as a completed answer", async ({ page }) => {
+  const connection = await controlLiveConnection(page);
+  const spoken = spokenText(page);
+  await launch(page, "missing-outcome");
+  await startListening(page);
+  await expect(page.locator("#working")).toContainText("Preparing the reply.", { timeout: 15000 });
+  await connection.disconnect();
+  await expect(status(page)).toHaveText("Reconnecting");
+  await connection.reconnect();
+  await expect(page.locator("#notice-text")).toBeEmpty();
+  await expect(page.locator("#voice-channel")).toHaveText("Listening");
+  await expect(page.locator("#working")).toContainText("Preparing the reply.");
+  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(0);
+  expect(spoken).toEqual([]);
+  expect(await soundNames(page)).toEqual(["request-accepted"]);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await expect(page.locator(".message[data-role=assistant]")).toContainText("without a terminal outcome");
+  expect(spoken).toEqual([]);
+});
+
+for (const microphoneOff of [false, true]) {
+  for (const exit of ["same tile", "Current log entry", "Escape"] as const) {
+    test(`closing settings through ${exit} keeps the microphone ${microphoneOff ? "off" : "listening"}`, async ({ page }) => {
+      await page.addInitScript(() => {
+        let starts = 0;
+        const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        navigator.mediaDevices.getUserMedia = (constraints) => { starts++; return getUserMedia(constraints); };
+        Object.assign(window, { testMicrophoneStarts: () => starts });
+      });
+      const microphoneStarts = () => page.evaluate(() => (window as unknown as { testMicrophoneStarts(): number }).testMicrophoneStarts());
+      await launch(page, "resume");
+      await startListening(page);
+      await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
+      await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
+      const entryID = await page.locator(".message[data-role=user]").first().getAttribute("data-session-id");
+      if (microphoneOff) await page.getByRole("button", { name: "Switch microphone off" }).click();
+      const startsBefore = await microphoneStarts();
+      const speechTile = page.locator("a.readout[href='#settings/voice']");
+      await speechTile.click();
+      await expect(page.locator("#drawer-settings")).toBeVisible();
+      await expect(page.locator("#voice-channel")).toHaveText("Microphone off");
+      // Moving to another settings tile must not restart listening behind the drawer.
+      await page.locator("#readout-model").click();
+      await expect(page.locator("#settings-model")).toBeVisible();
+      expect(await microphoneStarts()).toBe(startsBefore);
+      if (exit === "same tile") await page.locator("#readout-model").click();
+      else if (exit === "Current log entry") await page.locator("#nav-conversation").click();
+      else await page.keyboard.press("Escape");
+      await expect(page.locator("#drawer-settings")).toBeHidden();
+      await expect(page.locator("#voice-channel")).toHaveText(microphoneOff ? "Microphone off" : "Listening");
+      if (microphoneOff) {
+        expect(await microphoneStarts()).toBe(startsBefore);
+        await expect(page.getByRole("button", { name: "Switch microphone on" })).toBeVisible();
+        await page.getByRole("button", { name: "Switch microphone on" }).click();
+      }
+      await expect.poll(microphoneStarts).toBe(startsBefore + 1);
+      await expect(page.locator(".message[data-role=user]")).toHaveCount(2, { timeout: 15000 });
+      expect(await page.locator(".message[data-role=user]").last().getAttribute("data-session-id")).toBe(entryID);
+      await page.getByRole("button", { name: "Switch microphone off" }).click();
+    });
+  }
+}
+
 type Spoken = { text: string; speaker?: string }[];
 /** Each spoken answer, as the parts sent for speaking; a plain answer is one part in the computer's voice. */
 function spokenParts(page: import("@playwright/test").Page) {
@@ -284,6 +448,40 @@ async function holdSpeaking(page: import("@playwright/test").Page) {
 }
 
 test.setTimeout(60000);
+
+/** Let the first officer's voice play, then hold the next part of the spoken reply and everything after it. */
+async function holdLaterParts(page: import("@playwright/test").Page) {
+  let held: (string | Buffer)[] | undefined;
+  let done = false;
+  let route: import("@playwright/test").WebSocketRoute | undefined;
+  await page.routeWebSocket("**/api/speech", (browser) => {
+    const server = browser.connectToServer();
+    route = browser;
+    browser.onMessage((message) => server.send(message));
+    server.onMessage((message) => {
+      if (!held && !done && typeof message === "string") {
+        const data = JSON.parse(message) as { type: string; index?: number };
+        if (data.type === "part-start" && data.index! > 0) held = [];
+      }
+      if (held) held.push(message);
+      else browser.send(message);
+    });
+  });
+  const stop = () => {
+    if (!held) throw new Error("No part of the reply is being held.");
+    const waiting = held;
+    held = undefined;
+    done = true;
+    return waiting;
+  };
+  return {
+    holding: () => !!held,
+    release: () => { for (const message of stop()) route!.send(message); },
+    /** Lets later voice messages through but never plays the held part. */
+    drop: () => { stop(); },
+    fail: (message: string) => { stop(); route!.send(JSON.stringify({ type: "error", message })); },
+  };
+}
 
 for (const keyboard of [false, true]) {
   test(`console clarity: a browser-paused channel waits for ${keyboard ? "Space" : "a panel click"}, not microphone switching`, async ({ page }) => {
@@ -1964,6 +2162,105 @@ test("the reply waits while the voice is preparing, then appears when it starts"
   voice.release();
   await expect(status(page)).toHaveText("Transmitting", { timeout: 15000 });
   await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+function briefingReplies(page: import("@playwright/test").Page) {
+  return {
+    riker: page.locator(".crew-report", { hasText: "Test stand-in: I recommend the smaller repair, Captain." }),
+    data: page.locator(".crew-report", { hasText: "Test stand-in: Data found a small repair." }),
+    close: page.locator(".message[data-role=assistant]:not(.crew-report)", { hasText: "The reports are on screen." }),
+  };
+}
+
+test("in a briefing, each officer's reply appears when that officer's voice starts, and the log entry title ends at a whole word", async ({ page }) => {
+  const voice = await holdLaterParts(page);
+  await launch(page, "briefing");
+  await startListening(page);
+  const replies = briefingReplies(page);
+  await expect.poll(() => voice.holding(), { timeout: 20000 }).toBe(true);
+  // Riker is speaking; Data has not started, so Data's reply and the computer's receipt wait.
+  await expect(replies.riker).toBeVisible();
+  await expect(status(page)).toHaveText("Transmitting");
+  await expect(page.locator("#working")).toBeHidden();
+  await expect(replies.data).toHaveCount(0);
+  await expect(replies.close).toHaveCount(0);
+  voice.release();
+  await expect(replies.data).toBeVisible({ timeout: 15000 });
+  await expect(replies.close).toBeVisible();
+  await expect(replies.riker).toBeVisible();
+  await expect(status(page)).not.toHaveText("Transmitting", { timeout: 15000 });
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await page.getByRole("link", { name: "Captain’s log" }).click();
+  const title = "have Data and Riker brief me on the next step for a tribute…";
+  await expect(page.locator("#conversations .log-title")).toHaveText(title);
+  await page.locator("#conversations .conversation-button", { hasText: title }).click();
+  await expect(page.locator(".message[data-role=user]")).toContainText("Computer, have Data and Riker brief me on the next step for a tribute site to Sir Patrick with a stardate clock, Riker first");
+  for (const reply of Object.values(replies)) await expect(reply).toBeVisible();
+});
+
+for (const route of ["Stop speaking", "Switch microphone off", "a speaking failure", "New log entry, then reopening it from the Captain’s log"] as const) {
+  test(`in a briefing, ${route} shows every officer's reply`, async ({ page }) => {
+    const voice = await holdLaterParts(page);
+    await launch(page, "briefing");
+    await startListening(page);
+    const replies = briefingReplies(page);
+    await expect.poll(() => voice.holding(), { timeout: 20000 }).toBe(true);
+    await expect(replies.riker).toBeVisible();
+    await expect(replies.data).toHaveCount(0);
+    if (route === "a speaking failure") {
+      voice.fail("Test stand-in: the voice stopped.");
+      await expect(page.locator("#notice")).toContainText("Test stand-in: the voice stopped.");
+      await expect(page.locator("#voice-channel")).toHaveText("Microphone off");
+    } else {
+      voice.drop();
+      await page.waitForTimeout(300);
+      await expect(replies.data).toHaveCount(0);
+      if (route.startsWith("New log entry")) {
+        await page.getByRole("button", { name: "New log entry", exact: true }).click();
+        await expect(page.locator(".message")).toHaveCount(0);
+        await page.getByRole("link", { name: "Captain’s log" }).click();
+        await page.locator("#conversations .conversation-button", { hasText: "have Data and Riker" }).click();
+      } else await page.getByRole("button", { name: route, exact: true }).click();
+    }
+    for (const reply of Object.values(replies)) await expect(reply).toBeVisible({ timeout: 5000 });
+    if (route === "Stop speaking" || route.startsWith("New log entry")) await page.getByRole("button", { name: "Switch microphone off" }).click();
+  });
+}
+
+test("in a briefing, a reply already queued to play waits while the browser has paused sound, and appears when sound resumes", async ({ page }) => {
+  // Pause sound as soon as Data's first audio reaches the browser, while Riker is still speaking.
+  let paused: Promise<void> | undefined;
+  let later = false;
+  await page.routeWebSocket("**/api/speech", (browser) => {
+    const server = browser.connectToServer();
+    browser.onMessage((message) => server.send(message));
+    server.onMessage((message) => {
+      browser.send(message);
+      if (typeof message === "string") {
+        const data = JSON.parse(message) as { type: string; index?: number };
+        if (data.type === "part-start" && data.index! > 0) later = true;
+      } else if (later && !paused) paused = pauseAudio();
+    });
+  });
+  const pauseAudio = await blockAudioUntilInteraction(page);
+  await launch(page, "briefing");
+  await startListening(page);
+  const replies = briefingReplies(page);
+  await expect.poll(() => !!paused, { timeout: 20000 }).toBe(true);
+  await paused;
+  await expect(status(page)).toHaveText("Transmitting");
+  await expect(page.locator("#status-detail")).toHaveText("The browser paused sound. Click the microphone, or press M, to hear the rest.");
+  // Riker's audio and Data's start (about 1.3 seconds) would long be over on a running clock.
+  await page.waitForTimeout(3000);
+  await expect(replies.data).toHaveCount(0);
+  await expect(replies.close).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Stop speaking" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume listening" }).click();
+  await expect(replies.data).toBeVisible({ timeout: 15000 });
+  await expect(replies.riker).toBeVisible();
+  await expect(replies.close).toBeVisible();
+  await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 

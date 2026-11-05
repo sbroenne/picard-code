@@ -829,6 +829,23 @@ test("a request streams live text and a saved reply, with Picard's manner sent p
   assert.equal(context.fixture.requests.some((request) => request.path.endsWith("/reply")), false);
 });
 
+test("a new log entry is named after the first request, shortened at a whole word", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const text = "Computer, Number One and Mister Data give me one short sentence each on your options for building a tribute site to Sir Patrick with a stardate clock";
+  const session = await (await context.request("conversations", {})).json();
+  assert.equal((await context.request(`conversations/${session.id}/send`, { text, providerID: "github-copilot", modelID: "fixture-model", bridge: false })).status, 202);
+  assert.equal(context.fixture.sessions.get(session.id)?.title, "Number One and Mister Data give me one short sentence each…");
+  assert.deepEqual(context.fixture.requests.findLast((request) => request.path.endsWith("/prompt"))?.data, { text }, "the request itself is sent in full");
+  const short = await (await context.request("conversations", {})).json();
+  assert.equal((await context.request(`conversations/${short.id}/send`, { text: "Computer, hello there", providerID: "github-copilot", modelID: "fixture-model", bridge: false })).status, 202);
+  assert.equal(context.fixture.sessions.get(short.id)?.title, "hello there");
+  while (context.fixture.active.has(short.id)) await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal((await context.request(`conversations/${short.id}/send`, { text: "Computer, a later request does not rename the entry", providerID: "github-copilot", modelID: "fixture-model", bridge: false })).status, 202);
+  assert.equal(context.fixture.sessions.get(short.id)?.title, "hello there");
+});
+
 test("approvals and questions stay pending until the user answers; no automatic approval", async (t) => {
   const context = await setup();
   t.after(context.cleanup);

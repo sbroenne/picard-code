@@ -40,7 +40,7 @@ const phrases = process.argv.includes("--refusal-idle") ? ["Computer, hello ther
   : process.argv.includes("--briefing-repeat") ? ["Computer, have Data and Riker brief me when Data's action is denied but a second succeeds", ""]
   : process.argv.includes("--briefing-failure") ? ["Computer, have Data and Riker brief me when Data's action is denied", ""]
   : process.argv.includes("--briefing-recovered") ? ["Computer, have Data and Riker brief me after a recovered action", ""]
-  : process.argv.includes("--briefing") ? ["Computer, have Data and Riker brief me on the next step, Riker first", ""]
+  : process.argv.includes("--briefing") ? ["Computer, have Data and Riker brief me on the next step for a tribute site to Sir Patrick with a stardate clock, Riker first", ""]
   : process.argv.includes("--crew") ? ["Computer, have Data and Geordi look at the repair", ""]
   : process.argv.includes("--officer") ? ["Computer, I wanted to have an answer from Data", ""]
   : process.argv.includes("--news") ? ["Computer, get the news from Data", ""]

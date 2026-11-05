@@ -23,6 +23,7 @@ const denied = message("denied", "I started the investigation.", "picard-data", 
 test("briefings preserve report order without making Riker the closing speaker", () => {
   const parts = spokenParts(close, close, [riker, data, worf]);
   assert.deepEqual(parts.map((part) => part.speaker), ["picard-riker", "picard-data", "picard-worf"]);
+  assert.deepEqual(parts.map((part) => part.message), ["riker", "data", "worf"], "each part names the report it speaks, so it can appear when its voice starts");
   assert.equal(parts[0]!.text, "I recommend fixing the parser first, Captain. It is the smaller change and Worf found no risk. Shall I make it so?");
   assert.ok(!parts.some((part) => part.text.includes("The reports are on screen")));
 });
@@ -42,15 +43,15 @@ test("successful receipts stay on screen with or without Riker; failures are sti
 });
 
 test("one officer's report spoken as the answer is unchanged", () => {
-  assert.deepEqual(spokenParts(close, data, []), [{ text: "The parser rejects empty files. The details are below.", speaker: "picard-data" }]);
+  assert.deepEqual(spokenParts(close, data, []), [{ text: "The parser rejects empty files. The details are below.", speaker: "picard-data", message: "data" }]);
 });
 
 test("each officer's character wording reaches speech in direct replies and briefings", () => {
   for (const officer of BRIDGE_CREW) {
     for (const example of officer.examples) {
       const report = message(officer.id, example.reply, officer.id);
-      assert.deepEqual(spokenParts(close, report, []), [{ text: example.reply, speaker: officer.id }]);
-      assert.deepEqual(spokenParts(close, close, [report])[0], { text: example.reply, speaker: officer.id });
+      assert.deepEqual(spokenParts(close, report, []), [{ text: example.reply, speaker: officer.id, message: officer.id }]);
+      assert.deepEqual(spokenParts(close, close, [report])[0], { text: example.reply, speaker: officer.id, message: officer.id });
     }
   }
 });
@@ -59,7 +60,7 @@ test("a copied close does not replace reports or hide a failed action", () => {
   const copied = message("copy", "I recommend fixing the parser first, Captain.");
   assert.deepEqual(spokenParts(copied, copied, [data, riker], { repeated: true }).map((part) => part.speaker), ["picard-data", "picard-riker"]);
   assert.deepEqual(spokenParts(copied, riker, [riker], { failed: [denied], repeated: true }), [
-    { text: "I recommend fixing the parser first, Captain. It is the smaller change and Worf found no risk. Shall I make it so?", speaker: "picard-riker" },
+    { text: "I recommend fixing the parser first, Captain. It is the smaller change and Worf found no risk. Shall I make it so?", speaker: "picard-riker", message: "riker" },
     { text: "Data did not finish. Request denied. The action was not carried out." },
   ]);
   assert.deepEqual(spokenParts(denied, denied, [], { failed: [denied] }), [
@@ -67,7 +68,7 @@ test("a copied close does not replace reports or hide a failed action", () => {
   ]);
   const interrupted = { ...denied, background: false, speaker: undefined };
   assert.deepEqual(spokenParts(interrupted, interrupted, []), [
-    { text: "Request denied. The action was not carried out.", speaker: undefined },
+    { text: "Request denied. The action was not carried out.", speaker: undefined, message: "denied" },
   ]);
   const worfFailed = message("worf-failed", "", "picard-worf", { error: "The model could not be reached." });
   assert.equal(spokenParts(copied, copied, [riker], { failed: [denied, worfFailed], repeated: true }).at(-1)!.text,
@@ -86,8 +87,8 @@ test("questions in an officer's spoken opening keep filenames, versions and titl
   ] as const) {
     for (const officer of ["picard-data", "picard-riker"] as const) {
       const report = message("question", question, officer);
-      assert.deepEqual(spokenParts(close, close, [report]), [{ text: spoken, speaker: officer }]);
-      assert.deepEqual(spokenParts(close, report, [report], { repeated: true }), [{ text: spoken, speaker: officer }]);
+      assert.deepEqual(spokenParts(close, close, [report]), [{ text: spoken, speaker: officer, message: "question" }]);
+      assert.deepEqual(spokenParts(close, report, [report], { repeated: true }), [{ text: spoken, speaker: officer, message: "question" }]);
     }
   }
 });
@@ -101,7 +102,7 @@ test("Riker can give a requested coordination result after the officers he calle
 test("officers give complete conversational reports but leave technical appendices on screen", () => {
   const report = message("data", "Captain, I found the cause.\n\nThe second finding changes my recommendation.\n\n### On screen\n\nThe exact file references.", "picard-data");
   assert.deepEqual(spokenParts(close, close, [report]), [{
-    text: "Captain, I found the cause. The second finding changes my recommendation.", speaker: "picard-data",
+    text: "Captain, I found the cause. The second finding changes my recommendation.", speaker: "picard-data", message: "data",
   }]);
   assert.deepEqual(spokenParts(close, report, [report]), spokenParts(close, close, [report]));
 });

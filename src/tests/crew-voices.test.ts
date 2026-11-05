@@ -93,6 +93,32 @@ test("a briefing is spoken in order, each officer in their own voice, as one ans
   assert.equal(voice.audio, 4 * 4800 + 3 * 14_400, "four answers and three 0.3 second pauses");
 });
 
+test("each part of a briefing is announced right before its own voice, after the pause between speakers", async (t) => {
+  const fixture = speechFixture("Hello computer", 0.1);
+  const voice = await connect(t, fixture.service);
+  const stream: (string | number)[] = [];
+  voice.socket.on("message", (data, binary) => {
+    if (binary) stream.push(Buffer.isBuffer(data) ? data.length : 0);
+    else {
+      const event = JSON.parse(data.toString()) as SpeechEvent;
+      if (event.type === "audio-start" || event.type === "audio-end") stream.push(event.type);
+      if (event.type === "part-start") stream.push(`part ${event.index} of reply ${event.id}`);
+    }
+  });
+  voice.socket.send(JSON.stringify({ type: "speak", id: 7, parts: [
+    { text: "Riker recommends a simple page.", speaker: "picard-riker" },
+    { text: "Data suggests a stardate clock.", speaker: "picard-data" },
+    { text: "Data adds one more point.", speaker: "picard-data" },
+  ] }));
+  await voice.next("audio-end");
+  assert.deepEqual(stream, [
+    "audio-start", "part 0 of reply 7", 4800,
+    14_400, "part 1 of reply 7", 4800,
+    "part 2 of reply 7", 4800,
+    "audio-end",
+  ]);
+});
+
 test("a chosen speaking speed reaches every part, and a speed outside 0.8 to 1.2 is refused", async (t) => {
   const fixture = speechFixture("Hello computer", 0.1);
   const voice = await connect(t, fixture.service);
