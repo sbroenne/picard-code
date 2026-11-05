@@ -2,8 +2,8 @@ name: Prepare release
 
 # While release notes wait in .changeset/, this keeps the pull request "Release <version>" up
 # to date: it raises the version and moves the notes into CHANGELOG.md. Merging it starts
-# Create release. Start the checks directly so a bot-created pull request needs no
-# manual workflow approval.
+# Create release. The repository App updates the branch and pull request so
+# GitHub starts the normal pull-request checks.
 on:
   push:
     branches: [main]
@@ -21,42 +21,59 @@ jobs:
     if: github.repository == 'sbroenne/picard-code'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write
     steps:
       - name: Get the source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "24"
           cache: npm
-      - name: Update the release pull request
+      - name: Prepare the release notes
+        id: version
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           if ! find .changeset -name '*.md' ! -name README.md | grep -q .; then echo "No release notes are waiting."; exit 0; fi
-          # No install scripts: this job can push, so no package code runs besides Changesets.
+          # Prepare notes before creating a token that can write to the repository.
           npm ci --ignore-scripts --no-audit --no-fund
           npm run release:version
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - name: Get the repository App token
+        if: steps.version.outputs.ready == 'true'
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.GH_AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.GH_AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Update the release pull request
+        if: steps.version.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
           version="$(node -p "require('./package.json').version")"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          app_user_id="$(gh api "users/${APP_SLUG}[bot]" --jq .id)"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${app_user_id}+${APP_SLUG}[bot]@users.noreply.github.com"
           git switch -C release
           git commit -aqm "Release $version"
           # The release branch is rebuilt from main every time, so it is replaced.
-          git push --force origin release
+          authorization="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          echo "::add-mask::$authorization"
+          git -c "http.https://github.com/.extraheader=$authorization" push --force origin release
           notes="$(awk -v v="## $version" '$0==v{f=1;next} /^## /{f=0} f' CHANGELOG.md)"
           body="Checks start automatically. When they pass, approve and merge this to release $version. Merging creates the GitHub release v$version and stages it on npm, where you approve it.
           $notes"
-          if [ "$(gh pr view release --json state --jq .state 2>/dev/null)" = OPEN ]; then
-            gh pr edit release --title "Release $version" --body "$body"
+          pr="$(gh pr list --head release --base main --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$pr" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/pulls/$pr" -f title="Release $version" -f body="$body"
           else
             gh pr create --base main --head release --title "Release $version" --body "$body"
           fi
-          # workflow_dispatch runs even with GITHUB_TOKEN; bot pull_request runs wait for approval.
-          gh workflow run checks.yml --ref release -f pull-request="$(gh pr view release --json number --jq .number)"
-          gh workflow run dependency-review.yml --ref release \
-            -f base-ref="$(git rev-parse origin/main)" -f head-ref="$(git rev-parse HEAD)"

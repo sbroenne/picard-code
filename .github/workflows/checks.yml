@@ -6,10 +6,6 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      pull-request:
-        description: Release pull request receiving these check results
-        type: number
-        required: false
       speech-checks:
         description: Real speech checks (choose all on main to seed model caches)
         type: choice
@@ -213,34 +209,3 @@ jobs:
           path: test-results/
           retention-days: 7
           if-no-files-found: ignore
-
-  release-results:
-    name: Report release checks
-    needs: [changes, systems, browser, local-speech, browser-speech]
-    if: always() && github.event_name == 'workflow_dispatch' && inputs.pull-request
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      pull-requests: read
-      checks: write
-    steps:
-      - name: Get the reporting script
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Report the real results on the identical test-merge files
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_PR: ${{ inputs.pull-request }}
-          CHECKED_SHA: ${{ github.sha }}
-          SYSTEMS_RESULT: ${{ needs.systems.result }}
-          BROWSER_RESULT: ${{ needs.browser.result }}
-          SCOPE_RESULT: ${{ needs.changes.result }}
-          FULL_CHECKS: ${{ needs.changes.outputs.full }}
-          LOCAL_REQUIRED: ${{ needs.changes.outputs.local-speech }}
-          LOCAL_RESULT: ${{ needs.local-speech.result }}
-          BROWSER_REQUIRED: ${{ needs.changes.outputs.browser-speech }}
-          DETECTION_RESULT: ${{ needs.browser-speech.result }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node .github/scripts/report-release-checks.mjs

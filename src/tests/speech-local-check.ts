@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { setTimeout as wait } from "node:timers/promises";
 import { speechFromSettings } from "../server/speech.js";
-import { checkOfficerVoices } from "./officer-voices-check.js";
+import { checkLongAnswer, checkOfficerVoices } from "./officer-voices-check.js";
 
 const loaded = Date.now();
 const { values } = parseArgs({ options: { listening: { type: "string", default: "nemotron" } } });
@@ -122,6 +122,7 @@ try {
   assert.equal(await speech.turnDetector.complete(complete, AbortSignal.timeout(10_000)), true, "Smart Turn must recover after cancellation.");
   console.log("Real Smart Turn complete and unfinished predictions, cancellation and fresh prediction passed.");
   console.log(`Officer voices spoke real audio: ${await checkOfficerVoices(speech)}.`);
+  console.log(`${await checkLongAnswer(speech)}.`);
   const directory = resolve(".picard-voice", "samples");
   await mkdir(directory, { recursive: true });
   const header = Buffer.alloc(44);
