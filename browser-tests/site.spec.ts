@@ -2,10 +2,63 @@ import { test, expect } from "@playwright/test";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
+import { marked } from "marked";
 
 // Every file in site/ is served under the GitHub Pages project path, without a real server.
 const address = "http://127.0.0.1/picard-code/";
 const site = resolve("site");
+
+test("the npm and GitHub README is a short front page with a launch command and user guide", async () => {
+  const readme = await readFile("README.md", "utf8");
+  expect(readme.split("\n").length).toBeLessThanOrEqual(150);
+  expect(Buffer.byteLength(readme)).toBeLessThanOrEqual(8_000);
+  expect(readme).toContain("npx picard-code");
+  expect(readme).toContain("https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md");
+});
+
+test("the README and linked guides keep working repository links and section anchors", async ({ page }) => {
+  const repository = "https://github.com/sbroenne/picard-code/blob/main/";
+  const sources = ["README.md", "docs/USER_GUIDE.md", "SUPPORT.md", "CONTRIBUTING.md", "docs/DEVELOPMENT.md", "tools/README.md", "site/index.html", "web/index.html"];
+  const documents = new Map<string, { links: string[]; anchors: string[] }>();
+  const document = async (path: string) => {
+    const saved = documents.get(path);
+    if (saved) return saved;
+    const text = await readFile(resolve(path), "utf8");
+    const html = path.endsWith(".md") ? await marked.parse(text) : text;
+    const parsed = await page.evaluate((html) => {
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const counts = new Map<string, number>();
+      const headings = [...doc.querySelectorAll("h1, h2, h3, h4, h5, h6")].map((heading) => {
+        const slug = (heading.textContent ?? "").toLowerCase().replace(/[^\p{L}\p{N}_ -]/gu, "").replace(/ /g, "-");
+        const count = counts.get(slug) ?? 0;
+        counts.set(slug, count + 1);
+        return count ? `${slug}-${count}` : slug;
+      });
+      return {
+        links: [...doc.querySelectorAll("a[href], img[src]")].map((node) => node.getAttribute("href") ?? node.getAttribute("src") ?? ""),
+        anchors: [...headings, ...[...doc.querySelectorAll("[id]")].map((node) => node.id)],
+      };
+    }, html);
+    documents.set(path, parsed);
+    return parsed;
+  };
+  for (const source of sources) {
+    for (const link of (await document(source)).links) {
+      // The app handles its fragment routes in JavaScript, not document anchors.
+      if (source === "web/index.html" && link.startsWith("#")) continue;
+      const url = new URL(link, repository + source);
+      const raw = "https://raw.githubusercontent.com/sbroenne/picard-code/main/";
+      const readme = url.origin === "https://github.com" && /^\/sbroenne\/picard-code\/?$/.test(url.pathname) && url.hash;
+      const prefix = url.href.startsWith(repository) ? repository : url.href.startsWith(raw) ? raw : undefined;
+      if (!prefix && !readme) continue;
+      const path = readme ? "README.md" : decodeURIComponent(url.href.slice(prefix!.length).split(/[?#]/)[0]!);
+      expect(existsSync(resolve(path)), `${source}: ${link}`).toBe(true);
+      if (url.hash) {
+        expect((await document(path)).anchors, `${source}: ${link}`).toContain(decodeURIComponent(url.hash.slice(1)));
+      }
+    }
+  }
+});
 
 test.beforeEach(async ({ page }) => {
   await page.route((url) => url.href.startsWith(address), (route) => {

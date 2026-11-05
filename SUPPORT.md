@@ -3,7 +3,7 @@
 Use [Discussions](https://github.com/sbroenne/picard-code/discussions) for setup
 questions, speech-model suggestions, and conversations about the computer's
 character. Check [Get started](README.md#get-started) and
-[If something goes wrong](README.md#if-something-goes-wrong) first.
+[If something goes wrong](docs/USER_GUIDE.md#if-something-goes-wrong) first.
 
 Use the [bug form](https://github.com/sbroenne/picard-code/issues/new/choose)
 for a reproducible problem. Include your operating system, browser, Picard Code version or commit,
