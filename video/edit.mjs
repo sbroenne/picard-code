@@ -325,12 +325,13 @@ export function layout(edit, spoken, sounds) {
 
   chapters.push({ start: 0, title: "Why we built it" });
   scene("opening", 0, SCENES.opening, { stardate: edit.stardate, beats: BEATS });
+  // The Captain's arrival hail, as when the app opens, plays alone over the tribute.
+  if (sounds["app-startup.mp3"]) sound("app-startup.mp3", 0.2, 3, 0.55, { track: 11 });
   for (const name of HOOK) say(name, BEATS[name][0], BEATS[name][1] - BEATS[name][0]);
   if (sounds["app-request-accepted.mp3"]) sound("app-request-accepted.mp3", BEATS["hook-2"][1] - 0.6, 2, 0.4, { track: 13 });
   let time = SCENES.opening;
   scene("title", time, SCENES.title);
   sound("music-open.mp3", time - 0.4, SCENES.title + 2.4, 0.32, { track: 12, fadeIn: 0.4, fadeOut: 2 });
-  if (sounds["app-startup.mp3"]) sound("app-startup.mp3", time + 0.2, 3, 0.55, { track: 11 });
   time += SCENES.title;
 
   const act = (name, title) => {

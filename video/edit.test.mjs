@@ -219,3 +219,14 @@ test("the first frame names Picard Code above the tribute to Sir Patrick and the
   const words = [...dedication.matchAll(/<p class="(\w+)">([^<]+)<\/p>/g)].map(([, kind, text]) => [kind, text]);
   assert.deepEqual(words, [["brand", "Picard Code"], ["kicker", "A tribute to"], ["actor", "Sir Patrick Stewart"], ["years", "1940 – 2026"], ["and", "and"], ["captain", "Captain Jean-Luc Picard"]]);
 });
+
+test("the Captain's arrival hail opens the tribute on its own, and the theme waits for the title", () => {
+  const plan = layout(edit(), spoken, sounds);
+  const hail = plan.clips.find((clip) => clip.src === "assets/sounds/app-startup.mp3");
+  const theme = plan.clips.find((clip) => clip.src === "assets/sounds/music-open.mp3");
+  const [, dedicationEnd] = plan.clips.find((clip) => clip.composition === "opening").variables.beats.dedication;
+  assert.ok(hail.start < 0.5 && hail.start + hail.duration <= dedicationEnd, "the hail plays whole while the tribute is on screen");
+  const heard = plan.clips.filter((clip) => clip.kind === "audio" && clip !== hail && clip.src !== "assets/hum.wav");
+  assert.ok(heard.every((clip) => clip.start >= hail.start + hail.duration || clip.start + clip.duration <= hail.start), "nothing else sounds over the hail");
+  assert.ok(theme.start >= dedicationEnd, "the theme belongs to the title, not the tribute");
+});
