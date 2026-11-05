@@ -105,7 +105,7 @@ narration into the ignored `video/assets/` folder. Never commit them, and do
 not use recordings of actors' voices. `video/index.html` is generated; edit
 `edit.json` instead.
 
-The episode folder's `youtube/` folder gets the chapter list, SRT captions
+The episode folder's `youtube/` folder gets the chapter list, WebVTT captions shown at the top of the picture
 and a plain transcript for YouTube's automatic caption timing.
 
 ## Make the YouTube pack

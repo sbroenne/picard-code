@@ -14,7 +14,7 @@ import { FOOTAGE, SITE, SITE_FPS, UPLOAD, mediaSize, pixels } from "../video/qua
 import { addressedOfficers } from "../dist/shared/crew.js";
 import { TRIBUTE_ENTRIES } from "../dist/shared/tribute-data.js";
 import { TributeCycle } from "../dist/shared/tribute.js";
-import { CAPTAINS_LOG, ORDERS, TRIBUTE_FACT, captainVoice, checkTribute, tightenPauses, chapterList, demoPermissions, screenAlert, sentEvent, srt, srtTime, tributeCue } from "./intro-episode.mjs";
+import { CAPTAINS_LOG, ORDERS, TRIBUTE_FACT, captainVoice, checkTribute, tightenPauses, chapterList, demoPermissions, screenAlert, sentEvent, cueTime, vtt, tributeCue } from "./intro-episode.mjs";
 
 const execute = promisify(execFile);
 
@@ -143,12 +143,12 @@ test("chapters follow YouTube's rules", () => {
   assert.throws(() => chapterList([chapters[0], { start: 9, title: "Short" }, chapters[2]], 103), /"Opening"/);
 });
 
-test("captions are valid SRT and reject empty or overlapping lines", () => {
-  assert.equal(srtTime(3723.4567), "01:02:03,457");
-  assert.equal(srt([{ start: 0, end: 1.5, text: "Computer." }, { start: 1.5, end: 3, text: "Go ahead." }]),
-    "1\n00:00:00,000 --> 00:00:01,500\nComputer.\n\n2\n00:00:01,500 --> 00:00:03,000\nGo ahead.\n");
-  assert.throws(() => srt([{ start: 2, end: 2, text: "x" }]), /no duration/);
-  assert.throws(() => srt([{ start: 0, end: 3, text: "a" }, { start: 2, end: 4, text: "b" }]), /overlaps/);
+test("captions are WebVTT shown at the top of the picture, and reject empty or overlapping lines", () => {
+  assert.equal(cueTime(3723.4567), "01:02:03.457");
+  assert.equal(vtt([{ start: 0, end: 1.5, text: "Computer." }, { start: 1.5, end: 3, text: "Go ahead." }]),
+    "WEBVTT\n\n00:00:00.000 --> 00:00:01.500 line:0% position:50% align:center\nComputer.\n\n00:00:01.500 --> 00:00:03.000 line:0% position:50% align:center\nGo ahead.\n");
+  assert.throws(() => vtt([{ start: 2, end: 2, text: "x" }]), /no duration/);
+  assert.throws(() => vtt([{ start: 0, end: 3, text: "a" }, { start: 2, end: 4, text: "b" }]), /overlaps/);
 });
 
 test("the browser records generated input and actual output without playing the input through the speakers", { timeout: 20000 }, async () => {
