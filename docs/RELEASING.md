@@ -76,28 +76,59 @@ coding agents never do.
 The short video is on the [Picard Code channel](https://www.youtube.com/@PicardCode)
 at <https://youtu.be/_OKnpwS9dOI>, linked from the website and README.
 
-The video is never committed: it contains the TrekCore startup call. Its
-source is `video/index.html`, a [HyperFrames](https://github.com/heygen-com/hyperframes)
-composition; `video/assets/` and `video/out/` are ignored by git. To make it
-again (needs ffmpeg and `npm run setup:speech`):
+The refreshed intro leaves first-run setup for a separate guide. It shows
+the current interface with clearly labeled staged examples, not live model
+results. Its speech uses ready-made Kokoro voices, including the app's
+Alloy computer voice, Liam for Data and Michael for Riker. It contains no
+downloaded show sounds.
+
+Its source is `video/index.html`, a
+[HyperFrames](https://github.com/heygen-com/hyperframes) composition;
+`video/assets/` and `video/out/` are ignored by git. Generated media is
+not committed, including any older renders containing the TrekCore startup
+call. To make the intro again (needs ffmpeg and an existing local Kokoro setup;
+do not change saved speech choices to render it):
 
 1. Capture the screens and spoken text from the labeled test stand-in:
    `npm run build`, then
-   `PICARD_SITE_CAPTURE=1 npx playwright test browser-tests/voice.spec.ts --grep "website example|stewart facts have LCARS" --project desktop`.
+   `PICARD_SITE_CAPTURE=1 npx playwright test browser-tests/voice.spec.ts --grep "everyday answer|website example" --workers=1`.
 2. Make the voice lines with the local Kokoro voices (stock voices only, never
    an imitation of a real actor):
    `~/.picard-code/voice/bin/python3 video/speak.py`.
-3. From inside `video/`, run `npx hyperframes@0.8.226 lint`, then
-   `npx hyperframes@0.8.226 render --output out/picard-code.mp4`.
+3. Run `node --test video/captions.test.mjs`, then `node video/captions.mjs`.
+   This checks the measured clip lengths against the composition and prepares
+   SRT and top-positioned VTT captions in `video/out/`, plus a captioned
+   composition in `video/assets/captioned.html`. If the words or
+   voices change, update the composition's clip starts and durations from
+   `video/assets/lengths.json` first. Timings within each clip are estimated:
+   listen and adjust the caption cues before publishing.
+4. From inside `video/`, run `npx hyperframes@0.8.226 lint`, then
+   `npx hyperframes@0.8.226 render --output out/picard-code.mp4 --fps 24 --workers 2 --no-best-effort`.
+   Review frames with
+   `npx hyperframes@0.8.226 snapshot --at 5,20,29,41,57,65,74,85 --output out/review`.
+   The plain video has no burned-in captions. For a version with captions
+   above the interface, run
+   `npx hyperframes@0.8.226 render --composition assets/captioned.html --output out/picard-code-captioned.mp4 --fps 24 --workers 2 --no-best-effort`.
+5. Render the thumbnail from inside `video/` with
+   `npx hyperframes@0.8.226 render --composition thumbnail.html --output out/thumbnail.mp4 --fps 1 --workers 1`.
+   Extract its image with
+   `ffmpeg -i out/thumbnail.mp4 -frames:v 1 -update 1 -y ../site/assets/video.png`
+   and review it.
 
 YouTube needs a 1280×720 thumbnail (also kept as `site/assets/video.png`, the
-clickable video picture in the README and on the website), an 800×800 channel picture (the logo
+clickable video picture on the website), an 800×800 channel picture (the logo
 from `site/assets/mark.svg`) and a 2560×1440 channel banner. Keep the banner's
 words inside the centre 1546×423, which is all that phones show. The video description lists what the app uses,
-says the voices are stock Kokoro voices and the startup sound comes from
-TrekCore with permission, and ends with the same unofficial-tribute and
+says the examples are staged and the voices are stock Kokoro voices,
+and ends with the same unofficial-tribute and
 trademark lines as the website. An end screen needs a second video or a
 playlist, so add one when there is more than one video.
+
+The new video needs a new YouTube upload. Publication needs the owner's
+explicit approval. Keep the existing public URL until the new video is
+published, then update the website, README, this guide and the website check
+with its actual URL. GitHub Pages deploys the website after its changes merge
+to `main`; generating or committing media locally does not update the live site.
 
 ## Older checkouts
 

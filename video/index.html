@@ -1,132 +1,111 @@
 <!doctype html>
-<!-- Picard Code launch video (HyperFrames). Regenerate: see docs/RELEASING.md. -->
+<!-- Local HyperFrames composition. Capture, speech and render steps: docs/RELEASING.md. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<title>Picard Code intro</title>
 <style>
-  @font-face { font-family: "LCARS"; font-weight: 400 700; src: local("Avenir Next Condensed Demi Bold"), local("AvenirNextCondensed-DemiBold"); }
-  @font-face { font-family: "Reading"; src: local("Helvetica Neue"), local("HelveticaNeue"); }
-  @font-face { font-family: "Code"; src: local("Menlo"), local("Menlo-Regular"); }
-  :root { --orange: #ff9c33; --peach: #ffcc99; --lilac: #cc99cc; --blue: #9999ff; --gold: #ffaa00;
-    --lcars: "LCARS", sans-serif; }
+  @font-face { font-family: "LCARS"; src: local("Avenir Next Condensed Demi Bold"), local("AvenirNextCondensed-DemiBold"); }
+  :root { --orange: #ff9c33; --peach: #ffcc99; --lilac: #cc99cc; --blue: #9999ff; --gold: #ffaa00; }
   html, body { margin: 0; background: #000; }
   #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #000; color: #fff;
-    font-family: var(--lcars); text-transform: uppercase; }
-  .clip { position: absolute; inset: 0; }
-  .card { display: flex; flex-direction: column; justify-content: center; padding: 0 200px; gap: 28px; }
+    font-family: "LCARS", sans-serif; text-transform: uppercase; }
+  .clip { position: absolute; inset: 0; background: #000; }
+  .card { display: flex; flex-direction: column; justify-content: center; padding: 180px 170px 100px; gap: 32px; }
   .brand { display: flex; align-items: center; gap: 40px; }
-  .bar { height: 26px; border-radius: 13px; }
-  .title { color: var(--orange); font-size: 190px; font-weight: 600; letter-spacing: .04em; line-height: .9; margin: 0; }
-  .lead { color: var(--peach); font-size: 58px; letter-spacing: .05em; margin: 0; }
-  .small { color: var(--lilac); font-size: 34px; letter-spacing: .12em; margin: 0; }
-  .note { color: #b8a58f; font: 24px/1.45 "Reading", sans-serif; text-transform: none; margin: 0; max-width: 1450px; }
-  .command { color: #000; background: var(--gold); display: inline-block; padding: 16px 36px; border-radius: 48px;
-    font: 600 64px/1 "Code", monospace; text-transform: none; align-self: flex-start; }
-  .shot { position: absolute; left: 182px; top: 0; width: 1440px; height: 1000px; transform: scale(1.08); transform-origin: 0 0; }
-  .shot img { position: absolute; inset: 0; width: 1440px; height: 1000px; }
-  .mask { position: absolute; background: #000; }
-  .rows { display: grid; grid-template-columns: 420px 1fr; gap: 22px 36px; align-items: center; }
-  .pill { color: #000; border-radius: 0 40px 40px 0; padding: 18px 28px; font-size: 40px; font-weight: 600; letter-spacing: .06em; text-align: right; }
-  .row-text { color: #fff; font: 44px/1.2 "Reading", sans-serif; text-transform: none; }
-  .fact { position: absolute; left: 224px; top: 420px; width: 920px; transform: scale(1.6); transform-origin: 0 0; }
+  .brand img { width: 170px; height: 170px; }
+  .bar { height: 26px; width: 70%; border-radius: 13px; background: var(--orange); }
+  .bar:last-child { width: 45%; background: var(--lilac); }
+  h1 { color: var(--orange); font-size: 170px; letter-spacing: .04em; line-height: 1; margin: 0; }
+  h2, .lead { color: var(--peach); font-size: 62px; letter-spacing: .04em; line-height: 1.2; margin: 0; }
+  .small { color: var(--lilac); font-size: 34px; letter-spacing: .1em; margin: 0; }
+  .note { color: #ddd; font: 30px/1.4 "Helvetica Neue", Arial, sans-serif; text-transform: none; margin: 0; }
+  .command { color: #000; background: var(--gold); padding: 18px 36px; border-radius: 48px;
+    font: 600 64px/1 Menlo, monospace; text-transform: none; align-self: flex-start; }
+  .shot { position: absolute; left: 312px; top: 164px; width: 1296px; height: 900px; }
+  .shot img { display: block; width: 100%; height: 100%; }
+  .shot-label { position: absolute; left: 312px; top: 136px; margin: 0;
+    color: var(--peach); font-size: 20px; letter-spacing: .12em; }
+  .rows { display: grid; grid-template-columns: 390px 1fr; gap: 24px 36px; align-items: center; }
+  .pill { color: #000; border-radius: 0 40px 40px 0; padding: 20px 28px;
+    font-size: 40px; letter-spacing: .05em; text-align: right; }
+  .row-text { font: 38px/1.3 "Helvetica Neue", Arial, sans-serif; text-transform: none; }
+  /* The top 120 pixels stay clear for captions, never over the microphone or replies. */
 </style>
 </head>
 <body>
-<div id="root" data-composition-id="main" data-start="0" data-duration="77.5" data-width="1920" data-height="1080">
-
-  <section id="title" class="clip card" data-start="0" data-duration="12.3" data-track-index="0">
-    <div class="bar" style="background: var(--orange); width: 70%"></div>
-    <div class="brand"><svg class="logo" width="200" height="200" viewBox="0 0 512 512" aria-hidden="true">  <rect width="512" height="512" rx="112" fill="#000"/>
-  <path d="M168 160 88 256l80 96M344 160l80 96-80 96" fill="none" stroke="#ff9c33" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="200" y="224" width="24" height="64" rx="12" fill="#cc99cc"/>
-  <rect x="244" y="184" width="24" height="144" rx="12" fill="#ffcc99"/>
-  <rect x="288" y="208" width="24" height="96" rx="12" fill="#9999ff"/>
-</svg><h1 class="title">Picard Code</h1></div>
-    <p class="lead">Speak to your code. The computer answers.</p>
-    <p class="small">An unofficial tribute to Sir Patrick Stewart</p>
-    <div class="bar" style="background: var(--lilac); width: 45%"></div>
+<div id="root" data-composition-id="main" data-start="0" data-duration="90" data-width="1920" data-height="1080">
+  <section id="title" class="clip card" data-start="0" data-duration="9.7" data-track-index="0">
+    <div class="bar"></div>
+    <div class="brand"><img src="assets/mark.svg" alt=""><h1>Picard Code</h1></div>
+    <p class="lead">You are the Captain. The computer answers.</p>
+    <p class="small">An unofficial tribute to Sir Patrick Stewart<br>and Captain Jean-Luc Picard</p>
+    <div class="bar"></div>
   </section>
-
-  <section id="how" class="clip card" data-start="12" data-duration="12.9" data-track-index="1">
-    <p class="small">How it works</p>
+  <section id="answer" class="clip" data-start="9.5" data-duration="16.7" data-track-index="1">
+    <p class="shot-label">Current log entry · Staged example · Current interface</p>
+    <div class="shot"><img src="assets/answer.png" alt="The computer explains a settings test and keeps exact code on screen."></div>
+  </section>
+  <section id="crew" class="clip card" data-start="26" data-duration="5.9" data-track-index="2">
+    <p class="small">The bridge crew</p>
+    <h2>Expertise, with a voice of its own.</h2>
+    <p class="lead">Riker · Data · Geordi · Worf · Troi · Crusher</p>
+    <p class="note">Ready-made voices. No performer clones.</p>
+  </section>
+  <section id="data" class="clip" data-start="31.7" data-duration="14.6" data-track-index="3">
+    <p class="shot-label">Data explains · Staged example · Current interface</p>
+    <div class="shot"><img src="assets/data.png" alt="Data explains the shield reading and says he has not changed any files."></div>
+  </section>
+  <section id="riker" class="clip" data-start="46.1" data-duration="16.3" data-track-index="4">
+    <p class="shot-label">Riker recommends · Staged example · The Captain decides</p>
+    <div class="shot"><img src="assets/console.png" alt="Riker recommends a repair. A sourced tribute fact appears separately."></div>
+  </section>
+  <section id="log" class="clip" data-start="62.2" data-duration="6.2" data-track-index="5">
+    <p class="shot-label">Captain’s log · Staged example · Return to a saved entry</p>
+    <div class="shot"><img src="assets/captains-log.png" alt="Captain’s log shows the saved entry with its stardate."></div>
+  </section>
+  <section id="how" class="clip card" data-start="68.2" data-duration="12.5" data-track-index="6">
+    <h2>Your computer. Your project. Your voice.</h2>
     <div class="rows">
-      <span class="pill" style="background: var(--orange)">Coding</span><span class="row-text">OpenCode 2, with the model provider you choose</span>
-      <span class="pill" style="background: var(--lilac)">Listening</span><span class="row-text">Nemotron on your computer, or Azure MAI</span>
-      <span class="pill" style="background: var(--blue)">Speaking</span><span class="row-text">Kokoro on your computer, or Azure MAI voices</span>
-      <span class="pill" style="background: var(--peach)">Runs</span><span class="row-text">In your browser, on your own computer</span>
+      <span class="pill" style="background: var(--lilac)">Listening</span><span class="row-text">Nemotron, on your computer</span>
+      <span class="pill" style="background: var(--blue)">Speaking</span><span class="row-text">Kokoro, on your computer</span>
+      <span class="pill" style="background: var(--orange)">AI provider</span><span class="row-text">Your choice, through OpenCode 2</span>
     </div>
+    <p class="note">Online AI providers receive requests and relevant project content.<br>Optional Azure speech uses your own Azure resource.</p>
   </section>
-
-  <section id="data" class="clip" data-start="24.6" data-duration="17.4" data-track-index="2">
-    <div class="shot">
-      <img src="assets/data.png" alt="">
-      <div id="data-mask" class="mask" style="left: 370px; top: 330px; width: 960px; height: 315px"></div>
-      <div id="data-status" class="mask" style="left: 330px; top: 885px; width: 900px; height: 100px"></div>
-    </div>
-  </section>
-
-  <section id="riker" class="clip" data-start="41.6" data-duration="20.8" data-track-index="3">
-    <div id="riker-view" class="shot">
-      <img src="assets/console.png" alt="">
-      <div id="riker-mask" class="mask" style="left: 370px; top: 515px; width: 960px; height: 140px"></div>
-      <div id="file-mask" class="mask" style="left: 370px; top: 660px; width: 960px; height: 160px"></div>
-      <div id="status-mask" class="mask" style="left: 330px; top: 885px; width: 900px; height: 100px"></div>
-    </div>
-  </section>
-
-  <section id="stewart" class="clip" data-start="62" data-duration="5" data-track-index="4">
-    <img class="fact" src="assets/stewart.png" alt="">
-  </section>
-
-  <section id="end" class="clip card" data-start="66.5" data-duration="11" data-track-index="5">
-    <div class="brand"><svg class="logo" width="150" height="150" viewBox="0 0 512 512" aria-hidden="true">  <rect width="512" height="512" rx="112" fill="#000"/>
-  <path d="M168 160 88 256l80 96M344 160l80 96-80 96" fill="none" stroke="#ff9c33" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="200" y="224" width="24" height="64" rx="12" fill="#cc99cc"/>
-  <rect x="244" y="184" width="24" height="144" rx="12" fill="#ffcc99"/>
-  <rect x="288" y="208" width="24" height="96" rx="12" fill="#9999ff"/>
-</svg><p class="lead">Free and open source</p></div>
+  <section id="end" class="clip card" data-start="80.5" data-duration="9.5" data-track-index="7">
+    <div class="brand"><img src="assets/mark.svg" alt=""><h2>Free and open source</h2></div>
     <span class="command">npx picard-code</span>
     <p class="small">sbroenne.github.io/picard-code</p>
-    <p class="small" style="color: var(--peach)">With deepest respect and gratitude to Sir Patrick Stewart</p>
+    <p class="lead">With deepest respect and gratitude<br>to Sir Patrick Stewart</p>
+    <p class="note">Unofficial tribute. Not connected with or endorsed by Sir Patrick Stewart<br>or the Star Trek rights holders.</p>
   </section>
-
-  <audio id="startup" src="assets/startup.mp3" data-start="0" data-duration="2.17" data-track-index="10" data-volume="0.5"></audio>
-  <audio id="n1" src="assets/narrator-1.wav" data-start="2.4" data-duration="9.28" data-track-index="11" data-volume="1"></audio>
-  <audio id="nt" src="assets/narrator-tech.wav" data-start="12.5" data-duration="11.79" data-track-index="12" data-volume="1"></audio>
-  <audio id="n2" src="assets/narrator-2.wav" data-start="25" data-duration="3.08" data-track-index="13" data-volume="1"></audio>
-  <audio id="a1" src="assets/captain-1.wav" data-start="28.6" data-duration="5.2" data-track-index="14" data-volume="1"></audio>
-  <audio id="a2" src="assets/computer-1.wav" data-start="34.3" data-duration="6.86" data-track-index="15" data-volume="1"></audio>
-  <audio id="a3" src="assets/captain-2.wav" data-start="42" data-duration="5.52" data-track-index="16" data-volume="1"></audio>
-  <audio id="a4" src="assets/computer-2.wav" data-start="48" data-duration="8.62" data-track-index="17" data-volume="1"></audio>
-  <audio id="n3" src="assets/narrator-3.wav" data-start="57.3" data-duration="4.35" data-track-index="18" data-volume="1"></audio>
-  <audio id="n4" src="assets/narrator-4.wav" data-start="62.3" data-duration="2.09" data-track-index="19" data-volume="1"></audio>
-  <audio id="n5" src="assets/narrator-5.wav" data-start="67" data-duration="8.45" data-track-index="20" data-volume="1"></audio>
+  <audio id="narrator-1" src="assets/narrator-1.wav" data-start="0.6" data-duration="8.44" data-track-index="10"></audio>
+  <audio id="narrator-2" src="assets/narrator-2.wav" data-start="9.7" data-duration="3.76" data-track-index="11"></audio>
+  <audio id="captain-example" src="assets/captain-example.wav" data-start="13.8" data-duration="3.17" data-track-index="12"></audio>
+  <audio id="computer-example" src="assets/computer-example.wav" data-start="17.4" data-duration="8.26" data-track-index="13"></audio>
+  <audio id="narrator-crew" src="assets/narrator-crew.wav" data-start="26" data-duration="5.36" data-track-index="14"></audio>
+  <audio id="captain-1" src="assets/captain-1.wav" data-start="31.7" data-duration="4.95" data-track-index="15"></audio>
+  <audio id="computer-1" src="assets/computer-1.wav" data-start="37" data-duration="8.79" data-track-index="16"></audio>
+  <audio id="captain-2" src="assets/captain-2.wav" data-start="46.1" data-duration="5.3" data-track-index="17"></audio>
+  <audio id="computer-2" src="assets/computer-2.wav" data-start="51.8" data-duration="10.16" data-track-index="18"></audio>
+  <audio id="narrator-log" src="assets/narrator-log.wav" data-start="62.2" data-duration="5.46" data-track-index="19"></audio>
+  <audio id="narrator-tech" src="assets/narrator-tech.wav" data-start="68.2" data-duration="11.74" data-track-index="20"></audio>
+  <audio id="narrator-5" src="assets/narrator-5.wav" data-start="80.5" data-duration="8.22" data-track-index="21"></audio>
 </div>
-
 <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
 <script>
   const tl = gsap.timeline({ paused: true });
-  tl.from("#title", { opacity: 0, duration: 0.8 }, 0)
-    .from("#title .title", { x: -80, duration: 1.2, ease: "power3.out" }, 0)
-    .from("#title .logo", { scale: 0.6, opacity: 0, duration: 1, ease: "back.out(1.6)" }, 0.2)
-    .to("#title", { opacity: 0, duration: 0.3 }, 12)
-    .from("#how", { opacity: 0, duration: 0.4 }, 12)
-    .from("#how .pill", { x: -60, opacity: 0, duration: 0.5, stagger: 1.2 }, 12.6)
-    .from("#how .row-text", { opacity: 0, duration: 0.5, stagger: 1.2 }, 12.8)
-    .to("#how", { opacity: 0, duration: 0.3 }, 24.6)
-    .from("#data", { opacity: 0, duration: 0.4 }, 24.6)
-    .to(["#data-mask", "#data-status"], { opacity: 0, duration: 0.4 }, 34.1)
-    .to("#data", { opacity: 0, duration: 0.4 }, 41.6)
-    .from("#riker", { opacity: 0, duration: 0.4 }, 41.6)
-    .to("#riker-mask", { opacity: 0, duration: 0.4 }, 47.8)
-    .to(["#file-mask", "#status-mask"], { opacity: 0, duration: 0.6 }, 56.9)
-    .to("#riker-view", { scale: 1.55, x: -524, y: -607, duration: 2.2, ease: "power2.inOut" }, 57.1)
-    .to("#riker", { opacity: 0, duration: 0.4 }, 62)
-    .from("#stewart", { opacity: 0, duration: 0.5 }, 62)
-    .to("#stewart", { opacity: 0, duration: 0.4 }, 66.5)
-    .from("#end", { opacity: 0, duration: 0.6 }, 66.5);
-  window.__timelines = window.__timelines || {};
-  window.__timelines.main = tl;
+  const scenes = [...document.querySelectorAll("section.clip")];
+  for (const [index, scene] of scenes.entries()) {
+    const start = Number(scene.dataset.start);
+    const end = start + Number(scene.dataset.duration);
+    if (index) tl.fromTo(scene, { opacity: 0 }, { opacity: 1, duration: 0.2 }, start);
+    else tl.fromTo(scene, { opacity: 0 }, { opacity: 1, duration: 0.6 }, 0);
+    if (index < scenes.length - 1) tl.to(scene, { opacity: 0, duration: 0.2 }, end - 0.2);
+  }
+  tl.to({}, { duration: 0.01 }, 89.99);
+  window.__timelines = { main: tl };
 </script>
 </body>
 </html>

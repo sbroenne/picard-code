@@ -86,7 +86,17 @@ for (const width of [1440, 390]) {
     await expect(page.locator("main h1, main h2").first()).toHaveText(/tribute/i);
     await expect(page.getByRole("link", { name: "Help shape the computer", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Watch the video on YouTube" })).toHaveAttribute("href", "https://youtu.be/_OKnpwS9dOI");
-    await expect(page.locator(".console figcaption")).toContainText("staged example conversation");
+    const screenshots = page.locator(".screenshots figure");
+    await expect(screenshots).toHaveCount(3);
+    for (const [index, name] of ["Current log entry", "The bridge crew", "Captain’s log"].entries()) {
+      const figure = screenshots.nth(index);
+      await expect(figure.locator("figcaption")).toContainText(name);
+      await expect(figure.locator("figcaption")).toContainText("Staged example");
+      await expect(figure.locator("img")).toHaveAttribute("alt", /.+/);
+      const image = await figure.locator("img").getAttribute("src");
+      await expect(figure.getByRole("link")).toHaveAttribute("href", image!);
+      await figure.scrollIntoViewIfNeeded();
+    }
     await expect(page.locator("#start pre code")).toHaveText([
       "npx picard-code",
       "git clone https://github.com/sbroenne/picard-code.git\ncd picard-code\nnpm install\nnpm run build\nnpm start",
@@ -97,7 +107,6 @@ for (const width of [1440, 390]) {
     await expect(page.locator(".site-footer")).toContainText("Not connected with or endorsed by Sir Patrick Stewart");
     await expect(page.locator('script:not([type="application/ld+json"]), iframe, audio, video')).toHaveCount(0);
     await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(1);
-    await page.locator(".console").scrollIntoViewIfNeeded();
     await expect.poll(() => page.locator("img").evaluateAll((images) =>
       images.every((image) => image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0))).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
