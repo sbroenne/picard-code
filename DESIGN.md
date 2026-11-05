@@ -29,7 +29,7 @@ per line and uses generous line spacing.
 The app is designed for a computer screen, with a side panel, current log
 entry, and computer console. The latest request and reply are prominent;
 earlier messages are smaller. The console shows the current activity and next
-step, listening lights, a microphone button with its own channel readout, and
+step, listening lights, a microphone button with its own listening label, and
 stopping controls when needed.
 There is no typing box or phone layout.
 
@@ -105,11 +105,25 @@ and closes the drawer when speech is ready. There is no separate confirmation sc
 Unavailable models have a direct Refresh connection action. Supporting details
 stay under About this choice, not in the main setup steps.
 Connection readiness means OpenCode is connected and the confirmed model is available.
-Keep microphone availability separate from computer activity. The small channel
-readout beside the microphone shows Opening channel until startup finishes,
-then Channel open through silence and detected speech. Channel closed means
-the microphone is off; Channel paused explains an explicit media pause. Browser
-sound restrictions show Click to open channel, not a false ready state.
+Keep microphone availability separate from computer activity. The console's
+large readout says Not listening whenever the computer cannot hear, and its
+supporting line says why and what to do. The small label under the microphone
+shows Starting until startup finishes, then Listening through silence and
+detected speech. Microphone off means the microphone is off. Paused means
+browser audio is paused or a video is playing. During microphone preparation,
+show the browser-permission instruction, not a request for an unrelated click.
+The microphone button is the only listening control. When a click on it lets
+the computer hear (browser audio paused, or microphone off), it grows with an
+orange ring and the supporting line says to click the microphone or press M.
+Resuming paused audio does not switch the connected microphone off. While a
+video plays, the button is not highlighted, because clicking it would switch
+the microphone off. The microphone button has a distinct look for listening,
+paused, starting and off; starting is neutral, not a red failure. The centre
+of an empty log entry invites a request only while the computer can hear;
+otherwise it is empty, and the console explains. The
+console's supporting line uses normal capitals so instructions stay readable.
+In the side rail, a Ship’s systems label separates the settings readouts from
+the navigation tiles and switches.
 
 The large heading normally follows Standing by, Accessing, Transmitting,
 then Standing by. Detected speech does not change it. Final recognition uses

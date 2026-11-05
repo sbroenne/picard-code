@@ -247,11 +247,10 @@ function autoListen() {
 type ConsoleActivity = "ready" | "work" | "speaking" | "attention" | "unavailable";
 
 function channelStatus(): [string, string] {
-  if (voice.opening) return ["Opening channel", "opening"];
-  if (!voice.microphone) return ["Channel closed", "closed"];
-  if (voice.mediaPaused) return ["Channel paused", "paused"];
-  if (voice.waitingForClick) return ["Click to open channel", "paused"];
-  return ["Channel open", "open"];
+  if (voice.opening) return ["Starting", "opening"];
+  if (!voice.microphone) return ["Microphone off", "closed"];
+  if (voice.mediaPaused || voice.waitingForClick) return ["Paused", "paused"];
+  return ["Listening", "open"];
 }
 
 /** Activity and required decisions stay separate from the enabled microphone. */
@@ -276,12 +275,13 @@ function consoleStatus(): [string, string, ConsoleActivity] {
   if (voice.speechPending || !submitting && heldBack && heldBack.session === selected) return ["Accessing", "Preparing the spoken reply.", "work"];
   if (submitting) return ["Standing by", "Sending your request.", "ready"];
   if (historyLoading) return ["Loading", "", "unavailable"];
-  if (voice.opening || voice.microphone && voice.waitingForClick) return ["Opening channel", voice.waitingForClick ? "Click anywhere to start listening." : "", "unavailable"];
-  if (voice.mediaPaused && voice.microphone) return ["Standing by", "Pause the video or close its player to listen again.", "ready"];
+  if (voice.opening) return ["Not listening", "Starting the microphone. Allow access if your browser asks.", "unavailable"];
+  if (voice.microphone && voice.waitingForClick) return ["Not listening", "The browser paused sound. Click the microphone, or press M.", "unavailable"];
+  if (voice.mediaPaused && voice.microphone) return ["Not listening", "Pause the video or close its player to listen again.", "unavailable"];
   if (listening) return ["Standing by", voice.phase === "thinking" ? "Checking what you said."
     : Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New log entry”." : "Say “Computer”, then your request.", "ready"];
   if (!state.speech?.configured) return ["Computer voice offline", "", "unavailable"];
-  return ["Channel closed", "Click the microphone button or press M to switch it on.", "unavailable"];
+  return ["Not listening", "The microphone is off. Click the microphone, or press M.", "unavailable"];
 }
 
 function voiceControls() {
@@ -325,10 +325,16 @@ function voiceControls() {
   element("voice-console").dataset.activity = activity;
   const toggle = element<HTMLButtonElement>("listen-toggle");
   toggle.hidden = !state?.speech?.configured;
-  toggle.setAttribute("aria-label", voice.microphone ? "Switch microphone off" : "Switch microphone on");
-  toggle.title = `${voice.microphone ? "Switch microphone off" : "Switch microphone on"} (M)`;
+  const microphoneAction = voice.microphone ? voice.waitingForClick ? "Resume listening" : "Switch microphone off" : "Switch microphone on";
+  toggle.setAttribute("aria-label", microphoneAction);
+  toggle.title = `${microphoneAction} (M)`;
   toggle.toggleAttribute("data-on", voice.microphone);
+  toggle.dataset.channel = channelState;
   toggle.disabled = voice.opening || !voice.microphone && !ready;
+  // The microphone is the one control; draw the eye to it when a click lets the computer hear.
+  toggle.toggleAttribute("data-act", !toggle.hidden && !toggle.disabled && (!voice.microphone || voice.waitingForClick));
+  // Invite a request only when the computer can hear it; the console explains why not.
+  element("welcome-title").hidden = channelState !== "open" && !!state?.speech?.configured;
   element("voice-console").dataset.phase = voice.microphone || voice.phase === "speaking" ? voice.phase : "off";
   if (voice.phase === "listening") notSent = "";
   element("voice-partial").textContent = voice.phase === "listening" || voice.phase === "thinking" ? voice.partial : notSent;
@@ -1894,14 +1900,18 @@ setInterval(showStardate, 60_000);
 function toggleMicrophone() {
   const toggle = element<HTMLButtonElement>("listen-toggle");
   if (toggle.hidden || toggle.disabled) return;
-  if (voice.microphone) muteMicrophone();
+  if (voice.microphone && voice.waitingForClick) voice.unlock();
+  else if (voice.microphone) muteMicrophone();
   else if (!voice.opening) void perform(startListening);
+}
+function microphoneShortcut(event: KeyboardEvent) {
+  const target = event.target;
+  return event.key.toLowerCase() === "m" && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey
+    && !openDrawer() && !(target instanceof Element && target.closest("input, textarea, select, [contenteditable]"));
 }
 element("listen-toggle").addEventListener("click", toggleMicrophone);
 document.addEventListener("keydown", (event) => {
-  if (event.key.toLowerCase() !== "m" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
-  const target = event.target as HTMLElement | null;
-  if (openDrawer() || target?.closest("input, textarea, select, [contenteditable]")) return;
+  if (!microphoneShortcut(event)) return;
   event.preventDefault();
   toggleMicrophone();
 });
@@ -1926,7 +1936,12 @@ element("bridge-toggle").addEventListener("change", () => {
   bridgeControls();
   element("bridge-status").textContent = bridgeEnabled ? "The Bridge crew is on." : "The Bridge crew is off. The computer answers every request.";
 });
-for (const name of ["pointerdown", "keydown"] as const) document.addEventListener(name, () => voice.unlock(), true);
+for (const name of ["pointerdown", "keydown"] as const) document.addEventListener(name, (event) => {
+  // Let the microphone control see the paused state before resuming audio, or the same gesture can switch it off.
+  if (event.target instanceof Element && event.target.closest("#listen-toggle")
+    || event instanceof KeyboardEvent && microphoneShortcut(event)) return;
+  voice.unlock();
+}, true);
 window.addEventListener("beforeunload", () => { players.stop(); events?.close(); voice.close(); });
 // Another open page may move the start-up on; follow it rather than repeating a step.
 window.addEventListener("storage", (event) => { if (event.key === FIRST_RUN_KEY) { loadFirstRun(); controls(); } });

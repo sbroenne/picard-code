@@ -151,8 +151,11 @@ test("actual video playback pauses capture, survives updates, and respects a man
       Object.assign(window, { playingVideo: item });
       await item.play();
     });
-    await expect(page.locator("#status")).toHaveText("Standing by");
-    await expect(page.locator("#voice-channel")).toHaveText("Channel paused");
+    await expect(page.locator("#status")).toHaveText("Not listening");
+    await expect(page.locator("#status-detail")).toHaveText("Pause the video or close its player to listen again.");
+    await expect(page.locator("#voice-channel")).toHaveText("Paused");
+    // Clicking the microphone here would switch it off, so it must not be highlighted as the way back.
+    await expect(page.locator("#listen-toggle")).not.toHaveAttribute("data-act");
     await expect.poll(capture).toBe(false);
     context.fixture.publish(context.project, "session.step.ended", { sessionID: context.session.id });
     await page.waitForTimeout(500);
@@ -168,7 +171,7 @@ test("actual video playback pauses capture, survives updates, and respects a man
     await page.getByRole("button", { name: "Switch microphone off" }).click();
     await video.evaluate((item: HTMLVideoElement) => item.pause());
     await expect.poll(capture).toBe(false);
-    await expect(page.locator("#status")).toHaveText("Channel closed");
+    await expect(page.locator("#status")).toHaveText("Not listening");
   } finally { await context.cleanup(); }
 });
 
@@ -183,8 +186,8 @@ test("only opened YouTube and Vimeo players pause listening, and closing or leav
       await expect(page.getByTitle(label, { exact: true })).toBeVisible();
       const frame = page.getByTitle(label, { exact: true });
       await expect(frame).toHaveAttribute("referrerpolicy", label.startsWith("YouTube") ? "origin" : "no-referrer");
-      await expect(page.locator("#status")).toHaveText("Standing by");
-      await expect(page.locator("#voice-channel")).toHaveText("Channel paused");
+      await expect(page.locator("#status")).toHaveText("Not listening");
+      await expect(page.locator("#voice-channel")).toHaveText("Paused");
       await expect.poll(capture).toBe(false);
       await frame.evaluate((item) => Object.assign(window, { openMediaFrame: item }));
       context.fixture.publish(context.project, "session.step.ended", { sessionID: context.session.id });
@@ -282,12 +285,12 @@ test("a new spoken decision stops an open player before the computer speaks", as
     await utterance();
     await expect(page.locator(".message[data-role=user]").last()).toContainText("take a very slow look");
     await page.getByRole("button", { name: "Open player: YouTube example" }).click();
-    await expect(page.locator("#voice-channel")).toHaveText("Channel paused");
+    await expect(page.locator("#voice-channel")).toHaveText("Paused");
     context.fixture.permissions.push({ id: "test-media-decision", sessionID: session.id, action: "shell", resources: ["test-only command"] });
     context.fixture.publish(context.project, "permission.asked", { sessionID: session.id });
     await expect(page.getByRole("heading", { name: "Approval required." })).toBeVisible();
     await expect(page.locator("iframe")).toHaveCount(0);
-    await expect(page.locator("#voice-channel")).toHaveText("Channel open");
+    await expect(page.locator("#voice-channel")).toHaveText("Listening");
     await expect.poll(() => context.speech.said.some((item) => item.text.includes("approval is required"))).toBe(true);
   } finally { await context.cleanup(); }
 });

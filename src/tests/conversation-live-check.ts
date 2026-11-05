@@ -163,8 +163,8 @@ try {
   await expect(page.locator("#drawer-settings")).toBeHidden();
   await page.evaluate(() => (window as unknown as { startTestMicrophone: () => void }).startTestMicrophone());
   await expect.poll(async () => `${await page.getByRole("status").textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 30_000 })
-    .toMatch(/Standing by|Channel open|Understanding|Click anywhere/);
-  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#messages").click();
+    .toMatch(/Standing by|Understanding|paused sound/);
+  if (await page.locator("#voice-channel").textContent() === "Paused") await page.locator("#listen-toggle").click();
   await expect(page.locator(".message[data-role=user]")).toContainText(/connection is ready/i, { timeout: 60_000 });
   await expect(page.locator(".message[data-role=assistant]")).toContainText(/connection is ready/i, { timeout: 90_000 });
   await expect(page.getByRole("status")).toHaveText("Transmitting", { timeout: 30_000 });
@@ -180,7 +180,7 @@ try {
     await expect(page.getByRole("status")).toHaveText("Transmitting", { timeout: 90_000 });
   }
   await page.getByRole("button", { name: "Switch microphone off" }).click();
-  await expect(page.getByRole("status")).toHaveText("Channel closed", { timeout: 30_000 });
+  await expect(page.getByRole("status")).toHaveText("Not listening", { timeout: 30_000 });
   assert.ok(sentAudio > 16000, "Actual browser microphone audio must reach the chosen listener.");
   assert.ok(receivedAudio > 16000, "Actual chosen speaking service must return audible-length audio.");
   assert.ok(commands.includes("check-turn"), "The real Smart Turn worker must check a browser-captured pause before the request is sent.");
