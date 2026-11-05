@@ -60,6 +60,11 @@ export function installRecording() {
   window.startDemoRecording = async () => {
     await master.resume();
     if (master.state !== "running") throw new Error("The recording audio needs a real browser click.");
+    const audioTime = master.currentTime;
+    await new Promise((done) => setTimeout(done, 500));
+    if (master.currentTime - audioTime < 0.1) {
+      throw new Error("The browser's sound output is not running on this computer. Check the computer's sound output, then try again.");
+    }
     recorder = new MediaRecorder(mixed.stream, { mimeType: "audio/webm;codecs=opus", audioBitsPerSecond: 192000 });
     recorder.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
     const started = new Promise((done) => {

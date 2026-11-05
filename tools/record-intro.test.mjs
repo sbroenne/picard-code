@@ -151,6 +151,41 @@ test("captions are WebVTT shown at the top of the picture, and reject empty or o
   assert.throws(() => vtt([{ start: 0, end: 3, text: "a" }, { start: 2, end: 4, text: "b" }]), /overlaps/);
 });
 
+test("the recorder explains stalled sound output before starting MediaRecorder", { timeout: 20000 }, async () => {
+  const server = createServer((request, response) => response.end("<!doctype html><button>Start</button>"));
+  await new Promise((done, fail) => { server.once("error", fail); server.listen(0, "127.0.0.1", done); });
+  let browser;
+  try {
+    browser = await chromium.launch({ args: ["--mute-audio", "--autoplay-policy=no-user-gesture-required"] });
+    for (const rate of [0, 0.005 / 1.5]) {
+      const page = await browser.newPage();
+      await page.addInitScript((rate) => {
+        const start = performance.now();
+        Object.defineProperty(AudioContext.prototype, "currentTime", {
+          get() { return (performance.now() - start) / 1000 * rate; },
+        });
+        window.recorderStarts = 0;
+        window.MediaRecorder = class {
+          constructor() {
+            window.recorderStarts++;
+            throw new Error("MediaRecorder was created before checking the sound output.");
+          }
+        };
+      }, rate);
+      await page.addInitScript(installRecording);
+      await page.goto(`http://127.0.0.1:${server.address().port}`);
+      await page.locator("button").click();
+      await assert.rejects(page.evaluate(() => window.startDemoRecording()),
+        /The browser's sound output is not running on this computer\. Check the computer's sound output, then try again\./);
+      assert.equal(await page.evaluate(() => window.recorderStarts), 0, `Clock rate ${rate}: recording must not start.`);
+      await page.close();
+    }
+  } finally {
+    try { await browser?.close(); }
+    finally { await new Promise((done, fail) => server.close((error) => error ? fail(error) : done())); }
+  }
+});
+
 test("the browser records generated input and actual output without playing the input through the speakers", { timeout: 20000 }, async () => {
   const server = createServer((request, response) => response.end("<!doctype html><button>Start</button>"));
   await new Promise((done, fail) => { server.once("error", fail); server.listen(0, "127.0.0.1", done); });
