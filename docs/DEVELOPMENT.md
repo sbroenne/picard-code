@@ -113,6 +113,12 @@ deliberate approvals, and separate stopping controls. They also use silent
 stand-in sound files to check that each computer sound plays once at the right
 moment, never while listening, and not for answers to questions or cancelled work.
 
+The reload checks deliberately slow the startup stand-in sound on both click
+and keyboard routes. They wait for its actual playback end and the 200 ms
+echo guard before sending the generated microphone phrase. A Listening label
+alone does not mean the sound has finished. Keep this overlap in the normal
+pull-request suite so a faster earlier run cannot hide the test's timing mistake.
+
 If Playwright reports a missing browser, run `npx playwright install chromium`
 and repeat the browser checks.
 

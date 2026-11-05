@@ -306,9 +306,25 @@ for (const keyboard of [false, true]) {
     await page.getByRole("button", { name: "Switch microphone on" }).click();
     await expect(page.locator("#voice-channel")).toHaveText("Listening");
     await expect(status(page)).not.toHaveText("Not listening");
+    // Force the startup overlap on every PR, rather than only on a slower release runner.
+    await page.addInitScript((startupLength) => {
+      const start = AudioBufferSourceNode.prototype.start;
+      AudioBufferSourceNode.prototype.start = function (...args: Parameters<typeof start>) {
+        if (this.buffer && Math.abs(this.buffer.duration - startupLength) < 0.02) {
+          this.playbackRate.value = 0.1;
+          this.addEventListener("ended", () => Object.assign(window, { testStartupEndedAt: performance.now() }), { once: true });
+        }
+        return start.apply(this, args);
+      };
+    }, SOUND_LENGTHS.startup);
     await page.reload();
     await expect(status(page)).toHaveText("Not listening", { timeout: 15000 });
     await startListening(page);
+    // The app ignores its cue and a 200 ms echo tail; the test phrase must start after actual playback.
+    await expect.poll(() => page.evaluate(() => {
+      const ended = (window as unknown as { testStartupEndedAt?: number }).testStartupEndedAt;
+      return ended !== undefined && performance.now() - ended >= 200;
+    })).toBe(true);
     await microphone.start();
     await expect(page.locator(".message[data-role=user]")).toHaveCount(1, { timeout: 15000 });
     await page.getByRole("button", { name: "Switch microphone off" }).click();

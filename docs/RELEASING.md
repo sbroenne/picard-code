@@ -49,16 +49,22 @@ coding agents never do.
       **Release 1701.4.x** open. It raises `version` (a patch note gives
       `1701.4.1`, a minor note `1701.5.0`), writes the notes into
       `CHANGELOG.md` with a link to each pull request (and thanks for other
-      contributors), and removes the used notes. It starts **Project checks**
-      and **Dependency review** directly on the release branch, so you do not
-      need to approve workflow runs after each update. GitHub may still show
-      held copies of the pull-request workflows. The directly started checks
-      report their real results on GitHub's test-merge commit only after
-      confirming its files exactly match the tested release commit; a changed
-      branch or different files stop reporting. These satisfy the merge checks. When those
-      checks pass, read the notes, approve the pull request if GitHub requires
+      contributors), and removes the used notes. The repository's GitHub App
+      pushes the release branch and creates or updates the pull request.
+      These App-authenticated changes start the normal **Project checks**
+      and **Dependency review** pull-request workflows. No check results are
+      copied to another commit, and no duplicate manual workflows are started.
+      When those checks pass, read the notes, approve the pull request if GitHub requires
       it for automated changes, and merge it when you want to release.
-      The workflows use GitHub's own token, not a stored personal token.
+      Release preparation reuses `GH_AW_APP_CLIENT_ID` and
+      `GH_AW_APP_PRIVATE_KEY`, the repository App already used by the Code
+      Simplifier (see [its setup](../CONTRIBUTING.md#review-and-ai-assistance)).
+      Its short-lived token is limited to this repository, with Contents and
+      Pull requests write access, and is revoked when the job finishes.
+      Package installation and release-note preparation happen before that
+      token is created. Missing App settings fail preparation; there is no
+      fallback to GitHub's workflow token and no stored personal token.
+      Other release workflows still use GitHub's own token.
    2. The merge starts the **Create release** workflow. It creates the GitHub
       release `v<version>` with the same notes, then starts **Publish to npm**
       on that tag. If the release exists but publishing did not start, run
