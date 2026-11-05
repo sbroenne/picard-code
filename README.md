@@ -28,6 +28,8 @@ Mac, Windows PC (x64 or ARM), or Linux computer (x64 or arm64).
 Check the [OS requirements and compatibility notes](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#get-started)
 before installing.
 
+### Run with npx
+
 Open a terminal in your project folder and run:
 
 ```sh
@@ -42,6 +44,22 @@ OpenCode 2 is included if you do not already have it; Python and speech
 packages are prepared for you.
 
 Keep the terminal open. Press **Ctrl+C** to stop.
+
+### Run from source
+
+Alternatively, clone the repository. With Git and Node.js installed:
+
+```sh
+git clone https://github.com/sbroenne/picard-code.git
+cd picard-code
+npm install
+npm run build
+npm start
+```
+
+The same browser app and first-run setup open. Choose your own project with
+the **Project** tile. For later starts, run `npm start` from the clone.
+[More about running from source](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#run-from-source).
 
 ## Give an order
 
@@ -70,21 +88,6 @@ approval first. When an approval is requested, choose **Allow once** or
 [Read about permissions and privacy](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#spoken-requests).
 
 ## Advanced
-
-### Run from source
-
-With Git and Node.js installed:
-
-```sh
-git clone https://github.com/sbroenne/picard-code.git
-cd picard-code
-npm install
-npm run build
-npm start
-```
-
-Choose your own project with the **Project** tile.
-[More about running from source](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#run-from-source).
 
 ### Choose another project
 

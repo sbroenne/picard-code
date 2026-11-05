@@ -76,9 +76,7 @@ You need:
   Nemotron's Linux runtime needs glibc 2.31 or newer. Windows ARM uses the Intel-compatible
   Nemotron runtime; the owner has checked Nemotron on a Windows ARM machine.
   That check does not establish that every Windows ARM machine works.
-  Other supported computers, including Intel Macs with macOS 14 or newer,
-  can use [Azure speech](#azure-speech-setup) instead. All choices need local
-  pause detection: macOS 14 or newer, Windows, or Linux with glibc 2.28 or
+  All choices need local pause detection: macOS 14 or newer, Windows, or Linux with glibc 2.28 or
   newer, on an x64 or arm64 processor. Preparation installs its Python
   packages automatically.
 
