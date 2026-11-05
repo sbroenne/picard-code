@@ -72,7 +72,8 @@ sensitive security reports.
 
 Fork the repository, create a branch, and follow
 [Run from source](README.md#run-from-source). Use your own OpenCode sign-in and speech resources.
-OpenCode 2 is required; `npm install` brings the tested copy.
+OpenCode 2 is required; `npm start` installs the tested copy and builds the app
+before launching.
 
 Dependency installs use the npm registry already configured on your computer.
 Keep the project's `.npmrc` setting `omit-lockfile-registry-resolved=true`:

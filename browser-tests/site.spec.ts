@@ -13,6 +13,9 @@ test("the npm and GitHub README is a short front page with a launch command and 
   expect(readme.split("\n").length).toBeLessThanOrEqual(150);
   expect(Buffer.byteLength(readme)).toBeLessThanOrEqual(8_000);
   expect(readme).toContain("npx picard-code");
+  const sourceCommands = "git clone https://github.com/sbroenne/picard-code.git\ncd picard-code\nnpm start";
+  expect(readme).toContain(sourceCommands);
+  expect(await readFile("docs/USER_GUIDE.md", "utf8")).toContain(sourceCommands);
   expect(readme).toContain("https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md");
 });
 
@@ -99,9 +102,10 @@ for (const width of [1440, 390]) {
     }
     await expect(page.locator("#start pre code")).toHaveText([
       "npx picard-code",
-      "git clone https://github.com/sbroenne/picard-code.git\ncd picard-code\nnpm install\nnpm run build\nnpm start",
+      "git clone https://github.com/sbroenne/picard-code.git\ncd picard-code\nnpm start",
     ]);
     await expect(page.getByRole("heading", { name: "Or run a repository clone" })).toBeVisible();
+    await expect(page.locator("#start .source")).toContainText("installs the needed packages and builds the app before launching");
     await expect(page.locator("#start .intro")).toContainText("The first start-up begins");
     await expect(page.locator("#start .intro")).toContainText("Advanced setup");
     await expect(page.locator(".site-footer")).toContainText("Not connected with or endorsed by Sir Patrick Stewart");
