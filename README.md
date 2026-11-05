@@ -23,13 +23,10 @@ You need **Node.js 24 or newer** (an LTS release), a microphone, speakers or
 headphones, and an AI provider supported by OpenCode. A few free models are
 available through OpenCode without signing in.
 
-For default local speech, allow **2 GB of free disk space** and use an Apple
-silicon Mac with macOS 14 or newer, Windows x64 or ARM, or Linux x64 or arm64
-with glibc 2.31 or newer. Windows ARM uses compatibility support; Nemotron
-has not yet been checked on a Windows ARM machine. Intel Macs and other
-supported computers can use your own Azure speech resource under
-**Advanced setup**. See the
-[full requirements](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#get-started).
+Default local speech needs **2 GB of free disk space** and an Apple silicon
+Mac, Windows PC (x64 or ARM), or Linux computer (x64 or arm64).
+Check the [OS requirements and compatibility notes](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#get-started)
+before installing.
 
 Open a terminal in your project folder and run:
 

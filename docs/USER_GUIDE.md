@@ -74,7 +74,8 @@ You need:
   - Linux on an x64 or arm64 processor, with glibc 2.31 or newer.
 
   Nemotron's Linux runtime needs glibc 2.31 or newer. Windows ARM uses the Intel-compatible
-  Nemotron runtime; that path has not yet been checked on a Windows ARM machine.
+  Nemotron runtime; the owner has checked Nemotron on a Windows ARM machine.
+  That check does not establish that every Windows ARM machine works.
   Other supported computers, including Intel Macs with macOS 14 or newer,
   can use [Azure speech](#azure-speech-setup) instead. All choices need local
   pause detection: macOS 14 or newer, Windows, or Linux with glibc 2.28 or
@@ -820,7 +821,7 @@ setup fails.
 Nemotron's published Linux binaries require glibc 2.31 or newer. Computers
 that cannot run Nemotron need an explicitly chosen Azure speech resource. Windows ARM
 uses the Windows x64 Nemotron binary through Windows' compatibility support;
-that Nemotron path is not yet verified on a Windows ARM machine. Setup does
+the owner has checked Nemotron on a Windows ARM machine. Setup does
 not try a source build or silently choose another listener.
 
 On the checked Apple Silicon Mac, a real CPU check with original
