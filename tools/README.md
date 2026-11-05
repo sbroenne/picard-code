@@ -41,8 +41,8 @@ project.
 
 The episode is a [HyperFrames](https://github.com/heygen-com/hyperframes)
 project in [`video/`](../video/), pinned to version 0.9.15. Its scenes are
-original LCARS compositions in `video/compositions/`: the opening hook and
-dedication, title, officer name plates, caption bars and closing board.
+original LCARS compositions in `video/compositions/`: the opening dedication and
+hook, title, officer name plates, caption bars and closing board.
 `video/build.mjs` puts them around the recorded footage:
 
 ```sh

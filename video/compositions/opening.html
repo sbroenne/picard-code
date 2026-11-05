@@ -78,26 +78,33 @@
           context.globalAlpha = 1;
         };
 
-        // The beats match HOOK in video/edit.mjs: each line is on screen while the Captain says it.
+        // The beats come from BEATS in video/edit.mjs: the dedication first, then each line while the Captain says it.
+        const beats = window.__hyperframes.getVariables().beats;
+        const [, dedicationEnd] = beats.dedication;
+        const [oneStart, oneEnd] = beats["hook-1"];
+        const [twoStart, twoEnd] = beats["hook-2"];
+        const [threeStart, threeEnd] = beats["hook-3"];
         const q = (selector) => root.querySelectorAll(selector);
         const tl = gsap.timeline({ paused: true, onUpdate: draw });
         tl.fromTo(sky, { drift: 0 }, { drift: 1, duration: 15, ease: "none" }, 0);
-        tl.fromTo(q(".log"), { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out" }, 0);
-        tl.to(q(".log-bar"), { width: 520, duration: 0.8, ease: "power2.out" }, 0.2);
 
-        tl.fromTo(q(".one"), { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, 0.15);
-        tl.to(q(".one"), { opacity: 0, y: -16, duration: 0.3, ease: "power2.in" }, 2.85);
+        // On screen from the first frame, so the tribute is what people see first.
+        tl.fromTo(q(".dedication"), { opacity: 1, scale: 0.98 }, { opacity: 1, scale: 1, duration: 1.2, ease: "power2.out" }, 0);
+        tl.to(q(".dedication"), { opacity: 0, duration: 0.5, ease: "power2.in" }, dedicationEnd - 0.5);
 
-        tl.set(q(".two"), { opacity: 1 }, 3.15);
-        tl.fromTo(q(".two .word"), { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.25, stagger: 0.32, ease: "power2.out" }, 3.15);
-        tl.to(q(".two"), { opacity: 0, y: -16, duration: 0.35, ease: "power2.in" }, 7.7);
+        tl.fromTo(q(".log"), { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out" }, oneStart - 0.15);
+        tl.fromTo(q(".log-bar"), { width: 0 }, { width: 520, duration: 0.8, ease: "power2.out" }, oneStart + 0.05);
 
-        tl.fromTo(q(".three"), { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 8.1);
-        tl.to(q(".three"), { opacity: 0, y: -16, duration: 0.4, ease: "power2.in" }, 10.5);
-        tl.to(q(".log"), { opacity: 0, duration: 0.4 }, 10.5);
+        tl.fromTo(q(".one"), { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, oneStart - 0.15);
+        tl.to(q(".one"), { opacity: 0, y: -16, duration: 0.3, ease: "power2.in" }, oneEnd - 0.15);
 
-        tl.fromTo(q(".dedication"), { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.9, ease: "power2.out" }, 11);
-        tl.to(q(".dedication"), { opacity: 0, duration: 0.6, ease: "power2.in" }, 14.4);
+        tl.set(q(".two"), { opacity: 1 }, twoStart - 0.05);
+        tl.fromTo(q(".two .word"), { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.25, stagger: 0.32, ease: "power2.out" }, twoStart - 0.05);
+        tl.to(q(".two"), { opacity: 0, y: -16, duration: 0.35, ease: "power2.in" }, twoEnd - 0.3);
+
+        tl.fromTo(q(".three"), { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, threeStart - 0.1);
+        tl.to(q(".three"), { opacity: 0, y: -16, duration: 0.4, ease: "power2.in" }, threeEnd);
+        tl.to(q(".log"), { opacity: 0, duration: 0.4 }, threeEnd);
 
         draw();
         window.__timelines = window.__timelines || {};

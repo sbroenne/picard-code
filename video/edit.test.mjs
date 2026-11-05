@@ -144,14 +144,20 @@ function edit() {
   };
 }
 
-test("the episode follows the storyboard: hook, title, briefing, make it so, Captain's log, end board", () => {
+test("the episode follows the storyboard: tribute, hook, title, briefing, make it so, Captain's log, end board", () => {
   const plan = layout(edit(), spoken, sounds);
   assert.equal(plan.duration, 15 + 4 + 6 + 12 + 2 + 2 + 6 + 6 + 15);
   assert.deepEqual(plan.chapters.map((chapter) => [chapter.start, chapter.title]), [[0, "Why we built it"], [19, "The briefing"], [37, "Make it so"], [47, "Captain’s log"]]);
   assert.doesNotThrow(() => chapterList(plan.chapters, plan.duration));
   assert.doesNotThrow(() => srt(plan.captions));
   assert.equal(plan.captions[0].text, "Picard: Captain Picard never typed.");
-  assert.equal(plan.captions[0].start, 0.3, "the hook is heard in the first second");
+  // The tribute comes first, on screen from the first frame; the Captain's hook follows it.
+  const opening = plan.clips.find((clip) => clip.composition === "opening");
+  assert.deepEqual(opening.variables.beats.dedication, [0, 4.3]);
+  assert.equal(plan.captions[0].start, 4.5, "the hook starts once the dedication has faded");
+  for (const name of ["hook-1", "hook-2", "hook-3"]) {
+    assert.equal(plan.captions.find((cue) => cue.text.includes(edit().narration[name]))?.start, opening.variables.beats[name][0], `the ${name} words are on screen while it is said`);
+  }
   assert.deepEqual(plan.captions.find((cue) => cue.text.startsWith("Riker")), { start: 26, end: 35, text: "Riker: Two options, Captain." });
   assert.deepEqual(plan.clips.filter((clip) => clip.kind === "composition" && clip.track === 0).map((clip) => [clip.composition, clip.start, clip.duration]), [["opening", 0, 15], ["title", 15, 4], ["end", 53, 15]]);
   assert.equal(plan.clips.filter((clip) => clip.src === "assets/sounds/beep-caption.mp3").length, 2, "a bridge beep on each work cut");
@@ -171,7 +177,7 @@ test("layout refuses a cut over 1:40, narration that overruns its beat, missing 
   const long = edit();
   long.acts.work.push({ from: 100, to: 135, speech: [] });
   assert.throws(() => layout(long, spoken, sounds), /runs 1:4\d; the storyboard allows 1:40 at most/);
-  assert.throws(() => layout(edit(), { ...spoken, "hook-1": 3.2 }, sounds), /hook-1 runs 3\.2 s but its beat is 2\.7 s/);
+  assert.throws(() => layout(edit(), { ...spoken, "hook-1": 3.2 }, sounds), /hook-1 runs 3\.2 s but its beat is 2\.9 s/);
   assert.throws(() => layout(edit(), spoken, { ...sounds, "beep-plate.mp3": undefined }), /beep-plate\.mp3 is missing/);
   const cut = edit();
   cut.acts.briefing[1].to = 25;

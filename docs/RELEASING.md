@@ -83,7 +83,7 @@ The short video is on the [Picard Code channel](https://www.youtube.com/@PicardC
 at <https://youtu.be/_OKnpwS9dOI>, linked from the website and README.
 
 The new intro is a short TNG episode, first of all a tribute to Sir Patrick
-Stewart and Captain Jean-Luc Picard. It opens with why Picard Code exists:
+Stewart and Captain Jean-Luc Picard. After the dedication, it says why Picard Code exists:
 Captain Picard never typed. Around that is a real recording of the app: the
 Captain hears one sentence each from Riker and Data, says "Make it so", and
 the crew builds a small tribute site; Data runs the tests and reports, and

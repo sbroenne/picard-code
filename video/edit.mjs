@@ -288,13 +288,17 @@ export function draftEdit(recording, pauses, stardate, speech) {
 }
 
 const SCENES = { opening: 15, title: 4, still: 6, end: 15 };
-/** When each hook line starts in the opening and when its beat ends; the opening's type follows the same beats. */
-const HOOK = { "hook-1": [0.3, 3], "hook-2": [3.2, 8], "hook-3": [8.2, 11] };
+/**
+ * The opening's beats, in seconds: the dedication to Sir Patrick and the Captain first, then each hook line
+ * from when the Captain starts saying it until its words leave. The opening composition is timed from these.
+ */
+const BEATS = { dedication: [0, 4.3], "hook-1": [4.5, 7.4], "hook-2": [7.6, 11.4], "hook-3": [11.6, 14.6] };
+const HOOK = ["hook-1", "hook-2", "hook-3"];
 /** The storyboard's hard limit for the whole cut, end board included. */
 export const LONGEST_CUT = 100;
 
 /**
- * Lays the whole episode out on one timeline, as in the storyboard: the hook and dedication, the title, the
+ * Lays the whole episode out on one timeline, as in the storyboard: the dedication and hook, the title, the
  * briefing, the crew at work, the site they built, the Captain's log and the end board.
  * `spoken` and `sounds` are lengths in seconds.
  */
@@ -320,9 +324,9 @@ export function layout(edit, spoken, sounds) {
   const scene = (composition, start, duration, variables) => add({ kind: "composition", composition, start, duration, track: 0, variables });
 
   chapters.push({ start: 0, title: "Why we built it" });
-  scene("opening", 0, SCENES.opening, { stardate: edit.stardate });
-  for (const [name, [start, end]] of Object.entries(HOOK)) say(name, start, end - start);
-  if (sounds["app-request-accepted.mp3"]) sound("app-request-accepted.mp3", HOOK["hook-2"][1] - 0.6, 2, 0.4, { track: 13 });
+  scene("opening", 0, SCENES.opening, { stardate: edit.stardate, beats: BEATS });
+  for (const name of HOOK) say(name, BEATS[name][0], BEATS[name][1] - BEATS[name][0]);
+  if (sounds["app-request-accepted.mp3"]) sound("app-request-accepted.mp3", BEATS["hook-2"][1] - 0.6, 2, 0.4, { track: 13 });
   let time = SCENES.opening;
   scene("title", time, SCENES.title);
   sound("music-open.mp3", time - 0.4, SCENES.title + 2.4, 0.32, { track: 12, fadeIn: 0.4, fadeOut: 2 });
