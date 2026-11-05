@@ -36,7 +36,9 @@ Captain's orders are shortened, so the app does not end his turn halfway.
 The recorder fixes the app's random draw, as the browser tests do, so the
 app's own Personnel file record (the Captain's Earl Grey, chosen in
 `TRIBUTE_FACT`) appears under Data's report; the take stops if it appears
-early, late or with another fact. After the work, the take opens the Captain's
+early, late or with another fact. The edit holds that record for five seconds
+while the Captain explains it: "And now and then, the computer opens my
+personnel file." After the work, the take opens the Captain's
 log so the finished entry can be shown. A take takes five minutes or more. Do not use this tool on a private
 project.
 
