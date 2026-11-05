@@ -584,8 +584,8 @@ A failed lookup is explained; it does not silently use old or invented informati
 Automatic facts, reviewed story replies and repository questions make no
 Wikipedia requests.
 
-Optional speech follows the answer only after playback finishes. **Stop
-speaking**, microphone off, switching log entries or projects, Ship’s systems,
+Optional speech follows the answer only after playback finishes.
+**Stop speaking**, microphone off, switching log entries or projects, Ship’s systems,
 errors and disconnection discard pending extras. Saying "Computer" during an
 answer stops spoken playback and pending extras; approvals still need an
 on-screen button.
@@ -725,8 +725,8 @@ approval, and Picard Code never starts OpenCode with its `--auto` option.
 Installed extensions and agent configuration also matter.
 
 The interface runs locally, but OpenCode sends messages and relevant project
-content to the model provider you chose. Because the microphone stays on, **MAI listening
-sends any speech it hears to Azure** to find out whether it starts with
+content to the model provider you chose. Because the microphone stays on,
+**MAI listening sends any speech it hears to Azure** to find out whether it starts with
 "Computer", even speech not meant for the computer; quiet room sound is not
 sent. "Computer" addresses the computer; after the first request, follow-up speech also goes to
 the model without that prefix until you return to standing by. MAI speaking
@@ -919,8 +919,8 @@ cover the service.
 
 The easiest way is the **Listen · Speak** tile in the side panel. Choose the listening and
 speaking services, fill in your resource (only the fields the chosen services
-need are shown), and choose **Save and
-apply**. The new speech setup starts right away, with no restart. If it cannot
+need are shown), and choose **Save and apply**.
+The new speech setup starts right away, with no restart. If it cannot
 start (for example a wrong region), the error is shown, the file is not
 changed, and the speech setup that was working stays in use.
 

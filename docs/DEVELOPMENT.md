@@ -148,8 +148,8 @@ request. A real model reply needs a signed-in provider.
 
 ### Listening and speaking
 
-`test:speech:live` makes small, chargeable requests to the configured **real
-Azure** services. It synthesizes an original short test phrase and sends the
+`test:speech:live` makes small, chargeable requests to the configured
+**real Azure** services. It synthesizes an original short test phrase and sends the
 generated audio through MAI's live listening connection, checking both final
 words and live word updates. It does not capture your microphone or call
 an AI model.

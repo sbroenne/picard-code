@@ -24,6 +24,13 @@ test("the README and linked guides keep working repository links and section anc
     const saved = documents.get(path);
     if (saved) return saved;
     const text = await readFile(resolve(path), "utf8");
+    if (path.endsWith(".md")) {
+      marked.walkTokens(marked.lexer(text), (token) => {
+        if (token.type === "strong" || token.type === "em") {
+          expect(token.raw, `${path}: keep emphasis on one source line for Markdown previews`).not.toContain("\n");
+        }
+      });
+    }
     const html = path.endsWith(".md") ? await marked.parse(text) : text;
     const parsed = await page.evaluate((html) => {
       const doc = new DOMParser().parseFromString(html, "text/html");

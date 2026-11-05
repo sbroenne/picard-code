@@ -76,8 +76,8 @@ relevant project content. Local speech processes audio on your computer;
 optional Azure speech sends audio or reply text to your Azure resource.
 Downloads and settings stay in `~/.picard-code`, not your project.
 
-**OpenCode's permission rules apply. By default, OpenCode 2 can change files
-and run commands without asking.** Configure its permissions if you want
+**OpenCode's permission rules apply.** By default, OpenCode 2 can change files
+and run commands without asking. Configure its permissions if you want
 approval first. When an approval is requested, choose **Allow once** or
 **Deny** on screen; voice cannot grant it.
 [Read about permissions and privacy](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#spoken-requests).
