@@ -21,6 +21,11 @@ node --test tools/record-intro.test.mjs video/edit.test.mjs video/quality.test.m
 node tools/record-intro.mjs --model github-copilot/gpt-6.1-sol
 ```
 
+Before recording starts, the tool checks that the browser is processing sound.
+If it reports that the browser's sound output is not running, check the
+computer's selected speakers or headphones, then try again. This can happen
+even when the browser reports that sound is running.
+
 The orders live in [`intro-episode.mjs`](intro-episode.mjs): a bare
 "Computer.", a briefing that asks only Riker and Data for one short sentence
 each, "Make it so, Number One." and "Mr Data, please run the tests and report
