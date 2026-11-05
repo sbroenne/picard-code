@@ -1,5 +1,11 @@
 # Picard Code release notes
 
+## 1701.4.8
+
+### Patch Changes
+
+- [#84](https://github.com/sbroenne/picard-code/pull/84) [`34eb40a`](https://github.com/sbroenne/picard-code/commit/34eb40acdac48ec8f09c60cedd0360482878cfef) - Captain's log entries named after a long request now end at a whole word, with "…" to show the name was shortened. In a briefing, each officer's reply now appears on screen when that officer starts speaking, not while an earlier officer is still talking.
+
 ## 1701.4.7
 
 ### Patch Changes
