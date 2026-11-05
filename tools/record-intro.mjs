@@ -7,12 +7,13 @@ import { resolve, join, dirname, extname, normalize, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, expect } from "@playwright/test";
 import { installRecording } from "./record-intro-browser.mjs";
-import { ORDERS, allowWaitingCommand, demoPermissions, sentEvent } from "./intro-episode.mjs";
+import { CAPTAINS_LOG, ORDERS, captainVoice, tightenPauses, demoPermissions, screenAlert, sentEvent } from "./intro-episode.mjs";
 import { startEngine } from "../dist/server/process.js";
 import { startApp } from "../dist/server/app.js";
 import { availableModels } from "../dist/server/engine.js";
 import { loadSpeech } from "../dist/server/speech.js";
 import { saveModelSettings } from "../dist/server/model-settings.js";
+import { setupSounds, soundFolder } from "../scripts/setup-sounds.mjs";
 
 const execute = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -36,7 +37,6 @@ let frameError;
 const frames = [];
 const events = [];
 const timeline = [];
-const approvals = [];
 const now = () => Date.now() / 1000;
 
 async function captureFrame(session, event) {
@@ -61,10 +61,12 @@ try {
   const captainAudio = [];
   for (const order of ORDERS) {
     const chunks = [];
-    for await (const chunk of speech.speak(order.say, AbortSignal.timeout(120000), { name: "bm_daniel" })) chunks.push(chunk);
-    captainAudio.push(Buffer.concat(chunks).toString("base64"));
+    for await (const chunk of speech.speak(captainVoice(order), AbortSignal.timeout(120000), { name: "bm_daniel" })) chunks.push(chunk);
+    captainAudio.push(tightenPauses(Buffer.concat(chunks), 24000).toString("base64"));
   }
-  app = await startApp({ client: engine.client, project, speech, modelFile, speechFile, webRoot: join(root, "web-dist"), prepareCrew: engine.prepareCrew });
+  // Like the real app, check the downloaded computer sounds; without them every sound shows a red alert.
+  await setupSounds(soundFolder, controller.signal);
+  app = await startApp({ client: engine.client, project, speech, modelFile, speechFile, soundFolder, webRoot: join(root, "web-dist"), prepareCrew: engine.prepareCrew });
   browser = await chromium.launch({ args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--mute-audio", "--autoplay-policy=no-user-gesture-required"] });
   const context = await browser.newContext({ permissions: ["microphone"], viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1.5 });
   const page = await context.newPage();
@@ -83,11 +85,20 @@ try {
       if (event) events.push(event);
     });
   });
+  /** Waits until a computer sound has finished; the app does not listen while one plays. */
+  async function waitForSound(name) {
+    const { stdout } = await execute("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", join(soundFolder, `${name}.mp3`)]);
+    await page.waitForTimeout(Number(stdout) * 1000 + 800);
+  }
+  const startupSound = page.waitForResponse((response) => response.url().endsWith("/api/sounds/startup"), { timeout: 60000 });
   await page.goto(app.url);
   await expect(page.locator("#status")).not.toHaveText("Starting up", { timeout: 60000 });
   await page.locator("#voice-console").click();
   await expect.poll(() => page.evaluate(() => typeof window.demoSpeak), { timeout: 60000 }).toBe("function");
   await expect(page.locator("#voice-channel")).toHaveText("Listening", { timeout: 30000 });
+  // The app ignores what it hears while its own startup sound plays, so the Captain waits for it to end.
+  assert.ok((await startupSound).ok(), "The startup sound did not load.");
+  await waitForSound("startup");
   const recordingStart = await page.evaluate(() => window.startDemoRecording());
   const session = await context.newCDPSession(page);
   session.on("Page.screencastFrame", (event) => {
@@ -118,7 +129,13 @@ try {
     return snapshot;
   }
 
-  /** Waits until the crew has finished and the console stays Standing by, answering command approvals with the real button. */
+  /** Stops the take at the first approval, alert or warning on screen; the episode shows none. */
+  async function assertClear(order) {
+    const shown = await screenAlert(page);
+    assert.equal(shown, undefined, `On screen during "${order.say}": ${shown}. Grant the permission in demoPermissions or fix the cause, then record again.`);
+  }
+
+  /** Waits until the crew has finished and the console stays Standing by. */
   async function settle(order) {
     const started = Date.now();
     let quietSince;
@@ -126,13 +143,7 @@ try {
       assert.ok(Date.now() - started < 25 * 60000, `The work for "${order.say}" did not finish within 25 minutes.`);
       const failure = events.find((event) => event.type === "error");
       assert.equal(failure, undefined, `Red alert during "${order.say}": ${failure?.message}`);
-      const approval = await allowWaitingCommand(page, { now });
-      if (approval) {
-        approvals.push({ order: order.id, ...approval });
-        console.log(`Allow once: ${approval.command}`);
-        quietSince = undefined;
-        continue;
-      }
+      await assertClear(order);
       const snapshot = await observe(order.id);
       assert.notEqual(snapshot.status, "Answer needed", `OpenCode asked a question that needs a real answer: ${snapshot.detail}`);
       if (snapshot.status === "Standing by" && snapshot.detail !== "Sending your request.") {
@@ -152,7 +163,9 @@ try {
     const spoken = await page.evaluate((audio) => window.demoSpeak(audio), captainAudio[index]);
     if (!order.heard) {
       await expect(page.locator("#status-detail")).toHaveText("Go ahead.", { timeout: 15000 });
+      await waitForSound("request-accepted");
       await observe(order.id);
+      await assertClear(order);
       turns.push({ order: order.id, say: order.say, spoken });
       continue;
     }
@@ -170,8 +183,10 @@ try {
   if (frameError) throw frameError;
   await writeFile(join(output, "audio.webm"), Buffer.from(audio.audio, "base64"));
 
-  await page.locator("#history-tile").click().catch(() => {});
-  await page.waitForTimeout(1500);
+  await page.locator(CAPTAINS_LOG.link).click();
+  await page.locator(CAPTAINS_LOG.panel).waitFor({ state: "visible" });
+  await page.locator(CAPTAINS_LOG.entries).first().waitFor({ state: "visible" });
+  await page.waitForTimeout(800);
   await page.screenshot({ path: join(output, "captains-log.png") });
 
   const files = (await readdir(project, { recursive: true })).filter((file) => !file.startsWith("node_modules") && !file.startsWith(".")).sort();
@@ -231,9 +246,9 @@ try {
     model: requested, listening: "nemotron", speaking: "kokoro",
     preparedDemo: true, generatedCaptainVoice: "bm_daniel", actorImitation: false,
     demoPermissions: demoPermissions(), audioStart: recordingStart,
-    frames, events, timeline, approvals, turns, result, transcript,
+    frames, events, timeline, turns, result, transcript,
   }, null, 2));
-  console.log(`Recorded. Approvals: ${approvals.length}. Tests: ${result.tests ? `${result.tests.command} ${result.tests.passed ? "passed" : "FAILED"}` : "none found"}.`);
+  console.log(`Recorded. Tests: ${result.tests ? `${result.tests.command} ${result.tests.passed ? "passed" : "FAILED"}` : "none found"}.`);
   console.log(`Saved to ${output}.`);
 } finally {
   controller.abort();

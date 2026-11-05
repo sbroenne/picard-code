@@ -68,14 +68,13 @@
 
         const q = (selector) => root.querySelectorAll(selector);
         const tl = gsap.timeline({ paused: true, onUpdate: draw });
-        tl.fromTo(warp, { stretch: 0, shift: 0, fade: 1 }, { stretch: 1, shift: 1, duration: 1.6, ease: "power4.in" }, 0.8);
-        tl.to(warp, { fade: 0, duration: 0.2 }, 2.3);
-        tl.fromTo(q(".thanks"), { opacity: 0 }, { opacity: 1, duration: 1, ease: "power2.out" }, 2.4);
-        tl.to(q(".thanks"), { opacity: 0, duration: 0.6, ease: "power2.in" }, 6.8);
-        tl.fromTo(q(".board"), { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "power2.out" }, 7.4);
-        tl.fromTo(q(".info > *"), { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.5, stagger: 0.18, ease: "power2.out" }, 7.5);
-        tl.fromTo(q(".slot"), { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.6, stagger: 0.2, ease: "power2.out" }, 7.8);
-
+        // The thank-you for five seconds, then ten seconds of end board for YouTube's end screen.
+        tl.to(warp, { fade: 0.45, duration: 1 }, 0);
+        tl.fromTo(q(".thanks"), { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "power2.out" }, 0.2);
+        tl.to(q(".thanks"), { opacity: 0, duration: 0.5, ease: "power2.in" }, 4.5);
+        tl.fromTo(q(".board"), { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power2.out" }, 5);
+        tl.fromTo(q(".info > *"), { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.5, stagger: 0.15, ease: "power2.out" }, 5.1);
+        tl.fromTo(q(".slot"), { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.6, stagger: 0.2, ease: "power2.out" }, 5.3);
         draw();
         window.__timelines = window.__timelines || {};
         window.__timelines["end"] = tl;

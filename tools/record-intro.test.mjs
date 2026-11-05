@@ -3,70 +3,93 @@ import test from "node:test";
 import { createServer } from "node:http";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
 import { installRecording } from "./record-intro-browser.mjs";
-import { ORDERS, allowWaitingCommand, chapterList, demoPermissions, readSrt, sentEvent, srt, srtTime } from "./intro-episode.mjs";
+import { addressedOfficers } from "../dist/shared/crew.js";
+import { CAPTAINS_LOG, ORDERS, captainVoice, tightenPauses, chapterList, demoPermissions, readSrt, screenAlert, sentEvent, srt, srtTime } from "./intro-episode.mjs";
 
 const execute = promisify(execFile);
 
-test("the episode orders open with a bare call and keep tribute questions brief", () => {
+test("the episode orders are a bare call, a two-officer briefing, Make it so and Data's short report", () => {
+  assert.deepEqual(ORDERS.map((order) => order.id), ["computer", "briefing", "engage", "report"]);
   assert.equal(ORDERS[0].say, "Computer.");
   assert.equal(ORDERS[0].heard, undefined);
   for (const order of ORDERS.slice(1)) assert.ok(order.heard instanceof RegExp, order.id);
-  assert.match(ORDERS.find((order) => order.id === "picard").say, /^Briefly,/);
-  assert.match(ORDERS.find((order) => order.id === "stewart").say, /^In brief,/);
-  assert.equal(new Set(ORDERS.map((order) => order.id)).size, ORDERS.length);
+  for (const order of ORDERS) assert.equal(order.say.match(/[.?!]/g).length, 1, `Smart Turn ends the turn at a pause after a full stop: ${order.id}`);
 });
 
-test("the briefing order names the four officers in one spoken phrase", () => {
-  const options = ORDERS.find((order) => order.id === "options").say;
-  for (const officer of ["Number One", "Geordi", "Data", "Doctor Crusher"]) assert.ok(options.includes(officer), officer);
-  assert.equal(options.match(/[.?!]/g).length, 1, "Smart Turn ends the turn at a pause after a full stop.");
+test("the briefing asks only Riker and Data, one short sentence each, so both are heard in full", () => {
+  const briefing = ORDERS.find((order) => order.id === "briefing").say;
+  assert.match(briefing, /^Number One and Mr Data, give me one short sentence each on your options for building a tribute site .*\.$/);
+  for (const order of ORDERS) {
+    // Smart Turn may end the turn at any pause, so the Captain's voice has none; the caption keeps its commas.
+    assert.ok(!/[,:;]/.test(captainVoice(order)), `A pause inside the order can end the turn early: ${order.id}`);
+    assert.equal(captainVoice(order).split(" ").length, order.say.split(" ").length, `Every word is still spoken: ${order.id}`);
+    // The whole order must be heard, including its length limit.
+    if (order.heard) assert.match(order.say, order.heard, order.id);
+  }
+  assert.doesNotMatch("Number One and Mister Data, give me one short sentence each on your options", ORDERS[1].heard, "an order cut short is a failed take");
+  for (const heard of [
+    "Number one and Mister Data give me one short sentence. Each on your options for building a tribute site to Sir Patrick with a stardate clock",
+    "Number one and mister data give me one short sentence each on your options for building attribute site to Sir Patrick with a stardate clock",
+  ]) {
+    assert.match(heard, ORDERS[1].heard, "Nemotron's own punctuation and spacing are not a failed take");
+    assert.deepEqual(addressedOfficers(heard), ["picard-riker", "picard-data"], heard);
+  }
+  for (const officer of ["Geordi", "Crusher", "Worf", "Troi"]) assert.ok(!briefing.includes(officer), officer);
+  // The app must address both officers however Nemotron punctuates the order, or Riker answers alone.
+  for (const heard of [briefing, captainVoice({ say: briefing }).replace("Mr", "Mister")]) assert.deepEqual(addressedOfficers(heard), ["picard-riker", "picard-data"], heard);
+  // Riker and Data may propose different builds; naming Number One carries out his proposal without a question.
+  assert.equal(ORDERS.find((order) => order.id === "engage").say, "Make it so, Number One.");
+  assert.match(ORDERS.find((order) => order.id === "report").say, /^Mr Data, .*one sentence\.$/);
 });
 
-test("Riker proposes how he would organise the build, and only \"Make it so\" starts it", () => {
-  const organise = ORDERS.find((order) => order.id === "organise").say;
-  assert.match(organise, /^Number One, .*organise the crew to build it\?$/, "A question asks for a proposal, so OpenCode need not ask whether to plan or build.");
-  assert.equal(ORDERS.at(-1).say, "Make it so.");
+test("Data's test order is shown on screen exactly as spoken; a misheard order is a failed take", () => {
+  const report = ORDERS.find((order) => order.id === "report");
+  // Heard word for word when the Captain's Kokoro voice was played to Nemotron.
+  const heard = "Mister Data, please run the tests and report in one sentence";
+  assert.match(heard, report.heard);
+  assert.deepEqual(addressedOfficers(heard), ["picard-data"]);
+  // Nemotron's real mishearings of earlier wordings must not pass as a good take.
+  for (const misheard of ["Mister Data tested and report in one sentence", "Mister Dayta run the tests and report in one sentence"]) {
+    assert.doesNotMatch(misheard, report.heard, misheard);
+  }
 });
 
-test("the demo project asks before every command and changes nothing else", () => {
-  assert.deepEqual(demoPermissions().permissions, [{ action: "shell", resource: "*", effect: "ask" }]);
+test("the Captain's generated voice has no gap long enough for the app to end his turn mid-order", () => {
+  const rate = 24000;
+  const tone = (seconds) => Array.from({ length: rate * seconds }, (_, index) => Math.round(Math.sin(index * 2 * Math.PI * 220 / rate) * 8000));
+  const quiet = (seconds) => Array.from({ length: rate * seconds }, () => 0);
+  const samples = [...quiet(0.3), ...tone(0.5), ...quiet(0.5), ...tone(0.5), ...quiet(0.15), ...tone(0.5), ...quiet(0.4)];
+  const audio = Buffer.alloc(samples.length * 2);
+  samples.forEach((value, index) => audio.writeInt16LE(value, index * 2));
+  const tight = tightenPauses(audio, rate);
+  assert.equal(Math.round(tight.length / 2 / rate * 1000), 300 + 500 + 120 + 500 + 120 + 500 + 400, "only gaps inside the order shrink to 120 ms; the start and end stay");
+  assert.ok(tight.subarray(0.3 * rate * 2, 0.8 * rate * 2).equals(audio.subarray(0.3 * rate * 2, 0.8 * rate * 2)), "spoken sound is unchanged");
+});
+
+test("the demo project grants command runs before the take and changes nothing else", () => {
+  assert.deepEqual(demoPermissions().permissions, [{ action: "shell", resource: "*", effect: "allow" }]);
   assert.deepEqual(Object.keys(demoPermissions()).sort(), ["$schema", "permissions"]);
 });
 
-test("an answered approval that is still on screen is not answered again", { timeout: 20000 }, async () => {
+test("any approval, alert or warning on screen is found so the take can be recorded again", { timeout: 20000 }, async () => {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
-    await page.setContent(`<div id="approvals"></div><script>
-      window.answers = [];
-      window.ask = (command) => {
-        const panel = document.createElement("section");
-        panel.className = "approval";
-        panel.innerHTML = "<h3>Approval required.</h3><pre></pre><button>Allow once</button><button>Deny</button>";
-        panel.querySelector("pre").textContent = command;
-        panel.querySelector("button").onclick = () => {
-          panel.querySelectorAll("button").forEach((node) => { node.disabled = true; });
-          answers.push(command);
-          setTimeout(() => panel.remove(), 400);
-        };
-        document.querySelector("#approvals").append(panel);
-      };
-    </script>`);
-    assert.equal(await allowWaitingCommand(page, { pause: 0 }), undefined);
-    await page.evaluate(() => window.ask("node --test clock.test.mjs"));
-    const first = await allowWaitingCommand(page, { pause: 50, timeout: 2000 });
-    assert.equal(first.command, "node --test clock.test.mjs");
-    assert.match(first.request, /Approval required/);
-    assert.equal(await page.locator(".approval").count(), 0, "The answered box has gone before the next look.");
-    assert.equal(await allowWaitingCommand(page, { pause: 50, timeout: 2000 }), undefined);
-    await page.evaluate(() => { window.ask("npm test"); setTimeout(() => document.querySelector(".approval").remove(), 20); });
-    assert.equal(await allowWaitingCommand(page, { pause: 200, timeout: 2000 }), undefined, "A withdrawn request is left alone.");
-    assert.deepEqual(await page.evaluate(() => window.answers), ["node --test clock.test.mjs"]);
+    await page.setContent(`<div id="notice" class="notice" data-alert="red" role="alert" hidden>Old failure</div>
+      <p class="preparation-error" role="alert" hidden></p><main><p>Standing by.</p></main>`);
+    assert.equal(await screenAlert(page), undefined, "Hidden alert areas are not on screen.");
+    await page.evaluate(() => { const box = document.createElement("section"); box.className = "approval"; box.textContent = "Allow once"; document.body.append(box); });
+    assert.match(await screenAlert(page), /Allow once/);
+    await page.evaluate(() => document.querySelector(".approval").remove());
+    await page.evaluate(() => { const notice = document.querySelector("#notice"); notice.hidden = false; notice.textContent = "OpenCode is retrying. Rate limited."; });
+    assert.match(await screenAlert(page), /retrying/);
+    await page.evaluate(() => { document.querySelector("#notice").hidden = true; document.querySelector("main").insertAdjacentHTML("beforeend", "<article data-alert='red'>Red alert: the command failed.</article>"); });
+    assert.match(await screenAlert(page), /command failed/);
   } finally {
     await browser?.close();
   }
@@ -161,4 +184,12 @@ test("the browser records generated input and actual output without playing the 
     try { await browser?.close(); }
     finally { await new Promise((done, fail) => server.close((error) => error ? fail(error) : done())); }
   }
+});
+
+test("the recorder opens the Captain's log through the side-panel link and drawer the app really has", async () => {
+  const page = await readFile(new URL("../web/index.html", import.meta.url), "utf8");
+  assert.match(page, /<a [^>]*data-drawer-link="records"[^>]*>Captain’s log<\/a>/);
+  assert.equal(CAPTAINS_LOG.link, 'a[data-drawer-link="records"]');
+  assert.match(page, new RegExp(`<section id="${CAPTAINS_LOG.panel.slice(1)}"`));
+  assert.match(page, new RegExp(`id="${CAPTAINS_LOG.entries.split(" ")[0].slice(1)}"`));
 });

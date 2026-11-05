@@ -11,12 +11,12 @@ export function spokenStardate(stardate) {
 }
 
 /** The Captain's narration, in our own words. Spoken with a stock Kokoro voice, never an imitation. */
-export function narration(stardate) {
-  const voice = "bm_daniel";
+export function narration() {
   return {
-    "log-open": { voice, speed: 0.9, text: `Captain's log, stardate ${spokenStardate(stardate)}. This log is dedicated, with deepest respect and gratitude.` },
-    "log-supplemental": { voice, speed: 0.9, text: "Captain's log, supplemental. The crew performed admirably. The computer listened." },
-    engage: { voice, speed: 0.9, text: "Engage." },
+    "hook-1": "Captain Picard never typed.",
+    "hook-2": "He spoke, and the computer answered.",
+    "hook-3": "So we built Picard Code.",
+    "log-supplemental": "Captain's log, supplemental. The crew performed admirably.",
   };
 }
 
@@ -26,13 +26,15 @@ export function narration(stardate) {
  */
 export function frameList(frames, end) {
   if (!frames.length) throw new Error("The recording has no frames.");
+  // Chrome occasionally delivers two frames out of order; their timestamps say when each was shown.
+  const shown = frames.toSorted((first, second) => first.time - second.time);
+  if (shown.at(-1).time > end) throw new Error(`Frame ${shown.at(-1).file} was shown after the recording ended.`);
   const lines = [];
-  frames.forEach((frame, index) => {
-    const next = index + 1 < frames.length ? frames[index + 1].time : end;
-    if (next < frame.time) throw new Error(`Frame ${frame.file} is out of order.`);
+  shown.forEach((frame, index) => {
+    const next = index + 1 < shown.length ? shown[index + 1].time : end;
     lines.push(`file 'frames/${frame.file}'`, `duration ${(next - frame.time).toFixed(4)}`);
   });
-  lines.push(`file 'frames/${frames.at(-1).file}'`);
+  lines.push(`file 'frames/${shown.at(-1).file}'`);
   return `${lines.join("\n")}\n`;
 }
 
@@ -133,8 +135,19 @@ export function speechTimes(parts, start) {
   });
 }
 
-const ACTS = { computer: "one", picard: "one", stewart: "one", options: "two", organise: "three", engage: "three" };
-const KEEP = { one: 9, two: 3, three: 3 };
+const ACTS = { computer: "briefing", briefing: "briefing", engage: "work", report: "work" };
+/** Whose replies are kept, whole, after each order. Everything else spoken is left out of the cut. */
+const VOICES = { briefing: ["picard-riker", "picard-data"], report: ["picard-data"] };
+/** The storyboard gives each reply about ten seconds; a longer one means the take is recorded again. */
+const LONGEST_REPLY = 16;
+/** Short silent slices of the real screen while the crew works, with the caption on the first. */
+const WORK = {
+  engage: { slices: 2, caption: "Writing code · waiting cut" },
+  report: { slices: 2, caption: "Tests run in your project" },
+};
+const SLICE = 2;
+/** The longest work caption that still ends before the app's title at the top right. */
+const LONGEST_CAPTION = 30;
 const CREW = {
   Riker: { name: "Commander Riker", duty: "First officer", colour: "#dd6666" },
   Data: { name: "Lieutenant Commander Data", duty: "Operations · analysis", colour: "#ffaa00" },
@@ -150,7 +163,8 @@ export function mergeRanges(ranges, gap = 0.6) {
   const merged = [];
   for (const range of sorted) {
     const last = merged.at(-1);
-    if (last && range.from - last.to < gap) {
+    // A reply with a name plate always starts its own segment.
+    if (last && range.from - last.to < gap && !range.plate) {
       last.to = Math.max(last.to, range.to);
       last.speech.push(...range.speech);
       for (const key of ["plate", "caption"]) if (range[key] && !last[key]) last[key] = range[key];
@@ -168,27 +182,59 @@ function speakerName(id) {
 }
 
 /**
- * A first cut of the recording: the Captain's orders, the first whole sentences of every spoken part (each
- * officer in a briefing separately; only the first sentence of a repeat), each approval and the return to
- * Standing by. Everything else is waiting.
+ * `count` slices of `length` seconds spread evenly through the free time between `from` and `to`,
+ * never touching the `busy` spans (where someone is speaking).
+ */
+function slices(from, to, busy, count, length) {
+  const free = [];
+  let start = from;
+  for (const span of [...busy].sort((a, b) => a.from - b.from)) {
+    if (span.to <= start || span.from >= to) continue;
+    if (span.from - start >= 1) free.push({ from: start, to: span.from });
+    start = Math.max(start, span.to);
+  }
+  if (to - start >= 1) free.push({ from: start, to });
+  const total = free.reduce((sum, span) => sum + span.to - span.from, 0);
+  const picked = [];
+  for (let index = 0; index < count && total; index++) {
+    let offset = ((index + 0.5) * total) / count;
+    const span = free.find((item) => (offset -= item.to - item.from) < 0);
+    const centre = span.to + offset;
+    const slice = { from: Math.max(span.from, Math.min(centre - length / 2, span.to - length)) };
+    slice.to = Math.min(span.to, slice.from + length);
+    if (!picked.some((item) => item.from === slice.from)) picked.push(slice);
+  }
+  return picked;
+}
+
+/**
+ * The cut of the recording: the Captain's orders, the named officers' replies kept whole (a reply is never
+ * cut inside), and short silent slices of the crew at work. Everything else is left out.
  * `speech` lists what the app sent to be spoken, with measured sentence times (see speechTimes); times in the
  * edit are seconds from the first recorded frame.
  */
 export function draftEdit(recording, pauses, stardate, speech) {
   const zero = recording.frames[0].time;
   const at = (time) => time - zero;
-  const acts = { one: [], two: [], three: [] };
-  // A repeated announcement, such as each approval request, keeps only its first sentence.
-  const heard = new Set();
+  const acts = { briefing: [], work: [] };
   recording.turns.forEach((turn, index) => {
     const act = ACTS[turn.order];
     if (!act) throw new Error(`No act for the order "${turn.order}".`);
-    const ranges = [{ from: at(turn.spoken.start) - 0.6, to: at(turn.spoken.end) + 1.4, speech: [{ speaker: "Picard", at: at(turn.spoken.start), until: at(turn.spoken.end), text: turn.say }] }];
+    const ranges = [{ from: at(turn.spoken.start) - 0.6, to: at(turn.spoken.end) + 1, speech: [{ speaker: "Picard", at: at(turn.spoken.start), until: at(turn.spoken.end), text: turn.say }] }];
     const statuses = recording.timeline.filter((entry) => entry.order === turn.order && entry.status !== undefined);
     const near = (time) => (item) => item.time >= time - 1 && item.time <= time + 2.5;
     const next = recording.turns[index + 1]?.spoken.start ?? Infinity;
     const said = speech.filter((item) => item.time >= turn.spoken.end && item.time < next);
+    const busy = [];
+    const kept = [];
     for (const item of said) {
+      for (const part of item.parts) {
+        const name = speakerName(part.speaker);
+        const length = part.sentences.at(-1).end - part.sentences[0].start;
+        if (VOICES[turn.order]?.includes(part.speaker) && length > LONGEST_REPLY) {
+          throw new Error(`Record again: ${name} spoke for ${length.toFixed(1)} s after "${turn.say}"; the storyboard allows about ten seconds, and a reply is never cut.`);
+        }
+      }
       const speaking = statuses.find((entry) => entry.status === "Transmitting" && near(item.time)(entry));
       if (!speaking) throw new Error(`The app spoke at ${at(item.time).toFixed(1)} s, but the screen never showed Transmitting.`);
       const stop = statuses.find((entry) => entry.time > speaking.time && entry.status !== "Transmitting")?.time ?? turn.settled ?? Infinity;
@@ -196,61 +242,61 @@ export function draftEdit(recording, pauses, stardate, speech) {
       if (last > stop + 2) {
         throw new Error(`The measured speech at ${at(item.time).toFixed(1)} s runs to ${at(last).toFixed(1)} s, but the computer stopped speaking at ${at(stop).toFixed(1)} s. Was it spoken by local Kokoro at the recorded speed?`);
       }
-      for (const part of item.parts) {
-        const words = part.sentences.map((sentence) => sentence.text).join(" ");
-        const repeated = heard.has(words);
-        heard.add(words);
-        const kept = [];
-        for (const sentence of part.sentences) {
-          kept.push(sentence);
-          if (repeated || sentence.end - kept[0].start >= KEEP[act]) break;
-        }
-        // Snap to the real pause the sentence ends in, so no breath or word is clipped.
-        const end = at(kept.at(-1).end);
+      busy.push({ from: at(item.parts[0].sentences[0].start) - 0.3, to: at(last) + 0.3 });
+      for (const part of item.parts.filter((part) => VOICES[turn.order]?.includes(part.speaker))) {
+        // End in the real pause after the last sentence, so no breath or word is clipped.
+        const end = at(part.sentences.at(-1).end);
         const pause = pauses.filter((entry) => entry.start >= end - 0.5 && entry.start <= end + 0.3)
           .sort((a, b) => Math.abs(a.start - end) - Math.abs(b.start - end))[0];
         const until = pause ? pause.start + 0.15 : end;
         const name = speakerName(part.speaker);
-        const officer = part.speaker ? CREW[name] : undefined;
-        ranges.push({
-          from: at(kept[0].start) - 0.3, to: until + 0.3,
-          speech: [{ speaker: name, at: at(kept[0].start), until, text: kept.map((sentence) => sentence.text).join(" ") }],
-          plate: act === "two" && officer ? officer : undefined,
-        });
+        const start = at(part.sentences[0].start);
+        kept.push({ from: start - 0.3, to: until + 0.3, speech: [{ speaker: name, at: start, until, text: part.sentences.map((sentence) => sentence.text).join(" ") }], plate: CREW[name] });
       }
     }
-    // Replies that appeared without being spoken still show briefly.
-    for (const entry of recording.timeline.filter((entry) => entry.order === turn.order && entry.message?.role === "assistant")) {
-      if (said.some((item) => near(item.time)(entry))) continue;
-      ranges.push({ from: at(entry.time) - 0.3, to: at(entry.time) + 1.2, speech: [] });
+    for (const voice of VOICES[turn.order] ?? []) {
+      if (!kept.some((range) => range.plate === CREW[speakerName(voice)])) throw new Error(`Record again: ${speakerName(voice)} did not speak after "${turn.say}".`);
     }
-    for (const approval of recording.approvals.filter((item) => item.order === turn.order)) {
-      ranges.push({ from: at(approval.time) - 2.5, to: at(approval.time) + 1.5, speech: [], caption: "The Captain decides" });
+    const work = WORK[turn.order];
+    if (work) {
+      const end = kept.length ? Math.min(...kept.map((range) => range.from)) : at(turn.settled ?? turn.spoken.end);
+      slices(ranges[0].to, end, busy, work.slices, SLICE).forEach((slice, number) => {
+        ranges.push({ ...slice, speech: [], caption: number ? undefined : work.caption });
+      });
     }
-    const settled = statuses.findLast((item) => item.status === "Standing by");
-    if (turn.settled && settled) ranges.push({ from: at(settled.time) - 0.3, to: at(settled.time) + 1.2, speech: [] });
-    acts[act].push(...mergeRanges(ranges).map((range) => ({ order: turn.order, ...range })));
+    // Back-to-back replies meet halfway between the two voices.
+    kept.forEach((range, number) => {
+      const before = kept[number - 1];
+      if (!before || range.from >= before.to) return;
+      before.to = range.from = (before.speech[0].until + range.speech[0].at) / 2;
+    });
+    ranges.push(...kept);
+    acts[act].push(...mergeRanges(ranges, 0.05).map((range) => ({ order: turn.order, ...range })));
   });
   return {
     stardate,
-    narration: Object.fromEntries(Object.entries(narration(stardate)).map(([name, line]) => [name, line.text])),
+    narration: narration(),
     sounds: {
       "Music-v01.mp3": "music-open.mp3",
       "Music-v22.mp3": "music-end.mp3",
       "Menusound-System_Select_C.mp3": "beep-plate.mp3",
-      "Menusound-System_Plus_(next).mp3": "beep-line.mp3",
       "Menusound-System_Confirm_Beep.mp3": "beep-caption.mp3",
     },
     acts,
-    site: { from: 1, to: 8 },
+    site: { from: 1, to: 7 },
   };
 }
 
-const SCENES = { opening: 18, title: 6, specs: 5, break: 2, still: 6, end: 15 };
+const SCENES = { opening: 15, title: 4, still: 6, end: 15 };
+/** When each hook line starts in the opening and when its beat ends; the opening's type follows the same beats. */
+const HOOK = { "hook-1": [0.3, 3], "hook-2": [3.2, 8], "hook-3": [8.2, 11] };
+/** The storyboard's hard limit for the whole cut, end board included. */
+export const LONGEST_CUT = 100;
 
 /**
- * Lays the whole episode out on one timeline: opening, title, the three acts of real footage with their scene
- * breaks, the tribute site, the Captain's log and the end board. `spoken` and `sounds` are lengths in seconds.
+ * Lays the whole episode out on one timeline, as in the storyboard: the hook and dedication, the title, the
+ * briefing, the crew at work, the site they built, the Captain's log and the end board.
+ * `spoken` and `sounds` are lengths in seconds.
  */
 export function layout(edit, spoken, sounds) {
   const clips = [];
@@ -265,28 +311,29 @@ export function layout(edit, spoken, sounds) {
     add({ kind: "audio", src: `assets/sounds/${name}`, start, duration: Math.min(wanted, length), volume, ...extra });
   };
   const chirp = (name, start) => sound(name, start, 1.2, 0.3, { track: 20 + (beep++ % 4), fadeOut: 0.3 });
-  const say = (name, start, track = 10) => {
+  const say = (name, start, beat) => {
     if (!spoken[name]) throw new Error(`The narration line ${name} was not spoken.`);
-    add({ kind: "audio", src: `assets/narration/${name}.wav`, start, duration: spoken[name], volume: 1, track });
-    return start + spoken[name];
+    if (beat && spoken[name] > beat + 0.01) throw new Error(`The narration line ${name} runs ${spoken[name].toFixed(1)} s but its beat is ${beat.toFixed(1)} s.`);
+    add({ kind: "audio", src: `assets/narration/${name}.wav`, start, duration: spoken[name], volume: 1, track: 10 });
+    speech.push({ speaker: "Picard", start, duration: spoken[name], text: edit.narration[name] });
   };
   const scene = (composition, start, duration, variables) => add({ kind: "composition", composition, start, duration, track: 0, variables });
 
-  let time = 0;
-  chapters.push({ start: 0, title: "A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard" });
+  chapters.push({ start: 0, title: "Why we built it" });
   scene("opening", 0, SCENES.opening, { stardate: edit.stardate });
-  sound("music-open.mp3", 0, SCENES.opening + SCENES.title, 0.32, { track: 12, fadeIn: 1, fadeOut: 2.5 });
-  speech.push({ speaker: "Picard", start: 0.8, text: edit.narration["log-open"], duration: say("log-open", 0.8) - 0.8 });
-  time = SCENES.opening;
+  for (const [name, [start, end]] of Object.entries(HOOK)) say(name, start, end - start);
+  if (sounds["app-request-accepted.mp3"]) sound("app-request-accepted.mp3", HOOK["hook-2"][1] - 0.6, 2, 0.4, { track: 13 });
+  let time = SCENES.opening;
   scene("title", time, SCENES.title);
-  if (sounds["app-startup.mp3"]) sound("app-startup.mp3", time + 0.2, 4, 0.55, { track: 13 });
+  sound("music-open.mp3", time - 0.4, SCENES.title + 2.4, 0.32, { track: 12, fadeIn: 0.4, fadeOut: 2 });
+  if (sounds["app-startup.mp3"]) sound("app-startup.mp3", time + 0.2, 3, 0.55, { track: 11 });
   time += SCENES.title;
 
   const act = (name, title) => {
     chapters.push({ start: time, title });
     for (const range of edit.acts[name]) {
       const duration = range.to - range.from;
-      if (!(duration > 0)) throw new Error(`A segment of act ${name} ends before it starts.`);
+      if (!(duration > 0)) throw new Error(`A segment of the ${name} act ends before it starts.`);
       add({ kind: "video", className: "app", src: "assets/footage.mp4", start: time, duration, mediaStart: range.from, track: 0, audio: true, volume: 1 });
       for (const line of range.speech) {
         if (line.at < range.from - 0.01 || line.until > range.to + 0.01) throw new Error(`"${line.text.slice(0, 40)}…" is cut off by its segment; widen the segment or shorten the words.`);
@@ -296,36 +343,32 @@ export function layout(edit, spoken, sounds) {
         add({ kind: "composition", composition: "plate", start: time + 0.3, duration: 3, track: 1 + (overlay++ % 2), variables: range.plate });
         chirp("beep-plate.mp3", time + 0.3);
       }
-      if (range.caption) {
-        add({ kind: "composition", composition: "caption", start: time + 0.2, duration: 4, track: 1 + (overlay++ % 2), variables: { text: range.caption } });
-        chirp("beep-caption.mp3", time + 0.2);
-      }
+      if (range.caption?.length > LONGEST_CAPTION) throw new Error(`The caption "${range.caption}" is too long; it would run under the app's PICARD CODE title. Keep it to ${LONGEST_CAPTION} characters.`);
+      if (range.caption) add({ kind: "composition", composition: "caption", start: time + 0.2, duration: 4, track: 1 + (overlay++ % 2), variables: { text: range.caption } });
+      // A bridge beep marks each cut through the waiting.
+      if (!range.speech.length) chirp("beep-caption.mp3", time);
       time += duration;
     }
   };
-  const actBreak = (seed) => { scene("act-break", time, SCENES.break, { seed }); time += SCENES.break; };
 
-  act("one", "“Computer.”");
-  scene("specs", time, SCENES.specs);
-  for (let line = 0; line < 5; line++) chirp("beep-line.mp3", time + 0.6 + line * 0.55);
-  time += SCENES.specs;
-  actBreak(1701);
-  act("two", "The briefing");
-  actBreak(1864);
-  act("three", "The crew at work");
-
-  chapters.push({ start: time, title: "Captain’s log, supplemental" });
+  act("briefing", "The briefing");
+  act("work", "Make it so");
   const site = edit.site.to - edit.site.from;
   add({ kind: "video", className: "site", src: "assets/site.mp4", start: time, duration: site, mediaStart: edit.site.from, track: 0 });
   time += site;
+
+  chapters.push({ start: time, title: "Captain’s log" });
   add({ kind: "image", className: "still", src: "assets/captains-log.png", start: time, duration: SCENES.still, track: 0 });
-  speech.push({ speaker: "Picard", start: time + 0.6, text: edit.narration["log-supplemental"], duration: say("log-supplemental", time + 0.6) - time - 0.6 });
+  say("log-supplemental", time + 0.6, SCENES.still - 0.8);
   time += SCENES.still;
 
   scene("end", time, SCENES.end);
   sound("music-end.mp3", time, SCENES.end, 0.4, { track: 12, fadeIn: 0.5, fadeOut: 3 });
-  speech.push({ speaker: "Picard", start: time + 0.6, text: edit.narration.engage, duration: say("engage", time + 0.6) - time - 0.6 });
   time += SCENES.end;
+  if (time > LONGEST_CUT + 0.01) {
+    const whole = Math.round(time);
+    throw new Error(`The cut runs ${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}; the storyboard allows 1:40 at most. Record shorter replies rather than cutting inside them.`);
+  }
   add({ kind: "audio", src: "assets/hum.wav", start: 0, duration: time, volume: 0.12, track: 14, fadeIn: 2, fadeOut: 3 });
 
   speech.sort((a, b) => a.start - b.start);

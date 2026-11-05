@@ -11,7 +11,13 @@ test("stardates are read digit by digit", () => {
 test("each frame is held for as long as it was on screen", () => {
   const list = frameList([{ file: "a.jpg", time: 10 }, { file: "b.jpg", time: 10.5 }], 12);
   assert.match(list, /a\.jpg'\nduration 0\.5000\nfile 'frames\/b\.jpg'\nduration 1\.5000\nfile 'frames\/b\.jpg'\n$/);
-  assert.throws(() => frameList([{ file: "a.jpg", time: 10 }, { file: "b.jpg", time: 9 }], 12), /out of order/);
+  assert.throws(() => frameList([{ file: "a.jpg", time: 13 }], 12), /after the recording ended/);
+});
+
+test("frames the browser delivered out of order play in the order they were shown", () => {
+  const list = frameList([{ file: "a.jpg", time: 10 }, { file: "c.jpg", time: 10.5 }, { file: "b.jpg", time: 10.25 }], 11);
+  assert.deepEqual([...list.matchAll(/file 'frames\/(\w)\.jpg'/g)].map((match) => match[1]), ["a", "b", "c", "c"]);
+  assert.doesNotMatch(list, /duration -/);
 });
 
 test("pauses are read from ffmpeg, including one still running at the end", () => {
@@ -37,112 +43,140 @@ function recording() {
   return {
     frames: [{ file: "0.jpg", time: 100 }],
     turns: [
-      { order: "computer", say: "Computer.", spoken: { start: 101, end: 102 }, settled: 110 },
-      { order: "options", say: "Number One, options.", spoken: { start: 120, end: 122 }, settled: 160 },
-      { order: "engage", say: "Make it so.", spoken: { start: 200, end: 201 }, settled: 260 },
+      { order: "computer", say: "Computer.", spoken: { start: 101, end: 102 } },
+      { order: "briefing", say: "Number One, Mr Data, two sentences each: options.", spoken: { start: 105, end: 108 }, settled: 160 },
+      { order: "engage", say: "Make it so.", spoken: { start: 170, end: 171 }, settled: 230 },
+      { order: "report", say: "Mr Data, please run the tests and report in one sentence.", spoken: { start: 240, end: 243 }, settled: 280 },
     ],
     timeline: [
-      { time: 102.5, order: "computer", status: "Accessing" },
-      { time: 103, order: "computer", message: { id: "m1", role: "assistant", speaker: "Computer" } },
-      { time: 103.1, order: "computer", status: "Transmitting" },
-      { time: 105, order: "computer", status: "Standing by" },
       // A briefing: every report and the computer's unspoken receipt appear together, then one long transmission.
-      { time: 125, order: "options", message: { id: "m2", role: "assistant", speaker: "Riker", crewReport: true } },
-      { time: 125, order: "options", message: { id: "m3", role: "assistant", speaker: "Geordi", crewReport: true } },
-      { time: 125, order: "options", message: { id: "m4", role: "assistant", speaker: "Computer" } },
-      { time: 125.2, order: "options", status: "Transmitting" },
-      { time: 150, order: "options", status: "Standing by" },
-      { time: 240, order: "engage", message: { id: "m5", role: "assistant", speaker: "Geordi" } },
-      { time: 250, order: "engage", status: "Standing by" },
+      { time: 125, order: "briefing", message: { id: "m2", role: "assistant", speaker: "Riker", crewReport: true } },
+      { time: 125, order: "briefing", message: { id: "m3", role: "assistant", speaker: "Data", crewReport: true } },
+      { time: 125.2, order: "briefing", status: "Transmitting" },
+      { time: 150, order: "briefing", status: "Standing by" },
+      { time: 172, order: "engage", status: "Accessing" },
+      { time: 200, order: "engage", status: "Transmitting" },
+      { time: 206, order: "engage", status: "Accessing" },
+      { time: 228, order: "engage", status: "Standing by" },
+      { time: 244, order: "report", status: "Accessing" },
+      { time: 262, order: "report", status: "Transmitting" },
+      { time: 270, order: "report", status: "Standing by" },
     ],
-    approvals: [{ order: "engage", time: 220, request: {} }],
   };
 }
 
-function speech({ riker = 2 } = {}) {
+function speech({ riker = 2, data = ["The tests pass, Captain.", 2] } = {}) {
   const sentences = (...pairs) => pairs.map(([text, seconds]) => ({ text, seconds }));
   return [
-    { time: 103.1, parts: speechTimes([{ sentences: sentences(["Ready.", 0.8]) }], 103.1) },
     { time: 125.2, parts: speechTimes([
-      { speaker: "picard-riker", sentences: sentences(["We have three options, Captain.", riker], ["First, a single page.", 1.5], ["Second, a timeline.", 1.5]) },
-      { speaker: "picard-geordi", sentences: sentences(["Easy build, Captain.", 1.6], ["I’d use plain files.", 2], ["Nothing fancy.", 1]) },
+      { speaker: "picard-riker", sentences: sentences(["Two options, Captain.", riker], ["I recommend the single page.", 2]) },
+      { speaker: "picard-data", sentences: sentences(["I concur.", 1], ["A single page is the simplest.", 2]) },
+      { sentences: sentences(["Both officers have reported.", 2]) },
     ], 125.2) },
+    { time: 200, parts: speechTimes([{ sentences: sentences(["The site is built.", 1.5], ["Three files were written.", 2]) }], 200) },
+    { time: 262, parts: speechTimes([{ speaker: "picard-data", sentences: sentences(data) }], 262) },
   ];
 }
 
-test("the first cut keeps each officer's first whole sentences from a shared transmission, with exact words", () => {
-  const edit = draftEdit(recording(), [{ start: 28.65, end: 29 }], "-296154.7", speech());
-  assert.equal(edit.narration["log-open"].includes("minus two nine six"), true);
-  const [first] = edit.acts.one;
-  assert.equal(first.from, 0.4);
-  assert.deepEqual(first.speech.map((line) => [line.speaker, line.text]), [["Picard", "Computer."], ["Computer", "Ready."]]);
-  const reports = edit.acts.two.filter((range) => range.plate);
-  assert.deepEqual(reports.map((range) => [range.plate.name, range.speech[0].text]), [
-    ["Commander Riker", "We have three options, Captain. First, a single page."],
-    ["Lieutenant Commander La Forge", "Easy build, Captain. I’d use plain files."],
+test("the cut keeps Riker's and Data's replies whole and leaves the rest of the speech out", () => {
+  const edit = draftEdit(recording(), [{ start: 29.25, end: 29.6 }], "-296154.7", speech());
+  assert.deepEqual(Object.keys(edit.acts), ["briefing", "work"]);
+  assert.equal(edit.narration["hook-1"], "Captain Picard never typed.");
+  const said = Object.values(edit.acts).flat().flatMap((range) => range.speech).map((line) => [line.speaker, line.text]);
+  assert.deepEqual(said, [
+    ["Picard", "Computer."],
+    ["Picard", "Number One, Mr Data, two sentences each: options."],
+    ["Riker", "Two options, Captain. I recommend the single page."],
+    ["Data", "I concur. A single page is the simplest."],
+    ["Picard", "Make it so."],
+    ["Picard", "Mr Data, please run the tests and report in one sentence."],
+    ["Data", "The tests pass, Captain."],
   ]);
-  // Riker's cut lands in the real pause after his second sentence; Geordi starts after the handover silence.
-  assert.deepEqual(reports.map((range) => [range.speech[0].at, range.speech[0].until].map((time) => Number(time.toFixed(2)))), [[25.2, 28.8], [30.5, 34.1]]);
-  assert.ok(edit.acts.three.some((range) => range.caption === "The Captain decides" && range.from === 117.5));
-  assert.ok(edit.acts.three.some((range) => range.from === 139.7 && range.to === 141.2), "an unspoken reply still shows briefly");
+  const riker = edit.acts.briefing.find((range) => range.plate?.name === "Commander Riker");
+  // Riker's whole reply ends in the real pause after his last sentence.
+  assert.deepEqual([riker.speech[0].at, riker.speech[0].until].map((time) => Number(time.toFixed(2))), [25.2, 29.4]);
+  assert.equal(edit.acts.work.filter((range) => range.plate).length, 1, "Data's report has his name plate.");
+  const [first, second] = edit.acts.briefing.filter((range) => range.plate);
+  assert.deepEqual([first.plate.name, second?.plate.name], ["Commander Riker", "Lieutenant Commander Data"], "back-to-back replies keep their own name plates");
+  assert.ok(first.to <= second.from && first.to >= first.speech[0].until && second.from <= second.speech[0].at, "they meet between the two voices");
 });
 
-test("a repeated announcement keeps only its first sentence", () => {
-  const take = recording();
-  take.approvals = [{ order: "engage", time: 210, request: {} }, { order: "engage", time: 225, request: {} }];
-  take.timeline.push(
-    { time: 210, order: "engage", status: "Transmitting" }, { time: 216, order: "engage", status: "Accessing" },
-    { time: 225, order: "engage", status: "Transmitting" }, { time: 231, order: "engage", status: "Accessing" },
-  );
-  const announce = (time) => ({ time, parts: speechTimes([{ sentences: [{ text: "Captain, approval is required.", seconds: 2 }, { text: "Choose Allow once or Deny.", seconds: 3 }] }], time) });
-  const edit = draftEdit(take, [], "-296154.7", [...speech(), announce(210), announce(225)]);
-  const said = edit.acts.three.flatMap((range) => range.speech).filter((line) => line.speaker === "Computer").map((line) => line.text);
-  assert.deepEqual(said, ["Captain, approval is required. Choose Allow once or Deny.", "Captain, approval is required."]);
+test("the work is shown in short silent slices, never across speech, with a caption on the first", () => {
+  const edit = draftEdit(recording(), [], "-296154.7", speech());
+  const slices = edit.acts.work.filter((range) => !range.speech.length);
+  assert.equal(slices.length, 4);
+  for (const slice of slices) {
+    assert.ok(slice.to - slice.from <= 2.01 && slice.to - slice.from >= 1, "each slice is short");
+    assert.ok(slice.to <= 99.7 || slice.from >= 103.8, "no slice overlaps the computer's unspoken-for build summary");
+  }
+  assert.deepEqual(slices.filter((slice) => slice.caption).map((slice) => [slice.order, slice.caption]), [
+    ["engage", "Writing code · waiting cut"],
+    ["report", "Tests run in your project"],
+  ]);
+  const report = slices.filter((slice) => slice.order === "report");
+  assert.ok(report.every((slice) => slice.from >= 144.4 && slice.to <= 161.7), "test slices fall between the order and Data's report");
 });
 
-test("the first cut refuses speech that does not match the recording rather than cutting words", () => {
-  assert.throws(() => draftEdit(recording(), [], "-296154.7", speech({ riker: 40 })), /runs to 73\.1 s, but the computer stopped speaking at 50\.0 s/);
+test("a take where an officer is silent or talks too long is refused, never cut inside the reply", () => {
+  assert.throws(() => draftEdit(recording(), [], "-296154.7", speech({ riker: 15 })), /Record again: Riker spoke for 17\.0 s/);
+  const quiet = speech();
+  quiet[2].parts[0].speaker = undefined;
+  assert.throws(() => draftEdit(recording(), [], "-296154.7", quiet), /Record again: Data did not speak after "Mr Data, please run the tests/);
   const silent = [...speech(), { time: 230, parts: speechTimes([{ sentences: [{ text: "Hello.", seconds: 1 }] }], 230) }];
   assert.throws(() => draftEdit(recording(), [], "-296154.7", silent), /spoke at 130\.0 s, but the screen never showed Transmitting/);
+  const long = speech();
+  long[0].parts = speechTimes([{ speaker: "picard-riker", sentences: [{ text: "Options.", seconds: 2 }] }, { speaker: "picard-data", sentences: [{ text: "Yes.", seconds: 1 }] }, { sentences: [{ text: "Done.", seconds: 40 }] }], 125.2);
+  assert.throws(() => draftEdit(recording(), [], "-296154.7", long), /runs to 68\.8 s, but the computer stopped speaking at 50\.0 s/);
 });
 
-const sounds = { "music-open.mp3": 60, "music-end.mp3": 60, "beep-plate.mp3": 3.4, "beep-line.mp3": 3.4, "beep-caption.mp3": 3.4, "app-startup.mp3": 2 };
-const spoken = { "log-open": 7, "log-supplemental": 5, engage: 1 };
+const sounds = { "music-open.mp3": 60, "music-end.mp3": 60, "beep-plate.mp3": 3.4, "beep-caption.mp3": 3.4, "app-startup.mp3": 2, "app-request-accepted.mp3": 1 };
+const spoken = { "hook-1": 2, "hook-2": 2.6, "hook-3": 1.8, "log-supplemental": 4.5 };
 function edit() {
   const speech = (speaker, at, until, text) => ({ speaker, at, until, text });
   return {
     stardate: "-296154.7",
-    narration: { "log-open": "Captain's log.", "log-supplemental": "Captain's log, supplemental.", engage: "Engage." },
+    narration: { "hook-1": "Captain Picard never typed.", "hook-2": "He spoke, and the computer answered.", "hook-3": "So we built Picard Code.", "log-supplemental": "Captain's log, supplemental." },
     acts: {
-      one: [{ from: 0, to: 6, speech: [speech("Picard", 1, 2, "Computer."), speech("Computer", 3, 4, "Ready.")] }],
-      two: [{ from: 20, to: 32, speech: [speech("Riker", 21, 30, "Three options, Captain.")], plate: { name: "Commander Riker", duty: "First officer", colour: "#dd6666" } }],
-      three: [{ from: 50, to: 62, speech: [], caption: "The Captain decides" }],
+      briefing: [{ from: 0, to: 6, speech: [speech("Picard", 1, 2, "Computer.")] }, { from: 20, to: 32, speech: [speech("Riker", 21, 30, "Two options, Captain.")], plate: { name: "Commander Riker", duty: "First officer", colour: "#dd6666" } }],
+      work: [{ from: 50, to: 52, speech: [], caption: "Writing code · waiting cut" }, { from: 60, to: 62, speech: [] }],
     },
-    site: { from: 1, to: 8 },
+    site: { from: 1, to: 7 },
   };
 }
 
-test("the episode is laid out with YouTube chapters and captions of the exact words", () => {
+test("the episode follows the storyboard: hook, title, briefing, make it so, Captain's log, end board", () => {
   const plan = layout(edit(), spoken, sounds);
-  assert.equal(plan.duration, 18 + 6 + 6 + 5 + 2 + 12 + 2 + 12 + 7 + 6 + 15);
-  assert.deepEqual(plan.chapters.map((chapter) => chapter.start), [0, 24, 37, 51, 63]);
+  assert.equal(plan.duration, 15 + 4 + 6 + 12 + 2 + 2 + 6 + 6 + 15);
+  assert.deepEqual(plan.chapters.map((chapter) => [chapter.start, chapter.title]), [[0, "Why we built it"], [19, "The briefing"], [37, "Make it so"], [47, "Captain’s log"]]);
   assert.doesNotThrow(() => chapterList(plan.chapters, plan.duration));
   assert.doesNotThrow(() => srt(plan.captions));
-  assert.equal(plan.captions[0].text, "Picard: Captain's log.");
-  assert.deepEqual(plan.captions.find((cue) => cue.text.startsWith("Riker")), { start: 38, end: 47, text: "Riker: Three options, Captain." });
-  assert.equal(plan.clips.find((clip) => clip.composition === "plate").start, 37.3);
-  assert.equal(plan.clips.filter((clip) => clip.src === "assets/sounds/beep-line.mp3").length, 5);
-  assert.equal(plan.clips.find((clip) => clip.src === "assets/sounds/beep-plate.mp3").duration, 1.2);
-  assert.match(rootComposition(plan.clips), /data-composition-id="main" data-start="0" data-duration="91"/);
-  assert.equal(transcript(plan.captions).split("\n")[0], "Picard: Captain's log.");
+  assert.equal(plan.captions[0].text, "Picard: Captain Picard never typed.");
+  assert.equal(plan.captions[0].start, 0.3, "the hook is heard in the first second");
+  assert.deepEqual(plan.captions.find((cue) => cue.text.startsWith("Riker")), { start: 26, end: 35, text: "Riker: Two options, Captain." });
+  assert.deepEqual(plan.clips.filter((clip) => clip.kind === "composition" && clip.track === 0).map((clip) => [clip.composition, clip.start, clip.duration]), [["opening", 0, 15], ["title", 15, 4], ["end", 53, 15]]);
+  assert.equal(plan.clips.filter((clip) => clip.src === "assets/sounds/beep-caption.mp3").length, 2, "a bridge beep on each work cut");
+  assert.match(rootComposition(plan.clips), /data-composition-id="main" data-start="0" data-duration="68"/);
+  assert.equal(transcript(plan.captions).split("\n")[0], "Picard: Captain Picard never typed.");
 });
 
-test("layout refuses missing sounds and speech cut off by its segment rather than hiding them", () => {
+test("a work caption must stay short enough to clear the app's PICARD CODE title", () => {
+  const long = edit();
+  long.acts.work[0].caption = "Writing code in your project · Waiting cut";
+  assert.throws(() => layout(long, spoken, sounds), /"Writing code in your project · Waiting cut" is too long/);
+  const slices = draftEdit(recording(), [], "-296154.7", speech()).acts.work.filter((range) => range.caption);
+  for (const slice of slices) assert.ok(slice.caption.length <= 30, `${slice.caption} fits beside the title`);
+});
+
+test("layout refuses a cut over 1:40, narration that overruns its beat, missing sounds and cut-off speech", () => {
+  const long = edit();
+  long.acts.work.push({ from: 100, to: 135, speech: [] });
+  assert.throws(() => layout(long, spoken, sounds), /runs 1:4\d; the storyboard allows 1:40 at most/);
+  assert.throws(() => layout(edit(), { ...spoken, "hook-1": 3.2 }, sounds), /hook-1 runs 3\.2 s but its beat is 2\.7 s/);
   assert.throws(() => layout(edit(), spoken, { ...sounds, "beep-plate.mp3": undefined }), /beep-plate\.mp3 is missing/);
   const cut = edit();
-  cut.acts.two[0].to = 25;
+  cut.acts.briefing[1].to = 25;
   assert.throws(() => layout(cut, spoken, sounds), /cut off by its segment/);
-  assert.throws(() => layout(edit(), { ...spoken, engage: undefined }, sounds), /engage was not spoken/);
+  assert.throws(() => layout(edit(), { ...spoken, "hook-3": undefined }, sounds), /hook-3 was not spoken/);
 });
 
 test("captions keep the exact words inside each speech clip", () => {

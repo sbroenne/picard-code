@@ -1,15 +1,15 @@
 {
   "titles": [
-    "Captain’s log: a tribute to Sir Patrick Stewart and Captain Picard",
-    "Make it so: a full coding agent you command by voice, built on OpenCode",
-    "I command a full coding agent by voice, like Captain Picard"
+    "Captain Picard never typed. So I built a coding agent you command by voice.",
+    "Make it so: a full coding agent you command by voice",
+    "A tribute to Sir Patrick Stewart and Captain Picard, built by voice"
   ],
   "description": [
-    "A tribute to Sir Patrick Stewart (1940–2026) and Captain Jean-Luc Picard.",
+    "Captain Picard never typed. He spoke, and the computer answered. Picard Code is our tribute to Sir Patrick Stewart (1940–2026) and Captain Jean-Luc Picard: a coding agent you command the same way.",
     "",
-    "Picard Code is a full coding agent you command by voice, built on OpenCode 2. Speak your orders; the computer and the bridge crew plan, build and test real work in your own projects, with any AI provider OpenCode supports. Nothing runs without the Captain’s approval.",
+    "Picard Code is a full coding agent you command by voice, built on OpenCode 2. Speak your orders; the computer and the bridge crew plan, build and test real work in your own projects, with any AI provider OpenCode supports. OpenCode’s own permission rules decide what needs your approval.",
     "",
-    "Everything in the bridge scenes is the real app, recorded live: the Captain spoke, the crew answered, asked for approval five times and built a real tribute site with a stardate clock. Only the waiting was cut.",
+    "How it was made: everything on the bridge screen is the real app, recorded live. The Captain’s orders were spoken aloud, Riker and Data answered, and the crew built a real tribute site with a stardate clock and ran its tests. The demo project allowed the crew’s commands in advance, so no approval requests appear. Only the waiting was cut; no reply was cut.",
     "",
     "{chapters}",
     "",
@@ -18,7 +18,7 @@
     "Source: https://github.com/sbroenne/picard-code",
     "",
     "Voices: all voices are computer-made with stock Kokoro voices. No voice was cloned or imitated.",
-    "Computer sounds: TrekCore (trekcore.com). Music and bridge sounds: the Star Trek: The Next Generation pinball sound collection (1993).",
+    "Computer sounds: TrekCore (trekcore.com). Music and bridge sounds: the Star Trek: The Next Generation pinball sound collection (1993), used with permission.",
     "Made with HyperFrames.",
     "",
     "Unofficial fan tribute. Not affiliated with Sir Patrick Stewart, Paramount or the Star Trek rights holders. Star Trek and related marks belong to their owners."
@@ -36,19 +36,19 @@
   ],
   "pinned": "What would you order the computer to do first? Try it with npx picard-code: https://sbroenne.github.io/picard-code",
   "thumbnails": [
-    { "id": "make-it-so", "headline": "Make it so.", "kicker": "A full coding agent you command by voice" },
-    { "id": "tribute", "headline": "Thank you, Sir Patrick.", "kicker": "A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard" },
-    { "id": "briefing", "headline": "The crew reports.", "kicker": "Riker, Geordi, Data and Crusher, by voice" }
+    { "id": "never-type", "headline": "Never type.", "kicker": "A full coding agent you command by voice" },
+    { "id": "make-it-so", "headline": "Make it so.", "kicker": "Riker and Data build it, live" },
+    { "id": "tribute", "headline": "Thank you, Sir Patrick.", "kicker": "A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard" }
   ],
   "translations": {
     "de": {
-      "title": "Captain’s Log: eine Hommage an Sir Patrick Stewart und Captain Picard",
+      "title": "Captain Picard tippte nie. Also baute ich einen Coding-Agenten, den man per Stimme steuert.",
       "description": [
-        "Eine Hommage an Sir Patrick Stewart (1940–2026) und Captain Jean-Luc Picard.",
+        "Captain Picard hat nie getippt. Er sprach, und der Computer antwortete. Picard Code ist unsere Hommage an Sir Patrick Stewart (1940–2026) und Captain Jean-Luc Picard: ein Coding-Agent, den man genauso steuert.",
         "",
-        "Picard Code ist ein vollwertiger Coding-Agent, den man mit der Stimme steuert, gebaut auf OpenCode 2. Sie sprechen Ihre Befehle; der Computer und die Brückencrew planen, bauen und testen echte Arbeit in Ihren eigenen Projekten, mit jedem KI-Anbieter, den OpenCode unterstützt. Nichts läuft ohne die Zustimmung des Captains.",
+        "Picard Code ist ein vollwertiger Coding-Agent, den man mit der Stimme steuert, gebaut auf OpenCode 2. Sie sprechen Ihre Befehle; der Computer und die Brückencrew planen, bauen und testen echte Arbeit in Ihren eigenen Projekten, mit jedem KI-Anbieter, den OpenCode unterstützt. Die Berechtigungsregeln von OpenCode entscheiden, was Ihre Zustimmung braucht.",
         "",
-        "Alle Brückenszenen zeigen die echte App, live aufgenommen. Nur das Warten wurde herausgeschnitten.",
+        "Alle Szenen auf dem Brückenbildschirm zeigen die echte App, live aufgenommen. Das Demo-Projekt hat die Befehle der Crew vorab erlaubt, daher erscheinen keine Zustimmungsanfragen. Nur das Warten wurde herausgeschnitten.",
         "",
         "{chapters}",
         "",
@@ -57,16 +57,16 @@
         "",
         "Inoffizielle Fan-Hommage. Nicht verbunden mit Sir Patrick Stewart, Paramount oder den Rechteinhabern von Star Trek. Alle Stimmen sind computererzeugt."
       ],
-      "chapters": ["Eine Hommage an Sir Patrick Stewart und Captain Jean-Luc Picard", "„Computer.“", "Die Besprechung", "Die Crew bei der Arbeit", "Captain’s Log, Nachtrag"]
+      "chapters": ["Warum wir es gebaut haben", "Die Besprechung", "Machen Sie es so", "Captain’s Log"]
     },
     "fr": {
-      "title": "Journal du capitaine : un hommage à Sir Patrick Stewart et au capitaine Picard",
+      "title": "Le capitaine Picard ne tapait jamais. J’ai donc créé un agent de programmation commandé à la voix.",
       "description": [
-        "Un hommage à Sir Patrick Stewart (1940–2026) et au capitaine Jean-Luc Picard.",
+        "Le capitaine Picard ne tapait jamais. Il parlait, et l’ordinateur répondait. Picard Code est notre hommage à Sir Patrick Stewart (1940–2026) et au capitaine Jean-Luc Picard : un agent de programmation que l’on commande de la même façon.",
         "",
-        "Picard Code est un agent de programmation complet que l’on commande à la voix, construit sur OpenCode 2. Vous donnez vos ordres à voix haute ; l’ordinateur et l’équipage de la passerelle planifient, construisent et testent un vrai travail dans vos propres projets, avec n’importe quel fournisseur d’IA pris en charge par OpenCode. Rien ne s’exécute sans l’accord du capitaine.",
+        "Picard Code est un agent de programmation complet que l’on commande à la voix, construit sur OpenCode 2. Vous donnez vos ordres à voix haute ; l’ordinateur et l’équipage de la passerelle planifient, construisent et testent un vrai travail dans vos propres projets, avec n’importe quel fournisseur d’IA pris en charge par OpenCode. Les règles d’autorisation d’OpenCode décident de ce qui demande votre accord.",
         "",
-        "Toutes les scènes de la passerelle montrent la vraie application, enregistrée en direct. Seule l’attente a été coupée.",
+        "Toutes les scènes sur l’écran de la passerelle montrent la vraie application, enregistrée en direct. Le projet de démonstration avait autorisé à l’avance les commandes de l’équipage : aucune demande d’accord n’apparaît. Seule l’attente a été coupée.",
         "",
         "{chapters}",
         "",
@@ -75,16 +75,16 @@
         "",
         "Hommage non officiel de fan. Sans lien avec Sir Patrick Stewart, Paramount ou les ayants droit de Star Trek. Toutes les voix sont générées par ordinateur."
       ],
-      "chapters": ["Un hommage à Sir Patrick Stewart et au capitaine Jean-Luc Picard", "« Ordinateur. »", "Le briefing", "L’équipage au travail", "Journal du capitaine, supplément"]
+      "chapters": ["Pourquoi nous l’avons créé", "Le briefing", "Exécution", "Journal du capitaine"]
     },
     "es": {
-      "title": "Diario del capitán: un homenaje a Sir Patrick Stewart y al capitán Picard",
+      "title": "El capitán Picard nunca tecleaba. Así que creé un agente de programación que se maneja por voz.",
       "description": [
-        "Un homenaje a Sir Patrick Stewart (1940–2026) y al capitán Jean-Luc Picard.",
+        "El capitán Picard nunca tecleaba. Hablaba, y el ordenador respondía. Picard Code es nuestro homenaje a Sir Patrick Stewart (1940–2026) y al capitán Jean-Luc Picard: un agente de programación que se maneja de la misma manera.",
         "",
-        "Picard Code es un agente de programación completo que se maneja con la voz, construido sobre OpenCode 2. Usted da las órdenes en voz alta; el ordenador y la tripulación del puente planifican, construyen y prueban trabajo real en sus propios proyectos, con cualquier proveedor de IA compatible con OpenCode. Nada se ejecuta sin la aprobación del capitán.",
+        "Picard Code es un agente de programación completo que se maneja con la voz, construido sobre OpenCode 2. Usted da las órdenes en voz alta; el ordenador y la tripulación del puente planifican, construyen y prueban trabajo real en sus propios proyectos, con cualquier proveedor de IA compatible con OpenCode. Las reglas de permisos de OpenCode deciden qué necesita su aprobación.",
         "",
-        "Todas las escenas del puente muestran la aplicación real, grabada en directo. Solo se recortaron las esperas.",
+        "Todas las escenas en la pantalla del puente muestran la aplicación real, grabada en directo. El proyecto de demostración permitió de antemano las órdenes de la tripulación, así que no aparece ninguna solicitud de aprobación. Solo se recortaron las esperas.",
         "",
         "{chapters}",
         "",
@@ -93,7 +93,7 @@
         "",
         "Homenaje no oficial de un fan. Sin relación con Sir Patrick Stewart, Paramount ni los titulares de los derechos de Star Trek. Todas las voces están generadas por ordenador."
       ],
-      "chapters": ["Un homenaje a Sir Patrick Stewart y al capitán Jean-Luc Picard", "«Ordenador.»", "La reunión", "La tripulación en acción", "Diario del capitán, suplemento"]
+      "chapters": ["Por qué lo creamos", "La reunión", "Que así sea", "Diario del capitán"]
     }
   }
 }

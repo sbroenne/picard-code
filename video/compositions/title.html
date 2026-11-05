@@ -1,10 +1,11 @@
 <template id="title-template">
-  <div data-composition-id="title" data-width="1920" data-height="1080" data-duration="6">
+  <div data-composition-id="title" data-width="1920" data-height="1080" data-duration="4">
     <canvas class="space" width="1920" height="1080" data-layout-allow-overflow></canvas>
     <div class="flash"></div>
     <div class="words">
       <h1>Picard Code</h1>
-      <p>A captain who listened. A computer that answered.</p>
+      <p>A full coding agent you command by voice</p>
+      <p class="built">Built on OpenCode 2</p>
     </div>
 
     <style>
@@ -13,7 +14,8 @@
       [data-composition-id="title"] .flash { position: absolute; left: 0; right: 0; top: 520px; height: 40px; background: linear-gradient(90deg, transparent, #9999ff 30%, #ffffff 50%, #9999ff 70%, transparent); filter: blur(10px); opacity: 0; transform-origin: 50% 50%; }
       [data-composition-id="title"] .words { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 40px; }
       [data-composition-id="title"] h1 { margin: 0; color: #ff9c33; font: 600 190px/1 "Oswald", sans-serif; letter-spacing: .32em; margin-right: -.32em; text-transform: uppercase; opacity: 0; }
-      [data-composition-id="title"] p { margin: 0; color: #ffcc99; font: 300 52px/1.2 "Oswald", sans-serif; letter-spacing: .08em; opacity: 0; }
+      [data-composition-id="title"] p { margin: 0; color: #ffcc99; font: 300 56px/1.2 "Oswald", sans-serif; letter-spacing: .08em; opacity: 0; }
+      [data-composition-id="title"] p.built { margin-top: -18px; color: #9999ff; font-size: 40px; letter-spacing: .18em; text-transform: uppercase; }
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
@@ -47,16 +49,14 @@
 
         const q = (selector) => root.querySelectorAll(selector);
         const tl = gsap.timeline({ paused: true, onUpdate: draw });
-        tl.fromTo(warp, { speed: 0, travel: 0 }, { speed: 0.02, travel: 0.04, duration: 0.6, ease: "none" }, 0);
-        tl.to(warp, { speed: 0.5, travel: 0.9, duration: 1.2, ease: "power3.in" }, 0.6);
-        tl.to(warp, { speed: 0.01, travel: 1.0, duration: 1.4, ease: "power3.out" }, 1.8);
-        tl.to(warp, { travel: 1.05, duration: 2.8, ease: "none" }, 3.2);
-        tl.fromTo(q(".flash"), { opacity: 0, scaleX: 0.1 }, { opacity: 1, scaleX: 1.4, duration: 0.25, ease: "power2.out" }, 1.7);
-        tl.to(q(".flash"), { opacity: 0, duration: 0.6, ease: "power2.in" }, 1.95);
-        tl.fromTo(q("h1"), { opacity: 0, scaleX: 1.6 }, { opacity: 1, scaleX: 1, duration: 1.2, ease: "power3.out" }, 1.85);
-        tl.fromTo(q("p"), { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.9, ease: "power2.out" }, 3.0);
-        tl.to(q(".words"), { opacity: 0, duration: 0.6, ease: "power2.in" }, 5.4);
-
+        tl.fromTo(warp, { speed: 0, travel: 0 }, { speed: 0.5, travel: 0.9, duration: 0.7, ease: "power3.in" }, 0);
+        tl.to(warp, { speed: 0.01, travel: 1.0, duration: 0.8, ease: "power3.out" }, 0.7);
+        tl.to(warp, { travel: 1.04, duration: 2.5, ease: "none" }, 1.5);
+        tl.fromTo(q(".flash"), { opacity: 0, scaleX: 0.1 }, { opacity: 1, scaleX: 1.4, duration: 0.2, ease: "power2.out" }, 0.6);
+        tl.to(q(".flash"), { opacity: 0, duration: 0.4, ease: "power2.in" }, 0.8);
+        tl.fromTo(q("h1"), { opacity: 0, scaleX: 1.6 }, { opacity: 1, scaleX: 1, duration: 0.7, ease: "power3.out" }, 0.7);
+        tl.fromTo(q("p"), { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.15, ease: "power2.out" }, 0.8);
+        tl.to(q(".words"), { opacity: 0, duration: 0.25, ease: "power2.in" }, 3.75);
         draw();
         window.__timelines = window.__timelines || {};
         window.__timelines["title"] = tl;

@@ -22,22 +22,28 @@ node tools/record-intro.mjs --model github-copilot/gpt-6.1-sol
 ```
 
 The orders live in [`intro-episode.mjs`](intro-episode.mjs): a bare
-"Computer.", two brief tribute questions, a briefing that names Riker,
-Geordi, Data and Crusher, "Number One, how would you organise the crew to build it?" and "Make it so."
-The crew builds a small tribute site with a stardate clock in a fresh project
-with separate settings under the ignored `video/out/episode-*` folder. The
-project asks before every command, so the Captain's approvals appear on
-screen. The take stops at the first red alert and reports the real error
-rather than saving a recording that hides it. A take takes five minutes or
-more. Do not use this tool on a private project.
+"Computer.", a briefing that asks only Riker and Data for one short sentence
+each, "Make it so, Number One." and "Mr Data, please run the tests and report
+in one sentence." The crew builds a small tribute site with a stardate clock
+in a fresh project with separate settings under the ignored
+`video/out/episode-*` folder. Approvals are given before the take, in that
+project's own `opencode.json`, so no approval request interrupts the episode.
+The take stops at the first approval, alert or warning on screen and reports
+it rather than saving a recording that hides it; grant what is needed in
+`demoPermissions` or fix the cause, then record again. It also stops when
+Nemotron did not hear an order word for word. Kokoro's pauses inside the
+Captain's orders are shortened, so the app does not end his turn halfway.
+After the work, the take opens the Captain's log so the finished entry can be
+shown. A take takes five minutes or more. Do not use this tool on a private
+project.
 
 ## Build and render the episode
 
 The episode is a [HyperFrames](https://github.com/heygen-com/hyperframes)
 project in [`video/`](../video/), pinned to version 0.9.15. Its scenes are
-original LCARS compositions in `video/compositions/`: the opening dedication,
-title, ship's specifications, scene breaks, officer name plates, caption bars
-and closing board. `video/build.mjs` puts them around the recorded footage:
+original LCARS compositions in `video/compositions/`: the opening hook and
+dedication, title, officer name plates, caption bars and closing board.
+`video/build.mjs` puts them around the recorded footage:
 
 ```sh
 node video/build.mjs video/out/episode-EXAMPLE --sounds /path/to/sound-collection
@@ -48,15 +54,18 @@ npm run render
 
 The first build times every spoken sentence with Kokoro
 (`video/measure.py`, a few minutes) and writes a draft `edit.json` into the
-episode folder. It keeps the Captain's orders, the start of each spoken reply
-(cut after whole sentences), each approval and the return to Standing by;
-only waiting is left out. An announcement that repeats word for word, such
-as a later approval request, keeps only its first sentence. Review the draft
-against the frames and adjust it; later builds reuse it, so delete it to
-measure again. Captions always carry the exact words that were spoken,
-worked out with the app's own speech rules.
+episode folder. It keeps the Captain's orders, Riker's and Data's replies
+whole (a reply is never cut inside), and two short silent glimpses of the
+crew at work; everything else is left out. A reply longer than about
+sixteen seconds, a missing reply, or a whole cut over 100 seconds means the
+take is recorded again. Work captions stay short (30 characters at most) so
+they end before the app's own title. Review the draft against the frames and
+the rules in [AGENTS.md](../AGENTS.md), not only the storyboard; later builds
+reuse it, so delete it to measure again. Captions always carry the exact
+words that were spoken, worked out with the app's own speech rules.
 
-`--sounds` is the owner's own collection of TNG sounds and music. The build
+`--sounds` is the folder with the owner's own collection of TNG sounds and
+music (the `sounds` list in `edit.json` names the files used). The build
 copies the chosen files, the app's downloaded computer sounds and the spoken
 narration into the ignored `video/assets/` folder. Never commit them, and do
 not use recordings of actors' voices. `video/index.html` is generated; edit
@@ -74,7 +83,7 @@ and the episode second each thumbnail is drawn over (see the top of
 the script refuses a cut through spoken words.
 
 ```sh
-cd video && npx -y hyperframes@0.9.15 render -o ../video/out/episode-EXAMPLE/picard-code-episode.mp4 --quality delivery --video-frame-format png
+cd video && npx -y hyperframes@0.9.15 render -o ../video/out/episode-EXAMPLE/picard-code-episode.mp4 --quality delivery --video-frame-format png --keyframe-interval 2 --no-best-effort
 cd .. && node video/youtube.mjs video/out/episode-EXAMPLE
 ```
 

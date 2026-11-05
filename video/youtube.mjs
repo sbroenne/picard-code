@@ -4,7 +4,7 @@
 // Needs <episode>/picard-code-episode.mp4 (the render) and <episode>/youtube/picks.json, which names the parts
 // of the episode each Short uses and the episode second each thumbnail is drawn over, for example:
 // { "shorts": [{ "id": "briefing", "title": "The briefing", "ranges": [{ "from": 74.6, "to": 107.3 }] }],
-//   "thumbnails": { "make-it-so": 131, "tribute": 219, "briefing": 84 } }
+//   "thumbnails": { "never-type": 35, "make-it-so": 52, "tribute": 88 } }
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { copyFile, readFile, writeFile } from "node:fs/promises";

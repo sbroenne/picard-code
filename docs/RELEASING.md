@@ -83,11 +83,14 @@ The short video is on the [Picard Code channel](https://www.youtube.com/@PicardC
 at <https://youtu.be/_OKnpwS9dOI>, linked from the website and README.
 
 The new intro is a short TNG episode, first of all a tribute to Sir Patrick
-Stewart and Captain Jean-Luc Picard. Around it is a real recording of the
-app: the Captain asks the computer about himself, hears a briefing from
-Riker, Geordi, Data and Crusher, and has the crew build a small tribute site
-while he approves each command. Replies, edits and check results come from
-real OpenCode and speech services; only waiting is cut. Follow
+Stewart and Captain Jean-Luc Picard. It opens with why Picard Code exists:
+Captain Picard never typed. Around that is a real recording of the app: the
+Captain hears one sentence each from Riker and Data, says "Make it so", and
+the crew builds a small tribute site; Data runs the tests and reports, and
+the finished entry appears in the Captain's log. Approvals are given before
+recording, so none appear on screen. Replies, edits and check results come
+from real OpenCode and speech services; only waiting is cut, and the whole
+episode stays under 100 seconds. Follow
 [Record the actual app](../tools/README.md#record-the-actual-app) to record,
 build and render it with [HyperFrames](https://github.com/heygen-com/hyperframes)
 0.9.15 in `video/`. The owner's TNG sound collection, the downloaded

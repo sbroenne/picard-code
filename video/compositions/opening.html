@@ -1,5 +1,5 @@
 <template id="opening-template">
-  <div data-composition-id="opening" data-width="1920" data-height="1080" data-duration="18">
+  <div data-composition-id="opening" data-width="1920" data-height="1080" data-duration="15">
     <canvas class="stars" width="1920" height="1080" data-layout-allow-overflow></canvas>
 
     <div class="log">
@@ -9,27 +9,20 @@
       <span class="log-bar"></span>
     </div>
 
-    <div class="card actor">
-      <p class="kicker">With deepest respect and gratitude</p>
-      <h1>Sir Patrick Stewart</h1>
-      <p class="years">1940 – 2026</p>
-      <p class="line">Classical stage actor. He gave the captain his calm authority, his warmth, and his voice.</p>
+    <div class="hook">
+      <h1 class="beat one">The Captain never typed.</h1>
+      <h1 class="beat two"><span class="word">He</span> <span class="word">spoke.</span> <span class="word">The</span> <span class="word">computer</span> <span class="word">answered.</span></h1>
+      <h1 class="beat three">So we built <em>Picard Code.</em></h1>
     </div>
 
-    <div class="card captain">
-      <p class="kicker">Commanding officer · USS Enterprise</p>
-      <h1>Captain Jean-Luc Picard</h1>
-      <p class="line">Explorer. Diplomat. Lover of Shakespeare and ancient history. He thought aloud, and expected the truth.</p>
-    </div>
-
-    <div class="pair">
-      <div class="pair-frame">
+    <div class="dedication">
+      <div class="frame">
         <span class="elbow top"></span>
-        <div class="pair-names">
-          <span class="gold">Sir Patrick Stewart</span>
-          <span class="dot"></span>
-          <span class="lilac">Captain Jean-Luc Picard</span>
-        </div>
+        <p class="kicker">In tribute to</p>
+        <p class="actor">Sir Patrick Stewart</p>
+        <p class="years">1940 – 2026</p>
+        <p class="and">and</p>
+        <p class="captain">Captain Jean-Luc Picard</p>
         <span class="elbow bottom"></span>
       </div>
     </div>
@@ -37,29 +30,29 @@
     <style>
       [data-composition-id="opening"] { background: #000; overflow: hidden; font-family: "Oswald", sans-serif; }
       [data-composition-id="opening"] .stars { position: absolute; inset: 0; }
-      [data-composition-id="opening"] .log { position: absolute; left: 150px; top: 150px; display: grid; grid-template-columns: 54px auto; grid-template-rows: auto auto 22px; column-gap: 26px; row-gap: 8px; opacity: 0; }
+      [data-composition-id="opening"] .log { position: absolute; left: 150px; top: 130px; display: grid; grid-template-columns: 54px auto; grid-template-rows: auto auto 22px; column-gap: 26px; row-gap: 8px; opacity: 0; }
       [data-composition-id="opening"] .cap { grid-row: 1 / 4; background: #ffcc99; border-radius: 54px 0 0 54px; }
-      [data-composition-id="opening"] .log-title { color: #ffcc99; font-size: 64px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
-      [data-composition-id="opening"] .log-date { color: #ff9c33; font-size: 44px; letter-spacing: .14em; text-transform: uppercase; }
+      [data-composition-id="opening"] .log-title { color: #ffcc99; font-size: 58px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+      [data-composition-id="opening"] .log-date { color: #ff9c33; font-size: 40px; letter-spacing: .14em; text-transform: uppercase; }
       [data-composition-id="opening"] .log-date b { color: #f2e6da; font-weight: 600; }
       [data-composition-id="opening"] .log-bar { width: 0; height: 22px; background: #cc99cc; border-radius: 0 11px 11px 0; }
-      [data-composition-id="opening"] .card { position: absolute; left: 150px; right: 150px; top: 500px; opacity: 0; }
-      [data-composition-id="opening"] .kicker { margin: 0 0 22px; color: #b8aa9c; font-size: 34px; letter-spacing: .18em; text-transform: uppercase; }
-      [data-composition-id="opening"] h1 { margin: 0; white-space: nowrap; font-size: 132px; line-height: 1; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; }
-      [data-composition-id="opening"] .actor h1 { color: #ffaa00; }
-      [data-composition-id="opening"] .captain h1 { color: #cc99cc; }
-      [data-composition-id="opening"] .years { margin: 18px 0 0; color: #ffcc99; font-size: 64px; letter-spacing: .14em; }
-      [data-composition-id="opening"] .line { margin: 44px 0 0; max-width: 1400px; color: #f2e6da; font: 42px/1.45 "Inter", sans-serif; }
-      [data-composition-id="opening"] .line .word { display: inline-block; opacity: 0; margin-right: .26em; }
-      [data-composition-id="opening"] .pair { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; }
-      [data-composition-id="opening"] .pair-frame { position: relative; padding: 70px 120px; }
+      [data-composition-id="opening"] .hook { position: absolute; left: 150px; right: 150px; top: 470px; height: 300px; }
+      [data-composition-id="opening"] .beat { position: absolute; left: 0; top: 0; margin: 0; color: #ffaa00; font-size: 124px; font-weight: 600; line-height: 1.05; letter-spacing: .02em; text-transform: uppercase; opacity: 0; }
+      [data-composition-id="opening"] .beat.two { color: #f2e6da; }
+      [data-composition-id="opening"] .beat.two .word { display: inline-block; opacity: 0; }
+      [data-composition-id="opening"] .beat.three em { font-style: normal; color: #ff9c33; }
+      [data-composition-id="opening"] .dedication { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; }
+      [data-composition-id="opening"] .frame { position: relative; padding: 80px 160px; text-align: center; }
       [data-composition-id="opening"] .elbow { position: absolute; left: 0; right: 0; height: 26px; background: #ff9c33; }
       [data-composition-id="opening"] .elbow.top { top: 0; border-radius: 26px 26px 0 0; }
       [data-composition-id="opening"] .elbow.bottom { bottom: 0; background: #9999ff; border-radius: 0 0 26px 26px; }
-      [data-composition-id="opening"] .pair-names { display: flex; align-items: center; gap: 48px; white-space: nowrap; font-size: 68px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
-      [data-composition-id="opening"] .gold { color: #ffaa00; }
-      [data-composition-id="opening"] .lilac { color: #cc99cc; }
-      [data-composition-id="opening"] .dot { width: 28px; height: 28px; border-radius: 50%; background: #ffcc99; }
+      [data-composition-id="opening"] .frame p { margin: 0; text-transform: uppercase; white-space: nowrap; }
+      [data-composition-id="opening"] .kicker, [data-composition-id="opening"] .and { color: #b8aa9c; font-size: 36px; letter-spacing: .2em; }
+      [data-composition-id="opening"] .kicker { margin-bottom: 18px; }
+      [data-composition-id="opening"] .actor { color: #ffaa00; font-size: 112px; font-weight: 600; line-height: 1.05; letter-spacing: .03em; }
+      [data-composition-id="opening"] .years { margin: 6px 0 22px; color: #ffcc99; font-size: 54px; letter-spacing: .14em; }
+      [data-composition-id="opening"] .and { margin-bottom: 10px; }
+      [data-composition-id="opening"] .captain { color: #cc99cc; font-size: 76px; font-weight: 600; letter-spacing: .04em; }
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
@@ -67,9 +60,6 @@
       (function () {
         const root = document.querySelector('[data-composition-id="opening"]');
         root.querySelector(".stardate").textContent = window.__hyperframes.getVariables().stardate;
-        for (const line of root.querySelectorAll(".line")) {
-          line.innerHTML = line.textContent.split(" ").map((word) => `<span class="word">${word}</span>`).join("");
-        }
 
         let seed = 1701;
         const next = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -88,24 +78,26 @@
           context.globalAlpha = 1;
         };
 
+        // The beats match HOOK in video/edit.mjs: each line is on screen while the Captain says it.
         const q = (selector) => root.querySelectorAll(selector);
         const tl = gsap.timeline({ paused: true, onUpdate: draw });
-        tl.fromTo(sky, { drift: 0 }, { drift: 1, duration: 18, ease: "none" }, 0);
-        tl.fromTo(q(".log"), { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.8, ease: "power3.out" }, 0.4);
-        tl.to(q(".log-bar"), { width: 520, duration: 1.4, ease: "power2.out" }, 0.9);
-        tl.to(q(".log"), { opacity: 0.55, duration: 0.6 }, 4);
+        tl.fromTo(sky, { drift: 0 }, { drift: 1, duration: 15, ease: "none" }, 0);
+        tl.fromTo(q(".log"), { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out" }, 0);
+        tl.to(q(".log-bar"), { width: 520, duration: 0.8, ease: "power2.out" }, 0.2);
 
-        tl.fromTo(q(".actor"), { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, 4.1);
-        tl.to(q(".actor .word"), { opacity: 1, duration: 0.25, stagger: 0.16 }, 5.0);
-        tl.to(q(".actor"), { opacity: 0, y: -20, duration: 0.6, ease: "power2.in" }, 8.4);
+        tl.fromTo(q(".one"), { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.3, ease: "power3.out" }, 0.15);
+        tl.to(q(".one"), { opacity: 0, y: -16, duration: 0.3, ease: "power2.in" }, 2.85);
 
-        tl.fromTo(q(".captain"), { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out" }, 9.1);
-        tl.to(q(".captain .word"), { opacity: 1, duration: 0.25, stagger: 0.16 }, 9.9);
-        tl.to(q(".captain"), { opacity: 0, y: -20, duration: 0.6, ease: "power2.in" }, 13.4);
-        tl.to(q(".log"), { opacity: 0, duration: 0.6 }, 13.4);
+        tl.set(q(".two"), { opacity: 1 }, 3.15);
+        tl.fromTo(q(".two .word"), { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.25, stagger: 0.32, ease: "power2.out" }, 3.15);
+        tl.to(q(".two"), { opacity: 0, y: -16, duration: 0.35, ease: "power2.in" }, 7.7);
 
-        tl.fromTo(q(".pair"), { opacity: 0, scale: 0.96 }, { opacity: 1, scale: 1, duration: 1, ease: "power2.out" }, 14.1);
-        tl.to(q(".pair"), { opacity: 0, duration: 0.8, ease: "power2.in" }, 17.2);
+        tl.fromTo(q(".three"), { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 8.1);
+        tl.to(q(".three"), { opacity: 0, y: -16, duration: 0.4, ease: "power2.in" }, 10.5);
+        tl.to(q(".log"), { opacity: 0, duration: 0.4 }, 10.5);
+
+        tl.fromTo(q(".dedication"), { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.9, ease: "power2.out" }, 11);
+        tl.to(q(".dedication"), { opacity: 0, duration: 0.6, ease: "power2.in" }, 14.4);
 
         draw();
         window.__timelines = window.__timelines || {};
