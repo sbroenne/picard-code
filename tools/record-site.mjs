@@ -14,10 +14,10 @@ export const SITE_SCROLL = { start: 1.5, duration: 4 };
  */
 export async function recordSite(browser, project, output) {
   const server = createServer(async (request, response) => {
-    const path = normalize(decodeURIComponent(new URL(request.url, "http://localhost").pathname)).replace(/^[/\\]+/, "") || "index.html";
-    const file = join(project, path);
-    if (!file.startsWith(`${project}${sep}`)) { response.writeHead(403).end(); return; }
     try {
+      const path = normalize(decodeURIComponent(new URL(request.url, "http://localhost").pathname)).replace(/^[/\\]+/, "") || "index.html";
+      const file = join(project, path);
+      if (!file.startsWith(`${project}${sep}`)) { response.writeHead(403).end(); return; }
       if ((await stat(file)).isDirectory()) throw new Error("Folder");
       response.setHeader("Content-Type", types[extname(file)] ?? "application/octet-stream");
       response.end(await readFile(file));

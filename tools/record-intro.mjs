@@ -216,6 +216,7 @@ try {
   }
 
   result.siteErrors = (await recordSite(browser, project, output)).errors;
+  assert.deepEqual(result.siteErrors, [], "The site the crew built must load without errors before it is shown as a success.");
 
   const conversations = await engine.client.sessions(project);
   const transcript = [];

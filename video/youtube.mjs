@@ -1,9 +1,7 @@
-// Makes the YouTube pack from a rendered episode: three thumbnails, and the description, titles,
+// Makes the YouTube pack from a rendered episode: the thumbnail, and the description, titles,
 // translations and upload settings.
 // Usage: node video/youtube.mjs video/out/episode-XXXX
-// Needs <episode>/picard-code-episode.mp4 (the render) and <episode>/youtube/picks.json, which names the
-// episode second each thumbnail is drawn over, for example:
-// { "thumbnails": { "never-type": 35, "make-it-so": 52, "tribute": 88 } }
+// Needs <episode>/picard-code-episode.mp4 (the render) and the app screenshot the thumbnail is drawn over.
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
@@ -19,8 +17,6 @@ const episode = resolve(process.argv[2] ?? "");
 const out = join(episode, "youtube");
 const render = join(episode, "picard-code-episode.mp4");
 assert.ok(existsSync(render), `Render the episode first: cd video && npx --yes hyperframes@0.9.15 render -o ${render}`);
-assert.ok(existsSync(join(out, "picks.json")), `Write ${join(out, "picks.json")} first; see the top of video/youtube.mjs.`);
-const picks = JSON.parse(await readFile(join(out, "picks.json"), "utf8"));
 const pack = JSON.parse(await readFile(join(here, "youtube.json"), "utf8"));
 const chapters = (await readFile(join(out, "chapters.txt"), "utf8")).trim().split("\n").map((line) => {
   const [, time, title] = line.match(/^(\d+:\d\d) (.+)$/);
@@ -56,42 +52,39 @@ await writeFile(join(out, "upload.txt"), [
   `Pinned comment: ${pack.pinned}`, "",
 ].join("\n"));
 
-console.log("Drawing the thumbnails.");
+console.log("Drawing the thumbnail.");
+const screen = join(episode, pack.thumbnail.over);
+assert.ok(existsSync(screen), `${screen} is missing; the recorder saves it with each take.`);
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-  for (const thumbnail of pack.thumbnails) {
-    const at = picks.thumbnails?.[thumbnail.id];
-    assert.ok(Number.isFinite(at), `picks.json names no episode second for the ${thumbnail.id} thumbnail.`);
-    const frame = join(out, `frame-${thumbnail.id}.png`);
-    await execute("ffmpeg", ["-y", "-loglevel", "error", "-ss", String(at), "-i", upload, "-frames:v", "1", "-vf", "scale=1280:720", frame]);
-    const image = `data:image/png;base64,${(await readFile(frame)).toString("base64")}`;
-    await page.setContent(thumbnailPage({ ...thumbnail, image }), { waitUntil: "networkidle" });
-    await page.evaluate(() => document.fonts.ready);
-    await page.screenshot({ path: join(out, `thumbnail-${thumbnail.id}.jpg`), type: "jpeg", quality: 90 });
-  }
+  const image = `data:image/png;base64,${(await readFile(screen)).toString("base64")}`;
+  await page.setContent(thumbnailPage({ ...pack.thumbnail, image }), { waitUntil: "networkidle" });
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ path: join(out, "thumbnail.jpg"), type: "jpeg", quality: 92 });
+  await page.screenshot({ path: join(out, "thumbnail.png") });
 } finally {
   await browser.close();
 }
 
 console.log(`The YouTube pack is in ${out}.`);
 
-function thumbnailPage({ headline, kicker, image }) {
-  const html = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;")
-    .replace(/\S+-\S+/g, (word) => `<span class="whole">${word}</span>`);
+// The real console stays bright as the frame. The tribute takes the conversation area; what the app does
+// takes the status area beside the real microphone. Both still read at phone size.
+function thumbnailPage({ kicker, headline, status, line, image }) {
+  const html = (value) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;");
   return `<!doctype html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&display=block" rel="stylesheet">
 <style>
   * { margin: 0; box-sizing: border-box; }
-  body { width: 1280px; height: 720px; overflow: hidden; background: #000 url(${image}) center / cover; font-family: Oswald, sans-serif; text-transform: uppercase; }
-  .shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,.94) 0%, rgba(0,0,0,.9) 62%, rgba(0,0,0,.45) 100%); }
-  .whole { white-space: nowrap; }
-  .elbow { position: absolute; left: 40px; top: 40px; width: 1200px; height: 640px; border: solid #ff9c33; border-width: 30px 0 0 110px; border-radius: 70px 0 0 0; }
-  .elbow::after { content: ""; position: absolute; left: -110px; bottom: 0; width: 110px; height: 150px; background: #cc99cc; border-radius: 0 0 0 40px; }
-  .cap { position: absolute; right: 40px; top: 40px; width: 220px; height: 30px; background: #9999ff; border-radius: 0 15px 15px 0; }
-  h1 { position: absolute; left: 190px; right: 60px; top: 170px; color: #ff9c33; font-size: 124px; font-weight: 700; line-height: 1; text-shadow: 0 4px 18px #000; }
-  p { position: absolute; left: 194px; right: 120px; top: 470px; color: #ffcc99; font-size: 40px; font-weight: 500; line-height: 1.2; letter-spacing: .04em; text-shadow: 0 2px 10px #000; }
-  .name { position: absolute; left: 194px; bottom: 60px; color: #cc99cc; font-size: 34px; letter-spacing: .14em; }
-</style></head><body><div class="shade"></div><div class="elbow"></div><div class="cap"></div>
-<h1>${html(headline)}</h1><p>${html(kicker)}</p><div class="name">Picard Code · Built on OpenCode 2</div></body></html>`;
+  body { position: relative; width: 1280px; height: 720px; overflow: hidden; background: #000 url(${image}) 0 0 / 1280px 720px; font-family: Oswald, sans-serif; text-transform: uppercase; }
+  .clear { position: absolute; background: #000; }
+  .kicker { position: absolute; left: 292px; top: 212px; color: #cc99cc; font-size: 38px; font-weight: 500; letter-spacing: .14em; }
+  h1 { position: absolute; left: 286px; top: 262px; color: #cc99cc; font-size: 146px; font-weight: 700; line-height: .95; }
+  .status { position: absolute; left: 560px; top: 594px; color: #ff9c33; font-size: 70px; font-weight: 700; letter-spacing: .06em; line-height: 1; }
+  .line { position: absolute; left: 562px; top: 668px; color: #ffcc99; font-size: 28px; font-weight: 500; text-transform: none; }
+</style></head><body>
+<div class="clear" style="left:250px;top:200px;right:0;bottom:150px"></div><div class="clear" style="left:540px;top:585px;right:0;bottom:0"></div>
+<div class="kicker">${html(kicker)}</div><h1>${headline.map(html).join("<br>")}</h1>
+<div class="status">${html(status)}</div><div class="line">${html(line)}</div></body></html>`;
 }

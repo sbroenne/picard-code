@@ -34,11 +34,13 @@
     "Playlist: Picard Code. Publish straight away; no Premiere."
   ],
   "pinned": "What would you order the computer to do first? Try it with npx picard-code: https://sbroenne.github.io/picard-code",
-  "thumbnails": [
-    { "id": "never-type", "headline": "Never type.", "kicker": "A full coding agent you command by voice" },
-    { "id": "make-it-so", "headline": "Make it so.", "kicker": "Riker and Data build it, live" },
-    { "id": "tribute", "headline": "Thank you, Sir Patrick.", "kicker": "A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard" }
-  ],
+  "thumbnail": {
+    "over": "briefing.png",
+    "kicker": "With deepest respect",
+    "headline": ["Thank you,", "Sir Patrick."],
+    "status": "Code by voice",
+    "line": "Say “Computer”. Your bridge crew writes the code."
+  },
   "translations": {
     "de": {
       "title": "Captain Picard tippte nie. Also baute ich einen Coding-Agenten, den man per Stimme steuert.",

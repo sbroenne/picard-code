@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { draftEdit, frameList, layout, rootComposition, silences, speechTimes, transcript } from "./edit.mjs";
+import { draftEdit, firstFrameTime, frameList, layout, rootComposition, silences, speechTimes, transcript } from "./edit.mjs";
 import { chapterList, srt } from "../tools/intro-episode.mjs";
 import { formatStardate } from "../dist/shared/stardate.js";
 import { COMPUTER_VOICES, CREW_VOICES } from "../dist/shared/crew-voices.js";
@@ -25,7 +25,7 @@ const appSounds = join(homedir(), ".picard-code", "sounds");
 assert.ok(existsSync(join(appSounds, "request-accepted.mp3")), "Start Picard Code once (or run npm run setup:sounds) so its computer sounds are downloaded.");
 
 const recording = JSON.parse(await readFile(join(episode, "recording.json"), "utf8"));
-const start = recording.frames[0].time;
+const start = firstFrameTime(recording.frames);
 const end = Math.max(recording.frames.at(-1).time, ...recording.turns.map((turn) => turn.settled ?? turn.spoken.end)) + 2;
 await rm(assets, { recursive: true, force: true });
 await mkdir(join(assets, "sounds"), { recursive: true });

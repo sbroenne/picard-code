@@ -112,7 +112,7 @@ the Subscribe circle; there is no Watch next video until the channel has a
 second one.
 
 [Make the YouTube pack](../tools/README.md#make-the-youtube-pack) prepares
-the upload file, thumbnails, captions, chapters, translated
+the upload file, thumbnail, captions, chapters, translated
 descriptions and the upload settings for the owner to review. The episode is
 published straight away, not as a Premiere.
 

@@ -22,6 +22,11 @@ export function narration() {
   };
 }
 
+/** When the first frame was shown; Chrome occasionally delivers the first two frames out of order. */
+export function firstFrameTime(frames) {
+  return frames.reduce((first, frame) => Math.min(first, frame.time), Infinity);
+}
+
 /**
  * The ffmpeg concat list that plays each screencast frame for exactly as long as it was on screen.
  * The browser only sends a frame when the picture changes, so durations vary.
@@ -217,7 +222,7 @@ function slices(from, to, busy, count, length) {
  */
 export function draftEdit(recording, pauses, stardate, speech) {
   if (!recording.tribute?.text) throw new Error("Record again: this take has no tribute record after Data's report.");
-  const zero = recording.frames[0].time;
+  const zero = firstFrameTime(recording.frames);
   const at = (time) => time - zero;
   const acts = { briefing: [], work: [] };
   recording.turns.forEach((turn, index) => {
@@ -228,6 +233,7 @@ export function draftEdit(recording, pauses, stardate, speech) {
     const near = (time) => (item) => item.time >= time - 1 && item.time <= time + 2.5;
     const next = recording.turns[index + 1]?.spoken.start ?? Infinity;
     const said = speech.filter((item) => item.time >= turn.spoken.end && item.time < next);
+    const starts = [...said.flatMap((item) => item.parts.map((part) => at(part.sentences[0].start))), at(next)];
     const busy = [];
     const kept = [];
     for (const item of said) {
@@ -251,10 +257,12 @@ export function draftEdit(recording, pauses, stardate, speech) {
         const end = at(part.sentences.at(-1).end);
         const pause = pauses.filter((entry) => entry.start >= end - 0.5 && entry.start <= end + 0.3)
           .sort((a, b) => Math.abs(a.start - end) - Math.abs(b.start - end))[0];
-        const until = pause ? pause.start + 0.15 : end;
-        const name = speakerName(part.speaker);
         const start = at(part.sentences[0].start);
-        kept.push({ from: start - 0.3, to: until + 0.3, speech: [{ speaker: name, at: start, until, text: part.sentences.map((sentence) => sentence.text).join(" ") }], plate: CREW[name] });
+        // Never run into the next voice, which may be left out of the cut.
+        const following = Math.min(...starts.filter((time) => time > start));
+        const until = Math.min(pause ? pause.start + 0.15 : end, following);
+        const name = speakerName(part.speaker);
+        kept.push({ from: start - 0.3, to: Math.min(until + 0.3, following), speech: [{ speaker: name, at: start, until, text: part.sentences.map((sentence) => sentence.text).join(" ") }], plate: CREW[name] });
       }
     }
     for (const voice of VOICES[turn.order] ?? []) {
@@ -350,11 +358,16 @@ export function layout(edit, spoken, sounds) {
         speech.push({ speaker: line.speaker, start: time + line.at - range.from, duration: line.until - line.at, text: line.text });
       }
       if (range.plate) {
-        add({ kind: "composition", composition: "plate", start: time + 0.3, duration: 3, track: 1 + (overlay++ % 2), variables: range.plate });
+        // A short reply ends its name plate early, so it never covers the next shot.
+        const length = Math.min(3, duration - 0.3);
+        add({ kind: "composition", composition: "plate", start: time + 0.3, duration: length, track: 1 + (overlay++ % 2), variables: { ...range.plate, length } });
         chirp("beep-plate.mp3", time + 0.3);
       }
       if (range.caption?.length > LONGEST_CAPTION) throw new Error(`The caption "${range.caption}" is too long; it would run under the app's PICARD CODE title. Keep it to ${LONGEST_CAPTION} characters.`);
-      if (range.caption) add({ kind: "composition", composition: "caption", start: time + 0.2, duration: 4, track: 1 + (overlay++ % 2), variables: { text: range.caption } });
+      if (range.caption) {
+        const length = Math.min(4, duration - 0.2);
+        add({ kind: "composition", composition: "caption", start: time + 0.2, duration: length, track: 1 + (overlay++ % 2), variables: { text: range.caption, length } });
+      }
       // A bridge beep marks each cut through the waiting.
       if (!range.speech.length) chirp("beep-caption.mp3", time);
       time += duration;

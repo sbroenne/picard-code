@@ -103,6 +103,30 @@ test("the cut keeps Riker's and Data's replies whole and leaves the rest of the 
   assert.ok(first.to <= second.from && first.to >= first.speech[0].until && second.from <= second.speech[0].at, "they meet between the two voices");
 });
 
+test("frames delivered out of order still time the cut from the first frame shown", () => {
+  const take = recording();
+  take.frames = [{ file: "1.jpg", time: 100.5 }, { file: "0.jpg", time: 100 }];
+  const riker = draftEdit(take, [], "-296154.7", speech()).acts.briefing.find((range) => range.plate?.name === "Commander Riker");
+  assert.equal(Number(riker.speech[0].at.toFixed(2)), 25.2);
+});
+
+test("a kept reply stops where the next voice starts, even when the pause after it runs later", () => {
+  // Riker ends at 29.2 s and Data starts at 29.5 s; a pause found at 29.4 s must not carry Riker into Data's voice.
+  const [riker, data] = draftEdit(recording(), [{ start: 29.4, end: 29.6 }], "-296154.7", speech()).acts.briefing.filter((range) => range.plate);
+  assert.ok(riker.speech[0].until <= data.speech[0].at + 1e-9, "Riker's line ends before Data speaks");
+  assert.ok(riker.to <= data.speech[0].at + 1e-9, "Riker's clip ends before Data speaks");
+});
+
+test("name plates and captions on short shots end with the shot", () => {
+  const short = edit();
+  short.acts.briefing[1] = { ...short.acts.briefing[1], from: 20, to: 22.5, speech: [{ speaker: "Riker", at: 21, until: 22, text: "Two options, Captain." }] };
+  const plan = layout(short, spoken, sounds);
+  const plate = plan.clips.find((clip) => clip.composition === "plate");
+  assert.deepEqual([plate.duration, plate.variables.length], [2.2, 2.2]);
+  const caption = plan.clips.find((clip) => clip.composition === "caption" && clip.variables.text === "Writing code · waiting cut");
+  assert.deepEqual([caption.duration, caption.variables.length], [1.8, 1.8]);
+});
+
 test("the work is shown in short silent slices, never across speech, with a caption on the first", () => {
   const edit = draftEdit(recording(), [], "-296154.7", speech());
   const slices = edit.acts.work.filter((range) => !range.speech.length);

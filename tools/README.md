@@ -85,9 +85,10 @@ and a plain transcript for YouTube's automatic caption timing.
 
 ## Make the YouTube pack
 
-Render the episode to `picard-code-episode.mp4` in the episode folder, then
-write `youtube/picks.json` there: the episode second each thumbnail is
-drawn over (see the top of [`video/youtube.mjs`](../video/youtube.mjs)).
+Render the episode to `picard-code-episode.mp4` in the episode folder. The
+thumbnail is drawn over the episode's real console screenshot
+(`briefing.png`), with the tribute in the conversation area and what the app
+does in the status area.
 
 ```sh
 cd video && npx -y hyperframes@0.9.15 render -o ../video/out/episode-EXAMPLE/picard-code-episode.mp4 --quality delivery --video-frame-format png --keyframe-interval 2 --no-best-effort
@@ -95,11 +96,12 @@ cd .. && node video/youtube.mjs video/out/episode-EXAMPLE
 ```
 
 It writes into `youtube/`: the upload file with its sound brought to
-YouTube's level (about −14 LUFS; the picture is copied unchanged), three
-1280×720 thumbnails for Test & Compare, the description with chapters, German, French and Spanish
+YouTube's level (about −14 LUFS; the picture is copied unchanged), a
+1280×720 thumbnail (`thumbnail.jpg`, and `thumbnail.png` for
+`site/assets/video.png`), the description with chapters, German, French and Spanish
 descriptions, and `upload.txt` with titles, tags, settings and the pinned
 comment. The words come from [`video/youtube.json`](../video/youtube.json).
-Review the whole video, thumbnails, sound levels, words and caption
+Review the whole video, thumbnail, sound levels, words and caption
 timing before publication.
 Keep all footage, audio, transcripts and local settings out of git.
 Publishing on YouTube needs the owner's explicit approval.

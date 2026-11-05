@@ -28,7 +28,7 @@
         const q = (selector) => root.querySelectorAll(selector);
         const tl = gsap.timeline({ paused: true });
         tl.fromTo(q(".plate"), { opacity: 0, x: -60 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out" }, 0);
-        tl.to(q(".plate"), { opacity: 0, x: -30, duration: 0.3, ease: "power2.in" }, 2.7);
+        tl.to(q(".plate"), { opacity: 0, x: -30, duration: 0.3, ease: "power2.in" }, Math.min(3, values.length ?? 3) - 0.3);
         window.__timelines = window.__timelines || {};
         window.__timelines["plate"] = tl;
       })();

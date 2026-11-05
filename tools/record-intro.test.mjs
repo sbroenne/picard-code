@@ -3,7 +3,7 @@ import test from "node:test";
 import { createServer } from "node:http";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
@@ -223,8 +223,8 @@ test("the recorder opens the Captain's log through the side-panel link and drawe
 test("the site the crew built is recorded with one slow scroll to its bottom, so its shot moves", { timeout: 30000 }, async () => {
   const folder = await mkdtemp(join(tmpdir(), "picard-site-"));
   const project = join(folder, "tribute-site");
-  await execute("mkdir", [project]);
-  await writeFile(join(project, "index.html"), '<!doctype html><body style="margin:0"><div style="height:3000px;background:linear-gradient(#000,#fa0)">Tribute</div></body>');
+  await mkdir(project);
+  await writeFile(join(project, "index.html"), '<!doctype html><body style="margin:0"><div style="height:3000px;background:linear-gradient(#000,#fa0)">Tribute</div><img src="/bad%E0%A4%A.png" alt="" style="position:absolute;top:0"></body>');
   const browser = await chromium.launch();
   try {
     const result = await recordSite(browser, project, folder);
