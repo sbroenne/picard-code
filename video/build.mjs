@@ -42,6 +42,8 @@ await execute("ffmpeg", ["-y", "-loglevel", "error", "-i", join(episode, "site.w
 await copyFile(join(episode, "captains-log.png"), join(assets, "captains-log.png"));
 assert.ok(existsSync(join(episode, "tribute.png")), "Record again: this take has no screen of the tribute record after Data's report.");
 await copyFile(join(episode, "tribute.png"), join(assets, "tribute.png"));
+// The end board shows the console as Data reports, from this take.
+await copyFile(join(episode, "report.png"), join(assets, "report.png"));
 
 const pauses = silences((await execute("ffmpeg", ["-hide_banner", "-nostats", "-i", join(assets, "footage.mp4"), "-af", "silencedetect=noise=-38dB:d=0.28", "-f", "null", "-"], { maxBuffer: 1 << 26 })).stderr);
 const python = join(homedir(), ".picard-code", "voice", "bin", "python3");

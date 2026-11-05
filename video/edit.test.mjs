@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildCaptions, draftEdit, frameList, layout, mergeRanges, rootComposition, shortComposition, shortCues, silences, speechTimes, spokenStardate, transcript } from "./edit.mjs";
+import { buildCaptions, draftEdit, frameList, layout, mergeRanges, rootComposition, silences, speechTimes, spokenStardate, transcript } from "./edit.mjs";
 import { chapterList, srt } from "../tools/intro-episode.mjs";
 
 test("stardates are read digit by digit", () => {
@@ -198,21 +198,15 @@ test("captions keep the exact words inside each speech clip", () => {
   assert.throws(() => buildCaptions([{ start: 0, duration: 2, text: "a" }, { start: 1, duration: 2, text: "b" }]), /overlap/);
 });
 
-test("a Short keeps the captions of its parts, retimed, and refuses a cut through spoken words", () => {
-  const captions = [
-    { start: 10, end: 12, text: "Riker: Options." },
-    { start: 20, end: 23, text: "Make it so." },
-    { start: 30, end: 34, text: "Engage." },
-  ];
-  const cues = shortCues(captions, [{ from: 9, to: 13 }, { from: 29, to: 35 }]);
-  assert.deepEqual(cues, [{ start: 1, end: 3, text: "Riker: Options." }, { start: 5, end: 9, text: "Engage." }]);
-  assert.throws(() => shortCues(captions, [{ from: 21, to: 25 }]), /cuts through the words "Make it so\."/);
-  const html = shortComposition({ title: "The briefing", ranges: [{ from: 9, to: 13 }, { from: 29, to: 35 }], cues, source: "assets/episode.mp4" });
-  assert.match(html, /data-duration="10" data-width="1080" data-height="1920"/);
-  assert.match(html, /<video id="part-1" class="episode" src="assets\/episode.mp4" data-start="4" data-duration="6" data-track-index="0" data-media-start="29" data-has-audio="true" playsinline>/);
-  assert.match(html, /tl.set\("#cue-1", \{ opacity: 1 \}, 5\).set\("#cue-1", \{ opacity: 0 \}, 9\)/);
-  const rewrapped = shortComposition({ title: "Log", ranges: [{ from: 0, to: 4 }], cues: [{ start: 0, end: 3, text: "Picard: Captain's log, stardate minus two\nnine six one." }], source: "assets/episode.mp4" });
-  assert.match(rewrapped, /class="cue">Picard: Captain&#39;s log, stardate minus two nine six one\.<\/p>/, "the narrow Short rewraps the episode's caption lines");
+test("the end board shows the real app console instead of an empty Watch next frame, and keeps Subscribe", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const html = await readFile(new URL("compositions/end.html", import.meta.url), "utf8");
+  assert.doesNotMatch(html, /Watch next/i, "the channel has no second video to point to");
+  assert.match(html, /<img class="console" src="assets\/report\.png" alt="[^"]+">/, "Data's report on the real console, from the take");
+  assert.match(html, /<div class="slot subscribe"><span>Subscribe<\/span><\/div>/);
+  const settings = JSON.parse(await readFile(new URL("youtube.json", import.meta.url), "utf8")).settings.join("\n");
+  assert.doesNotMatch(settings, /Short|Watch next|Card:/, "the upload settings point to nothing that does not exist");
+  assert.match(settings, /End screen: Subscribe in the circle/);
 });
 
 test("the first frame names Picard Code above the tribute to Sir Patrick and the Captain", async () => {

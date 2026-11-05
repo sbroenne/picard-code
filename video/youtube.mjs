@@ -1,20 +1,17 @@
-// Makes the YouTube pack from a rendered episode: three vertical Shorts with burned-in captions, three
-// thumbnails, and the description, titles, translations and upload settings.
+// Makes the YouTube pack from a rendered episode: three thumbnails, and the description, titles,
+// translations and upload settings.
 // Usage: node video/youtube.mjs video/out/episode-XXXX
-// Needs <episode>/picard-code-episode.mp4 (the render) and <episode>/youtube/picks.json, which names the parts
-// of the episode each Short uses and the episode second each thumbnail is drawn over, for example:
-// { "shorts": [{ "id": "briefing", "title": "The briefing", "ranges": [{ "from": 74.6, "to": 107.3 }] }],
-//   "thumbnails": { "never-type": 35, "make-it-so": 52, "tribute": 88 } }
+// Needs <episode>/picard-code-episode.mp4 (the render) and <episode>/youtube/picks.json, which names the
+// episode second each thumbnail is drawn over, for example:
+// { "thumbnails": { "never-type": 35, "make-it-so": 52, "tribute": 88 } }
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { copyFile, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { chromium } from "@playwright/test";
-import { shortComposition, shortCues } from "./edit.mjs";
-import { readSrt } from "../tools/intro-episode.mjs";
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -25,7 +22,6 @@ assert.ok(existsSync(render), `Render the episode first: cd video && npx --yes h
 assert.ok(existsSync(join(out, "picks.json")), `Write ${join(out, "picks.json")} first; see the top of video/youtube.mjs.`);
 const picks = JSON.parse(await readFile(join(out, "picks.json"), "utf8"));
 const pack = JSON.parse(await readFile(join(here, "youtube.json"), "utf8"));
-const captions = readSrt(await readFile(join(out, "captions.srt"), "utf8"));
 const chapters = (await readFile(join(out, "chapters.txt"), "utf8")).trim().split("\n").map((line) => {
   const [, time, title] = line.match(/^(\d+:\d\d) (.+)$/);
   return { time, title };
@@ -52,13 +48,11 @@ for (const [language, text] of Object.entries(pack.translations)) {
   assert.equal(text.chapters.length, chapters.length, `The ${language} translation needs ${chapters.length} chapter titles.`);
   await writeFile(join(out, `description-${language}.txt`), describe(text.description, text.chapters));
 }
-const briefing = chapters.find((chapter) => chapter.title === "The briefing");
-assert.ok(briefing, "The episode has no chapter called The briefing.");
 await writeFile(join(out, "upload.txt"), [
   "Titles for Test & Compare:", ...pack.titles.map((title) => `- ${title}`), "",
   "Translated titles:", ...Object.entries(pack.translations).map(([language, text]) => `- ${language}: ${text.title}`), "",
   `Tags: ${pack.tags.join(", ")}`, "",
-  ...pack.settings.map((line) => line.replace("{briefing}", briefing.time)), "",
+  ...pack.settings, "",
   `Pinned comment: ${pack.pinned}`, "",
 ].join("\n"));
 
@@ -80,16 +74,6 @@ try {
   await browser.close();
 }
 
-console.log("Rendering the Shorts with HyperFrames.");
-await copyFile(upload, join(here, "assets", "episode.mp4"));
-for (const short of picks.shorts) {
-  const cues = shortCues(captions, short.ranges);
-  const file = `short-${short.id}.html`;
-  await writeFile(join(here, file), shortComposition({ title: short.title, ranges: short.ranges, cues, source: "assets/episode.mp4" }));
-  await execute("npx", ["--yes", "hyperframes@0.9.15", "render", "-c", file, "-o", join(out, `short-${short.id}.mp4`), "--quality", "delivery", "--no-best-effort", "--quiet"],
-    { cwd: here, maxBuffer: 1 << 26 });
-  console.log(`  ${short.title}: ${short.ranges.reduce((total, range) => total + range.to - range.from, 0).toFixed(1)} s`);
-}
 console.log(`The YouTube pack is in ${out}.`);
 
 function thumbnailPage({ headline, kicker, image }) {

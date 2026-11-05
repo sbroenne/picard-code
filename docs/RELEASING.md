@@ -107,11 +107,12 @@ words inside the centre 1546×423, which is all that phones show. The video desc
 explains the prepared project, generated requests, real replies and edits,
 and says the voices are stock Kokoro voices,
 and ends with the same unofficial-tribute and
-trademark lines as the website. An end screen needs a second video or a
-playlist; the episode's Shorts serve as the Watch next video.
+trademark lines as the website. The end board shows the real console beside
+the Subscribe circle; there is no Watch next video until the channel has a
+second one.
 
 [Make the YouTube pack](../tools/README.md#make-the-youtube-pack) prepares
-the upload file, thumbnails, Shorts, captions, chapters, translated
+the upload file, thumbnails, captions, chapters, translated
 descriptions and the upload settings for the owner to review. The episode is
 published straight away, not as a Premiere.
 
