@@ -1,5 +1,17 @@
 # Picard Code release notes
 
+## 1701.4.6
+
+### Patch Changes
+
+- [#75](https://github.com/sbroenne/picard-code/pull/75) [`b280321`](https://github.com/sbroenne/picard-code/commit/b280321219d0601c2d5257c9eedb0d4574cea916) - Bring the guides up to date with the computer's fixed voices, start-up flow and spoken interruption. Use clearer TNG terms, fix Markdown emphasis and remove outdated research and voice trials.
+
+- [#76](https://github.com/sbroenne/picard-code/pull/76) [`29b2a20`](https://github.com/sbroenne/picard-code/commit/29b2a203ef98181cdc6e8c037ab428436140c458) - The console now says Not listening, with the reason, whenever the computer cannot hear you, and Standing by when it can. The microphone button is the only control: it grows with an orange ring when a click lets the computer hear, and resuming paused sound no longer switches an already connected microphone off.
+
+- [#74](https://github.com/sbroenne/picard-code/pull/74) [`97e5382`](https://github.com/sbroenne/picard-code/commit/97e53826f67c0193b0003a0742ac185912d1fa76) - Shorten the npm and GitHub introduction, with detailed setup and usage instructions in a linked user guide.
+
+- [#72](https://github.com/sbroenne/picard-code/pull/72) [`4af3433`](https://github.com/sbroenne/picard-code/commit/4af34339f696310bebb2ccfd488fa96a5b91939f) - Keep the microphone's channel status separate from what the computer is doing, without flashing extra headings as speech starts or a reply prepares. Explain when the computer is speaking, and keep questions and approval requests visible.
+
 ## 1701.4.5
 
 ### Patch Changes
