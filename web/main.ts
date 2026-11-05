@@ -530,8 +530,12 @@ async function api<T>(path: string, data?: unknown): Promise<T> {
 }
 
 function notice(message?: string) {
-  element("notice").hidden = !message;
-  element("notice-text").textContent = message ?? "";
+  const text = element("notice-text");
+  if (!message) text.replaceChildren();
+  else if (![...text.children].some((item) => item.textContent === message)) {
+    text.append(make("p", undefined, message));
+  }
+  element("notice").hidden = !text.childElementCount;
 }
 
 async function perform(action: () => Promise<void> | void) {

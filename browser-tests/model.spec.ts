@@ -27,7 +27,7 @@ async function launch(page: Page, args: string[] = []) {
     child.once("exit", () => reject(new Error("The model setup test server stopped.")));
   });
   page.on("close", () => child.kill());
-  // The test server has no sound files; a silent stand-in keeps a missing-sound notice from replacing the error under test.
+  // The test server has no sound files; use an original silent stand-in.
   await page.route("**/api/sounds/*", (route) => route.fulfill({ contentType: "audio/wav", body: silentSound }));
   await page.goto(url);
   if (args.includes("--provider-error")) await expect(page.getByRole("alert")).toContainText("Test provider lookup failed.");
@@ -113,6 +113,47 @@ test("a failed default confirmation stays on the welcome screen with the real er
   await expect(page.locator("#readout-model")).toHaveText("Offline");
   await expect(page.getByRole("button", { name: "Begin start-up" })).toBeEnabled();
 });
+
+for (const fromModelTile of [false, true]) {
+  test(`a later sound error keeps the model error visible from the ${fromModelTile ? "model tile" : "welcome screen"}`, async ({ page }) => {
+    await launch(page, fromModelTile ? ["--speech", "--free-models"] : ["--speech"]);
+    let releaseSound!: () => void;
+    const soundReady = new Promise<void>((resolve) => { releaseSound = resolve; });
+    await page.route("**/api/sounds/startup", async (route) => {
+      await soundReady;
+      await route.fulfill({ status: 404, body: "Test sound is missing." });
+    });
+    await page.reload();
+    await expect(page.locator("#status")).not.toHaveText("Starting up");
+    const modelError = "Could not save the model choice. Test disk is full.";
+    const soundError = "The startup sound could not be loaded: HTTP 404. Restart Picard Code to check and download its sounds.";
+    await page.route("**/api/model", (route) => route.fulfill({ status: 502, json: { error: modelError } }));
+    if (fromModelTile) {
+      await begin(page);
+      await page.getByRole("link", { name: /^Computer intelligence/ }).click();
+      await page.selectOption("#model", JSON.stringify(["opencode", "free-model"]));
+    }
+    const confirm = page.getByRole("button", { name: fromModelTile ? "Confirm this model" : "Begin start-up" });
+    await confirm.click();
+    await expect(page.locator("#notice-text")).toContainText(modelError);
+    releaseSound();
+    await expect(page.locator("#notice-text")).toContainText(soundError);
+    await expect(page.locator("#notice-text")).toContainText(modelError);
+    await expect(page.locator("#first-run-setup #notice")).toBeVisible();
+    const alert = await page.locator("#notice").ariaSnapshot();
+    expect(alert).toContain(modelError);
+    expect(alert).toContain(soundError);
+    await expect(title(page)).toHaveText(fromModelTile ? "Computer intelligence" : "Welcome aboard, Captain.");
+    await expect(confirm).toBeEnabled();
+    // Repeating a failed action must not fill the alert with duplicate errors.
+    await confirm.click();
+    await expect(page.locator("#notice-text p")).toHaveText([modelError, soundError]);
+    await page.unroute("**/api/model");
+    await confirm.click();
+    await expect(title(page)).toHaveText("Open a channel");
+    await expect(page.locator("#notice")).toBeHidden();
+  });
+}
 
 test("without a sign-in, the computer core step gives the order and the free models stay a clear second choice", async ({ page }) => {
   await launch(page, ["--free-models"]);
