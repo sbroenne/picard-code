@@ -17,6 +17,7 @@ export function narration() {
     "hook-2": "He spoke, and the computer answered.",
     "hook-3": "So we built Picard Code.",
     tribute: "And now and then, the computer opens my personnel file.",
+    site: "Built by voice. Not one line typed.",
     "log-supplemental": "Captain's log, supplemental. The crew performed admirably.",
   };
 }
@@ -286,7 +287,8 @@ export function draftEdit(recording, pauses, stardate, speech) {
     },
     acts,
     tribute: { caption: "Tribute · Picard facts", fact: recording.tribute.text },
-    site: { from: 1, to: 4 },
+    // The recorder starts its slow scroll through the site at 1.5 s and ends it at 5.5 s.
+    site: { from: 1, to: 6, caption: "Built by voice · tribute site" },
   };
 }
 
@@ -364,15 +366,17 @@ export function layout(edit, spoken, sounds) {
   // The app's own Personnel file under Data's report, as recorded. The app shows it silently, so the Captain
   // says what it is.
   if (!edit.tribute) throw new Error("Record again: this take has no tribute record after Data's report.");
-  if (edit.tribute.caption.length > LONGEST_CAPTION) throw new Error(`The caption "${edit.tribute.caption}" is too long; it would run under the app's PICARD CODE title. Keep it to ${LONGEST_CAPTION} characters.`);
-  add({ kind: "image", className: "still", src: "assets/tribute.png", start: time, duration: SCENES.tribute, track: 0 });
-  add({ kind: "composition", composition: "caption", start: time + 0.2, duration: SCENES.tribute - 0.2, track: 1 + (overlay++ % 2), variables: { text: edit.tribute.caption } });
-  chirp("beep-caption.mp3", time);
-  say("tribute", time + 0.6, SCENES.tribute - 0.8);
-  time += SCENES.tribute;
-  const site = edit.site.to - edit.site.from;
-  add({ kind: "video", className: "site", src: "assets/site.mp4", start: time, duration: site, mediaStart: edit.site.from, track: 0 });
-  time += site;
+  // Each shot after the work act is named on screen and explained by the Captain, so none plays in silence.
+  const narrated = (clip, caption, line) => {
+    if (caption.length > LONGEST_CAPTION) throw new Error(`The caption "${caption}" is too long; it would run under the app's PICARD CODE title. Keep it to ${LONGEST_CAPTION} characters.`);
+    add({ ...clip, start: time, track: 0 });
+    add({ kind: "composition", composition: "caption", start: time + 0.2, duration: clip.duration - 0.2, track: 1 + (overlay++ % 2), variables: { text: caption } });
+    chirp("beep-caption.mp3", time);
+    say(line, time + 0.6, clip.duration - 0.8);
+    time += clip.duration;
+  };
+  narrated({ kind: "image", className: "still", src: "assets/tribute.png", duration: SCENES.tribute }, edit.tribute.caption, "tribute");
+  narrated({ kind: "video", className: "site", src: "assets/site.mp4", duration: edit.site.to - edit.site.from, mediaStart: edit.site.from }, edit.site.caption, "site");
 
   chapters.push({ start: time, title: "Captain’s log" });
   add({ kind: "image", className: "still", src: "assets/captains-log.png", start: time, duration: SCENES.still, track: 0 });

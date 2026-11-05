@@ -88,7 +88,8 @@ them both, then says why Picard Code exists:
 Captain Picard never typed. Around that is a real recording of the app: the
 Captain hears one sentence each from Riker and Data, says "Make it so", and
 the crew builds a small tribute site; Data runs the tests and reports, the
-app shows one of its Personnel file records while the Captain explains it, and the finished entry appears
+app shows one of its Personnel file records while the Captain explains it,
+the finished site scrolls by as the Captain says it was built by voice, and the finished entry appears
 in the Captain's log. Approvals are given before
 recording, so none appear on screen. Replies, edits and check results come
 from real OpenCode and speech services; only waiting is cut, and the whole

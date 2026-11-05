@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, mkdtemp, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
-import { resolve, join, dirname, extname, normalize, sep } from "node:path";
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
+import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, expect } from "@playwright/test";
 import { installRecording } from "./record-intro-browser.mjs";
+import { recordSite } from "./record-site.mjs";
 import { CAPTAINS_LOG, ORDERS, TRIBUTE_FACT, captainVoice, checkTribute, tightenPauses, demoPermissions, screenAlert, sentEvent, tributeCue } from "./intro-episode.mjs";
 import { TRIBUTE_ENTRIES } from "../dist/shared/tribute-data.js";
 import { startEngine } from "../dist/server/process.js";
@@ -32,7 +32,7 @@ await writeFile(join(project, "opencode.json"), `${JSON.stringify(demoPermission
 const modelFile = join(settings, "model.json");
 const speechFile = join(settings, "speech.json");
 const controller = new AbortController();
-let speech, engine, app, browser, site;
+let speech, engine, app, browser;
 let frameWriting = Promise.resolve();
 let frameError;
 const frames = [];
@@ -46,8 +46,6 @@ async function captureFrame(session, event) {
   await writeFile(join(framesFolder, file), Buffer.from(event.data, "base64"));
   await session.send("Page.screencastFrameAck", { sessionId: event.sessionId });
 }
-
-const types = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".json": "application/json" };
 
 try {
   engine = await startEngine(project);
@@ -217,28 +215,7 @@ try {
     }
   }
 
-  site = createServer(async (request, response) => {
-    const path = normalize(decodeURIComponent(new URL(request.url, "http://localhost").pathname)).replace(/^[/\\]+/, "") || "index.html";
-    const file = join(project, path);
-    if (!file.startsWith(`${project}${sep}`)) { response.writeHead(403).end(); return; }
-    try {
-      if ((await stat(file)).isDirectory()) throw new Error("Folder");
-      response.setHeader("Content-Type", types[extname(file)] ?? "application/octet-stream");
-      response.end(await readFile(file));
-    } catch { response.writeHead(404).end("Not found"); }
-  });
-  await new Promise((done, fail) => { site.once("error", fail); site.listen(0, "127.0.0.1", done); });
-  const siteContext = await browser.newContext({ viewport: { width: 1920, height: 1080 }, recordVideo: { dir: output, size: { width: 1920, height: 1080 } } });
-  const preview = await siteContext.newPage();
-  const siteErrors = [];
-  preview.on("pageerror", (error) => siteErrors.push(error.message));
-  await preview.goto(`http://127.0.0.1:${site.address().port}/`);
-  await preview.waitForTimeout(9000);
-  await preview.screenshot({ path: join(output, "site.png") });
-  const siteVideo = await preview.video().path();
-  await siteContext.close();
-  await rename(siteVideo, join(output, "site.webm"));
-  result.siteErrors = siteErrors;
+  result.siteErrors = (await recordSite(browser, project, output)).errors;
 
   const conversations = await engine.client.sessions(project);
   const transcript = [];
@@ -270,13 +247,10 @@ try {
   finally {
     try { await browser?.close(); }
     finally {
-      try { if (site) await new Promise((done) => site.close(() => done())); }
+      try { await app?.close(); }
       finally {
-        try { await app?.close(); }
-        finally {
-          try { await speech?.close?.(); }
-          finally { await engine?.close(); }
-        }
+        try { await speech?.close?.(); }
+        finally { await engine?.close(); }
       }
     }
   }

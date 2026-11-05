@@ -3,11 +3,12 @@ import test from "node:test";
 import { createServer } from "node:http";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
 import { installRecording } from "./record-intro-browser.mjs";
+import { recordSite, SITE_SCROLL } from "./record-site.mjs";
 import { addressedOfficers } from "../dist/shared/crew.js";
 import { TRIBUTE_ENTRIES } from "../dist/shared/tribute-data.js";
 import { TributeCycle } from "../dist/shared/tribute.js";
@@ -220,4 +221,24 @@ test("the recorder opens the Captain's log through the side-panel link and drawe
   assert.equal(CAPTAINS_LOG.link, 'a[data-drawer-link="records"]');
   assert.match(page, new RegExp(`<section id="${CAPTAINS_LOG.panel.slice(1)}"`));
   assert.match(page, new RegExp(`id="${CAPTAINS_LOG.entries.split(" ")[0].slice(1)}"`));
+});
+
+test("the site the crew built is recorded with one slow scroll to its bottom, so its shot moves", { timeout: 30000 }, async () => {
+  const folder = await mkdtemp(join(tmpdir(), "picard-site-"));
+  const project = join(folder, "tribute-site");
+  await execute("mkdir", [project]);
+  await writeFile(join(project, "index.html"), '<!doctype html><body style="margin:0"><div style="height:3000px;background:linear-gradient(#000,#fa0)">Tribute</div></body>');
+  const browser = await chromium.launch();
+  try {
+    const result = await recordSite(browser, project, folder);
+    assert.deepEqual(result.errors, []);
+    assert.equal(result.distance, 3000 - 1080);
+    assert.ok(Math.abs(result.top - result.distance) < 1, "the scroll ends at the bottom of the page");
+    assert.ok((await stat(join(folder, "site.webm"))).size > 0);
+    assert.ok((await stat(join(folder, "site.png"))).size > 0);
+    assert.ok(SITE_SCROLL.start >= 1 && SITE_SCROLL.start + SITE_SCROLL.duration <= 6, "the scroll fits the edit's site shot, from 1 s to 6 s");
+  } finally {
+    await browser.close();
+    await rm(folder, { recursive: true, force: true });
+  }
 });

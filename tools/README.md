@@ -38,8 +38,12 @@ app's own Personnel file record (the Captain's Earl Grey, chosen in
 `TRIBUTE_FACT`) appears under Data's report; the take stops if it appears
 early, late or with another fact. The edit holds that record for five seconds
 while the Captain explains it: "And now and then, the computer opens my
-personnel file." After the work, the take opens the Captain's
-log so the finished entry can be shown. A take takes five minutes or more. Do not use this tool on a private
+personnel file." Then the recorder opens the finished site and scrolls slowly
+to its bottom, so the site shot moves; the edit names it "Built by voice ·
+tribute site" while the Captain says "Built by voice. Not one line typed."
+To record only the site again for an existing take, run
+`node tools/record-site.mjs video/out/episode-…`. After the work, the take
+opens the Captain's log so the finished entry can be shown. A take takes five minutes or more. Do not use this tool on a private
 project.
 
 ## Build and render the episode
