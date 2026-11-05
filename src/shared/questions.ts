@@ -16,23 +16,23 @@ function either(words: string[]) {
 
 type TextField = Extract<FormField, { type: "string" }>;
 
-/** The one question a form asks aloud: a single visible text answer, with or without offered choices. */
-export function spokenField(form: FormRequest): TextField | undefined {
+/** The next unanswered text question, with or without offered choices. */
+export function spokenField(form: FormRequest, answers: Record<string, string> = {}): TextField | undefined {
   const visible = form.fields.filter((field) => !field.hidden);
-  const field = visible[0];
-  if (visible.length !== 1 || field?.type !== "string" || field.when?.length) return undefined;
-  return field;
+  if (visible.some((field) => field.type !== "string" || field.when?.length)) return undefined;
+  const field = visible.find((item) => !Object.hasOwn(answers, item.key));
+  return field?.type === "string" ? field : undefined;
 }
 
-/** Only single-answer questions are asked aloud; anything else stays on screen. */
+/** Text questions are asked one at a time; other forms stay on screen. */
 export function canAskAloud(form: FormRequest) {
   return !!spokenField(form);
 }
 
 const custom = (field: TextField) => !field.options?.length || field.custom === true;
 
-export function spokenQuestion(form: FormRequest) {
-  const field = spokenField(form);
+export function spokenQuestion(form: FormRequest, answers: Record<string, string> = {}) {
+  const field = spokenField(form, answers);
   if (!field) return "Additional information is required. Please answer the questions on screen.";
   const question = field.description?.trim() || field.title?.trim() || form.title.trim();
   const labels = (field.options ?? []).map((option) => option.label);
