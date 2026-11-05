@@ -211,3 +211,11 @@ test("a Short keeps the captions of its parts, retimed, and refuses a cut throug
   const rewrapped = shortComposition({ title: "Log", ranges: [{ from: 0, to: 4 }], cues: [{ start: 0, end: 3, text: "Picard: Captain's log, stardate minus two\nnine six one." }], source: "assets/episode.mp4" });
   assert.match(rewrapped, /class="cue">Picard: Captain&#39;s log, stardate minus two nine six one\.<\/p>/, "the narrow Short rewraps the episode's caption lines");
 });
+
+test("the first frame names Picard Code above the tribute to Sir Patrick and the Captain", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const html = await readFile(new URL("compositions/opening.html", import.meta.url), "utf8");
+  const dedication = html.slice(html.indexOf('<div class="dedication">'), html.indexOf("</div>", html.indexOf('class="captain"')));
+  const words = [...dedication.matchAll(/<p class="(\w+)">([^<]+)<\/p>/g)].map(([, kind, text]) => [kind, text]);
+  assert.deepEqual(words, [["brand", "Picard Code"], ["kicker", "A tribute to"], ["actor", "Sir Patrick Stewart"], ["years", "1940 – 2026"], ["and", "and"], ["captain", "Captain Jean-Luc Picard"]]);
+});
