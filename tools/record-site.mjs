@@ -1,16 +1,21 @@
 import { createServer } from "node:http";
-import { readFile, rename, stat } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join, extname, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { SITE, SITE_FPS } from "../video/quality.mjs";
 
 const types = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".json": "application/json" };
 
-/** When the slow scroll through the finished site starts and how long it takes, in seconds of site.webm. */
+/** When the slow scroll through the finished site starts and how long it takes, in seconds of the site footage. */
 export const SITE_SCROLL = { start: 1.5, duration: 4 };
+/** How long the site footage lasts: the scroll, then two seconds at the bottom. */
+export const SITE_END = SITE_SCROLL.start + SITE_SCROLL.duration + 2;
 
 /**
  * Records the site the crew built: its top as it loads, then one slow scroll to the bottom, so the shot moves.
- * Writes site.webm and site.png (the top of the page) into `output` and returns the page's own errors.
+ * The scroll is captured one frame at a time at twice the pixel density, so it is smooth and sharp in 4K
+ * however long each screenshot takes. Writes site-frames/, site.json (each frame's time in the footage)
+ * and site.png (the top of the page) into `output`, and returns the page's own errors.
  */
 export async function recordSite(browser, project, output) {
   const server = createServer(async (request, response) => {
@@ -24,32 +29,40 @@ export async function recordSite(browser, project, output) {
     } catch { response.writeHead(404).end("Not found"); }
   });
   await new Promise((done, fail) => { server.once("error", fail); server.listen(0, "127.0.0.1", done); });
-  const context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, recordVideo: { dir: output, size: { width: 1920, height: 1080 } } });
+  const context = await browser.newContext({ viewport: { width: SITE.width, height: SITE.height }, deviceScaleFactor: SITE.scale });
+  const folder = join(output, "site-frames");
+  await rm(folder, { recursive: true, force: true });
+  await mkdir(folder);
   try {
     const page = await context.newPage();
-    const opened = Date.now();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.screenshot({ path: join(output, "site.png") });
-    await page.waitForTimeout(Math.max(0, SITE_SCROLL.start * 1000 - (Date.now() - opened)));
-    const bottom = await page.evaluate((duration) => new Promise((done) => {
-      const scroller = document.scrollingElement;
-      const distance = scroller.scrollHeight - innerHeight;
-      const begun = performance.now();
-      const step = (now) => {
-        const progress = Math.min(1, (now - begun) / duration);
+    const frames = [];
+    const shoot = async (time) => {
+      const file = `${String(frames.length).padStart(6, "0")}.jpg`;
+      await page.screenshot({ path: join(folder, file), type: "jpeg", quality: 92 });
+      frames.push({ file, time });
+    };
+    await shoot(0);
+    // Smooth scrolling in the site's own style would blur the steps together.
+    const distance = await page.evaluate(() => {
+      document.documentElement.style.scrollBehavior = "auto";
+      return document.scrollingElement.scrollHeight - innerHeight;
+    });
+    const steps = Math.round(SITE_SCROLL.duration * SITE_FPS);
+    let top = 0;
+    for (let step = 1; step <= steps; step++) {
+      top = await page.evaluate(([distance, progress]) => {
+        const scroller = document.scrollingElement;
         scroller.scrollTop = distance * (1 - Math.cos(Math.PI * progress)) / 2;
-        if (progress < 1) requestAnimationFrame(step);
-        else done({ top: scroller.scrollTop, distance });
-      };
-      requestAnimationFrame(step);
-    }), SITE_SCROLL.duration * 1000);
-    await page.waitForTimeout(2000);
-    const video = await page.video().path();
-    await context.close();
-    await rename(video, join(output, "site.webm"));
-    return { errors, ...bottom };
+        return scroller.scrollTop;
+      }, [distance, step / steps]);
+      await shoot(SITE_SCROLL.start + step / SITE_FPS);
+    }
+    await writeFile(join(output, "site.json"), `${JSON.stringify({ frames, end: SITE_END }, null, 2)}\n`);
+    return { errors, top, distance };
   } finally {
     await context.close().catch(() => {});
     server.close();

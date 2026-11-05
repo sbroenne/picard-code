@@ -10,13 +10,15 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { chromium } from "@playwright/test";
+import { UPLOAD, checkSize, mediaSize } from "./quality.mjs";
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const episode = resolve(process.argv[2] ?? "");
 const out = join(episode, "youtube");
 const render = join(episode, "picard-code-episode.mp4");
-assert.ok(existsSync(render), `Render the episode first: cd video && npx --yes hyperframes@0.9.15 render -o ${render}`);
+assert.ok(existsSync(render), `Render the episode first: cd video && npm run render -- -o ${render}`);
+checkSize("The render", await mediaSize(render), UPLOAD);
 const pack = JSON.parse(await readFile(join(here, "youtube.json"), "utf8"));
 const chapters = (await readFile(join(out, "chapters.txt"), "utf8")).trim().split("\n").map((line) => {
   const [, time, title] = line.match(/^(\d+:\d\d) (.+)$/);

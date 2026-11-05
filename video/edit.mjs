@@ -28,10 +28,10 @@ export function firstFrameTime(frames) {
 }
 
 /**
- * The ffmpeg concat list that plays each screencast frame for exactly as long as it was on screen.
- * The browser only sends a frame when the picture changes, so durations vary.
+ * The ffmpeg concat list that plays each captured frame for exactly as long as it was on screen.
+ * Screenshots take varying time, so durations vary. `folder` is where the frames are, inside the episode.
  */
-export function frameList(frames, end) {
+export function frameList(frames, end, folder = "frames") {
   if (!frames.length) throw new Error("The recording has no frames.");
   // Chrome occasionally delivers two frames out of order; their timestamps say when each was shown.
   const shown = frames.toSorted((first, second) => first.time - second.time);
@@ -39,9 +39,9 @@ export function frameList(frames, end) {
   const lines = [];
   shown.forEach((frame, index) => {
     const next = index + 1 < shown.length ? shown[index + 1].time : end;
-    lines.push(`file 'frames/${frame.file}'`, `duration ${(next - frame.time).toFixed(4)}`);
+    lines.push(`file '${folder}/${frame.file}'`, `duration ${(next - frame.time).toFixed(4)}`);
   });
-  lines.push(`file 'frames/${shown.at(-1).file}'`);
+  lines.push(`file '${folder}/${shown.at(-1).file}'`);
   return `${lines.join("\n")}\n`;
 }
 

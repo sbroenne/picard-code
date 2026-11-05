@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FOOTAGE, SITE, UPLOAD, checkFrameRate, checkSize, mediaSize, pixels } from "./quality.mjs";
 import { draftEdit, firstFrameTime, frameList, layout, rootComposition, silences, speechTimes, transcript } from "./edit.mjs";
 import { chapterList, srt } from "../tools/intro-episode.mjs";
 import { formatStardate } from "../dist/shared/stardate.js";
@@ -30,15 +31,27 @@ const end = Math.max(recording.frames.at(-1).time, ...recording.turns.map((turn)
 await rm(assets, { recursive: true, force: true });
 await mkdir(join(assets, "sounds"), { recursive: true });
 
+console.log("Checking the recording is sharp enough for a 4K video.");
+checkSize("The app footage", await mediaSize(join(episode, "frames", recording.frames[0].file)), pixels(FOOTAGE));
+checkFrameRate(recording.frames);
+assert.ok(existsSync(join(episode, "site.json")), "Record the site again with node tools/record-site.mjs: this take has the old 1080p site video.");
+const site = JSON.parse(await readFile(join(episode, "site.json"), "utf8"));
+checkSize("The site footage", await mediaSize(join(episode, "site-frames", site.frames[0].file)), pixels(SITE));
+for (const still of ["captains-log.png", "tribute.png", "report.png"]) {
+  if (existsSync(join(episode, still))) checkSize(still, await mediaSize(join(episode, still)), pixels(FOOTAGE));
+}
+// Near-lossless encodes: YouTube compresses again, so detail lost here cannot come back.
+const encode = ["-c:v", "libx264", "-preset", "slow", "-crf", "12", "-pix_fmt", "yuv420p"];
+const fill = `fps=30,scale=${UPLOAD.width}:${UPLOAD.height}:force_original_aspect_ratio=decrease,pad=${UPLOAD.width}:${UPLOAD.height}:(ow-iw)/2:(oh-ih)/2`;
+
 console.log("Making the app footage from the recorded frames and sound.");
 await writeFile(join(episode, "frames.txt"), frameList(recording.frames, end));
 const audioOffset = start - recording.audioStart;
 await execute("ffmpeg", ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", join(episode, "frames.txt"),
   ...(audioOffset >= 0 ? ["-ss", audioOffset.toFixed(3)] : ["-itsoffset", (-audioOffset).toFixed(3)]), "-i", join(episode, "audio.webm"),
-  "-map", "0:v", "-map", "1:a", "-vf", "fps=30,scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
-  "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-c:a", "aac", "-b:a", "256k", "-ar", "48000", join(assets, "footage.mp4")], { maxBuffer: 1 << 26 });
-await execute("ffmpeg", ["-y", "-loglevel", "error", "-i", join(episode, "site.webm"), "-an", "-vf", "fps=30,format=yuv420p",
-  "-c:v", "libx264", "-crf", "16", join(assets, "site.mp4")]);
+  "-map", "0:v", "-map", "1:a", "-vf", fill, ...encode, "-c:a", "aac", "-b:a", "256k", "-ar", "48000", join(assets, "footage.mp4")], { maxBuffer: 1 << 26 });
+await writeFile(join(episode, "site-frames.txt"), frameList(site.frames, site.end, "site-frames"));
+await execute("ffmpeg", ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", join(episode, "site-frames.txt"), "-an", "-vf", fill, ...encode, join(assets, "site.mp4")], { maxBuffer: 1 << 26 });
 await copyFile(join(episode, "captains-log.png"), join(assets, "captains-log.png"));
 assert.ok(existsSync(join(episode, "tribute.png")), "Record again: this take has no screen of the tribute record after Data's report.");
 await copyFile(join(episode, "tribute.png"), join(assets, "tribute.png"));

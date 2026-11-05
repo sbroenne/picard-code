@@ -13,9 +13,9 @@ Listening (Nemotron) and speaking (Kokoro) run on your computer by default.
 Call on Riker, Data, Geordi, Worf, Troi or Crusher for their expertise, with
 ready-made voices, not performer clones.
 
-[![Watch the Picard Code video on YouTube: Thank you, Sir Patrick. Code by voice.](https://raw.githubusercontent.com/sbroenne/picard-code/main/site/assets/video.png)](https://youtu.be/KP6VPTm2a6E)
+[![Watch the Picard Code video on YouTube: Thank you, Sir Patrick. Code by voice.](https://raw.githubusercontent.com/sbroenne/picard-code/main/site/assets/video.png)](https://youtu.be/pFGjNWeaHJI)
 
-[Watch the short video](https://youtu.be/KP6VPTm2a6E) ·
+[Watch the short video](https://youtu.be/pFGjNWeaHJI) ·
 [Project website](https://sbroenne.github.io/picard-code/) ·
 [User guide](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md)
 

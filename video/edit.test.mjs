@@ -14,6 +14,10 @@ test("each frame is held for as long as it was on screen", () => {
   assert.throws(() => frameList([{ file: "a.jpg", time: 13 }], 12), /after the recording ended/);
 });
 
+test("the site frames are listed from their own folder", () => {
+  assert.match(frameList([{ file: "a.jpg", time: 0 }], 1, "site-frames"), /^file 'site-frames\/a\.jpg'\nduration 1\.0000\nfile 'site-frames\/a\.jpg'\n$/);
+});
+
 test("frames the browser delivered out of order play in the order they were shown", () => {
   const list = frameList([{ file: "a.jpg", time: 10 }, { file: "c.jpg", time: 10.5 }, { file: "b.jpg", time: 10.25 }], 11);
   assert.deepEqual([...list.matchAll(/file 'frames\/(\w)\.jpg'/g)].map((match) => match[1]), ["a", "b", "c", "c"]);
