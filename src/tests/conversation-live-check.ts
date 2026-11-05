@@ -163,8 +163,8 @@ try {
   await expect(page.locator("#drawer-settings")).toBeHidden();
   await page.evaluate(() => (window as unknown as { startTestMicrophone: () => void }).startTestMicrophone());
   await expect.poll(async () => `${await page.getByRole("status").textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 30_000 })
-    .toMatch(/Standing by|Channel open|Understanding|Click anywhere/);
-  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#messages").click();
+    .toMatch(/Standing by|Channel open|Understanding|Channel paused/);
+  if (await page.getByRole("status").textContent() === "Channel paused") await page.locator("#channel-action").click();
   await expect(page.locator(".message[data-role=user]")).toContainText(/connection is ready/i, { timeout: 60_000 });
   await expect(page.locator(".message[data-role=assistant]")).toContainText(/connection is ready/i, { timeout: 90_000 });
   await expect(page.getByRole("status")).toHaveText("Transmitting", { timeout: 30_000 });

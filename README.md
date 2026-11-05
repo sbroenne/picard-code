@@ -129,6 +129,14 @@ a model.
 
 Existing users without speech set up see **Prepare the computer** instead,
 which runs the same download. Later starts use your saved speech choices.
+The channel opens automatically on later starts. **Opening channel** means
+the microphone is being prepared; allow access if your browser asks.
+If the browser pauses audio, the screen shows **Channel paused** instead.
+Choose **Resume listening**, the microphone button or **M** to resume
+listening, without switching the microphone off and back on. When the channel
+is closed, choose **Open channel** or press **M**.
+Once listening is available, the channel reads **Channel open**, and the
+centre of an empty log entry reads **Please specify your request.**
 If you choose [Azure speech](#azure-speech-setup) for both listening and
 speaking, setup prepares only the small local pause detector and its Python
 packages, not Nemotron or Kokoro. Speech choices are separate from the model

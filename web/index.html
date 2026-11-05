@@ -36,7 +36,7 @@
         <span id="tribute-status" class="visually-hidden" aria-live="polite"></span>
         <label class="rail-button blue rail-switch bridge-switch"><input id="bridge-toggle" type="checkbox" role="switch" aria-label="Bridge crew" checked /><b id="bridge-toggle-state" aria-hidden="true">On</b><span>Bridge crew</span></label>
         <span id="bridge-status" class="visually-hidden" aria-live="polite"></span>
-        <span class="rail-fill"><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Computer intelligence"><small>Computer intelligence</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a></span>
+        <span class="rail-fill"><span class="rail-label" aria-hidden="true">Ship’s systems</span><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Computer intelligence"><small>Computer intelligence</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a></span>
         <span id="rail-end" class="readout blue"><small>Stardate</small><b id="readout-stardate">—</b></span>
       </nav>
 
@@ -158,6 +158,7 @@
             <p id="voice-partial" class="voice-partial" aria-label="Words heard"></p>
           </div>
           <div id="console-actions" class="console-actions">
+            <button id="channel-action" class="pill orange" type="button" aria-keyshortcuts="M" hidden></button>
             <button id="stop-speaking" class="pill lilac" type="button" hidden>Stop speaking</button>
             <button id="stop" class="pill red" type="button" hidden>Belay that</button>
           </div>

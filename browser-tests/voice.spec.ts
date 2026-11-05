@@ -146,12 +146,43 @@ async function watchStatus(page: import("@playwright/test").Page) {
   return () => page.evaluate(() => (window as unknown as { consoleHeadings: string[] }).consoleHeadings);
 }
 
-/** Listening starts by itself; if the browser wants a click before playing sound, one click on the visible status text gives it. */
+async function blockAudioUntilInteraction(page: import("@playwright/test").Page) {
+  // Headless Chromium can allow autoplay despite policy flags and Playwright's own calls count as activation.
+  await page.addInitScript(() => {
+    let activated = false;
+    for (const name of ["pointerdown", "keydown"]) window.addEventListener(name, (event) => {
+      if (event.isTrusted) activated = true;
+    }, true);
+    const NativeAudioContext = window.AudioContext;
+    window.AudioContext = class extends NativeAudioContext {
+      private suspended: Promise<void>;
+      constructor(options?: AudioContextOptions) {
+        super(options);
+        this.suspended = this.suspend();
+        Object.assign(window, { pauseTestAudio: () => this.suspend() });
+      }
+      override get state() {
+        return activated ? super.state : "suspended";
+      }
+      override resume() {
+        return activated ? this.suspended.then(() => super.resume()) : Promise.resolve();
+      }
+    };
+  });
+  return () => page.evaluate(() => (window as unknown as { pauseTestAudio(): Promise<void> }).pauseTestAudio());
+}
+
+/** Check the paused state before unlocking sound, so setup cannot click through contradictory instructions. */
 async function startListening(page: import("@playwright/test").Page) {
-  await expect.poll(async () => `${await status(page).textContent()} ${await page.locator("#status-detail").textContent()}`, { timeout: 15000 })
-    .toMatch(/Standing by|Click anywhere/);
-  if ((await page.locator("#status-detail").textContent())?.includes("Click anywhere")) await page.locator("#status-detail").click();
+  await expect(status(page)).toHaveText(/^(Standing by|Channel paused)$/, { timeout: 15000 });
+  if (await status(page).textContent() === "Channel paused") {
+    await expect(page.locator("#voice-channel")).toHaveText("Channel paused");
+    await expect(page.locator("#status-detail")).toHaveText("Choose Resume listening, or press M.");
+    await expect(page.locator("#welcome-title")).toHaveText("Channel paused");
+    await page.locator("#channel-action").click();
+  }
   await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
+  await expect(page.locator("#voice-channel")).toHaveText("Channel open");
 }
 
 type Spoken = { text: string; speaker?: string }[];
@@ -239,6 +270,116 @@ async function holdSpeaking(page: import("@playwright/test").Page) {
 }
 
 test.setTimeout(60000);
+
+for (const keyboard of [false, true]) {
+  test(`console clarity: a browser-paused channel waits for ${keyboard ? "Space" : "a panel click"}, not microphone switching`, async ({ page }) => {
+    const microphone = await controlledMicrophone(page, [0.1]);
+    const pauseAudio = await blockAudioUntilInteraction(page);
+    await launch(page, "example");
+    await expect(page.locator("#channel-action")).toHaveText("Resume listening", { timeout: 15000 });
+    await expect(status(page)).toHaveText("Channel paused");
+    await expect(page.locator("#voice-channel")).toHaveText("Channel paused");
+    await expect(page.locator("#status-detail")).toHaveText("Choose Resume listening, or press M.");
+    await expect(page.getByRole("heading", { name: "Channel paused" })).toBeVisible();
+    if (keyboard) await page.keyboard.press("Space");
+    else await page.locator("#status-detail").click();
+    await expect(status(page)).toHaveText("Standing by");
+    await expect(page.locator("#voice-channel")).toHaveText("Channel open");
+    await expect(page.locator("#status-detail")).toHaveText("Say “Computer”, then your request.");
+    await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
+    await expect(page.locator("#channel-action")).toBeHidden();
+    await pauseAudio();
+    await page.evaluate(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("focus"));
+    });
+    await expect(status(page)).toHaveText("Channel paused");
+    await expect(page.locator("#voice-channel")).toHaveText("Channel paused");
+    await startListening(page);
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+    await expect(page.locator("#voice-channel")).toHaveText("Channel closed");
+    await expect(page.locator("#status-detail")).toHaveText("Choose Open channel, or press M.");
+    await expect(page.getByRole("heading", { name: "Channel closed" })).toBeVisible();
+    await expect(page.locator("#listen-toggle")).toHaveAttribute("data-channel", "closed");
+    await page.getByRole("button", { name: "Open channel", exact: true }).click();
+    await expect(page.locator("#voice-channel")).toHaveText("Channel open");
+    await expect(status(page)).not.toHaveText("Opening channel");
+    await page.reload();
+    await expect(status(page)).toHaveText("Channel paused", { timeout: 15000 });
+    await startListening(page);
+    await microphone.start();
+    await expect(page.locator(".message[data-role=user]")).toHaveCount(1, { timeout: 15000 });
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+  });
+}
+
+test("console clarity: an already open channel needs no click or microphone switching", async ({ page }) => {
+  const microphone = await controlledMicrophone(page, [0.1]);
+  await launch(page, "example");
+  await expect(page.locator("#voice-channel")).toHaveText("Channel open", { timeout: 15000 });
+  await expect(status(page)).toHaveText("Standing by");
+  await expect(page.locator("#status-detail")).toHaveText("Say “Computer”, then your request.");
+  await microphone.start();
+  await expect(page.locator(".message[data-role=user]")).toHaveCount(1, { timeout: 15000 });
+  await expect(page.locator("#voice-channel")).toHaveText("Channel open");
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+for (const action of ["Resume listening", "Resume listening with Space", "click", "M", "Enter", "Space"]) {
+  test(`console clarity: ${action} resumes a connected microphone without closing the channel first`, async ({ page }) => {
+    const headings = await watchStatus(page);
+    const microphone = await controlledMicrophone(page, [0.1]);
+    await blockAudioUntilInteraction(page);
+    await launch(page, "example");
+    await expect(status(page)).toHaveText("Channel paused", { timeout: 15000 });
+    await expect(page.locator("#listen-toggle")).toHaveAttribute("title", "Resume listening (M)");
+    await expect(page.locator("#listen-toggle")).toHaveAttribute("data-channel", "paused");
+    const before = (await headings()).length;
+    if (action === "Resume listening") await page.locator("#channel-action").click({ delay: 100 });
+    else if (action === "Resume listening with Space") {
+      await page.locator("#channel-action").focus();
+      await page.keyboard.press("Space", { delay: 100 });
+    } else if (action === "click") await page.locator("#listen-toggle").click({ delay: 100 });
+    else {
+      if (action !== "M") await page.locator("#listen-toggle").focus();
+      await page.keyboard.press(action);
+    }
+    await expect(page.locator("#voice-channel")).toHaveText("Channel open");
+    await expect(status(page)).toHaveText("Standing by");
+    expect((await headings()).slice(before)).not.toContain("Channel closed");
+    await microphone.start();
+    await expect(page.locator(".message[data-role=user]")).toHaveCount(1, { timeout: 15000 });
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+    await expect(page.locator("#voice-channel")).toHaveText("Channel closed");
+  });
+}
+
+test("console clarity: microphone permission does not ask for an unrelated sound-unlocking click", async ({ page }) => {
+  await blockAudioUntilInteraction(page);
+  await page.addInitScript(() => {
+    const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = async (constraints) => {
+      await new Promise<void>((done) => Object.assign(window, { releaseMicrophone: done }));
+      return original(constraints);
+    };
+  });
+  await launch(page);
+  await expect(status(page)).toHaveText("Opening channel");
+  await expect(page.locator("#voice-channel")).toHaveText("Opening channel");
+  await expect(page.locator("#status-detail")).toHaveText("Preparing the microphone. Allow access if your browser asks.");
+  await expect(page.locator("#listen-toggle")).toBeDisabled();
+  await expect(page.locator("#listen-toggle")).toHaveAttribute("data-channel", "opening");
+  // The centre of the screen must not invite a request the computer cannot hear yet.
+  await expect(page.getByRole("heading", { name: "Opening channel" })).toBeVisible();
+  await expect(page.locator("#channel-action")).toBeHidden();
+  await page.evaluate(() => (window as unknown as { releaseMicrophone(): void }).releaseMicrophone());
+  await expect(status(page)).toHaveText("Channel paused", { timeout: 15000 });
+  await expect(page.getByRole("heading", { name: "Channel paused" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume listening", exact: true }).and(page.locator("#channel-action")).click();
+  await expect(page.locator("#voice-channel")).toHaveText("Channel open");
+  await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
 
 test("console clarity: startup waits for permission and the open channel stays stable through speech and recognition", async ({ page }) => {
   const headings = await watchStatus(page);
@@ -974,27 +1115,7 @@ test("the arrival call waits for a click and works before speech is set up", asy
   ] });
   try {
     const page = await browser.newPage();
-    // Headless Chromium can allow autoplay despite its policy flags; hold audio until a real click.
-    await page.addInitScript(() => {
-      // Playwright's own page calls count as user activation, so wait for a real click instead.
-      let clicked = false;
-      window.addEventListener("pointerdown", (event) => { if (event.isTrusted) clicked = true; }, true);
-      const NativeAudioContext = window.AudioContext;
-      window.AudioContext = class extends NativeAudioContext {
-        private suspended: Promise<void>;
-        constructor(options?: AudioContextOptions) {
-          super(options);
-          this.suspended = this.suspend();
-        }
-        // The suspend above finishes later, so report the context as suspended until a real click.
-        override get state() {
-          return clicked ? super.state : "suspended";
-        }
-        override resume() {
-          return clicked ? this.suspended.then(() => super.resume()) : Promise.resolve();
-        }
-      };
-    });
+    await blockAudioUntilInteraction(page);
     await launch(page, "no-speech");
     const played = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds);
     expect(await played()).toEqual([]);
@@ -1125,7 +1246,7 @@ test("listening stays on; “Computer” starts a task, follow-ups need no “Co
 
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   await expect(status(page)).toHaveText("Channel closed");
-  await expect(page.locator("#status-detail")).toHaveText("Click the microphone button or press M to switch it on.");
+  await expect(page.locator("#status-detail")).toHaveText("Choose Open channel, or press M.");
   await page.getByRole("button", { name: "Switch microphone on" }).click();
   await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   // The M key switches it off and on too.

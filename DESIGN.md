@@ -99,8 +99,20 @@ Connection readiness means OpenCode is connected and the confirmed model is avai
 Keep microphone availability separate from computer activity. The small channel
 readout beside the microphone shows Opening channel until startup finishes,
 then Channel open through silence and detected speech. Channel closed means
-the microphone is off; Channel paused explains an explicit media pause. Browser
-sound restrictions show Click to open channel, not a false ready state.
+the microphone is off. Channel paused means browser audio is paused or a
+video is playing. During microphone preparation, show the browser-permission
+instruction, not a request for an unrelated click. If browser audio is paused,
+the console shows a Resume listening button, the microphone button has the
+same name, and the supporting line names that button or M. That action resumes
+audio without switching the connected microphone off; only a later action
+closes the channel. A closed channel shows an Open channel button. The
+microphone button has a distinct look for open, paused, opening and closed;
+opening is neutral, not a red failure. The centre of an empty log entry
+follows the channel: it invites a request only while the channel is open,
+otherwise it shows Opening channel, Channel paused or Channel closed. The
+console's supporting line uses normal capitals so instructions stay readable.
+In the side rail, a Ship’s systems label separates the settings readouts from
+the navigation tiles and switches.
 
 The large heading normally follows Standing by, Accessing, Transmitting,
 then Standing by. Detected speech does not change it. Final recognition uses
@@ -122,7 +134,8 @@ screen-reader announcements on redraw.
 The microphone switches on when speech is ready and an available model has
 been confirmed, subject to browser permission
 and sound restrictions. "Computer" starts a task; follow-ups within it need no
-prefix. Standing by still listens; the microphone button or M key stops capture.
+prefix. Standing by still listens; the microphone button or M key stops capture
+once the channel is open.
 Only an explicit spoken request or the New log entry tile starts a new entry.
 Microphone changes, standing by and page refreshes do not start a new entry.
 Requests heard during work or a pending decision are not sent. Live understood
