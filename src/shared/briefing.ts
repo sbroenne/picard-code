@@ -2,7 +2,8 @@ import type { ChatMessage } from "./types.js";
 import { crewMember, type CrewID } from "./crew.js";
 import { replyFailed, spokenReply } from "./speech.js";
 
-export interface SpokenPart { text: string; speaker?: CrewID }
+/** `message` is the ID of the reply this part speaks, so it can appear on screen when its voice starts. */
+export interface SpokenPart { text: string; speaker?: CrewID; message?: string }
 
 function failureReason(message: ChatMessage) {
   const parts = message.parts.filter((part) => part.type === "tool" && part.status === "error");
@@ -25,21 +26,21 @@ function failureNotice(reports: ChatMessage[]) {
 export function spokenParts(reply: ChatMessage, answer: ChatMessage, reports: ChatMessage[], options: { failed?: ChatMessage[]; repeated?: boolean } = {}): SpokenPart[] {
   const failed = options.failed ?? [];
   if (answer !== reply) {
-    const part = { text: spokenReply(answer), speaker: answer.speaker };
+    const part = { text: spokenReply(answer), speaker: answer.speaker, message: answer.id };
     return failed.length ? [part, { text: failureNotice(failed) }] : [part];
   }
   const findings = reports
     .map((report) => {
       const lead = spokenReply(report);
       if (/^(?:aye|understood)(?:,?\s+(?:sir|captain))?[.!]?$/i.test(lead)) return undefined;
-      return { text: lead, speaker: report.speaker };
+      return { text: lead, speaker: report.speaker, message: report.id };
     })
     .filter((part) => part !== undefined)
     // The speech service takes at most eight parts; the computer's close is always the last.
     .slice(-7);
   const close = failed.length && (options.repeated || reply.background)
     ? { text: failureNotice(failed) }
-    : { text: reply.outcome && reply.outcome !== "succeeded" && !replyFailed(reply) ? failureReason(reply) : spokenReply(reply), speaker: reply.speaker };
+    : { text: reply.outcome && reply.outcome !== "succeeded" && !replyFailed(reply) ? failureReason(reply) : spokenReply(reply), speaker: reply.speaker, message: reply.id };
   const receipt = spokenReply(reply) === "The reports are on screen.";
   if (findings.length && !reply.speaker && (options.repeated || receipt) && !failed.length && !replyFailed(reply) && (!reply.outcome || reply.outcome === "succeeded")) return findings;
   return [...findings, close];

@@ -146,19 +146,26 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
       const signal = speaking.signal;
       send({ type: "state", phase: "thinking" });
       let started = false;
-      const play = (bytes: Uint8Array) => {
+      let announced = -1;
+      // `index` marks the speaker's own words, so the browser can show each part as its voice starts.
+      const play = (bytes: Uint8Array, index?: number) => {
         if (socket.bufferedAmount > 1_000_000) throw new Error("Spoken playback fell behind. Speaking was stopped; the written answer remains on screen.");
         if (!started) {
           started = true;
           send({ type: "state", phase: "speaking" });
           send({ type: "audio-start", rate: 24000, id });
         }
+        if (index !== undefined && index !== announced) {
+          announced = index;
+          send({ type: "part-start", id, index });
+        }
         socket.send(bytes, { binary: true });
       };
       let previous: SpokenPart | undefined;
       let part: SpokenPart | undefined;
       try {
-        for (part of parts) {
+        for (const [index, next] of parts.entries()) {
+          part = next;
           // The voice is chosen before any audio, so a missing officer voice never sounds like the computer.
           const voice = part.speaker ? chosen.officerVoice?.(part.speaker) : undefined;
           if (part.speaker && !voice) throw new Error("This speaking service has no officer voices.");
@@ -172,7 +179,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
               if (speechEpoch !== current || socket.readyState !== WebSocket.OPEN) return;
               const joined = Buffer.concat([remainder, bytes]);
               const end = joined.length - joined.length % 2;
-              if (end) { produced = true; play(joined.subarray(0, end)); }
+              if (end) { produced = true; play(joined.subarray(0, end), index); }
               remainder = Buffer.from(joined.subarray(end));
             }
             if (speechEpoch !== current) return;

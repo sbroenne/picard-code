@@ -39,6 +39,10 @@ export class VoiceConversation {
   private receivingAudio = false;
   private audioStarted = false;
   private playbackTimer?: ReturnType<typeof setTimeout>;
+  // The parts of the reply being spoken, and the one whose audio arrives next.
+  private parts: SpokenPart[] = [];
+  private nextPart?: SpokenPart;
+  private partTimers = new Set<ReturnType<typeof setTimeout>>();
   private utterance = new Utterance();
   private detector?: SpeechDetector;
   private frames = new SpeechFrames();
@@ -75,6 +79,8 @@ export class VoiceConversation {
     transcript(text: string, startedAt: number): Promise<void>;
     canListen(): boolean;
     beforeSpeak?(): void;
+    /** A part of the reply passed to `speak` is now audible. */
+    partStarted?(part: SpokenPart): void;
   }) {}
 
   /** True while the voice connection is open, so replies can be spoken. */
@@ -103,6 +109,9 @@ export class VoiceConversation {
   }
   private clearAudio() {
     clearTimeout(this.playbackTimer);
+    for (const timer of this.partTimers) clearTimeout(timer);
+    this.partTimers.clear();
+    this.nextPart = undefined;
     this.receivingAudio = false;
     this.audioStarted = false;
     this.stopCue();
@@ -431,6 +440,9 @@ export class VoiceConversation {
             if (data.rate !== 24000) throw new Error("The speaking service returned an unsupported audio format.");
             this.clearAudio();
             this.receivingAudio = true;
+          } else if (data.type === "part-start") {
+            if (!this.speechPending || data.id !== this.speechRevision || !this.receivingAudio) return;
+            this.nextPart = this.parts[data.index];
           } else if (data.type === "audio-end") {
             if (!this.speechPending || data.id !== this.speechRevision) return;
             this.playbackTimer = setTimeout(() => {
@@ -469,6 +481,15 @@ export class VoiceConversation {
     source.connect(this.context.destination);
     this.nextAudio = Math.max(this.nextAudio, this.context.currentTime + 0.05);
     source.start(this.nextAudio);
+    const part = this.nextPart;
+    if (part) {
+      this.nextPart = undefined;
+      const timer = setTimeout(() => {
+        this.partTimers.delete(timer);
+        this.hooks.partStarted?.(part);
+      }, Math.max(0, this.nextAudio - this.context.currentTime) * 1000);
+      this.partTimers.add(timer);
+    }
     this.nextAudio += audio.duration;
     this.sources.add(source);
     source.onended = () => { this.sources.delete(source); source.disconnect(); };
@@ -536,6 +557,7 @@ export class VoiceConversation {
     this.clearAudio();
     this.followOn = followOn;
     this.speechPending = true;
+    this.parts = parts;
     this.spoken = text;
     // Speaking replaces any utterance still being understood; the service drops it.
     this.handling = false;
@@ -549,7 +571,8 @@ export class VoiceConversation {
     const say = () => {
       if (this.speechPending && id === this.speechRevision && this.socket?.readyState === WebSocket.OPEN) {
         const speed = this.speed === 1 ? {} : { speed: this.speed };
-        this.command(parts.length === 1 && !parts[0]!.speaker ? { type: "speak", text, id, ...speed } : { type: "speak", parts, id, ...speed });
+        this.command(parts.length === 1 && !parts[0]!.speaker ? { type: "speak", text, id, ...speed }
+          : { type: "speak", parts: parts.map((part) => ({ text: part.text, ...part.speaker ? { speaker: part.speaker } : {} })), id, ...speed });
       }
     };
     if (failed) void this.sound("request-failed").then(say);
