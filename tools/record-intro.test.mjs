@@ -12,7 +12,7 @@ import { recordSite, SITE_SCROLL } from "./record-site.mjs";
 import { addressedOfficers } from "../dist/shared/crew.js";
 import { TRIBUTE_ENTRIES } from "../dist/shared/tribute-data.js";
 import { TributeCycle } from "../dist/shared/tribute.js";
-import { CAPTAINS_LOG, ORDERS, TRIBUTE_FACT, captainVoice, checkTribute, tightenPauses, chapterList, demoPermissions, readSrt, screenAlert, sentEvent, srt, srtTime, tributeCue } from "./intro-episode.mjs";
+import { CAPTAINS_LOG, ORDERS, TRIBUTE_FACT, captainVoice, checkTribute, tightenPauses, chapterList, demoPermissions, screenAlert, sentEvent, srt, srtTime, tributeCue } from "./intro-episode.mjs";
 
 const execute = promisify(execFile);
 
@@ -147,9 +147,6 @@ test("captions are valid SRT and reject empty or overlapping lines", () => {
     "1\n00:00:00,000 --> 00:00:01,500\nComputer.\n\n2\n00:00:01,500 --> 00:00:03,000\nGo ahead.\n");
   assert.throws(() => srt([{ start: 2, end: 2, text: "x" }]), /no duration/);
   assert.throws(() => srt([{ start: 0, end: 3, text: "a" }, { start: 2, end: 4, text: "b" }]), /overlaps/);
-  const cues = [{ start: 0.8, end: 6.696, text: "Picard: Captain's log,\nstardate." }, { start: 3723.457, end: 3725, text: "Engage." }];
-  assert.deepEqual(readSrt(srt(cues)), cues);
-  assert.throws(() => readSrt("1\n0:00:01 --> 00:00:02,000\nx\n"), /not an SRT time stamp/);
 });
 
 test("the browser records generated input and actual output without playing the input through the speakers", { timeout: 20000 }, async () => {

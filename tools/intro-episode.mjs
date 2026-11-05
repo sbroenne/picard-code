@@ -132,19 +132,5 @@ export function srt(cues) {
   }).join("\n");
 }
 
-/** Reads SRT written by srt() back into cues, in seconds. */
-export function readSrt(text) {
-  const seconds = (stamp) => {
-    const [, h, m, s, ms] = stamp.match(/^(\d+):(\d\d):(\d\d),(\d{3})$/) ?? [];
-    if (h === undefined) throw new Error(`"${stamp}" is not an SRT time stamp.`);
-    return Number(h) * 3600 + Number(m) * 60 + Number(s) + Number(ms) / 1000;
-  };
-  return text.trim().split(/\n\n+/).map((block) => {
-    const [, times, ...lines] = block.split("\n");
-    const [start, end] = times.split(" --> ");
-    return { start: seconds(start), end: seconds(end), text: lines.join("\n") };
-  });
-}
-
 /** The side-panel link and drawer for the Captain's log, as the app's own browser checks use them. */
 export const CAPTAINS_LOG = { link: 'a[data-drawer-link="records"]', panel: "#drawer-records", entries: "#conversations > *" };
