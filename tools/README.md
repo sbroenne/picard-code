@@ -1,4 +1,112 @@
-# Voice matching
+# Record the actual app
+
+The YouTube intro is a short TNG episode: a tribute to Sir Patrick Stewart
+and Captain Jean-Luc Picard, built around a real recording of Picard Code at
+work. The app footage uses a real browser, real local listening and speaking,
+and a real OpenCode model. Nothing is injected: replies, crew reports, file
+changes and check results are what actually happened. The Captain's prepared
+orders use the stock Kokoro Daniel voice through the browser microphone path.
+This is not an imitation of an actor.
+
+You need ffmpeg, the installed Playwright browser and working sound output on
+the computer (the browser records the app's real audio). First prepare local
+Nemotron, Smart Turn and Kokoro using the normal setup. Do not change the
+owner's saved choices to make a recording. Check the current models before
+choosing one:
+
+```sh
+npm run build
+npm run opencode -- models
+node --test tools/record-intro.test.mjs video/edit.test.mjs
+node tools/record-intro.mjs --model github-copilot/gpt-6.1-sol
+```
+
+The orders live in [`intro-episode.mjs`](intro-episode.mjs): a bare
+"Computer.", a briefing that asks only Riker and Data for one short sentence
+each, "Make it so, Number One." and "Mr Data, please run the tests and report
+in one sentence." The crew builds a small tribute site with a stardate clock
+in a fresh project with separate settings under the ignored
+`video/out/episode-*` folder. Approvals are given before the take, in that
+project's own `opencode.json`, so no approval request interrupts the episode.
+The take stops at the first approval, alert or warning on screen and reports
+it rather than saving a recording that hides it; grant what is needed in
+`demoPermissions` or fix the cause, then record again. It also stops when
+Nemotron did not hear an order word for word. Kokoro's pauses inside the
+Captain's orders are shortened, so the app does not end his turn halfway.
+The recorder fixes the app's random draw, as the browser tests do, so the
+app's own Personnel file record (the Captain's Earl Grey, chosen in
+`TRIBUTE_FACT`) appears under Data's report; the take stops if it appears
+early, late or with another fact. The edit holds that record for five seconds
+while the Captain explains it: "And now and then, the computer opens my
+personnel file." Then the recorder opens the finished site and scrolls slowly
+to its bottom, so the site shot moves; the edit names it "Built by voice ·
+tribute site" while the Captain says "Built by voice. Not one line typed."
+To record only the site again for an existing take, run
+`node tools/record-site.mjs video/out/episode-…`. After the work, the take
+opens the Captain's log so the finished entry can be shown. A take takes five minutes or more. Do not use this tool on a private
+project.
+
+## Build and render the episode
+
+The episode is a [HyperFrames](https://github.com/heygen-com/hyperframes)
+project in [`video/`](../video/), pinned to version 0.9.15. Its scenes are
+original LCARS compositions in `video/compositions/`: the opening dedication and
+hook, title, officer name plates, caption bars and closing board.
+`video/build.mjs` puts them around the recorded footage:
+
+```sh
+node video/build.mjs video/out/episode-EXAMPLE --sounds /path/to/sound-collection
+cd video && npm run check
+npx -y hyperframes@0.9.15 snapshot --at 5,20,40,80
+npm run render
+```
+
+The first build times every spoken sentence with Kokoro
+(`video/measure.py`, a few minutes) and writes a draft `edit.json` into the
+episode folder. It keeps the Captain's orders, Riker's and Data's replies
+whole (a reply is never cut inside), and two short silent glimpses of the
+crew at work; everything else is left out. A reply longer than about
+sixteen seconds, a missing reply, or a whole cut over 100 seconds means the
+take is recorded again. Work captions stay short (30 characters at most) so
+they end before the app's own title. Review the draft against the frames and
+the rules in [AGENTS.md](../AGENTS.md), not only the storyboard; later builds
+reuse it, so delete it to measure again. Captions always carry the exact
+words that were spoken, worked out with the app's own speech rules.
+
+`--sounds` is the folder with the owner's own collection of TNG sounds and
+music (the `sounds` list in `edit.json` names the files used). The build
+copies the chosen files, the app's downloaded computer sounds and the spoken
+narration into the ignored `video/assets/` folder. Never commit them, and do
+not use recordings of actors' voices. `video/index.html` is generated; edit
+`edit.json` instead.
+
+The episode folder's `youtube/` folder gets the chapter list, SRT captions
+and a plain transcript for YouTube's automatic caption timing.
+
+## Make the YouTube pack
+
+Render the episode to `picard-code-episode.mp4` in the episode folder. The
+thumbnail is drawn over the episode's real console screenshot
+(`briefing.png`), with the tribute in the conversation area and what the app
+does in the status area.
+
+```sh
+cd video && npx -y hyperframes@0.9.15 render -o ../video/out/episode-EXAMPLE/picard-code-episode.mp4 --quality delivery --video-frame-format png --keyframe-interval 2 --no-best-effort
+cd .. && node video/youtube.mjs video/out/episode-EXAMPLE
+```
+
+It writes into `youtube/`: the upload file with its sound brought to
+YouTube's level (about −14 LUFS; the picture is copied unchanged), a
+1280×720 thumbnail (`thumbnail.jpg`, and `thumbnail.png` for
+`site/assets/video.png`), the description with chapters, German, French and Spanish
+descriptions, and `upload.txt` with titles, tags, settings and the pinned
+comment. The words come from [`video/youtube.json`](../video/youtube.json).
+Review the whole video, thumbnail, sound levels, words and caption
+timing before publication.
+Keep all footage, audio, transcripts and local settings out of git.
+Publishing on YouTube needs the owner's explicit approval.
+
+## Voice matching
 
 The tools in [`voice-match/`](voice-match/) helped choose the fixed speaking
 voices for the computer and six bridge officers. They compare ready-made

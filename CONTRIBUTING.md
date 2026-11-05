@@ -213,13 +213,16 @@ analytics scripts, or private project content to the website.
 
 The normal browser suite checks the site at desktop and phone widths under
 GitHub Pages' project path. The app itself remains desktop-only.
-After a build, regenerate the interface screenshot on macOS/Linux with
-`PICARD_SITE_CAPTURE=1 npx playwright test browser-tests/voice.spec.ts --grep "everyday answer"`.
+After a build, regenerate the three interface screenshots on macOS/Linux with
+`PICARD_SITE_CAPTURE=1 npx playwright test browser-tests/voice.spec.ts --grep "everyday answer|website example" --workers=1`.
 On Windows, set `$env:PICARD_SITE_CAPTURE = "1"` in PowerShell and run
-`npx.cmd playwright test browser-tests/voice.spec.ts --grep "everyday answer"`,
+`npx.cmd playwright test browser-tests/voice.spec.ts --grep "everyday answer|website example" --workers=1`,
 then remove the environment variable with
 `Remove-Item Env:PICARD_SITE_CAPTURE`.
-Review the image before committing it.
+The captures show a computer answer, a bridge-crew exchange and Captain's log.
+They use labeled test stand-ins, not real model results, and remove the local
+project name. Keep the staged-example captions and review all three images
+before committing them.
 
 Pages deploys only `site/`, after each change to it reaches `main`.
 

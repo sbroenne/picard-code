@@ -1,0 +1,11 @@
+{
+  "name": "picard-code-intro",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "npx --yes hyperframes@0.9.15 preview",
+    "check": "npx --yes hyperframes@0.9.15 check",
+    "render": "npx --yes hyperframes@0.9.15 render"
+  }
+}

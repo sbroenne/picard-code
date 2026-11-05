@@ -17,4 +17,6 @@ __pycache__/
 video/assets/
 video/out/
 video/.hyperframes/
+video/index.html
+video/short-*.html
 .DS_Store

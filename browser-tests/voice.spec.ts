@@ -376,6 +376,19 @@ function sounds(page: import("@playwright/test").Page) {
   return page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => !sound.startsWith("startup:")));
 }
 
+async function captureSiteScreen(page: import("@playwright/test").Page, name: string) {
+  await page.locator("#readout-project").evaluate((node) => {
+    node.textContent = "Example project";
+    node.removeAttribute("title");
+  });
+  await expect(page.locator("#readout-speech")).toHaveText("Nemotron · Kokoro");
+  await expect(page.locator("#readout-model")).toHaveText("Copilot test model");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await mkdir("video/assets", { recursive: true });
+  await page.screenshot({ path: `site/assets/${name}.png`, animations: "disabled" });
+  await copyFile(`site/assets/${name}.png`, `video/assets/${name}.png`);
+}
+
 async function soundNames(page: import("@playwright/test").Page) {
   return (await sounds(page)).map((sound) => sound.split(":")[0]);
 }
@@ -2481,23 +2494,26 @@ test("an everyday answer and its question are spoken while the exact code stays 
   await expect(status(page)).not.toHaveText("Transmitting", { timeout: 15000 });
   await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   await page.screenshot({ path: info.outputPath("example-answer.png"), fullPage: true });
+  if (process.env.PICARD_SITE_CAPTURE === "1") {
+    await captureSiteScreen(page, "answer");
+    await writeFile("video/assets/answer-spoken.json", `${JSON.stringify(spoken, null, 2)}\n`);
+  }
 });
 
 test("the website example: Data and Riker answer, then a Picard personnel file appears", async ({ page }, info) => {
   await page.addInitScript(() => { Math.random = () => 0; });
   const spoken = spokenText(page);
   const capture = process.env.PICARD_SITE_CAPTURE === "1";
-  // The website video uses the real interface; the local project name is removed.
-  const hideProject = () => page.locator("#readout-project").evaluate((node) => {
-    node.textContent = "Example project";
-    node.removeAttribute("title");
-  });
   await launch(page, "showcase");
   await startListening(page);
   const speakers = page.locator(".message[data-role=assistant] .message-header strong");
   await expect(speakers).toHaveText(["Data"], { timeout: 30000 });
   await expect(page.locator(".message[data-role=assistant]").first()).toContainText("I have not changed any files.", { timeout: 15000 });
-  if (capture) { await hideProject(); await page.screenshot({ path: "video/assets/data.png" }); }
+  if (capture) {
+    await mkdir("video/assets", { recursive: true });
+    await page.locator("#readout-project").evaluate((node) => { node.textContent = "Example project"; node.removeAttribute("title"); });
+    await page.screenshot({ path: "video/assets/data.png", animations: "disabled" });
+  }
   await expect(speakers).toHaveText(["Data", "Riker"], { timeout: 30000 });
   const fact = page.locator("#messages > .tribute-fact[data-subject=picard]");
   await expect(fact).toHaveCount(1, { timeout: 15000 });
@@ -2506,10 +2522,12 @@ test("the website example: Data and Riker answer, then a Picard personnel file a
   await page.screenshot({ path: info.outputPath("site-example.png"), fullPage: true });
   expect(spoken).toHaveLength(2);
   if (capture) {
-    await hideProject();
-    await page.screenshot({ path: "site/assets/console.png", fullPage: true });
-    await copyFile("site/assets/console.png", "video/assets/console.png");
+    await captureSiteScreen(page, "console");
     await writeFile("video/assets/spoken.json", `${JSON.stringify(spoken, null, 2)}\n`);
+    await page.getByRole("link", { name: "Captain’s log", exact: true }).click();
+    await expect(page.locator("#drawer-records")).toBeVisible();
+    await expect(page.locator("#conversations button").first()).toBeVisible();
+    await captureSiteScreen(page, "captains-log");
   }
 });
 

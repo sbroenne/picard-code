@@ -80,30 +80,47 @@ coding agents never do.
 ## The launch video and YouTube channel
 
 The short video is on the [Picard Code channel](https://www.youtube.com/@PicardCode)
-at <https://youtu.be/_OKnpwS9dOI>, linked from the website and README.
+at <https://youtu.be/KP6VPTm2a6E>, linked from the website and README.
 
-The video is never committed: it contains the TrekCore startup call. Its
-source is `video/index.html`, a [HyperFrames](https://github.com/heygen-com/hyperframes)
-composition; `video/assets/` and `video/out/` are ignored by git. To make it
-again (needs ffmpeg and `npm run setup:speech`):
-
-1. Capture the screens and spoken text from the labeled test stand-in:
-   `npm run build`, then
-   `PICARD_SITE_CAPTURE=1 npx playwright test browser-tests/voice.spec.ts --grep "website example|stewart facts have LCARS" --project desktop`.
-2. Make the voice lines with the local Kokoro voices (stock voices only, never
-   an imitation of a real actor):
-   `~/.picard-code/voice/bin/python3 video/speak.py`.
-3. From inside `video/`, run `npx hyperframes@0.8.226 lint`, then
-   `npx hyperframes@0.8.226 render --output out/picard-code.mp4`.
+The new intro is a short TNG episode, first of all a tribute to Sir Patrick
+Stewart and Captain Jean-Luc Picard. It opens on "Picard Code: a tribute to"
+them both, then says why Picard Code exists:
+Captain Picard never typed. Around that is a real recording of the app: the
+Captain hears one sentence each from Riker and Data, says "Make it so", and
+the crew builds a small tribute site; Data runs the tests and reports, the
+app shows one of its Personnel file records while the Captain explains it,
+the finished site scrolls by as the Captain says it was built by voice, and the finished entry appears
+in the Captain's log. Approvals are given before
+recording, so none appear on screen. Replies, edits and check results come
+from real OpenCode and speech services; only waiting is cut, and the whole
+episode stays under 100 seconds. Follow
+[Record the actual app](../tools/README.md#record-the-actual-app) to record,
+build and render it with [HyperFrames](https://github.com/heygen-com/hyperframes)
+0.9.15 in `video/`. The owner's TNG sound collection, the downloaded
+computer sounds, footage and renders stay in ignored folders; credit the
+sounds and music in the video description.
 
 YouTube needs a 1280×720 thumbnail (also kept as `site/assets/video.png`, the
-clickable video picture in the README and on the website), an 800×800 channel picture (the logo
+clickable video picture on the website), an 800×800 channel picture (the logo
 from `site/assets/mark.svg`) and a 2560×1440 channel banner. Keep the banner's
 words inside the centre 1546×423, which is all that phones show. The video description lists what the app uses,
-says the voices are stock Kokoro voices and the startup sound comes from
-TrekCore with permission, and ends with the same unofficial-tribute and
-trademark lines as the website. An end screen needs a second video or a
-playlist, so add one when there is more than one video.
+explains the prepared project, generated requests, real replies and edits,
+and says the voices are stock Kokoro voices,
+and ends with the same unofficial-tribute and
+trademark lines as the website. The end board shows the real console beside
+the Subscribe circle; there is no Watch next video until the channel has a
+second one.
+
+[Make the YouTube pack](../tools/README.md#make-the-youtube-pack) prepares
+the upload file, thumbnail, captions, chapters, translated
+descriptions and the upload settings for the owner to review. The episode is
+published straight away, not as a Premiere.
+
+The new video needs a new YouTube upload. Publication needs the owner's
+explicit approval. Keep the existing public URL until the new video is
+published, then update the website, README, this guide and the website check
+with its actual URL. GitHub Pages deploys the website after its changes merge
+to `main`; generating or committing media locally does not update the live site.
 
 ## Older checkouts
 
