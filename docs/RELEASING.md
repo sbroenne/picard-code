@@ -82,55 +82,17 @@ coding agents never do.
 The short video is on the [Picard Code channel](https://www.youtube.com/@PicardCode)
 at <https://youtu.be/_OKnpwS9dOI>, linked from the website and README.
 
-The refreshed intro leaves first-run setup for a separate guide. It records
-the actual app: Data investigates an original release-board example without
-editing, then Geordi repairs it and runs the original checks. The browser
-shows the real corrected result. Requests use a prepared stock Kokoro voice
-through the real browser microphone path, not a physical microphone. Replies,
-file changes, and check results come from real OpenCode and speech services.
-Waiting is visibly shortened; the short edit excerpts Data's report.
-It contains no downloaded show sounds.
-
-Follow [Record the actual app](../tools/README.md#record-the-actual-app)
-to record and render it with separate demo settings, without changing the
-owner's saved choices. `tools/record-intro.mjs` captures the original project,
-timestamps, actual browser playback, and check evidence.
-`tools/render-intro.mjs` makes the edit, captions, and proposed YouTube wording.
-Generated media stays in the ignored `video/out/real-intro-*` folder.
-Review the entire video and caption alignment before uploading.
-
-The earlier still-image composition remains in `video/index.html`, a
-[HyperFrames](https://github.com/heygen-com/hyperframes) composition;
-`video/assets/` and `video/out/` are ignored by git. Generated media is
-not committed, including any older renders containing the TrekCore startup
-call. To reproduce that earlier composition (needs ffmpeg and an existing local Kokoro setup;
-do not change saved speech choices to render it):
-
-1. Capture the screens and spoken text from the labeled test stand-in:
-   `npm run build`, then
-   `PICARD_SITE_CAPTURE=1 npx playwright test browser-tests/voice.spec.ts --grep "everyday answer|website example" --workers=1`.
-2. Make the voice lines with the local Kokoro voices (stock voices only, never
-   an imitation of a real actor):
-   `~/.picard-code/voice/bin/python3 video/speak.py`.
-3. Run `node --test video/captions.test.mjs`, then `node video/captions.mjs`.
-   This checks the measured clip lengths against the composition and prepares
-   SRT and top-positioned VTT captions in `video/out/`, plus a captioned
-   composition in `video/assets/captioned.html`. If the words or
-   voices change, update the composition's clip starts and durations from
-   `video/assets/lengths.json` first. Timings within each clip are estimated:
-   listen and adjust the caption cues before publishing.
-4. From inside `video/`, run `npx hyperframes@0.8.226 lint`, then
-   `npx hyperframes@0.8.226 render --output out/picard-code.mp4 --fps 24 --workers 2 --no-best-effort`.
-   Review frames with
-   `npx hyperframes@0.8.226 snapshot --at 5,20,29,41,57,65,74,85 --output out/review`.
-   The plain video has no burned-in captions. For a version with captions
-   above the interface, run
-   `npx hyperframes@0.8.226 render --composition assets/captioned.html --output out/picard-code-captioned.mp4 --fps 24 --workers 2 --no-best-effort`.
-5. Render the thumbnail from inside `video/` with
-   `npx hyperframes@0.8.226 render --composition thumbnail.html --output out/thumbnail.mp4 --fps 1 --workers 1`.
-   Extract its image with
-   `ffmpeg -i out/thumbnail.mp4 -frames:v 1 -update 1 -y ../site/assets/video.png`
-   and review it.
+The new intro is a short TNG episode, first of all a tribute to Sir Patrick
+Stewart and Captain Jean-Luc Picard. Around it is a real recording of the
+app: the Captain asks the computer about himself, hears a briefing from
+Riker, Geordi, Data and Crusher, and has the crew build a small tribute site
+while he approves each command. Replies, edits and check results come from
+real OpenCode and speech services; only waiting is cut. Follow
+[Record the actual app](../tools/README.md#record-the-actual-app) to record,
+build and render it with [HyperFrames](https://github.com/heygen-com/hyperframes)
+0.9.15 in `video/`. The owner's TNG sound collection, the downloaded
+computer sounds, footage and renders stay in ignored folders; credit the
+sounds and music in the video description.
 
 YouTube needs a 1280×720 thumbnail (also kept as `site/assets/video.png`, the
 clickable video picture on the website), an 800×800 channel picture (the logo
@@ -140,7 +102,12 @@ explains the prepared project, generated requests, real replies and edits,
 and says the voices are stock Kokoro voices,
 and ends with the same unofficial-tribute and
 trademark lines as the website. An end screen needs a second video or a
-playlist, so add one when there is more than one video.
+playlist; the episode's Shorts serve as the Watch next video.
+
+[Make the YouTube pack](../tools/README.md#make-the-youtube-pack) prepares
+the upload file, thumbnails, Shorts, captions, chapters, translated
+descriptions and the upload settings for the owner to review. The episode is
+published straight away, not as a Premiere.
 
 The new video needs a new YouTube upload. Publication needs the owner's
 explicit approval. Keep the existing public URL until the new video is

@@ -3,30 +3,101 @@ import test from "node:test";
 import { createServer } from "node:http";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium } from "@playwright/test";
 import { installRecording } from "./record-intro-browser.mjs";
+import { ORDERS, allowWaitingCommand, chapterList, demoPermissions, readSrt, sentEvent, srt, srtTime } from "./intro-episode.mjs";
 
 const execute = promisify(execFile);
-const childEnvironment = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== "NODE_TEST_CONTEXT"));
 
-test("the example exposes the real bug and checks mixed, all-passed and empty results", { timeout: 20000 }, async () => {
-  const folder = await mkdtemp(join(tmpdir(), "picard-intro-tests-"));
+test("the episode orders open with a bare call and keep tribute questions brief", () => {
+  assert.equal(ORDERS[0].say, "Computer.");
+  assert.equal(ORDERS[0].heard, undefined);
+  for (const order of ORDERS.slice(1)) assert.ok(order.heard instanceof RegExp, order.id);
+  assert.match(ORDERS.find((order) => order.id === "picard").say, /^Briefly,/);
+  assert.match(ORDERS.find((order) => order.id === "stewart").say, /^In brief,/);
+  assert.equal(new Set(ORDERS.map((order) => order.id)).size, ORDERS.length);
+});
+
+test("the briefing order names the four officers in one spoken phrase", () => {
+  const options = ORDERS.find((order) => order.id === "options").say;
+  for (const officer of ["Number One", "Geordi", "Data", "Doctor Crusher"]) assert.ok(options.includes(officer), officer);
+  assert.equal(options.match(/[.?!]/g).length, 1, "Smart Turn ends the turn at a pause after a full stop.");
+});
+
+test("Riker proposes how he would organise the build, and only \"Make it so\" starts it", () => {
+  const organise = ORDERS.find((order) => order.id === "organise").say;
+  assert.match(organise, /^Number One, .*organise the crew to build it\?$/, "A question asks for a proposal, so OpenCode need not ask whether to plan or build.");
+  assert.equal(ORDERS.at(-1).say, "Make it so.");
+});
+
+test("the demo project asks before every command and changes nothing else", () => {
+  assert.deepEqual(demoPermissions().permissions, [{ action: "shell", resource: "*", effect: "ask" }]);
+  assert.deepEqual(Object.keys(demoPermissions()).sort(), ["$schema", "permissions"]);
+});
+
+test("an answered approval that is still on screen is not answered again", { timeout: 20000 }, async () => {
+  const browser = await chromium.launch();
   try {
-    await cp(new URL("./intro-demo/", import.meta.url), folder, { recursive: true });
-    await assert.rejects(execute(process.execPath, ["--test", "--test-reporter=tap", "checks.mjs"], { cwd: folder, env: childEnvironment }), (error) => {
-      assert.match(error.stdout, /not ok 1 - one failed check/);
-      assert.match(error.stdout, /ok 2 - all checks/);
-      assert.match(error.stdout, /ok 3 - no checks/);
-      return true;
-    });
-    const code = await readFile(join(folder, "status.mjs"), "utf8");
-    await writeFile(join(folder, "status.mjs"), code.replace("checks.some", "checks.length > 0 && checks.every"));
-    const result = await execute(process.execPath, ["--test", "--test-reporter=tap", "checks.mjs"], { cwd: folder, env: childEnvironment });
-    assert.match(result.stdout, /# pass 3/);
-  } finally { await rm(folder, { recursive: true }); }
+    const page = await browser.newPage();
+    await page.setContent(`<div id="approvals"></div><script>
+      window.answers = [];
+      window.ask = (command) => {
+        const panel = document.createElement("section");
+        panel.className = "approval";
+        panel.innerHTML = "<h3>Approval required.</h3><pre></pre><button>Allow once</button><button>Deny</button>";
+        panel.querySelector("pre").textContent = command;
+        panel.querySelector("button").onclick = () => {
+          panel.querySelectorAll("button").forEach((node) => { node.disabled = true; });
+          answers.push(command);
+          setTimeout(() => panel.remove(), 400);
+        };
+        document.querySelector("#approvals").append(panel);
+      };
+    </script>`);
+    assert.equal(await allowWaitingCommand(page, { pause: 0 }), undefined);
+    await page.evaluate(() => window.ask("node --test clock.test.mjs"));
+    const first = await allowWaitingCommand(page, { pause: 50, timeout: 2000 });
+    assert.equal(first.command, "node --test clock.test.mjs");
+    assert.match(first.request, /Approval required/);
+    assert.equal(await page.locator(".approval").count(), 0, "The answered box has gone before the next look.");
+    assert.equal(await allowWaitingCommand(page, { pause: 50, timeout: 2000 }), undefined);
+    await page.evaluate(() => { window.ask("npm test"); setTimeout(() => document.querySelector(".approval").remove(), 20); });
+    assert.equal(await allowWaitingCommand(page, { pause: 200, timeout: 2000 }), undefined, "A withdrawn request is left alone.");
+    assert.deepEqual(await page.evaluate(() => window.answers), ["node --test clock.test.mjs"]);
+  } finally {
+    await browser?.close();
+  }
+});
+
+test("the recording keeps what the page asked to be spoken, with each speaker", () => {
+  const briefing = { type: "speak", id: 4, parts: [{ text: "Options, Captain.", speaker: "picard-riker" }, { text: "Easy build.", speaker: "picard-geordi" }] };
+  assert.deepEqual(sentEvent(JSON.stringify(briefing), 5), { time: 5, type: "speak", parts: briefing.parts, speed: 1 });
+  assert.deepEqual(sentEvent(JSON.stringify({ type: "speak", id: 5, text: "Standing by.", speed: 1.1 }), 6), { time: 6, type: "speak", parts: [{ text: "Standing by." }], speed: 1.1 });
+  assert.deepEqual(sentEvent(JSON.stringify({ type: "check-turn" }), 7), { time: 7, type: "check-turn" });
+  assert.equal(sentEvent(JSON.stringify({ type: "stop-speaking" }), 8), undefined);
+});
+
+test("chapters follow YouTube's rules", () => {
+  const chapters = [{ start: 0, title: "Opening" }, { start: 18, title: "Title" }, { start: 75, title: "Engage" }];
+  assert.equal(chapterList(chapters, 103), "0:00 Opening\n0:18 Title\n1:15 Engage");
+  assert.throws(() => chapterList(chapters.slice(0, 2), 103), /at least three/);
+  assert.throws(() => chapterList([{ start: 1, title: "A" }, ...chapters.slice(1)], 103), /0:00/);
+  assert.throws(() => chapterList(chapters, 80), /"Engage" is shorter than ten seconds/);
+  assert.throws(() => chapterList([chapters[0], { start: 9, title: "Short" }, chapters[2]], 103), /"Opening"/);
+});
+
+test("captions are valid SRT and reject empty or overlapping lines", () => {
+  assert.equal(srtTime(3723.4567), "01:02:03,457");
+  assert.equal(srt([{ start: 0, end: 1.5, text: "Computer." }, { start: 1.5, end: 3, text: "Go ahead." }]),
+    "1\n00:00:00,000 --> 00:00:01,500\nComputer.\n\n2\n00:00:01,500 --> 00:00:03,000\nGo ahead.\n");
+  assert.throws(() => srt([{ start: 2, end: 2, text: "x" }]), /no duration/);
+  assert.throws(() => srt([{ start: 0, end: 3, text: "a" }, { start: 2, end: 4, text: "b" }]), /overlaps/);
+  const cues = [{ start: 0.8, end: 6.696, text: "Picard: Captain's log,\nstardate." }, { start: 3723.457, end: 3725, text: "Engage." }];
+  assert.deepEqual(readSrt(srt(cues)), cues);
+  assert.throws(() => readSrt("1\n0:00:01 --> 00:00:02,000\nx\n"), /not an SRT time stamp/);
 });
 
 test("the browser records generated input and actual output without playing the input through the speakers", { timeout: 20000 }, async () => {

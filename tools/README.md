@@ -1,65 +1,93 @@
 # Record the actual app
 
-The intro uses a real Picard Code browser, real local listening and speaking,
-and a real OpenCode model. It does not inject replies or manufacture check
-results. The Captain's original prepared lines use the stock Kokoro Daniel
-voice through the browser microphone path. This is not a physical microphone
-recording or an imitation of an actor.
+The YouTube intro is a short TNG episode: a tribute to Sir Patrick Stewart
+and Captain Jean-Luc Picard, built around a real recording of Picard Code at
+work. The app footage uses a real browser, real local listening and speaking,
+and a real OpenCode model. Nothing is injected: replies, crew reports, file
+changes and check results are what actually happened. The Captain's prepared
+orders use the stock Kokoro Daniel voice through the browser microphone path.
+This is not an imitation of an actor.
 
-You need ffmpeg and the installed Playwright browser.
-First prepare local Nemotron, Smart Turn and Kokoro using the normal setup.
-Do not change the owner's saved choices to make a recording. Build the app
-and check the current models before selecting one:
+You need ffmpeg, the installed Playwright browser and working sound output on
+the computer (the browser records the app's real audio). First prepare local
+Nemotron, Smart Turn and Kokoro using the normal setup. Do not change the
+owner's saved choices to make a recording. Check the current models before
+choosing one:
 
 ```sh
 npm run build
 npm run opencode -- models
-node --test tools/record-intro.test.mjs
+node --test tools/record-intro.test.mjs video/edit.test.mjs
 node tools/record-intro.mjs --model github-copilot/gpt-6.1-sol
 ```
 
-The recording creates a fresh original release-board project and separate
-settings under the ignored `video/out/real-intro-*` folder. The example
-deliberately starts with a misleading launch decision: one passing check
-allows launch even when checkout fails. Its checks live in `checks.mjs`,
-not an automatically discovered test file. Data reads without editing;
-Geordi repairs and tests. Actual browser frames carry recording timestamps,
-and a browser audio recorder captures the actual speaking output and the
-prepared requests. Computer sounds are not supplied for this recording.
-All owned services close afterward. Do not use this tool on a private project.
+The orders live in [`intro-episode.mjs`](intro-episode.mjs): a bare
+"Computer.", two brief tribute questions, a briefing that names Riker,
+Geordi, Data and Crusher, "Number One, how would you organise the crew to build it?" and "Make it so."
+The crew builds a small tribute site with a stardate clock in a fresh project
+with separate settings under the ignored `video/out/episode-*` folder. The
+project asks before every command, so the Captain's approvals appear on
+screen. The take stops at the first red alert and reports the real error
+rather than saving a recording that hides it. A take takes five minutes or
+more. Do not use this tool on a private project.
 
-The run fails rather than declaring success if the requested words are lost,
-the untouched-file check fails, the repair does not pass the original checks,
-the browser does not show the corrected result, or real speech reports an
-error. It does not answer OpenCode permission requests or questions for the
-owner; those can prevent a recording from completing.
+## Build and render the episode
 
-Use the folder printed by the recorder:
-
-```sh
-node tools/render-intro.mjs video/out/real-intro-EXAMPLE
-```
-
-That makes the full-report edit, with the actual before and after, spoken
-orders and replies, two clearly marked shortened waits, and short original
-opening and closing narration. The source supports a shorter Data excerpt
-with `--data-end SECONDS`; measure a silent sentence boundary in that
-recording first. The first paragraph becomes its caption text. Do not reuse
-an earlier run's timing or cut away an important warning.
-
-The folder holds the plain MP4, a 1280-by-720 thumbnail, SRT, top-positioned
-VTT, proposed YouTube wording, `edit.json`, and `captioned.html`. From that folder, make the
-top-caption version with:
+The episode is a [HyperFrames](https://github.com/heygen-com/hyperframes)
+project in [`video/`](../video/), pinned to version 0.9.15. Its scenes are
+original LCARS compositions in `video/compositions/`: the opening dedication,
+title, ship's specifications, scene breaks, officer name plates, caption bars
+and closing board. `video/build.mjs` puts them around the recorded footage:
 
 ```sh
-npx hyperframes@0.8.226 render --composition captioned.html --output picard-code-real-intro-captioned.mp4 --fps 24 --workers 2 --no-best-effort
+node video/build.mjs video/out/episode-EXAMPLE --sounds /path/to/sound-collection
+cd video && npm run check
+npx -y hyperframes@0.9.15 snapshot --at 5,20,40,80
+npm run render
 ```
 
-Review the whole recording, words, cuts, and caption alignment before
-publication. Within-clip caption times are estimates, not forced alignment.
-Keep all generated footage, audio, raw transcripts and local settings out of
-git. Only share the chosen deliverables, not the raw settings or launch URL.
-Publishing on YouTube still needs the owner's explicit approval.
+The first build times every spoken sentence with Kokoro
+(`video/measure.py`, a few minutes) and writes a draft `edit.json` into the
+episode folder. It keeps the Captain's orders, the start of each spoken reply
+(cut after whole sentences), each approval and the return to Standing by;
+only waiting is left out. An announcement that repeats word for word, such
+as a later approval request, keeps only its first sentence. Review the draft
+against the frames and adjust it; later builds reuse it, so delete it to
+measure again. Captions always carry the exact words that were spoken,
+worked out with the app's own speech rules.
+
+`--sounds` is the owner's own collection of TNG sounds and music. The build
+copies the chosen files, the app's downloaded computer sounds and the spoken
+narration into the ignored `video/assets/` folder. Never commit them, and do
+not use recordings of actors' voices. `video/index.html` is generated; edit
+`edit.json` instead.
+
+The episode folder's `youtube/` folder gets the chapter list, SRT captions
+and a plain transcript for YouTube's automatic caption timing.
+
+## Make the YouTube pack
+
+Render the episode to `picard-code-episode.mp4` in the episode folder, then
+write `youtube/picks.json` there: the parts of the episode each Short uses
+and the episode second each thumbnail is drawn over (see the top of
+[`video/youtube.mjs`](../video/youtube.mjs)). Cut Shorts only in silence;
+the script refuses a cut through spoken words.
+
+```sh
+cd video && npx -y hyperframes@0.9.15 render -o ../video/out/episode-EXAMPLE/picard-code-episode.mp4 --quality delivery --video-frame-format png
+cd .. && node video/youtube.mjs video/out/episode-EXAMPLE
+```
+
+It writes into `youtube/`: the upload file with its sound brought to
+YouTube's level (about −14 LUFS; the picture is copied unchanged), three
+1280×720 thumbnails for Test & Compare, vertical Shorts with burned-in
+captions, the description with chapters, German, French and Spanish
+descriptions, and `upload.txt` with titles, tags, settings and the pinned
+comment. The words come from [`video/youtube.json`](../video/youtube.json).
+Review the whole video, Shorts, thumbnails, sound levels, words and caption
+timing before publication.
+Keep all footage, audio, transcripts and local settings out of git.
+Publishing on YouTube needs the owner's explicit approval.
 
 ## Voice matching
 

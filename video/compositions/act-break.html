@@ -1,0 +1,40 @@
+<template id="act-break-template">
+  <div data-composition-id="act-break" data-width="1920" data-height="1080" data-duration="2">
+    <canvas class="space" width="1920" height="1080" data-layout-allow-overflow></canvas>
+
+    <style>
+      [data-composition-id="act-break"] { background: #000; overflow: hidden; }
+      [data-composition-id="act-break"] .space { position: absolute; inset: 0; }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <script>
+      (function () {
+        const root = document.querySelector('[data-composition-id="act-break"]');
+        const seed = Number(window.__hyperframes?.getVariables?.()?.seed ?? 1701);
+        let state = seed;
+        const next = () => (state = (state * 16807) % 2147483647) / 2147483647;
+        const stars = Array.from({ length: 260 }, () => ({ x: next() * 1920, y: next() * 1080, z: 0.25 + next() * 0.75 }));
+        const context = root.querySelector(".space").getContext("2d");
+        const view = { drift: 0, light: 0 };
+        const draw = () => {
+          context.fillStyle = "#000";
+          context.fillRect(0, 0, 1920, 1080);
+          context.fillStyle = "#f2e6da";
+          for (const star of stars) {
+            context.globalAlpha = (0.25 + star.z * 0.7) * view.light;
+            context.fillRect((star.x - view.drift * star.z * 60 + 1920) % 1920, star.y, star.z * 2.4, star.z * 2.4);
+          }
+          context.globalAlpha = 1;
+        };
+        const tl = gsap.timeline({ paused: true, onUpdate: draw });
+        tl.fromTo(view, { drift: 0 }, { drift: 1, duration: 2, ease: "none" }, 0);
+        tl.fromTo(view, { light: 0 }, { light: 1, duration: 0.6, ease: "power1.out" }, 0);
+        tl.to(view, { light: 0, duration: 0.6, ease: "power1.in" }, 1.4);
+        draw();
+        window.__timelines = window.__timelines || {};
+        window.__timelines["act-break"] = tl;
+      })();
+    </script>
+  </div>
+</template>

@@ -1,0 +1,99 @@
+{
+  "titles": [
+    "Captain’s log: a tribute to Sir Patrick Stewart and Captain Picard",
+    "Make it so: a full coding agent you command by voice, built on OpenCode",
+    "I command a full coding agent by voice, like Captain Picard"
+  ],
+  "description": [
+    "A tribute to Sir Patrick Stewart (1940–2026) and Captain Jean-Luc Picard.",
+    "",
+    "Picard Code is a full coding agent you command by voice, built on OpenCode 2. Speak your orders; the computer and the bridge crew plan, build and test real work in your own projects, with any AI provider OpenCode supports. Nothing runs without the Captain’s approval.",
+    "",
+    "Everything in the bridge scenes is the real app, recorded live: the Captain spoke, the crew answered, asked for approval five times and built a real tribute site with a stardate clock. Only the waiting was cut.",
+    "",
+    "{chapters}",
+    "",
+    "Try it: npx picard-code",
+    "Website: https://sbroenne.github.io/picard-code",
+    "Source: https://github.com/sbroenne/picard-code",
+    "",
+    "Voices: all voices are computer-made with stock Kokoro voices. No voice was cloned or imitated.",
+    "Computer sounds: TrekCore (trekcore.com). Music and bridge sounds: the Star Trek: The Next Generation pinball sound collection (1993).",
+    "Made with HyperFrames.",
+    "",
+    "Unofficial fan tribute. Not affiliated with Sir Patrick Stewart, Paramount or the Star Trek rights holders. Star Trek and related marks belong to their owners."
+  ],
+  "tags": ["Picard Code", "Captain Picard", "Sir Patrick Stewart", "Star Trek The Next Generation", "TNG", "tribute", "LCARS", "voice coding", "coding agent", "OpenCode", "Make it so"],
+  "settings": [
+    "Category: Science & Technology. Audience: not made for kids. Video language: English.",
+    "Altered or synthetic content: Yes (the voices are computer-made).",
+    "Captions: upload captions.srt as English. Automatic dubbing: off.",
+    "Chapters: automatic chapters off; the description lists them.",
+    "End screen: Watch next (the briefing Short) in the left frame, Subscribe in the circle, from the end screen to the end.",
+    "Card: at {briefing}, pointing to the briefing Short.",
+    "Test & Compare: the three titles and the three thumbnails.",
+    "Playlist: Picard Code. Publish straight away; no Premiere."
+  ],
+  "pinned": "What would you order the computer to do first? Try it with npx picard-code: https://sbroenne.github.io/picard-code",
+  "thumbnails": [
+    { "id": "make-it-so", "headline": "Make it so.", "kicker": "A full coding agent you command by voice" },
+    { "id": "tribute", "headline": "Thank you, Sir Patrick.", "kicker": "A tribute to Sir Patrick Stewart and Captain Jean-Luc Picard" },
+    { "id": "briefing", "headline": "The crew reports.", "kicker": "Riker, Geordi, Data and Crusher, by voice" }
+  ],
+  "translations": {
+    "de": {
+      "title": "Captain’s Log: eine Hommage an Sir Patrick Stewart und Captain Picard",
+      "description": [
+        "Eine Hommage an Sir Patrick Stewart (1940–2026) und Captain Jean-Luc Picard.",
+        "",
+        "Picard Code ist ein vollwertiger Coding-Agent, den man mit der Stimme steuert, gebaut auf OpenCode 2. Sie sprechen Ihre Befehle; der Computer und die Brückencrew planen, bauen und testen echte Arbeit in Ihren eigenen Projekten, mit jedem KI-Anbieter, den OpenCode unterstützt. Nichts läuft ohne die Zustimmung des Captains.",
+        "",
+        "Alle Brückenszenen zeigen die echte App, live aufgenommen. Nur das Warten wurde herausgeschnitten.",
+        "",
+        "{chapters}",
+        "",
+        "Ausprobieren: npx picard-code",
+        "Website: https://sbroenne.github.io/picard-code",
+        "",
+        "Inoffizielle Fan-Hommage. Nicht verbunden mit Sir Patrick Stewart, Paramount oder den Rechteinhabern von Star Trek. Alle Stimmen sind computererzeugt."
+      ],
+      "chapters": ["Eine Hommage an Sir Patrick Stewart und Captain Jean-Luc Picard", "„Computer.“", "Die Besprechung", "Die Crew bei der Arbeit", "Captain’s Log, Nachtrag"]
+    },
+    "fr": {
+      "title": "Journal du capitaine : un hommage à Sir Patrick Stewart et au capitaine Picard",
+      "description": [
+        "Un hommage à Sir Patrick Stewart (1940–2026) et au capitaine Jean-Luc Picard.",
+        "",
+        "Picard Code est un agent de programmation complet que l’on commande à la voix, construit sur OpenCode 2. Vous donnez vos ordres à voix haute ; l’ordinateur et l’équipage de la passerelle planifient, construisent et testent un vrai travail dans vos propres projets, avec n’importe quel fournisseur d’IA pris en charge par OpenCode. Rien ne s’exécute sans l’accord du capitaine.",
+        "",
+        "Toutes les scènes de la passerelle montrent la vraie application, enregistrée en direct. Seule l’attente a été coupée.",
+        "",
+        "{chapters}",
+        "",
+        "Essayer : npx picard-code",
+        "Site : https://sbroenne.github.io/picard-code",
+        "",
+        "Hommage non officiel de fan. Sans lien avec Sir Patrick Stewart, Paramount ou les ayants droit de Star Trek. Toutes les voix sont générées par ordinateur."
+      ],
+      "chapters": ["Un hommage à Sir Patrick Stewart et au capitaine Jean-Luc Picard", "« Ordinateur. »", "Le briefing", "L’équipage au travail", "Journal du capitaine, supplément"]
+    },
+    "es": {
+      "title": "Diario del capitán: un homenaje a Sir Patrick Stewart y al capitán Picard",
+      "description": [
+        "Un homenaje a Sir Patrick Stewart (1940–2026) y al capitán Jean-Luc Picard.",
+        "",
+        "Picard Code es un agente de programación completo que se maneja con la voz, construido sobre OpenCode 2. Usted da las órdenes en voz alta; el ordenador y la tripulación del puente planifican, construyen y prueban trabajo real en sus propios proyectos, con cualquier proveedor de IA compatible con OpenCode. Nada se ejecuta sin la aprobación del capitán.",
+        "",
+        "Todas las escenas del puente muestran la aplicación real, grabada en directo. Solo se recortaron las esperas.",
+        "",
+        "{chapters}",
+        "",
+        "Pruébelo: npx picard-code",
+        "Web: https://sbroenne.github.io/picard-code",
+        "",
+        "Homenaje no oficial de un fan. Sin relación con Sir Patrick Stewart, Paramount ni los titulares de los derechos de Star Trek. Todas las voces están generadas por ordenador."
+      ],
+      "chapters": ["Un homenaje a Sir Patrick Stewart y al capitán Jean-Luc Picard", "«Ordenador.»", "La reunión", "La tripulación en acción", "Diario del capitán, suplemento"]
+    }
+  }
+}
