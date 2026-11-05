@@ -73,6 +73,8 @@ You need:
     through Windows' built-in emulation);
   - Linux on an x64 or arm64 processor, with glibc 2.31 or newer.
 
+  Intel Macs are not supported.
+
   Nemotron's Linux runtime needs glibc 2.31 or newer. Windows ARM uses the Intel-compatible
   Nemotron runtime; the owner has checked Nemotron on a Windows ARM machine.
   That check does not establish that every Windows ARM machine works.

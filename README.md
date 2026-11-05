@@ -25,6 +25,7 @@ available through OpenCode without signing in.
 
 Default local speech needs **2 GB of free disk space** and an Apple silicon
 Mac, Windows PC (x64 or ARM), or Linux computer (x64 or arm64).
+Intel Macs are not supported.
 Check the [OS requirements and compatibility notes](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#get-started)
 before installing.
 
