@@ -299,7 +299,7 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .question-link { display: inline-block; margin: 6px 0; color: var(--gold); }
 .question-field small { display: block; color: var(--muted); overflow-wrap: anywhere; }
 
-/* Channel availability stays beside its control; the large readout shows activity. */
+/* Whether the computer can hear stays beside the microphone; the large readout shows activity. */
 .console { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 22px; padding: 16px 0 12px; border-top: 6px solid var(--peach); }
 .console:focus, .first-run-setup:focus { outline: 0; }
 .voice-readout { min-width: 0; }
@@ -327,6 +327,7 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .mic-button[data-channel="paused"] { background: var(--peach); }
 .mic-button[data-channel="opening"] { background: var(--muted); }
 .mic-button[data-channel="opening"] .mic-slash { display: none; }
+.mic-button[data-act] { width: 72px; height: 72px; box-shadow: 0 0 0 5px var(--ink), 0 0 0 9px var(--orange); }
 .console[data-phase="off"] { cursor: pointer; }
 .voice-mark i { display: block; width: 10px; height: 12px; border-radius: 5px; background: #4a3c30; }
 .console[data-phase="standby"] .voice-mark i { background: var(--gold); }

@@ -129,14 +129,17 @@ a model.
 
 Existing users without speech set up see **Prepare the computer** instead,
 which runs the same download. Later starts use your saved speech choices.
-The channel opens automatically on later starts. **Opening channel** means
-the microphone is being prepared; allow access if your browser asks.
-If the browser pauses audio, the screen shows **Channel paused** instead.
-Choose **Resume listening**, the microphone button or **M** to resume
-listening, without switching the microphone off and back on. When the channel
-is closed, choose **Open channel** or press **M**.
-Once listening is available, the channel reads **Channel open**, and the
-centre of an empty log entry reads **Please specify your request.**
+The microphone starts automatically on later starts. While it starts, the
+console says **Not listening** and the label under the microphone says
+**Starting**; allow access if your browser asks.
+Whenever the computer cannot hear you, the console says **Not listening** and
+the line below it says why. The microphone button is the only control: when a
+click lets the computer hear, the button grows with an orange ring. If the
+browser paused sound, the label says **Paused**; click the microphone or press
+**M** to resume, without switching it off and back on. If the microphone is
+off, the label says **Microphone off**; click it or press **M**.
+Once the computer can hear, the console says **Standing by**, the label says
+**Listening**, and the centre of an empty log entry reads **Please specify your request.**
 If you choose [Azure speech](#azure-speech-setup) for both listening and
 speaking, setup prepares only the small local pause detector and its Python
 packages, not Nemotron or Kokoro. Speech choices are separate from the model
@@ -415,8 +418,8 @@ question or approval waiting for you, and the computer console with one large
 activity (Standing by, Accessing or Transmitting) and a line saying what to do
 next. **Transmitting** means the computer is speaking its reply, not sending your
 request. **Decision needed** and **Answer needed** take priority when a response
-is required. A separate readout beside the microphone shows **Opening channel**,
-**Channel open**, **Channel closed** or **Channel paused**, so you can still see
+is required. A separate label under the microphone shows **Starting**,
+**Listening**, **Microphone off** or **Paused**, so you can still see
 whether the microphone is enabled while the computer works or speaks.
 The console also holds
 **Stop speaking** and **Belay that** when they apply, and the microphone
@@ -598,15 +601,15 @@ on-screen button.
 
 - The app always opens with the microphone on; the browser asks for
   microphone access the first time. Listening pauses while a setting is open. If the browser blocks
-  sound until you interact, the screen says "Click anywhere to start listening."
+  sound until you interact, the label says **Paused**; click the microphone or press **M**.
 - The **microphone button** beside the status lights, or the **M** key,
   switches the microphone off (the button turns red and crossed out, and the
-  status says **Channel closed**) and on again. Nothing else switches it on, so
+  status says **Not listening**) and on again. Nothing else switches it on, so
   a stray click never starts listening. Saying "Computer, microphone off" (or
   "Computer, mute") also switches it off. Reloading the page switches it back
   on. Switching it off and back on keeps the current log entry; follow-ups
   still need no "Computer". Saying "Computer" again also continues that entry.
-- The microphone stays on. Its readout stays **Channel open** through silence
+- The microphone stays on. Its label stays **Listening** through silence
   and speech; the large **Standing by** heading does not change just because
   someone starts talking. While the room is quiet, no microphone audio leaves
   your computer. A voice detector (Silero,

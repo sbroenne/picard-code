@@ -247,11 +247,10 @@ function autoListen() {
 type ConsoleActivity = "ready" | "work" | "speaking" | "attention" | "unavailable";
 
 function channelStatus(): [string, string] {
-  if (voice.opening) return ["Opening channel", "opening"];
-  if (!voice.microphone) return ["Channel closed", "closed"];
-  if (voice.mediaPaused) return ["Channel paused", "paused"];
-  if (voice.waitingForClick) return ["Channel paused", "paused"];
-  return ["Channel open", "open"];
+  if (voice.opening) return ["Starting", "opening"];
+  if (!voice.microphone) return ["Microphone off", "closed"];
+  if (voice.mediaPaused || voice.waitingForClick) return ["Paused", "paused"];
+  return ["Listening", "open"];
 }
 
 /** Activity and required decisions stay separate from the enabled microphone. */
@@ -276,13 +275,13 @@ function consoleStatus(): [string, string, ConsoleActivity] {
   if (voice.speechPending || !submitting && heldBack && heldBack.session === selected) return ["Accessing", "Preparing the spoken reply.", "work"];
   if (submitting) return ["Standing by", "Sending your request.", "ready"];
   if (historyLoading) return ["Loading", "", "unavailable"];
-  if (voice.opening) return ["Opening channel", "Preparing the microphone. Allow access if your browser asks.", "unavailable"];
-  if (voice.microphone && voice.waitingForClick) return ["Channel paused", "Choose Resume listening, or press M.", "unavailable"];
-  if (voice.mediaPaused && voice.microphone) return ["Standing by", "Pause the video or close its player to listen again.", "ready"];
+  if (voice.opening) return ["Not listening", "Starting the microphone. Allow access if your browser asks.", "unavailable"];
+  if (voice.microphone && voice.waitingForClick) return ["Not listening", "The browser paused sound. Click the microphone, or press M.", "unavailable"];
+  if (voice.mediaPaused && voice.microphone) return ["Not listening", "Pause the video or close its player to listen again.", "unavailable"];
   if (listening) return ["Standing by", voice.phase === "thinking" ? "Checking what you said."
     : Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New log entry”." : "Say “Computer”, then your request.", "ready"];
   if (!state.speech?.configured) return ["Computer voice offline", "", "unavailable"];
-  return ["Channel closed", "Choose Open channel, or press M.", "unavailable"];
+  return ["Not listening", "The microphone is off. Click the microphone, or press M.", "unavailable"];
 }
 
 function voiceControls() {
@@ -332,14 +331,10 @@ function voiceControls() {
   toggle.toggleAttribute("data-on", voice.microphone);
   toggle.dataset.channel = channelState;
   toggle.disabled = voice.opening || !voice.microphone && !ready;
-  // One clear action whenever the Captain must act before the computer can hear.
-  const channelAction = element<HTMLButtonElement>("channel-action");
-  const actionText = toggle.hidden || toggle.disabled ? "" : channelState === "closed" ? "Open channel" : voice.waitingForClick ? "Resume listening" : "";
-  channelAction.hidden = !actionText;
-  if (channelAction.textContent !== actionText) channelAction.textContent = actionText;
-  const heard = channelState === "open" || !state?.speech?.configured;
-  const heading = heard ? "Please specify your request." : channel;
-  if (element("welcome-title").textContent !== heading) element("welcome-title").textContent = heading;
+  // The microphone is the one control; draw the eye to it when a click lets the computer hear.
+  toggle.toggleAttribute("data-act", !toggle.hidden && !toggle.disabled && (!voice.microphone || voice.waitingForClick));
+  // Invite a request only when the computer can hear it; the console explains why not.
+  element("welcome-title").hidden = channelState !== "open" && !!state?.speech?.configured;
   element("voice-console").dataset.phase = voice.microphone || voice.phase === "speaking" ? voice.phase : "off";
   if (voice.phase === "listening") notSent = "";
   element("voice-partial").textContent = voice.phase === "listening" || voice.phase === "thinking" ? voice.partial : notSent;
@@ -1915,7 +1910,6 @@ function microphoneShortcut(event: KeyboardEvent) {
     && !openDrawer() && !(target instanceof Element && target.closest("input, textarea, select, [contenteditable]"));
 }
 element("listen-toggle").addEventListener("click", toggleMicrophone);
-element("channel-action").addEventListener("click", toggleMicrophone);
 document.addEventListener("keydown", (event) => {
   if (!microphoneShortcut(event)) return;
   event.preventDefault();
@@ -1944,7 +1938,7 @@ element("bridge-toggle").addEventListener("change", () => {
 });
 for (const name of ["pointerdown", "keydown"] as const) document.addEventListener(name, (event) => {
   // Let the microphone control see the paused state before resuming audio, or the same gesture can switch it off.
-  if (event.target instanceof Element && event.target.closest("#listen-toggle, #channel-action")
+  if (event.target instanceof Element && event.target.closest("#listen-toggle")
     || event instanceof KeyboardEvent && microphoneShortcut(event)) return;
   voice.unlock();
 }, true);
