@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { setTimeout as wait } from "node:timers/promises";
 import { loadSpeech } from "../server/speech.js";
-import { checkOfficerVoices } from "./officer-voices-check.js";
+import { checkLongAnswer, checkOfficerVoices } from "./officer-voices-check.js";
 
 const service = await loadSpeech({ listening: "mai", speaking: "mai" });
 if (!service) throw new Error("Set up speech in Speech settings before checking real Azure speech.");
@@ -47,9 +47,11 @@ try {
   assert.match(understood, /specify your request/i);
   assert.ok(partials > 0, "Listening must provide live intermediate words.");
   console.log(`Officer voices spoke real audio: ${await checkOfficerVoices(service)}.`);
+  console.log(`${await checkLongAnswer(service)}.`);
   console.log(`Real Azure speaking and MAI live listening passed. ${partials} live word updates; the original test phrase was understood. No microphone or model was used.`);
 } finally {
   clearTimeout(deadline);
   controller.abort();
   input.close();
+  await service.close?.();
 }

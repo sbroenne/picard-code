@@ -7,7 +7,7 @@ import { BRIDGE_CREW, type CrewID } from "../shared/crew.js";
 import { COMPUTER_VOICES, CREW_VOICES, crewVoice } from "../shared/crew-voices.js";
 import type { SpeechEvent } from "../shared/speech.js";
 import { azureSpeech } from "../server/azure-speech.js";
-import { attachSpeech } from "../server/speech-bridge.js";
+import { attachSpeech, SPEECH_PIECE_CHARACTERS } from "../server/speech-bridge.js";
 import type { SpeechService } from "../server/speech-types.js";
 import { speechFixture } from "./speech-fixture.js";
 
@@ -115,19 +115,50 @@ test("long reports are spoken completely in bounded chunks with one voice, speed
   ] }));
   await voice.next("audio-end");
   assert.equal(fixture.said.slice(0, -1).map((part) => part.text).join(" "), report);
-  assert.ok(fixture.said.every((part) => part.text.length <= 1000 && part.speed === 1.1));
+  assert.ok(fixture.said.every((part) => part.text.length <= SPEECH_PIECE_CHARACTERS && part.speed === 1.1));
   assert.ok(fixture.said.slice(0, -1).every((part) => part.voice?.name === "test-picard-data"));
   assert.equal(voice.events.filter((event) => event.type === "audio-start").length, 1);
   assert.equal(voice.audio, fixture.said.length * 4800 + 14_400, "no handover pauses between chunks of the same speaker");
 
-  for (const text of ["x".repeat(8000), `${"x".repeat(999)}😀${"y".repeat(1000)}`]) {
+  for (const text of ["x".repeat(8000), `${"x".repeat(SPEECH_PIECE_CHARACTERS - 1)}😀${"y".repeat(1000)}`]) {
     const before = fixture.said.length;
     voice.socket.send(JSON.stringify({ type: "speak", id: 2, text }));
     await voice.next("audio-end");
     const chunks = fixture.said.slice(before).map((part) => part.text);
-    assert.ok(chunks.every((chunk) => chunk.length <= 1000 && Buffer.from(chunk).toString() === chunk));
+    assert.ok(chunks.every((chunk) => chunk.length <= SPEECH_PIECE_CHARACTERS && Buffer.from(chunk).toString() === chunk));
     assert.equal(chunks.join(""), text);
   }
+});
+
+test("a long multi-paragraph answer is spoken completely at the slowest speed without reaching the per-request audio limit", async (t) => {
+  // Paced like real Kokoro on dense text: about 9 characters a second at speed 0.8.
+  // Like Kokoro and Azure, one request stops after 3,000,000 bytes (62.5 seconds of 24 kHz audio).
+  const said: string[] = [];
+  const voice = await connect(t, {
+    ...speechFixture().service,
+    async *speak(text, signal, _voice, speed = 1) {
+      said.push(text);
+      const seconds = Math.ceil(text.length / (11.25 * speed));
+      for (let second = 0; second < seconds; second++) {
+        signal.throwIfAborted();
+        if ((second + 1) * 48_000 > 3_000_000) throw new Error("Kokoro returned incomplete or oversized audio.");
+        yield Buffer.alloc(48_000);
+        await wait(0);
+      }
+    },
+  });
+  const answer = [
+    "Jean-Luc Picard was born in La Barre, France, and grew up on his family's vineyard. He entered Starfleet Academy and later commanded the Stargazer for more than twenty years.",
+    "He then took command of the Enterprise. His crew valued his diplomacy, his patience and his firm sense of principle. He preferred talking to fighting, but he never shrank from a hard decision.",
+    "He was taken by the Borg and returned, and that experience stayed with him for the rest of his life. He studied archaeology, read widely and enjoyed Shakespeare and Earl Grey tea.",
+  ].map((paragraph) => paragraph.repeat(3)).join("\n\n");
+  assert.ok(answer.length > 1500);
+  voice.socket.send(JSON.stringify({ type: "speak", id: 1, speed: 0.8, text: answer }));
+  const deadline = AbortSignal.timeout(3000);
+  while (!voice.events.some((event) => event.type === "audio-end" || event.type === "error")) await wait(5, undefined, { signal: deadline });
+  assert.deepEqual(voice.events.find((event) => event.type === "audio-end" || event.type === "error"), { type: "audio-end", id: 1 });
+  assert.equal(said.join(" ").replace(/\s+/g, " "), answer.replace(/\s+/g, " "));
+  assert.ok(said.every((piece) => piece.length <= SPEECH_PIECE_CHARACTERS && /[.!?]$/.test(piece)), "pieces end at sentence boundaries");
 });
 
 test("stopping a long reply prevents later chunks and does not corrupt the next reply", async (t) => {

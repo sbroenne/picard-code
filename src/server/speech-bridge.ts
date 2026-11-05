@@ -9,7 +9,14 @@ interface SpokenPart { text: string; speaker?: CrewID }
 // A short pause when the next part has a different speaker: 0.3 seconds of 24 kHz 16-bit silence.
 const HANDOVER = Buffer.alloc(14_400);
 
-/** Keep the existing 8,000-character total budget, without limiting one speaker to 1,000 characters. */
+/**
+ * Longest piece sent in one speaking request. Kokoro and Azure each stop one request after
+ * 3,000,000 bytes (62.5 seconds of audio). Dense text with numbers measured about 9 characters
+ * a second on Kokoro at the slowest speed, so 300 characters leave roughly half the limit spare.
+ */
+export const SPEECH_PIECE_CHARACTERS = 300;
+
+/** Keep the existing 8,000-character total budget, without limiting one speaker to one speaking request. */
 function spokenParts(data: object): SpokenPart[] | undefined {
   const values: unknown[] = "text" in data && !("parts" in data) ? [{ text: data.text }]
     : "parts" in data && Array.isArray(data.parts) ? data.parts : [];
@@ -27,13 +34,14 @@ function spokenParts(data: object): SpokenPart[] | undefined {
   return parts;
 }
 
-function speechChunks(text: string) {
+export function speechChunks(text: string) {
+  const limit = SPEECH_PIECE_CHARACTERS;
   const chunks: string[] = [];
   let rest = text.trim();
-  while (rest.length > 1000) {
-    const start = rest.slice(0, 1001);
+  while (rest.length > limit) {
+    const start = rest.slice(0, limit + 1);
     let end = start.match(/^.*[.!?](?=\s)/s)?.[0].length ?? start.search(/\s+\S*$/);
-    if (end <= 0) end = /[\uD800-\uDBFF]/.test(rest[999]!) ? 999 : 1000;
+    if (end <= 0) end = /[\uD800-\uDBFF]/.test(rest[limit - 1]!) ? limit - 1 : limit;
     chunks.push(rest.slice(0, end).trim());
     rest = rest.slice(end).trim();
   }
