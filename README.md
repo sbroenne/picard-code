@@ -58,8 +58,9 @@ npm run build
 npm start
 ```
 
-The same browser app and first-run setup open. Choose your own project with
-the **Project** tile. For later starts, run `npm start` from the clone.
+The same browser app and first-run setup open, using the clone as the project.
+You can switch folders with the **Project** tile if needed.
+For later starts, run `npm start` from the clone.
 [More about running from source](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#run-from-source).
 
 ## Give an order
