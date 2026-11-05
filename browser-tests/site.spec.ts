@@ -18,7 +18,7 @@ test("the npm and GitHub README is a short front page with a launch command and 
 
 test("the README and linked guides keep working repository links and section anchors", async ({ page }) => {
   const repository = "https://github.com/sbroenne/picard-code/blob/main/";
-  const sources = ["README.md", "docs/USER_GUIDE.md", "SUPPORT.md", "CONTRIBUTING.md", "docs/DEVELOPMENT.md", "tools/README.md", "site/index.html"];
+  const sources = ["README.md", "docs/USER_GUIDE.md", "SUPPORT.md", "CONTRIBUTING.md", "docs/DEVELOPMENT.md", "tools/README.md", "site/index.html", "web/index.html"];
   const documents = new Map<string, { links: string[]; anchors: string[] }>();
   const document = async (path: string) => {
     const saved = documents.get(path);
@@ -44,11 +44,14 @@ test("the README and linked guides keep working repository links and section anc
   };
   for (const source of sources) {
     for (const link of (await document(source)).links) {
+      // The app handles its fragment routes in JavaScript, not document anchors.
+      if (source === "web/index.html" && link.startsWith("#")) continue;
       const url = new URL(link, repository + source);
       const raw = "https://raw.githubusercontent.com/sbroenne/picard-code/main/";
+      const readme = url.origin === "https://github.com" && /^\/sbroenne\/picard-code\/?$/.test(url.pathname) && url.hash;
       const prefix = url.href.startsWith(repository) ? repository : url.href.startsWith(raw) ? raw : undefined;
-      if (!prefix) continue;
-      const path = decodeURIComponent(url.href.slice(prefix.length).split(/[?#]/)[0]!);
+      if (!prefix && !readme) continue;
+      const path = readme ? "README.md" : decodeURIComponent(url.href.slice(prefix!.length).split(/[?#]/)[0]!);
       expect(existsSync(resolve(path)), `${source}: ${link}`).toBe(true);
       if (url.hash) {
         expect((await document(path)).anchors, `${source}: ${link}`).toContain(decodeURIComponent(url.hash.slice(1)));
