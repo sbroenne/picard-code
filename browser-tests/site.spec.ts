@@ -18,7 +18,7 @@ test("the npm and GitHub README is a short front page with a launch command and 
 
 test("the README and linked guides keep working repository links and section anchors", async ({ page }) => {
   const repository = "https://github.com/sbroenne/picard-code/blob/main/";
-  const sources = ["README.md", "PRODUCT.md", "DESIGN.md", "docs/USER_GUIDE.md", "SUPPORT.md", "CONTRIBUTING.md", "docs/DEVELOPMENT.md", "docs/research/conversation-research.md", "docs/research/voice-and-conversation-direction.md", "tools/README.md", "site/index.html", "web/index.html"];
+  const sources = ["README.md", "PRODUCT.md", "DESIGN.md", "docs/USER_GUIDE.md", "SUPPORT.md", "CONTRIBUTING.md", "docs/DEVELOPMENT.md", "docs/research/bridge-crew-voices.md", "tools/README.md", "site/index.html", "web/index.html"];
   const documents = new Map<string, { links: string[]; anchors: string[] }>();
   const document = async (path: string) => {
     const saved = documents.get(path);

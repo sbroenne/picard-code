@@ -1005,9 +1005,9 @@ repeated as catchphrases. Exact names, negations, limits and approvals in your
 request are kept as you said them; your request is never rewritten.
 
 This changes phrasing, not OpenCode's tools or approval rules. The voice is a
-prebuilt voice, not a performer's clone or a show recording. The research
-behind these choices is in
-[docs/research](research/conversation-research.md).
+prebuilt voice, not a performer's clone or a show recording. The
+[bridge crew notes](research/bridge-crew-voices.md) explain the current
+officer instructions, voice choices and evidence limits.
 
 ## Reuse an existing OpenCode server
 
@@ -1165,5 +1165,5 @@ This first version does not include file attachments or a full file editor.
 - [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md): respectful participation and reporting.
 - [SECURITY.md](../SECURITY.md): private security reports and supported versions.
 - [AGENTS.md](../AGENTS.md): rules for people and coding agents changing this repository.
-- [Conversation research](research/conversation-research.md) and
-  [voice and conversation direction](research/voice-and-conversation-direction.md).
+- [Bridge crew notes](research/bridge-crew-voices.md): officer instructions,
+  the Captain's orders, voice comparisons and evidence limits.

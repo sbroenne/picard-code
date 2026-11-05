@@ -76,7 +76,7 @@ OpenCode's existing helper limit is unchanged. Riker can call officers from the 
 
 ## The Captain's orders
 
-Picard's best-known orders have clear meanings on the bridge. Picard Code uses those meanings and keeps the existing rule that a familiar order to proceed is never approval for something unidentified (see [conversation-research.md](conversation-research.md), "Do not confuse Picard with his crew").
+Picard's best-known orders have clear meanings on the bridge. Picard Code uses those meanings and keeps the rule that a familiar order to proceed is never approval for something unidentified. If several actions are possible, the computer asks which one.
 
 | Order | Meaning in Picard Code |
 | --- | --- |
