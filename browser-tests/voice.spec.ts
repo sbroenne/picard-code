@@ -5,7 +5,7 @@ import { basename, resolve, join } from "node:path";
 import { spawn } from "node:child_process";
 import { TRIBUTE_ENTRIES } from "../src/shared/tribute-data";
 import { formatStardate } from "../src/shared/stardate";
-import type { ChatMessage } from "../src/shared/types";
+import type { AppState, ChatMessage } from "../src/shared/types";
 import { syntheticVoice } from "../src/tests/test-audio";
 
 const folder = resolve(`.picard-test-voice-audio-${process.pid}`);
@@ -184,6 +184,170 @@ async function startListening(page: import("@playwright/test").Page) {
   }
   await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
   await expect(page.locator("#voice-channel")).toHaveText("Listening");
+}
+
+/** Drop the real event stream, then reopen it without unrelated updates masking recovery. */
+async function controlLiveConnection(page: import("@playwright/test").Page) {
+  await page.addInitScript(() => {
+    const NativeEventSource = window.EventSource;
+    window.EventSource = class extends EventTarget {
+      private source: EventSource;
+      constructor(url: string | URL) {
+        super();
+        const connect = (recovery = false) => {
+          const source = new NativeEventSource(url);
+          source.addEventListener("message", (event) => {
+            if (!recovery || JSON.parse(event.data).type === "connection") {
+              this.dispatchEvent(new MessageEvent("message", { data: event.data }));
+            }
+          });
+          source.addEventListener("error", () => this.dispatchEvent(new Event("error")));
+          return source;
+        };
+        this.source = connect();
+        Object.assign(window, {
+          disconnectTestEvents: () => {
+            this.source.close();
+            this.dispatchEvent(new Event("error"));
+          },
+          reconnectTestEvents: () => { this.source = connect(true); },
+        });
+      }
+      close() { this.source.close(); }
+    } as unknown as typeof EventSource;
+  });
+  return {
+    disconnect: () => page.evaluate(() => (window as unknown as { disconnectTestEvents(): void }).disconnectTestEvents()),
+    reconnect: () => page.evaluate(() => (window as unknown as { reconnectTestEvents(): void }).reconnectTestEvents()),
+  };
+}
+
+for (const recovery of ["approval", "question"] as const) {
+  test(`live connection recovery restores saved replies and ${recovery} without reloading`, async ({ page }) => {
+    const connection = await controlLiveConnection(page);
+    let navigations = 0;
+    page.on("framenavigated", (frame) => { if (frame === page.mainFrame()) navigations++; });
+    await launch(page, "example");
+    await startListening(page);
+    await expect(page.locator(".message[data-role=assistant]")).toContainText("The settings test fails", { timeout: 15000 });
+    await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+    const entryID = await page.locator(".message[data-role=user]").getAttribute("data-session-id");
+    expect(entryID).toBeTruthy();
+    const origin = new URL(page.url()).origin;
+    const readState = async (): Promise<AppState> => {
+      const response = await page.request.get(`${origin}/api/state`);
+      expect(response.ok()).toBe(true);
+      return response.json();
+    };
+    const readMessages = async (): Promise<ChatMessage[]> => {
+      const response = await page.request.get(`${origin}/api/conversations/${entryID}/messages`);
+      expect(response.ok()).toBe(true);
+      return response.json();
+    };
+    const initial = await readState();
+    const send = async (text: string) => {
+      const response = await page.request.post(`${origin}/api/conversations/${entryID}/send`, {
+        headers: { "x-picard-request": "1" },
+        data: { text, ...initial.selectedModel, bridge: false },
+      });
+      expect(response.ok()).toBe(true);
+      expect(await response.json()).toMatchObject({ accepted: true });
+    };
+    const navigationsBefore = navigations;
+    await connection.disconnect();
+    await expect(status(page)).toHaveText("Reconnecting");
+    await expect(page.locator("#notice-text")).toContainText("The live connection stopped.");
+
+    // The same OpenCode stand-in keeps working while this browser cannot receive events.
+    await send("hello from the disconnected test page");
+    await expect.poll(async () => (await readMessages()).filter((message) => message.outcome === "succeeded").length).toBe(2);
+    const saved = (await readMessages()).findLast((message) => message.outcome === "succeeded")!;
+    await expect(page.locator(`[data-message-id="${saved.id}"]`)).toHaveCount(0);
+    await send(recovery === "approval" ? "request an approval" : "ask a question and let me choose");
+    await expect.poll(async () => recovery === "approval" ? (await readState()).permissions.length : (await readState()).questions.length).toBe(1);
+    await expect(page.getByRole("heading", { name: recovery === "approval" ? "Approval required." : "Additional information required." })).toHaveCount(0);
+    await expect(status(page)).toHaveText("Reconnecting");
+    await connection.reconnect();
+    await expect(page.locator(`[data-message-id="${saved.id}"]`)).toContainText(saved.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n"));
+    await expect(page.locator("#notice-text")).toBeEmpty();
+    await expect(page.locator("#voice-channel")).toHaveText("Microphone off");
+    expect(navigations).toBe(navigationsBefore);
+    await expect(page.locator(".message[data-role=user]")).toHaveCount(3);
+    expect(await page.locator(".message[data-role=user]").last().getAttribute("data-session-id")).toBe(entryID);
+    await expect(status(page)).toHaveText(recovery === "approval" ? "Decision needed" : "Answer needed");
+    await expect(page.getByRole("heading", { name: recovery === "approval" ? "Approval required." : "Additional information required." })).toBeVisible();
+    if (recovery === "approval") {
+      await expect(page.getByRole("button", { name: "Allow once", exact: true })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "Deny", exact: true })).toBeEnabled();
+    } else {
+      await expect(page.getByRole("radio", { name: "Small change" })).toBeEnabled();
+      await expect(page.getByRole("button", { name: "Skip question", exact: true })).toBeEnabled();
+    }
+  });
+}
+
+test("live connection recovery does not announce an unfinished reply as a completed answer", async ({ page }) => {
+  const connection = await controlLiveConnection(page);
+  const spoken = spokenText(page);
+  await launch(page, "missing-outcome");
+  await startListening(page);
+  await expect(page.locator("#working")).toContainText("Preparing the reply.", { timeout: 15000 });
+  await connection.disconnect();
+  await expect(status(page)).toHaveText("Reconnecting");
+  await connection.reconnect();
+  await expect(page.locator("#notice-text")).toBeEmpty();
+  await expect(page.locator("#voice-channel")).toHaveText("Listening");
+  await expect(page.locator("#working")).toContainText("Preparing the reply.");
+  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(0);
+  expect(spoken).toEqual([]);
+  expect(await soundNames(page)).toEqual(["request-accepted"]);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await expect(page.locator(".message[data-role=assistant]")).toContainText("without a terminal outcome");
+  expect(spoken).toEqual([]);
+});
+
+for (const microphoneOff of [false, true]) {
+  for (const exit of ["same tile", "Current log entry", "Escape"] as const) {
+    test(`closing settings through ${exit} keeps the microphone ${microphoneOff ? "off" : "listening"}`, async ({ page }) => {
+      await page.addInitScript(() => {
+        let starts = 0;
+        const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        navigator.mediaDevices.getUserMedia = (constraints) => { starts++; return getUserMedia(constraints); };
+        Object.assign(window, { testMicrophoneStarts: () => starts });
+      });
+      const microphoneStarts = () => page.evaluate(() => (window as unknown as { testMicrophoneStarts(): number }).testMicrophoneStarts());
+      await launch(page, "resume");
+      await startListening(page);
+      await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
+      await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
+      const entryID = await page.locator(".message[data-role=user]").first().getAttribute("data-session-id");
+      if (microphoneOff) await page.getByRole("button", { name: "Switch microphone off" }).click();
+      const startsBefore = await microphoneStarts();
+      const speechTile = page.locator("a.readout[href='#settings/voice']");
+      await speechTile.click();
+      await expect(page.locator("#drawer-settings")).toBeVisible();
+      await expect(page.locator("#voice-channel")).toHaveText("Microphone off");
+      // Moving to another settings tile must not restart listening behind the drawer.
+      await page.locator("#readout-model").click();
+      await expect(page.locator("#settings-model")).toBeVisible();
+      expect(await microphoneStarts()).toBe(startsBefore);
+      if (exit === "same tile") await page.locator("#readout-model").click();
+      else if (exit === "Current log entry") await page.locator("#nav-conversation").click();
+      else await page.keyboard.press("Escape");
+      await expect(page.locator("#drawer-settings")).toBeHidden();
+      await expect(page.locator("#voice-channel")).toHaveText(microphoneOff ? "Microphone off" : "Listening");
+      if (microphoneOff) {
+        expect(await microphoneStarts()).toBe(startsBefore);
+        await expect(page.getByRole("button", { name: "Switch microphone on" })).toBeVisible();
+        await page.getByRole("button", { name: "Switch microphone on" }).click();
+      }
+      await expect.poll(microphoneStarts).toBe(startsBefore + 1);
+      await expect(page.locator(".message[data-role=user]")).toHaveCount(2, { timeout: 15000 });
+      expect(await page.locator(".message[data-role=user]").last().getAttribute("data-session-id")).toBe(entryID);
+      await page.getByRole("button", { name: "Switch microphone off" }).click();
+    });
+  }
 }
 
 type Spoken = { text: string; speaker?: string }[];
