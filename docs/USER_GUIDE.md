@@ -374,9 +374,7 @@ normal global settings, but cannot add its temporary crew file. To use the crew,
 keep your settings in a folder selected with `OPENCODE_CONFIG_DIR` and leave
 `OPENCODE_CONFIG` unset. Settings that override the reserved `picard-` agents are reported rather
 than bypassed. In both cases Picard Code still starts: the terminal explains
-why the crew is unavailable, and the computer answers every request itself. With `--connect`, ordinary computer requests remain available;
-crew requests require the server to have the matching crew definitions and
-permission rules. Naming an officer then reports that the crew is unavailable.
+why the crew is unavailable, and the computer answers every request itself.
 
 ## Connect a model provider
 
@@ -453,9 +451,8 @@ Choose the server and follow OpenCode's sign-in. Picard Code prefers an
 installed OpenCode 2 and uses its bundled copy only when no suitable
 installation is found; `PICARD_OPENCODE_PATH` can explicitly select a copy.
 The panel shows which one is in use, rather than listing every possibility.
-Normally Picard Code starts its own local server using that program, with
-OpenCode's existing global and project settings. It does not automatically
-attach to an already-running server.
+Picard Code starts and stops OpenCode for you, using your existing global and
+project settings. You do not need to start OpenCode separately.
 OpenCode stores the sign-in, not Picard Code. Never speak
 passwords, keys or sign-in codes, or put them in a log entry.
 
@@ -474,16 +471,6 @@ and make it available across Projects. Picard Code does not add or edit these
 files for you. Servers needing an API key must be configured in OpenCode;
 keep keys out of project files. Use environment-variable references as
 described in its guide, and restart the server if you change its environment.
-
-If you started Picard Code with **`--connect`**, manage that same server and
-its settings. The panel shows that server's address and already includes
-`--server` with that address in both copyable commands. This guidance appears
-only when an existing server was selected. In the terminal, set
-`OPENCODE_PASSWORD` to that server's password, never in the command or
-browser address. OpenCode's commands use the username `opencode`; manage a
-server requiring another username through its own supported tools.
-Configuration files and environment variables must be
-available to that server; changing a different local copy will not configure it.
 
 Connect only services you trust. A service may receive data when its tools
 are used. OpenCode's permission rules still apply: signing in does not grant
@@ -1104,27 +1091,6 @@ This changes phrasing, not OpenCode's tools or approval rules. The voice is a
 prebuilt voice, not a performer's clone or a show recording. The
 [bridge crew notes](research/bridge-crew-voices.md) explain the current
 officer instructions, voice choices and evidence limits.
-
-## Reuse an existing OpenCode server
-
-Reuse is explicit; Picard Code never assumes an unrelated server on port 4096
-belongs to it. The server must be OpenCode 2. Start OpenCode bound to this
-computer with a password. Set the
-same password in the Picard Code terminal, then:
-
-```sh
-npx picard-code --connect http://127.0.0.1:4096 --project "full project path"
-```
-
-For example, in PowerShell, set `$env:OPENCODE_SERVER_PASSWORD` before running
-`opencode serve --hostname 127.0.0.1 --port 4096` and before starting Picard Code
-in its separate terminal. On macOS/Linux, use `export OPENCODE_SERVER_PASSWORD`.
-Use a strong password; do not put it in the URL, shell history, or source files.
-`OPENCODE_SERVER_USERNAME` defaults to `opencode` and can be set in both terminals.
-
-Picard Code checks the server's health, password protection, and selected
-folder. Only addresses on this computer are accepted. It leaves a reused
-server running when Picard Code stops.
 
 ## Local protections
 

@@ -153,6 +153,7 @@ test("MCP guidance opens from Ship's systems and a direct link without adding a 
   await expect(page.locator("#mcp-auth-command")).toHaveText("npx picard-code opencode mcp auth");
   await expect(page.locator("#settings-mcp").getByRole("textbox")).toHaveCount(0);
   await expect(page.locator("#mcp-connection")).toContainText("your installed OpenCode");
+  await expect(page.locator("#mcp-server-guidance")).toHaveCount(0);
   await page.locator("#settings-mcp").getByText("Advanced setup", { exact: true }).click();
   await expect(page.locator("#settings-mcp")).not.toContainText("--connect");
   await expect(page.locator("#settings-mcp")).toContainText("--global");
@@ -169,14 +170,13 @@ test("MCP guidance opens from Ship's systems and a direct link without adding a 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-for (const source of ["installed", "bundled", "custom", "external"] as const) {
+for (const source of ["installed", "bundled", "custom"] as const) {
   test(`MCP instructions describe only the ${source} OpenCode used by this launch`, async ({ page }) => {
-    const address = "http://[::1]:41234";
     let openCodeVersion = "";
     await page.route("**/api/state", async (route) => {
       const state = await (await route.fetch()).json();
       openCodeVersion = state.version;
-      state.openCode = { source, ...(source === "external" ? { address } : {}), customSettings: false };
+      state.openCode = { source, customSettings: false };
       await route.fulfill({ json: state });
     });
     await page.reload();
@@ -186,19 +186,14 @@ for (const source of ["installed", "bundled", "custom", "external"] as const) {
     if (source === "installed") await expect(description).toContainText("your installed OpenCode");
     if (source === "bundled") await expect(description).toContainText("Picard Code's bundled OpenCode");
     if (source === "custom") await expect(description).toContainText("selected with PICARD_OPENCODE_PATH");
-    if (source === "external") {
-      await expect(description).toContainText(address);
-      await expect(page.locator("#mcp-server-guidance")).toBeVisible();
-    } else {
-      await expect(page.locator("#mcp-server-guidance")).toBeHidden();
-      await expect(panel).not.toContainText("--connect");
-      await expect(panel).not.toContainText("OPENCODE_SERVER_PASSWORD");
-    }
+    await expect(page.locator("#mcp-server-guidance")).toHaveCount(0);
+    await expect(panel).not.toContainText("--connect");
+    await expect(panel).not.toContainText("OPENCODE_SERVER_PASSWORD");
     await expect(description).toContainText(`OpenCode ${openCodeVersion}`);
     await expect(panel).not.toContainText("if none is installed");
     await expect(page.locator("#mcp-custom-settings")).toBeHidden();
     for (const action of ["list", "auth"]) {
-      const command = `npx picard-code opencode mcp ${action}${source === "external" ? ` --server "${address}"` : ""}`;
+      const command = `npx picard-code opencode mcp ${action}`;
       await expect(page.locator(`#mcp-${action}-command`)).toHaveText(command);
       await page.evaluate(() => {
         Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
