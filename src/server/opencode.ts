@@ -115,6 +115,10 @@ export class OpenCode {
     return (await this.call<{ data: IntegrationInfo[] }>("GET", "/api/integration", { directory })).data;
   }
 
+  async mcpServers(directory: string) {
+    return (await this.call<{ data: { name: string; status: { status: string; error?: string } }[] }>("GET", "/api/mcp", { directory })).data;
+  }
+
   async agents(directory: string) {
     return (await this.call<{ data: AgentInfo[] }>("GET", "/api/agent", { directory })).data;
   }

@@ -5,9 +5,10 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startApp } from "./app.js";
 import { checkVersion, makeClient, localServerUrl, errorMessage } from "./engine.js";
-import { projectDirectory, startEngine, openBrowser, openCodeCommand } from "./process.js";
+import { projectDirectory, startEngine, openBrowser, openCodeCommand, usesCustomOpenCodeSettings } from "./process.js";
 import { loadSpeech, PICARD_HOME } from "./speech.js";
 import type { SpeechService } from "./speech-types.js";
+import type { OpenCodeSource } from "../shared/types.js";
 import { setupSounds, soundFolder } from "../../scripts/setup-sounds.mjs";
 
 async function main() {
@@ -90,12 +91,14 @@ and choose your provider. Downloads and settings are kept in ${PICARD_HOME}.`);
     console.log("Checking computer sounds...");
     await setupSounds(soundFolder, controller.signal);
     let client;
+    let openCodeSource: OpenCodeSource;
     let prepareCrew: ((directory: string) => Promise<unknown>) | undefined;
     if (values.connect) {
       const baseUrl = localServerUrl(values.connect);
       const password = process.env.OPENCODE_SERVER_PASSWORD;
       if (!password) throw new Error("To reuse OpenCode, set OPENCODE_SERVER_PASSWORD to that server's password in this terminal. Never put it in a browser address.");
       client = makeClient(baseUrl, password, process.env.OPENCODE_SERVER_USERNAME ?? "opencode");
+      openCodeSource = "external";
       await client.info();
       // Make sure unauthenticated callers cannot use the reused server.
       const unauthenticated = await fetch(`${baseUrl}/api/info`, { redirect: "error", signal: AbortSignal.timeout(5000) });
@@ -104,6 +107,7 @@ and choose your provider. Downloads and settings are kept in ${PICARD_HOME}.`);
       console.log("Starting OpenCode on this computer...");
       const engine = await startEngine(project, controller.signal);
       client = engine.client;
+      openCodeSource = engine.source;
       prepareCrew = engine.prepareCrew;
       if (engine.crewProblem) console.error(`${engine.crewProblem}\nThe computer will answer every request itself.`);
       cleanupEngine = engine.close;
@@ -130,7 +134,8 @@ and choose your provider. Downloads and settings are kept in ${PICARD_HOME}.`);
     cleanupSpeech = () => speech?.close?.();
     controller.signal.throwIfAborted();
     const app = await startApp({
-      client, project, port, prepareCrew,
+      client, project, port, prepareCrew, openCodeSource,
+      customOpenCodeSettings: !values.connect && usesCustomOpenCodeSettings(),
       speech, speechError, speechOverrides: { listening: values.listening, speaking: values.speaking },
       webRoot: fileURLToPath(new URL("../../web-dist/", import.meta.url)),
       soundFolder,

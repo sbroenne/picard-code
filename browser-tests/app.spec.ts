@@ -152,10 +152,9 @@ test("MCP guidance opens from Ship's systems and a direct link without adding a 
   await expect(page.locator("#mcp-list-command")).toHaveText("npx picard-code opencode mcp list");
   await expect(page.locator("#mcp-auth-command")).toHaveText("npx picard-code opencode mcp auth");
   await expect(page.locator("#settings-mcp").getByRole("textbox")).toHaveCount(0);
-  await expect(page.locator("#settings-mcp")).toContainText("installed OpenCode 2");
-  await expect(page.locator("#settings-mcp")).toContainText("bundled copy");
+  await expect(page.locator("#mcp-connection")).toContainText("your installed OpenCode");
   await page.locator("#settings-mcp").getByText("Advanced setup", { exact: true }).click();
-  await expect(page.locator("#settings-mcp")).toContainText("--connect");
+  await expect(page.locator("#settings-mcp")).not.toContainText("--connect");
   await expect(page.locator("#settings-mcp")).toContainText("--global");
   await expect(page.getByRole("link", { name: "OpenCode MCP setup guide" })).toHaveAttribute("href", "https://opencode.ai/v2/docs/mcp-servers/");
   await tile.click();
@@ -170,6 +169,69 @@ test("MCP guidance opens from Ship's systems and a direct link without adding a 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
+for (const source of ["installed", "bundled", "custom", "external"] as const) {
+  test(`MCP instructions describe only the ${source} OpenCode used by this launch`, async ({ page }) => {
+    const address = "http://[::1]:41234";
+    let openCodeVersion = "";
+    await page.route("**/api/state", async (route) => {
+      const state = await (await route.fetch()).json();
+      openCodeVersion = state.version;
+      state.openCode = { source, ...(source === "external" ? { address } : {}), customSettings: false };
+      await route.fulfill({ json: state });
+    });
+    await page.reload();
+    await page.getByRole("link", { name: /^MCP servers/ }).click();
+    const description = page.locator("#mcp-connection");
+    const panel = page.locator("#settings-mcp");
+    if (source === "installed") await expect(description).toContainText("your installed OpenCode");
+    if (source === "bundled") await expect(description).toContainText("Picard Code's bundled OpenCode");
+    if (source === "custom") await expect(description).toContainText("selected with PICARD_OPENCODE_PATH");
+    if (source === "external") {
+      await expect(description).toContainText(address);
+      await expect(page.locator("#mcp-server-guidance")).toBeVisible();
+    } else {
+      await expect(page.locator("#mcp-server-guidance")).toBeHidden();
+      await expect(panel).not.toContainText("--connect");
+      await expect(panel).not.toContainText("OPENCODE_SERVER_PASSWORD");
+    }
+    await expect(description).toContainText(`OpenCode ${openCodeVersion}`);
+    await expect(panel).not.toContainText("if none is installed");
+    await expect(page.locator("#mcp-custom-settings")).toBeHidden();
+    for (const action of ["list", "auth"]) {
+      const command = `npx picard-code opencode mcp ${action}${source === "external" ? ` --server "${address}"` : ""}`;
+      await expect(page.locator(`#mcp-${action}-command`)).toHaveText(command);
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+          writeText: async (text: string) => { sessionStorage.setItem("testCopiedCommand", text); },
+        } });
+      });
+      await page.locator(`#copy-mcp-${action}`).click();
+      expect(await page.evaluate(() => sessionStorage.getItem("testCopiedCommand"))).toBe(command);
+    }
+    await page.keyboard.press("Escape");
+    await page.getByRole("link", { name: /^MCP servers/ }).click();
+    await expect(description).toBeVisible();
+    await page.unrouteAll({ behavior: "wait" });
+  });
+}
+
+test("MCP custom-settings advice appears only when this launch uses custom settings", async ({ page }) => {
+  let customSettings = true;
+  await page.route("**/api/state", async (route) => {
+    const state = await (await route.fetch()).json();
+    state.openCode = { source: "installed", customSettings };
+    await route.fulfill({ json: state });
+  });
+  await page.reload();
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await expect(page.locator("#mcp-custom-settings")).toBeVisible();
+  await expect(page.locator("#mcp-custom-settings")).toContainText("This launch uses custom OpenCode settings.");
+  customSettings = false;
+  await page.reload();
+  await expect(page.locator("#mcp-custom-settings")).toBeHidden();
+  await page.unrouteAll({ behavior: "wait" });
+});
+
 test("MCP commands report real clipboard success and failure", async ({ page }) => {
   await page.evaluate(() => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
@@ -179,8 +241,9 @@ test("MCP commands report real clipboard success and failure", async ({ page }) 
   await page.getByRole("link", { name: /^MCP servers/ }).click();
   for (const action of ["list", "auth"]) {
     const copy = page.locator(`#copy-mcp-${action}`);
-    await copy.focus();
-    await page.keyboard.press("Enter");
+    await expect(copy).toBeVisible();
+    await expect(copy).toBeEnabled();
+    await copy.press("Enter");
     await expect(page.locator(`#mcp-${action}-copy-result`)).toHaveText("Command copied");
     expect(await page.evaluate(() => sessionStorage.getItem("testCopiedCommand"))).toBe(`npx picard-code opencode mcp ${action}`);
   }

@@ -674,6 +674,7 @@ function controls() {
     refresh.textContent = id === "refresh-mcp" ? refreshingProvider ? "Refreshing connections" : "Refresh connections"
       : refreshingProvider ? "Refreshing connection" : "Refresh connection";
   }
+  for (const id of ["copy-mcp-list", "copy-mcp-auth"]) element<HTMLButtonElement>(id).disabled = !state;
   const modelStatus = element("model-status");
   modelStatus.dataset.state = unavailable || state?.modelError ? "unavailable" : unchanged ? "saved" : "pending";
   modelStatus.textContent = savingModel ? "Saving your choice"
@@ -722,6 +723,22 @@ function renderState() {
   if (document.activeElement !== element("project-path")) element<HTMLInputElement>("project-path").value = state.project;
   element("workspace-caption").textContent = `OpenCode ${state.version} · ${state.project}`;
   element("mcp-project").textContent = state.project;
+  const openCode = state.openCode;
+  const descriptions = {
+    installed: `Using your installed OpenCode ${state.version}.`,
+    bundled: `Using Picard Code's bundled OpenCode ${state.version}.`,
+    custom: `Using OpenCode ${state.version} selected with PICARD_OPENCODE_PATH.`,
+    external: `Connected to OpenCode ${state.version}`,
+  };
+  element("mcp-connection").textContent = openCode.source === "external"
+    ? `${descriptions.external} at ${openCode.address}.` : descriptions[openCode.source];
+  element("mcp-custom-settings").hidden = !openCode.customSettings;
+  element("mcp-server-guidance").hidden = openCode.source !== "external";
+  element("mcp-server-guidance").textContent = openCode.source === "external"
+    ? "These commands target the server you chose with --connect. In that terminal, set OPENCODE_PASSWORD to that server's password. OpenCode's commands use the username opencode. Never put passwords in commands or browser addresses. Manage configuration in that server's environment."
+    : "";
+  const server = openCode.source === "external" ? ` --server "${openCode.address}"` : "";
+  for (const action of ["list", "auth"]) element(`mcp-${action}-command`).textContent = `npx picard-code opencode mcp ${action}${server}`;
   const savedValue = state.selectedModel ? modelValue(state.selectedModel) : "";
   const currentModel = displayedModel === savedValue ? model.value : savedValue;
   displayedModel = savedValue;

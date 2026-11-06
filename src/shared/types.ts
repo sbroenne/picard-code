@@ -39,9 +39,17 @@ export interface ChatMessage {
   created?: number;
 }
 
+export type OpenCodeSource = "installed" | "bundled" | "custom" | "external";
+
+export type OpenCodeConnection = { customSettings: boolean } & (
+  | { source: Exclude<OpenCodeSource, "external"> }
+  | { source: "external"; address: string }
+);
+
 export interface AppState {
   project: string;
   version: string;
+  openCode: OpenCodeConnection;
   hasConnectedProvider: boolean;
   models: ModelChoice[];
   defaultModel?: ModelChoice;

@@ -31,7 +31,7 @@ async function setup(extra: Partial<AppOptions> = {}, initialSpeech?: Record<str
   if (!extra.modelFile) await saveModelSettings(modelFile, { providerID: "github-copilot", modelID: "fixture-model" });
   if (initialSpeech) await writeFile(join(temporary, "speech.json"), JSON.stringify(initialSpeech));
   const wikipediaRequests: string[] = [];
-  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot, modelFile, speechFile: join(temporary, "speech.json"),
+  const app = await startApp({ client: makeClient(fixture.url, fixture.password), openCodeSource: "installed", project: directory, webRoot, modelFile, speechFile: join(temporary, "speech.json"),
     readWikipedia: async (subject) => { wikipediaRequests.push(subject); return wikipediaFixture(subject); }, ...extra });
   let cookie = "";
   const request = (path: string, data?: unknown, headers: Record<string, string> = {}) => fetch(`${app.origin}/api/${path}`, {
@@ -57,6 +57,27 @@ async function setup(extra: Partial<AppOptions> = {}, initialSpeech?: Record<str
     await rm(temporary, { recursive: true });
   };
   return { app, fixture, request, raw, login, cleanup, directory, other, temporary, modelFile, wikipediaRequests };
+}
+
+for (const source of ["installed", "bundled", "custom", "external"] as const) {
+  test(`state reports the actual ${source} OpenCode without exposing credentials or settings`, async (t) => {
+    const context = await setup({ openCodeSource: source, customOpenCodeSettings: true });
+    t.after(context.cleanup);
+    await context.login();
+    const read = async () => {
+      const state = await (await context.request("state")).json() as AppState;
+      assert.deepEqual(state.openCode, {
+        source, customSettings: true, ...(source === "external" ? { address: context.fixture.url } : {}),
+      });
+      assert.equal(JSON.stringify(state).includes(context.fixture.password), false);
+      return state;
+    };
+    await read();
+    assert.equal((await context.request("refresh", {})).status, 200);
+    await read();
+    assert.equal((await context.request("project", { path: context.other })).status, 200);
+    await read();
+  });
 }
 
 test("available models, including free models, never count as a confirmed model choice", async (t) => {
