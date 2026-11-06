@@ -3,7 +3,7 @@ import { readFile, realpath } from "node:fs/promises";
 import { resolve, sep, extname } from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { AppState, BrowserEvent, FormField, FormValue, ModelSelection, OpenCodeSource } from "../shared/types.js";
-import { chatMessages, availableModels, errorMessage, localServerUrl } from "./engine.js";
+import { chatMessages, availableModels, errorMessage } from "./engine.js";
 import { partID } from "./history.js";
 import { modelSettingsFile, readModelSettings, saveModelSettings, modelSelection } from "./model-settings.js";
 import { mediaReferences, replyMedia } from "../shared/media.js";
@@ -156,9 +156,7 @@ export interface AppOptions {
 export async function startApp(options: AppOptions) {
   const { client } = options;
   const customSettings = options.customOpenCodeSettings ?? false;
-  const openCode: AppState["openCode"] = options.openCodeSource === "external"
-    ? { source: "external", address: localServerUrl(client.baseUrl), customSettings }
-    : { source: options.openCodeSource, customSettings };
+  const openCode: AppState["openCode"] = { source: options.openCodeSource, customSettings };
   let directory = options.project;
   const token = randomBytes(32).toString("hex");
   const cookie = randomBytes(32).toString("hex");

@@ -1,10 +1,29 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { bundledOpenCode, openCodeCommand, openCodePackage, usesCustomOpenCodeSettings } from "../server/process.js";
+
+const launcher = fileURLToPath(new URL("../server/cli.js", import.meta.url));
+
+test("launch help describes automatic startup without an existing-server option", () => {
+  const help = execFileSync(process.execPath, [launcher, "--help"], { encoding: "utf8", timeout: 10_000 });
+  assert.match(help, /--project/);
+  assert.doesNotMatch(help, /--connect/);
+});
+
+for (const option of [["--connect", "http://127.0.0.1:4096"], ["--connect=http://127.0.0.1:4096"]]) {
+  test(`the removed ${option[0]} option is rejected before startup, including with help`, () => {
+    const result = spawnSync(process.execPath, [launcher, ...option, "--help"], { encoding: "utf8", timeout: 10_000 });
+    assert.equal(result.error, undefined);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Unknown option '--connect'/);
+    assert.doesNotMatch(result.stdout, /Checking computer sounds|Starting OpenCode/);
+  });
+}
 
 test("custom OpenCode settings include inline settings and separate configuration or sign-in folders", () => {
   assert.equal(usesCustomOpenCodeSettings({}), false);

@@ -47,12 +47,12 @@ export interface ChatMessage {
   created?: number;
 }
 
-export type OpenCodeSource = "installed" | "bundled" | "custom" | "external";
+export type OpenCodeSource = "installed" | "bundled" | "custom";
 
-export type OpenCodeConnection = { customSettings: boolean } & (
-  | { source: Exclude<OpenCodeSource, "external"> }
-  | { source: "external"; address: string }
-);
+export interface OpenCodeConnection {
+  source: OpenCodeSource;
+  customSettings: boolean;
+}
 
 export interface AppState {
   project: string;

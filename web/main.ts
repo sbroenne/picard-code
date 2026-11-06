@@ -731,17 +731,10 @@ function renderState() {
     installed: `Using your installed OpenCode ${state.version}.`,
     bundled: `Using Picard Code's bundled OpenCode ${state.version}.`,
     custom: `Using OpenCode ${state.version} selected with PICARD_OPENCODE_PATH.`,
-    external: `Connected to OpenCode ${state.version}`,
   };
-  element("mcp-connection").textContent = openCode.source === "external"
-    ? `${descriptions.external} at ${openCode.address}.` : descriptions[openCode.source];
+  element("mcp-connection").textContent = descriptions[openCode.source];
   element("mcp-custom-settings").hidden = !openCode.customSettings;
-  element("mcp-server-guidance").hidden = openCode.source !== "external";
-  element("mcp-server-guidance").textContent = openCode.source === "external"
-    ? "These commands target the server you chose with --connect. In that terminal, set OPENCODE_PASSWORD to that server's password. OpenCode's commands use the username opencode. Never put passwords in commands or browser addresses. Manage configuration in that server's environment."
-    : "";
-  const server = openCode.source === "external" ? ` --server "${openCode.address}"` : "";
-  for (const action of ["list", "auth"]) element(`mcp-${action}-command`).textContent = `npx picard-code opencode mcp ${action}${server}`;
+  for (const action of ["list", "auth"]) element(`mcp-${action}-command`).textContent = `npx picard-code opencode mcp ${action}`;
   const savedValue = state.selectedModel ? modelValue(state.selectedModel) : "";
   const currentModel = displayedModel === savedValue ? model.value : savedValue;
   displayedModel = savedValue;

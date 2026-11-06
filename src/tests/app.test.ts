@@ -60,7 +60,7 @@ async function setup(extra: Partial<AppOptions> = {}, initialSpeech?: Record<str
   return { app, fixture, request, raw, login, cleanup, directory, other, temporary, modelFile, wikipediaRequests };
 }
 
-for (const source of ["installed", "bundled", "custom", "external"] as const) {
+for (const source of ["installed", "bundled", "custom"] as const) {
   test(`state reports the actual ${source} OpenCode without exposing credentials or settings`, async (t) => {
     const context = await setup({ openCodeSource: source, customOpenCodeSettings: true });
     t.after(context.cleanup);
@@ -68,7 +68,7 @@ for (const source of ["installed", "bundled", "custom", "external"] as const) {
     const read = async () => {
       const state = await (await context.request("state")).json() as AppState;
       assert.deepEqual(state.openCode, {
-        source, customSettings: true, ...(source === "external" ? { address: context.fixture.url } : {}),
+        source, customSettings: true,
       });
       assert.equal(JSON.stringify(state).includes(context.fixture.password), false);
       return state;

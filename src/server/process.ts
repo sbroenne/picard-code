@@ -44,7 +44,7 @@ async function exists(file: string) {
   }
 }
 
-export async function openCodeCommand(): Promise<{ command: string; prefix: string[]; source: Exclude<OpenCodeSource, "external"> }> {
+export async function openCodeCommand(): Promise<{ command: string; prefix: string[]; source: OpenCodeSource }> {
   if (process.env.PICARD_OPENCODE_PATH) {
     const file = await realpath(process.env.PICARD_OPENCODE_PATH);
     if ([".cmd", ".bat"].includes(extname(file).toLowerCase())) {
