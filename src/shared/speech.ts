@@ -1,6 +1,7 @@
 export type VoicePhase = "off" | "listening" | "thinking" | "speaking";
 
 export type SpeechEvent =
+  | { type: "startup"; id: number; play: boolean }
   // `id` repeats the number of the listen request that is now open.
   | { type: "state"; phase: VoicePhase; id?: number }
   | { type: "partial"; text: string }

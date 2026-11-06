@@ -7,6 +7,9 @@ import { saveModelSettings } from "../src/server/model-settings";
 
 const first = JSON.stringify(["github-copilot", "fixture-model"]);
 const other = JSON.stringify(["other-provider", "other"]);
+test.use({ permissions: ["microphone"], launchOptions: { args: [
+  "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--disable-audio-output",
+] } });
 // Original silent stand-in, not a downloaded computer recording.
 const silentSound = Buffer.alloc(44 + 4800);
 silentSound.write("RIFF"); silentSound.writeUInt32LE(silentSound.length - 8, 4); silentSound.write("WAVEfmt ", 8);
@@ -115,18 +118,16 @@ test("a failed default confirmation stays on the welcome screen with the real er
 });
 
 for (const fromModelTile of [false, true]) {
-  test(`a later sound error keeps the model error visible from the ${fromModelTile ? "model tile" : "welcome screen"}`, async ({ page }) => {
+  test(`an unopened channel leaves the model error alone from the ${fromModelTile ? "model tile" : "welcome screen"}`, async ({ page }) => {
     await launch(page, fromModelTile ? ["--speech", "--free-models"] : ["--speech"]);
-    let releaseSound!: () => void;
-    const soundReady = new Promise<void>((resolve) => { releaseSound = resolve; });
+    const soundRequests: string[] = [];
     await page.route("**/api/sounds/startup", async (route) => {
-      await soundReady;
+      soundRequests.push(route.request().url());
       await route.fulfill({ status: 404, body: "Test sound is missing." });
     });
     await page.reload();
     await expect(page.locator("#status")).not.toHaveText("Starting up");
     const modelError = "Could not save the model choice. Test disk is full.";
-    const soundError = "The startup sound could not be loaded: HTTP 404. Restart Picard Code to check and download its sounds.";
     await page.route("**/api/model", (route) => route.fulfill({ status: 502, json: { error: modelError } }));
     if (fromModelTile) {
       await begin(page);
@@ -136,18 +137,15 @@ for (const fromModelTile of [false, true]) {
     const confirm = page.getByRole("button", { name: fromModelTile ? "Confirm this model" : "Begin start-up" });
     await confirm.click();
     await expect(page.locator("#notice-text")).toContainText(modelError);
-    releaseSound();
-    await expect(page.locator("#notice-text")).toContainText(soundError);
-    await expect(page.locator("#notice-text")).toContainText(modelError);
     await expect(page.locator("#first-run-setup #notice")).toBeVisible();
     const alert = await page.locator("#notice").ariaSnapshot();
     expect(alert).toContain(modelError);
-    expect(alert).toContain(soundError);
+    expect(soundRequests).toEqual([]);
     await expect(title(page)).toHaveText(fromModelTile ? "Computer intelligence" : "Welcome aboard, Captain.");
     await expect(confirm).toBeEnabled();
     // Repeating a failed action must not fill the alert with duplicate errors.
     await confirm.click();
-    await expect(page.locator("#notice-text p")).toHaveText([modelError, soundError]);
+    await expect(page.locator("#notice-text p")).toHaveText([modelError]);
     await page.unroute("**/api/model");
     await confirm.click();
     await expect(title(page)).toHaveText("Open a channel");
@@ -242,7 +240,8 @@ test("voice systems start on their own, report a real failure and come online af
   expect(await page.evaluate(() => (window as unknown as { microphoneRequests: number }).microphoneRequests)).toBe(0);
   await page.getByRole("button", { name: "Open a channel" }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { microphoneRequests: number }).microphoneRequests)).toBe(1);
-  await expect(page.locator("#open-channel-hint")).toHaveText("To allow the microphone, use the site settings next to the address bar, then choose Open a channel again.");
+  await expect(page.locator("#open-channel-hint")).toContainText("Check that a microphone is connected and allowed");
+  await expect(page.locator("#open-channel-hint")).toContainText("Test microphone deliberately unavailable.");
   await expect(title(page)).toHaveText("Open a channel");
 });
 
@@ -255,6 +254,161 @@ test("speech that is already set up is not prepared again during start-up", asyn
   await expect(page.getByRole("button", { name: "Open a channel" })).toBeEnabled();
   await expect(page.locator("#voice-console")).toBeHidden();
   expect(speechWrites).toBe(0);
+});
+
+test.describe("browser microphone check", () => {
+  const problems = [
+    { name: "NotFoundError", message: "Requested device not found", inputs: false, help: "No microphone is available to this browser." },
+    { name: "OverconstrainedError", message: "Invalid constraint", inputs: false, help: "The browser cannot see a microphone." },
+    { name: "NotAllowedError", message: "Permission denied", inputs: false, help: "Microphone access was denied." },
+    { name: "NotReadableError", message: "Could not start audio source", inputs: true, help: "The browser could not open the microphone." },
+    { name: "OverconstrainedError", message: "Unsupported input setting", constraint: "sampleRate", inputs: true, help: "The browser could not use the requested microphone settings." },
+    { name: "Error", message: "Test microphone deliberately unavailable.", inputs: false, help: "Check that a microphone is connected and allowed" },
+    { name: "OverconstrainedError", message: "Invalid constraint", inputs: false, listError: true, help: "The microphone device list could not be read: Test device lookup failed." },
+  ];
+  for (const problem of problems) {
+    test(`${problem.name}: ${problem.help}`, async ({ page }) => {
+      await page.addInitScript((problem) => {
+        const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        const enumerateDevices = navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);
+        let failed = true;
+        let denied = false;
+        window.addEventListener("test-microphone-connected", () => { failed = false; denied = false; });
+        window.addEventListener("test-microphone-disconnected", () => { failed = true; });
+        window.addEventListener("test-microphone-denied", () => { denied = true; });
+        let worklets = 0;
+        const addModule = AudioWorklet.prototype.addModule;
+        AudioWorklet.prototype.addModule = function (...args) {
+          document.documentElement.dataset.testMicrophoneWorklets = String(++worklets);
+          return addModule.apply(this, args);
+        };
+        navigator.mediaDevices.getUserMedia = async (constraints) => {
+          if (denied) throw new DOMException("Test access denied", "NotAllowedError");
+          if (failed) {
+            const error = new DOMException(problem.message, problem.name);
+            if (problem.constraint) Object.defineProperty(error, "constraint", { value: problem.constraint });
+            throw error;
+          }
+          return getUserMedia(constraints);
+        };
+        navigator.mediaDevices.enumerateDevices = async () => {
+          if (problem.listError) throw new Error("Test device lookup failed.");
+          return failed && !problem.inputs ? [] : enumerateDevices();
+        };
+      }, problem);
+      await launch(page, ["--speech"]);
+      await begin(page);
+      await page.getByRole("button", { name: "Open a channel" }).click();
+      await expect(page.locator("#notice-text")).toContainText(problem.help);
+      await expect(page.locator("#notice-text")).toContainText(`${problem.name}: ${problem.message}`);
+      if (problem.constraint) await expect(page.locator("#notice-text")).toContainText(`Requested setting: ${problem.constraint}.`);
+      await expect(page.locator("#open-channel-hint")).toContainText(problem.help);
+      await expect(title(page)).toHaveText("Open a channel");
+      await expect(page.locator("#system-comms")).toHaveText("Offline");
+      await expect(page.getByRole("button", { name: "Open a channel" })).toBeEnabled();
+      await expect(page.locator("html")).not.toHaveAttribute("data-test-microphone-worklets", /./);
+      if (problem.name === "NotFoundError") {
+        await page.getByRole("link", { name: /^Listen/ }).click();
+        await expect(page.locator("#drawer-settings")).toBeVisible();
+        await page.keyboard.press("Escape");
+        await page.reload();
+        await expect(title(page)).toHaveText("Open a channel");
+        await page.getByRole("button", { name: "Open a channel" }).click();
+        await expect(page.locator("#open-channel-hint")).toContainText(problem.help);
+        await page.evaluate(() => window.dispatchEvent(new Event("test-microphone-denied")));
+        await page.getByRole("button", { name: "Open a channel" }).click();
+        await expect(page.locator("#notice-text")).toContainText("Microphone access was denied.");
+        await expect(page.locator("#notice-text")).not.toContainText(problem.help);
+      }
+      // Reconnecting a device or changing permission must not require restarting the app.
+      await page.evaluate(() => window.dispatchEvent(new Event("test-microphone-connected")));
+      await page.getByRole("button", { name: "Open a channel" }).click();
+      await expect(title(page)).toHaveText("All systems online");
+      await expect(page.locator("#notice")).toBeHidden();
+      await expect(page.locator("#system-comms")).toHaveText("Online");
+      await expect(page.locator("html")).toHaveAttribute("data-test-microphone-worklets", "1");
+      if (problem.name === "NotFoundError") {
+        await page.getByRole("button", { name: "Switch microphone off" }).click();
+        await page.evaluate(() => window.dispatchEvent(new Event("test-microphone-disconnected")));
+        await page.getByRole("button", { name: "Switch microphone on" }).click();
+        await expect(page.locator("#status-detail")).toContainText(problem.help);
+        await expect(page.locator("#notice-text")).toContainText(`${problem.name}: ${problem.message}`);
+        await expect(title(page)).toHaveText("Open a channel");
+        await expect(page.locator("#open-channel-hint")).toContainText(problem.help);
+        await page.evaluate(() => window.dispatchEvent(new Event("test-microphone-connected")));
+        await page.getByRole("button", { name: "Open a channel" }).click();
+        await expect(title(page)).toHaveText("All systems online");
+        await expect(page.locator("#voice-channel")).toHaveText("Listening");
+        await expect(page.locator("#notice")).toBeHidden();
+      }
+    });
+  }
+
+  test("leaving for speech settings discards a late microphone device check", async ({ page }) => {
+    await page.addInitScript(() => {
+      let release!: () => void;
+      const ready = new Promise<void>((done) => { release = done; });
+      let failed = true;
+      window.addEventListener("test-device-check-ready", () => { failed = false; release(); });
+      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.getUserMedia = async (constraints) => {
+        if (failed) throw new DOMException("Invalid constraint", "OverconstrainedError");
+        return getUserMedia(constraints);
+      };
+      navigator.mediaDevices.enumerateDevices = async () => {
+        document.documentElement.dataset.testDeviceCheck = "pending";
+        await ready;
+        document.documentElement.dataset.testDeviceCheck = "completed";
+        return [];
+      };
+    });
+    await launch(page, ["--speech"]);
+    await begin(page);
+    await page.getByRole("button", { name: "Open a channel" }).click();
+    await expect(page.locator("html")).toHaveAttribute("data-test-device-check", "pending");
+    await page.getByRole("link", { name: /^Listen/ }).click();
+    await expect(page.locator("#drawer-settings")).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new Event("test-device-check-ready")));
+    await expect(page.locator("html")).toHaveAttribute("data-test-device-check", "completed");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("button", { name: "Open a channel" })).toBeEnabled();
+    await expect(page.locator("#notice")).toBeHidden();
+    await expect(page.locator("#open-channel-hint")).toBeEmpty();
+    await page.getByRole("button", { name: "Open a channel" }).click();
+    await expect(title(page)).toHaveText("All systems online");
+  });
+
+  test("opening a channel in another page does not hide this page's failed microphone check", async ({ page, context }) => {
+    await page.addInitScript(() => {
+      const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      let failed = true;
+      window.addEventListener("test-microphone-connected", () => { failed = false; });
+      navigator.mediaDevices.getUserMedia = async (constraints) => {
+        if (failed) throw new DOMException("Test input device missing", "NotFoundError");
+        return getUserMedia(constraints);
+      };
+    });
+    const app = await launch(page, ["--speech"]);
+    await begin(page);
+    await page.getByRole("button", { name: "Open a channel" }).click();
+    await expect(page.locator("#open-channel-hint")).toContainText("No microphone is available to this browser.");
+    const second = await context.newPage();
+    try {
+      await second.route("**/api/sounds/*", (route) => route.fulfill({ contentType: "audio/wav", body: silentSound }));
+      await second.goto(app.url);
+      await expect(title(second)).toHaveText("Open a channel");
+      await second.getByRole("button", { name: "Open a channel" }).click();
+      await expect(title(second)).toHaveText("All systems online");
+      await page.bringToFront();
+      await expect(title(page)).toHaveText("Open a channel");
+      await expect(page.locator("#system-comms")).toHaveText("Offline");
+      await expect(page.locator("#open-channel-hint")).toContainText("Test input device missing");
+      await page.evaluate(() => window.dispatchEvent(new Event("test-microphone-connected")));
+      await page.getByRole("button", { name: "Open a channel" }).click();
+      await expect(title(page)).toHaveText("All systems online");
+      await expect(page.locator("#notice")).toBeHidden();
+    } finally { await second.close(); }
+  });
 });
 
 test("a later speech change that fails stays visible after the channel is open", async ({ page }) => {

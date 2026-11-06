@@ -40,6 +40,8 @@ npx picard-code
 ```
 
 Your browser opens. Choose **Begin start-up** to bring the computer online.
+The **Open a channel** step checks microphone access on macOS, Windows and
+Linux, with help if the browser cannot find or open a microphone.
 [First-run details](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#get-started).
 
 ### Run from source

@@ -125,6 +125,89 @@ test("interruptions need Computer and reject words repeated from the spoken answ
   assert.equal(interruptsSpeech("Bogbook called How to Solve", "I bought a book called “How to Solve Half Your Problems.”"), false);
 });
 
+test("the arrival call is shared across pages, released before playback, and reset only with the app", async (t) => {
+  const sockets: WebSocket[] = [];
+  const servers: { close(): Promise<void>; open(): Promise<{ socket: WebSocket; events: SpeechEvent[] }> }[] = [];
+  t.after(async () => { sockets.forEach((socket) => socket.terminate()); await Promise.all(servers.map((server) => server.close())); });
+  const start = async () => {
+    const server = createServer();
+    const speech = attachSpeech(server, speechFixture().service, () => true);
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    const address = server.address();
+    assert.ok(address && typeof address !== "string");
+    const url = `ws://127.0.0.1:${address.port}/api/speech`;
+    const app = {
+      close: async () => { speech(); await new Promise<void>((done) => server.close(() => done())); },
+      open: async () => {
+        const socket = new WebSocket(url);
+        sockets.push(socket);
+        const events: SpeechEvent[] = [];
+        socket.on("message", (data) => events.push(JSON.parse(data.toString())));
+        await new Promise<void>((done, reject) => { socket.once("open", done); socket.once("error", reject); });
+        return { socket, events };
+      },
+    };
+    servers.push(app);
+    return app;
+  };
+  const until = async (check: () => boolean) => {
+    for (let attempt = 0; attempt < 100 && !check(); attempt++) await wait(10);
+    assert.ok(check(), "The expected arrival reply did not arrive.");
+  };
+  const app = await start();
+  const first = await app.open();
+  const other = await app.open();
+  const send = (socket: WebSocket, type: string, id = 1) => socket.send(JSON.stringify({ type, id }));
+  send(first.socket, "startup");
+  await until(() => first.events.length > 0);
+  assert.deepEqual(first.events.shift(), { type: "startup", id: 1, play: true });
+  send(other.socket, "startup");
+  // A state reply is a barrier: the second startup request was processed but must still be waiting.
+  send(other.socket, "stop-speaking");
+  await until(() => other.events.length > 0);
+  assert.deepEqual(other.events.splice(0), [{ type: "state", phase: "off" }]);
+  // Closing a page that never started playback must leave the call available.
+  first.socket.close();
+  await until(() => other.events.length > 0);
+  assert.deepEqual(other.events.shift(), { type: "startup", id: 1, play: true });
+  // A cancelled or failed playback is released without consuming the call.
+  send(other.socket, "startup-finished");
+  send(other.socket, "startup", 2);
+  await until(() => other.events.length > 0);
+  assert.deepEqual(other.events.shift(), { type: "startup", id: 2, play: true });
+  send(other.socket, "startup-started", 2);
+  const reloaded = await app.open();
+  send(reloaded.socket, "startup", 3);
+  send(reloaded.socket, "stop-speaking");
+  await until(() => reloaded.events.length > 0);
+  assert.deepEqual(reloaded.events.splice(0), [{ type: "state", phase: "off" }]);
+  send(other.socket, "startup-finished", 2);
+  await until(() => reloaded.events.length > 0);
+  assert.deepEqual(reloaded.events.shift(), { type: "startup", id: 3, play: false });
+  send(other.socket, "pause");
+  send(other.socket, "startup", 4);
+  await until(() => other.events.length >= 2);
+  assert.deepEqual(other.events.splice(0), [{ type: "state", phase: "off" }, { type: "startup", id: 4, play: false }]);
+  const restarted = await start();
+  const fresh = await restarted.open();
+  send(fresh.socket, "startup", 5);
+  await until(() => fresh.events.length > 0);
+  assert.deepEqual(fresh.events.shift(), { type: "startup", id: 5, play: true });
+  send(fresh.socket, "startup-started", 5);
+  send(fresh.socket, "stop-speaking");
+  await until(() => fresh.events.length > 0);
+  fresh.events.splice(0);
+  const afterClose = await restarted.open();
+  send(afterClose.socket, "startup", 6);
+  send(afterClose.socket, "stop-speaking");
+  await until(() => afterClose.events.length > 0);
+  assert.deepEqual(afterClose.events.splice(0), [{ type: "state", phase: "off" }]);
+  // Closing during the call must not replay the part already heard.
+  fresh.socket.close();
+  await until(() => afterClose.events.length > 0);
+  assert.deepEqual(afterClose.events.shift(), { type: "startup", id: 6, play: false });
+});
+
 test("listening can run during speech and stopping playback preserves the captured request", async (t) => {
   let speechSignal: AbortSignal | undefined;
   const fixture = speechFixture("Computer, do not change files.");
