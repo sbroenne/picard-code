@@ -287,6 +287,7 @@ function autoListen() {
 type ConsoleActivity = "ready" | "work" | "speaking" | "attention" | "unavailable";
 
 function channelStatus(): [string, string] {
+  if (voice.microphone && voice.waitingForClick) return ["Paused", "paused"];
   if (voice.opening) return ["Starting", "opening"];
   if (!voice.microphone) return ["Microphone off", "closed"];
   if (voice.mediaPaused || voice.waitingForClick) return ["Paused", "paused"];
@@ -303,7 +304,7 @@ function consoleStatus(): [string, string, ConsoleActivity] {
     ? "Connect an AI provider: open AI provider."
     : "No models are available. Open Computer intelligence to refresh the connection.", "attention"];
   if (!state.selectedModel) return ["Setup needed", "Open Computer intelligence, choose an AI model, and confirm your choice.", "attention"];
-  const listening = voice.microphone && !voice.waitingForClick && !voice.mediaPaused;
+  const listening = !voice.opening && voice.microphone && !voice.waitingForClick && !voice.mediaPaused;
   const speaking = voice.phase === "speaking" ? "The computer is speaking. " : "";
   if (state.permissions.some((item) => logEntryID(item) === selected)) return ["Decision needed", `${speaking}Choose Allow once or Deny on screen.`, "attention"];
   if (pending()) return ["Answer needed", `${speaking}${listening && !voice.speechPending && askedQuestion() ? "Say your answer, or choose it on screen." : "Answer the question on screen."}`, "attention"];
@@ -317,8 +318,8 @@ function consoleStatus(): [string, string, ConsoleActivity] {
   if (voice.speechPending || !submitting && heldBack && heldBack.session === selected && !heldBack.voiced) return ["Accessing", "Preparing the spoken reply.", "work"];
   if (submitting) return ["Standing by", "Sending your request.", "ready"];
   if (historyLoading) return ["Loading", "", "unavailable"];
-  if (voice.opening) return ["Not listening", "Starting the microphone. Allow access if your browser asks.", "unavailable"];
   if (voice.microphone && voice.waitingForClick) return ["Not listening", "The browser paused sound. Click the microphone, or press M.", "unavailable"];
+  if (voice.opening) return ["Not listening", voice.microphone ? "Opening the channel." : "Starting the microphone. Allow access if your browser asks.", "unavailable"];
   if (voice.mediaPaused && voice.microphone) return ["Not listening", "Pause the video or close its player to listen again.", "unavailable"];
   if (listening) return ["Standing by", voice.phase === "thinking" ? "Checking what you said."
     : Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New log entry”." : "Say “Computer”, then your request.", "ready"];
@@ -373,7 +374,7 @@ function voiceControls() {
   toggle.title = `${microphoneAction} (M)`;
   toggle.toggleAttribute("data-on", voice.microphone);
   toggle.dataset.channel = channelState;
-  toggle.disabled = voice.opening || !voice.microphone && !ready;
+  toggle.disabled = voice.opening && !(voice.microphone && voice.waitingForClick) || !voice.microphone && !ready;
   // The microphone is the one control; draw the eye to it when a click lets the computer hear.
   toggle.toggleAttribute("data-act", !toggle.hidden && !toggle.disabled && (!voice.microphone || voice.waitingForClick));
   // Invite a request only when the computer can hear it; the console explains why not.
@@ -1481,7 +1482,6 @@ async function boot() {
     await api("connect", { token });
     history.replaceState(null, "", location.pathname);
   }
-  voice.arrive();
   await refreshState();
   // Anyone who already chose a model has been aboard before; the start-up is only for a first run.
   if (state && !firstRun && (state.savedModel || state.modelError)) setFirstRun("done");
@@ -1696,8 +1696,11 @@ function showWizard(step: WizardStep) {
   element("use-free-models").hidden = signedIn || !state.models.some((choice) => choice.providerID === "opencode");
   element("channel-note").textContent = `${listensHere ? "All listening happens on this computer." : "Listening uses your Azure speech resource."} Close the channel at any time with the microphone button or the M key.`;
   const channel = element<HTMLButtonElement>("open-channel");
-  channel.disabled = !state.speech?.configured || !connected || voice.opening;
-  element("open-channel-hint").textContent = voice.opening ? "Opening the channel"
+  const audioPaused = voice.opening && voice.microphone && voice.waitingForClick;
+  channel.disabled = !state.speech?.configured || !connected || voice.opening && !audioPaused;
+  channel.textContent = audioPaused ? "Resume listening" : "Open a channel";
+  element("open-channel-hint").textContent = audioPaused ? "The browser paused sound. Choose Resume listening."
+    : voice.opening ? "Opening the channel"
     : !state.speech?.configured ? "Available once voice systems are online."
     : voice.failed ? voice.listeningError || "Read the error on screen, then choose Open a channel again." : "";
   element<HTMLButtonElement>("begin-startup").disabled = savingModel;
@@ -1980,6 +1983,7 @@ function muteMicrophone() {
 }
 async function startListening() {
   if (!state?.speech?.configured || !state.selectedModel || !connected || openDrawer() === "settings") return;
+  if (voice.opening && voice.microphone && voice.waitingForClick) { voice.unlock(); return; }
   setMuted(false);
   const previousError = voice.listeningError;
   try { await voice.activate(); }
@@ -1990,7 +1994,7 @@ async function startListening() {
       element("notice").hidden = !text.childElementCount;
     }
   }
-  if (firstRun === "started" && voice.microphone) {
+  if (firstRun === "started" && voice.microphone && !voice.opening && !voice.waitingForClick) {
     setFirstRun("listening");
     voice.speak("All systems online. Say “Computer”, then give your order.");
   }

@@ -56,6 +56,23 @@ export function speechChunks(text: string) {
 export function attachSpeech(server: Server, source: SpeechService | undefined | (() => SpeechService | undefined), allowed: (request: IncomingMessage) => boolean, turnDetector?: TurnDetector) {
   const service = () => typeof source === "function" ? source() : source;
   const sockets = new WebSocketServer({ noServer: true, maxPayload: 65_536 });
+  let arrivalPlayed = false;
+  let arrivalOwner: { socket: WebSocket; id: number } | undefined;
+  const arrivalWaiting = new Map<WebSocket, number>();
+  const advanceArrival = () => {
+    if (arrivalOwner) return;
+    for (const [socket, id] of arrivalWaiting) {
+      arrivalWaiting.delete(socket);
+      if (socket.readyState !== WebSocket.OPEN) continue;
+      socket.send(JSON.stringify({ type: "startup", id, play: !arrivalPlayed } satisfies SpeechEvent));
+      if (!arrivalPlayed) { arrivalOwner = { socket, id }; return; }
+    }
+  };
+  const releaseArrival = (socket: WebSocket) => {
+    arrivalWaiting.delete(socket);
+    if (arrivalOwner?.socket === socket) arrivalOwner = undefined;
+    advanceArrival();
+  };
   server.on("upgrade", (request, socket, head) => {
     if (request.url !== "/api/speech" || !allowed(request)) {
       socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
@@ -98,7 +115,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
       turnBytes = 0;
     };
     const stopSpeaking = () => { ++speechEpoch; speaking?.abort(); speaking = undefined; };
-    const stop = () => { stopListening(); stopSpeaking(); };
+    const stop = () => { stopListening(); stopSpeaking(); releaseArrival(socket); };
     const fail = (message: string) => { stop(); state("off"); send({ type: "error", message }); };
     const checkTurn = async (id: number) => {
       if (!detector) throw new Error("Pause detection is not ready.");
@@ -219,7 +236,18 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
         }
         const data: unknown = JSON.parse(raw.toString());
         if (!data || typeof data !== "object" || !("type" in data)) throw new Error("The voice request is not valid.");
-        if (data.type === "listen") {
+        if (data.type === "startup" || data.type === "startup-started" || data.type === "startup-finished") {
+          const id = "id" in data ? data.id : undefined;
+          if (!(typeof id === "number" && Number.isSafeInteger(id) && id > 0)) throw new Error("The arrival call request is not valid.");
+          if (data.type === "startup") {
+            if (arrivalWaiting.has(socket) || arrivalOwner?.socket === socket) throw new Error("The arrival call is already waiting.");
+            arrivalWaiting.set(socket, id);
+            advanceArrival();
+          } else if (arrivalOwner?.socket === socket && arrivalOwner.id === id) {
+            if (data.type === "startup-started") arrivalPlayed = true;
+            else releaseArrival(socket);
+          }
+        } else if (data.type === "listen") {
           const id = "id" in data ? data.id : undefined;
           if (id !== undefined && !(typeof id === "number" && Number.isSafeInteger(id) && id > 0)) throw new Error("The voice request is not valid.");
           void listen(id);
@@ -230,6 +258,7 @@ export function attachSpeech(server: Server, source: SpeechService | undefined |
           if (!(typeof id === "number" && Number.isSafeInteger(id) && id > 0)) throw new Error("The pause detection request is not valid.");
           void checkTurn(id);
         } else if (data.type === "pause") {
+          releaseArrival(socket);
           stopListening();
           phase = "off";
           if (!speaking) state("off");

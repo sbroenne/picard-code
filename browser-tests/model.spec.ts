@@ -118,18 +118,16 @@ test("a failed default confirmation stays on the welcome screen with the real er
 });
 
 for (const fromModelTile of [false, true]) {
-  test(`a later sound error keeps the model error visible from the ${fromModelTile ? "model tile" : "welcome screen"}`, async ({ page }) => {
+  test(`an unopened channel leaves the model error alone from the ${fromModelTile ? "model tile" : "welcome screen"}`, async ({ page }) => {
     await launch(page, fromModelTile ? ["--speech", "--free-models"] : ["--speech"]);
-    let releaseSound!: () => void;
-    const soundReady = new Promise<void>((resolve) => { releaseSound = resolve; });
+    const soundRequests: string[] = [];
     await page.route("**/api/sounds/startup", async (route) => {
-      await soundReady;
+      soundRequests.push(route.request().url());
       await route.fulfill({ status: 404, body: "Test sound is missing." });
     });
     await page.reload();
     await expect(page.locator("#status")).not.toHaveText("Starting up");
     const modelError = "Could not save the model choice. Test disk is full.";
-    const soundError = "The startup sound could not be loaded: HTTP 404. Restart Picard Code to check and download its sounds.";
     await page.route("**/api/model", (route) => route.fulfill({ status: 502, json: { error: modelError } }));
     if (fromModelTile) {
       await begin(page);
@@ -139,18 +137,15 @@ for (const fromModelTile of [false, true]) {
     const confirm = page.getByRole("button", { name: fromModelTile ? "Confirm this model" : "Begin start-up" });
     await confirm.click();
     await expect(page.locator("#notice-text")).toContainText(modelError);
-    releaseSound();
-    await expect(page.locator("#notice-text")).toContainText(soundError);
-    await expect(page.locator("#notice-text")).toContainText(modelError);
     await expect(page.locator("#first-run-setup #notice")).toBeVisible();
     const alert = await page.locator("#notice").ariaSnapshot();
     expect(alert).toContain(modelError);
-    expect(alert).toContain(soundError);
+    expect(soundRequests).toEqual([]);
     await expect(title(page)).toHaveText(fromModelTile ? "Computer intelligence" : "Welcome aboard, Captain.");
     await expect(confirm).toBeEnabled();
     // Repeating a failed action must not fill the alert with duplicate errors.
     await confirm.click();
-    await expect(page.locator("#notice-text p")).toHaveText([modelError, soundError]);
+    await expect(page.locator("#notice-text p")).toHaveText([modelError]);
     await page.unroute("**/api/model");
     await confirm.click();
     await expect(title(page)).toHaveText("Open a channel");

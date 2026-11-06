@@ -704,10 +704,14 @@ on-screen button.
   Later starts use the checked local copies; missing or changed files are downloaded
   again. If a download fails, startup reports the error rather than silently
   leaving sounds out. They are kept in `.picard-code/sounds` in your home folder.
-  The TNG-era ship-wide call welcomes the Captain once when the app opens,
-  without waiting for OpenCode or speech setup. The sound loads ahead of a
-  click if the browser requires one before playback. It does not play
-  for new log entries or when the microphone is switched back on.
+  The TNG-era ship-wide call welcomes the Captain when the first channel
+  opens after starting Picard Code. It waits for microphone access, the
+  voice connection and browser sound to be ready. The screen stays at
+  Opening the channel until the call finishes; only then does listening
+  begin. If the browser still pauses sound, choose Resume listening.
+  It does not repeat for microphone changes, new log entries, reloading
+  the page or opening another page. Starting Picard Code again allows
+  one new arrival call.
   During spoken conversation the other sounds play quietly, once
   each: a beep when a spoken request is accepted, when you say "Computer"
   on its own, or when you say "stop listening"; an input-failed sound when speech was not understood,

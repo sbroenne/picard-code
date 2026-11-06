@@ -41,11 +41,11 @@ async function launch(page: import("@playwright/test").Page, mode?: "resume" | "
   page.on("pageerror", (error) => diagnostics.push(`Browser error: ${error.message}`));
   page.on("requestfailed", (request) => diagnostics.push(`Request failed: ${request.method()} ${request.url()} (${request.failure()?.errorText})`));
   // Record each computer sound that starts, and the voice status at that moment.
-  await page.addInitScript(({ lengths, microphoneVoice }) => {
+  await page.context().addInitScript(({ lengths, microphoneVoice }) => {
     const decoded = new WeakSet<AudioBuffer>();
     const microphoneSources = new WeakSet<AudioBufferSourceNode>();
     const plays: string[] = [];
-    const timeline: { name: string; at: number; end: number; capture: boolean; visibleErrors: string[] }[] = [];
+      const timeline: { name: string; at: number; end: number; capture: boolean; visibleErrors: string[] }[] = [];
     let capture = false;
     let startTestMicrophone: (() => void) | undefined;
     Object.assign(window, { acceptedSounds: plays, audioTimeline: timeline });
@@ -71,6 +71,7 @@ async function launch(page: import("@playwright/test").Page, mode?: "resume" | "
     AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, ...args: Parameters<typeof start>) {
       const buffer = this.buffer;
       if (microphoneSources.has(this)) return start.apply(this, args);
+      const result = start.apply(this, args);
       let name = "speech";
       if (buffer && decoded.has(buffer)) {
         name = Object.entries(lengths).find(([, seconds]) => Math.abs(seconds - buffer.duration) < 0.02)?.[0] ?? "unknown";
@@ -80,7 +81,7 @@ async function launch(page: import("@playwright/test").Page, mode?: "resume" | "
         name, at: this.context.currentTime, end: Math.max(args[0] ?? 0, this.context.currentTime) + buffer.duration, capture,
         visibleErrors: [...document.querySelectorAll(".message-error")].map((node) => node.textContent ?? ""),
       });
-      return start.apply(this, args);
+      return result;
     };
     const createMediaStreamSource = AudioContext.prototype.createMediaStreamSource;
     AudioContext.prototype.createMediaStreamSource = function (stream) {
@@ -517,25 +518,10 @@ for (const keyboard of [false, true]) {
     await page.getByRole("button", { name: "Switch microphone on" }).click();
     await expect(page.locator("#voice-channel")).toHaveText("Listening");
     await expect(status(page)).not.toHaveText("Not listening");
-    // Force the startup overlap on every PR, rather than only on a slower release runner.
-    await page.addInitScript((startupLength) => {
-      const start = AudioBufferSourceNode.prototype.start;
-      AudioBufferSourceNode.prototype.start = function (...args: Parameters<typeof start>) {
-        if (this.buffer && Math.abs(this.buffer.duration - startupLength) < 0.02) {
-          this.playbackRate.value = 0.1;
-          this.addEventListener("ended", () => Object.assign(window, { testStartupEndedAt: performance.now() }), { once: true });
-        }
-        return start.apply(this, args);
-      };
-    }, SOUND_LENGTHS.startup);
     await page.reload();
     await expect(status(page)).toHaveText("Not listening", { timeout: 15000 });
     await startListening(page);
-    // The app ignores its cue and a 200 ms echo tail; the test phrase must start after actual playback.
-    await expect.poll(() => page.evaluate(() => {
-      const ended = (window as unknown as { testStartupEndedAt?: number }).testStartupEndedAt;
-      return ended !== undefined && performance.now() - ended >= 200;
-    })).toBe(true);
+    expect(await page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")))).toEqual([]);
     await microphone.start();
     await expect(page.locator(".message[data-role=user]")).toHaveCount(1, { timeout: 15000 });
     await page.getByRole("button", { name: "Switch microphone off" }).click();
@@ -609,7 +595,7 @@ test("console clarity: a browser that still blocks sound after microphone permis
 });
 
 for (const firstRun of [false, true]) {
-  for (const blocked of ["pending", "rejected"] as const) {
+  for (const blocked of ["pending", "rejected", "interrupted"] as const) {
     test(`microphone permission resumes audio without another click (${firstRun ? "first start" : "saved setup"}, ${blocked} audio)`, async ({ page }) => {
       const microphone = await controlledMicrophone(page, [0.5]);
       await page.addInitScript((blocked) => {
@@ -623,6 +609,10 @@ for (const firstRun of [false, true]) {
           constructor(options?: AudioContextOptions) {
             super(options);
             this.suspended = this.suspend();
+          }
+          override get state() {
+            const state = super.state;
+            return blocked === "interrupted" && state === "suspended" ? "interrupted" : state;
           }
           override resume() {
             if (!capturing) return blocked === "pending" ? new Promise<void>(() => undefined)
@@ -675,6 +665,32 @@ for (const firstRun of [false, true]) {
     });
   }
 }
+
+test("a sound connection closed during opening is explained and can be reopened", async ({ page }) => {
+  await controlledMicrophone(page, [0.5]);
+  await page.addInitScript(() => {
+    let allowed = false;
+    const Context = window.AudioContext;
+    window.AudioContext = class extends Context {
+      private suspended: Promise<void>;
+      constructor(options?: AudioContextOptions) {
+        super(options);
+        this.suspended = this.suspend();
+        Object.assign(window, { closeTestAudio: () => { allowed = true; return this.close(); } });
+      }
+      override resume() { return allowed ? this.suspended.then(() => super.resume()) : Promise.resolve(); }
+    };
+  });
+  await launch(page);
+  await expect(page.locator("#voice-channel")).toHaveText("Paused");
+  await page.evaluate(() => (window as unknown as { closeTestAudio(): Promise<void> }).closeTestAudio());
+  await expect(page.getByRole("alert")).toContainText("The browser's sound connection closed before the channel opened.");
+  await expect(page.locator("#voice-channel")).toHaveText("Microphone off");
+  await page.getByRole("button", { name: "Switch microphone on" }).click();
+  await startListening(page);
+  expect(await page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")))).toHaveLength(1);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
 
 test("console clarity: startup waits for permission and the open channel stays stable through speech and recognition", async ({ page }) => {
   const headings = await watchStatus(page);
@@ -1375,12 +1391,12 @@ test("a spoken interruption cannot approve an action", async ({ page }) => {
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
-test("the arrival call plays once at startup, not when switching the microphone or starting a new log entry", async ({ page }) => {
+test("the arrival call plays once per program, not for microphone changes, new entries, reloads or another page", async ({ page }) => {
   await launch(page);
   await startListening(page);
   const arrivals = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
   await expect.poll(arrivals).toHaveLength(1);
-  expect((await arrivals())[0]).toMatch(/^startup: (Not listening|Standing by)$/);
+  expect((await arrivals())[0]).toBe("startup: Not listening");
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   await page.getByRole("button", { name: "Switch microphone on" }).click();
   await startListening(page);
@@ -1390,8 +1406,12 @@ test("the arrival call plays once at startup, not when switching the microphone 
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   await page.reload();
   await startListening(page);
-  await expect.poll(arrivals).toHaveLength(1);
-  expect((await arrivals())[0]).toMatch(/^startup: (Not listening|Standing by)$/);
+  expect(await arrivals()).toEqual([]);
+  const other = await page.context().newPage();
+  await other.goto(page.url());
+  await startListening(other);
+  expect(await other.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")))).toEqual([]);
+  await other.close();
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
@@ -1404,7 +1424,37 @@ test("a missing arrival sound is reported, without preventing listening", async 
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
-test("a missing arrival sound stays visible when startup reopens a saved log entry", async ({ page }) => {
+test("a failed arrival playback is explained and remains available for another opening", async ({ page }) => {
+  await controlledMicrophone(page, [0.5]);
+  await page.addInitScript((length) => {
+    let failed = false;
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (...args: Parameters<typeof start>) {
+      if (!failed && this.buffer && Math.abs(this.buffer.duration - length) < 0.02) {
+        failed = true;
+        throw new DOMException("Test audio output is unavailable", "NotSupportedError");
+      }
+      return start.apply(this, args);
+    };
+  }, SOUND_LENGTHS.startup);
+  await launch(page);
+  await startListening(page);
+  await expect(page.getByRole("alert")).toContainText("Test audio output is unavailable");
+  const arrivals = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
+  expect(await arrivals()).toEqual([]);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await page.getByRole("button", { name: "Switch microphone on" }).click();
+  await startListening(page);
+  expect(await arrivals()).toHaveLength(1);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("an unopened channel does not load or report a missing arrival sound", async ({ page }) => {
+  const requests: string[] = [];
+  await page.route("**/api/sounds/startup", (route) => {
+    requests.push(route.request().url());
+    return route.fulfill({ status: 404, body: "This sound is not set up." });
+  });
   await launch(page, "no-speech");
   await page.evaluate(async () => {
     const response = await fetch("/api/conversations", {
@@ -1413,28 +1463,19 @@ test("a missing arrival sound stays visible when startup reopens a saved log ent
     });
     if (!response.ok) throw new Error(`Could not create the test log entry: HTTP ${response.status}`);
   });
-  let release!: () => void;
-  const ready = new Promise<void>((done) => { release = done; });
-  await page.route("**/api/state", async (route) => { await ready; await route.continue(); });
-  await page.route("**/api/sounds/startup", (route) => route.fulfill({ status: 404, body: "This sound is not set up." }));
-  const reloading = page.reload();
-  reloading.catch(() => undefined);
-  const warning = page.getByText("The startup sound could not be loaded: HTTP 404. Restart Picard Code to check and download its sounds.", { exact: true });
-  try {
-    await expect(warning).toBeVisible();
-    await expect(page.locator("#status")).toHaveText("Starting up");
-    release();
-    await reloading;
-    await expect(page.locator("#status")).toHaveText("Computer voice offline");
-    await expect(page.locator(".conversation-button[aria-current=page]")).toContainText("Saved arrival check");
-    await expect(warning).toBeVisible();
-  } finally { release(); }
+  await page.reload();
+  await expect(page.locator("#status")).toHaveText("Computer voice offline");
+  await expect(page.locator(".conversation-button[aria-current=page]")).toContainText("Saved arrival check");
+  await page.getByRole("link", { name: /With deepest respect/ }).click();
+  expect(requests).toEqual([]);
+  await expect(page.locator("#notice")).toBeHidden();
 });
 
 for (const mode of [undefined, "no-speech", "broken"] as const) {
-  test(`the arrival call plays before systems finish loading (${mode ?? "saved speech"})`, async ({ playwright }) => {
+  test(`the arrival call waits for working communications (${mode ?? "saved speech"})`, async ({ playwright }) => {
     const browser = await playwright.chromium.launch({ args: [
       "--disable-audio-output", "--autoplay-policy=no-user-gesture-required",
+      "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream",
     ] });
     let release!: () => void;
     const ready = new Promise<void>((done) => { release = done; });
@@ -1446,17 +1487,22 @@ for (const mode of [undefined, "no-speech", "broken"] as const) {
       opening.catch(() => undefined);
       await loadingState;
       const arrivals = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
-      await expect.poll(arrivals).toHaveLength(1);
       await expect(page.locator("#status")).toHaveText("Starting up");
+      expect(await arrivals()).toEqual([]);
       release();
       await opening;
-      await page.getByRole("link", { name: /With deepest respect/ }).click();
-      expect(await arrivals()).toHaveLength(1);
+      if (mode === undefined) {
+        await startListening(page);
+        expect(await arrivals()).toHaveLength(1);
+      } else {
+        await page.getByRole("link", { name: /With deepest respect/ }).click();
+        expect(await arrivals()).toEqual([]);
+      }
     } finally { release(); await browser.close(); }
   });
 }
 
-test("the arrival call waits for a click and works before speech is set up", async ({ playwright }) => {
+test("clicking before speech is set up does not play an arrival call", async ({ playwright }) => {
   const browser = await playwright.chromium.launch({ args: [
     "--disable-audio-output", "--autoplay-policy=document-user-activation-required",
     "--disable-features=MediaEngagementBypassAutoplayPolicies,AutoplayIgnoreWebAudio",
@@ -1464,59 +1510,150 @@ test("the arrival call waits for a click and works before speech is set up", asy
   try {
     const page = await browser.newPage();
     await blockAudioUntilInteraction(page);
-    const loaded = page.waitForResponse("**/api/sounds/startup");
     await launch(page, "no-speech");
-    await (await loaded).finished();
     const played = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds);
     expect(await played()).toEqual([]);
     await page.locator("#speech-first-start-title").click();
-    await expect.poll(played).toEqual(["startup: Computer voice offline"]);
     await expect(page.locator("#voice-console")).toBeHidden();
     await expect(page.locator("#prepare-computer")).toBeVisible();
+    expect(await played()).toEqual([]);
   } finally { await browser.close(); }
 });
 
-test("a slow arrival sound never interrupts a spoken request", async ({ page }) => {
+test("a slow arrival call finishes before readiness and real microphone capture", async ({ page }) => {
   const capture = await controlledMicrophone(page, [0.5]);
+  await page.addInitScript((length) => {
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function (...args: Parameters<typeof start>) {
+      if (this.buffer && Math.abs(this.buffer.duration - length) < 0.02) {
+        this.playbackRate.value = 0.1;
+        this.addEventListener("ended", () => {
+          Object.assign(window, { arrivalEnded: true });
+        });
+      }
+      return start.apply(this, args);
+    };
+    const Node = window.AudioWorkletNode;
+    window.AudioWorkletNode = class extends Node {
+      constructor(...args: ConstructorParameters<typeof AudioWorkletNode>) {
+        super(...args);
+        const post = this.port.postMessage.bind(this.port);
+        this.port.postMessage = (message: unknown) => {
+          if (message === true && !(window as unknown as { arrivalEnded?: boolean }).arrivalEnded) {
+            Object.assign(window, { capturedBeforeArrival: true });
+          }
+          post(message);
+        };
+      }
+    };
+  }, SOUND_LENGTHS.startup);
   let release!: () => void;
   const ready = new Promise<void>((done) => { release = done; });
   await page.route("**/api/sounds/startup", async (route) => { await ready; await route.continue(); });
-  await launch(page);
-  await startListening(page);
-  await capture.start();
-  await expect(status(page)).toHaveText("Standing by");
-  await expect(page.locator("#voice-channel")).toHaveText("Listening");
-  await expect.poll(capture.bytes).toBeGreaterThan(0);
-  const loaded = page.waitForResponse("**/api/sounds/startup");
-  release();
-  await (await loaded).finished();
-  await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
-  await expect(page.locator(".message[data-role=user]")).toContainText("Computer, hello there");
-  expect(capture.requests).toHaveLength(1);
-  const arrivals = await page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
-  expect(arrivals).toEqual([]);
-  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  try {
+    await launch(page);
+    await expect(page.locator("#voice-channel")).toHaveText("Starting");
+    await expect(status(page)).toHaveText("Not listening");
+    expect(await capture.bytes()).toBe(0);
+    const played = page.waitForFunction(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.some((sound) => sound.startsWith("startup:")));
+    release();
+    await played;
+    await expect(page.locator("#voice-channel")).toHaveText("Starting");
+    await expect(status(page)).not.toHaveText("Standing by");
+    await startListening(page);
+    expect(await page.evaluate(() => (window as unknown as { capturedBeforeArrival?: boolean }).capturedBeforeArrival)).toBeUndefined();
+    await capture.start();
+    await expect(page.locator(".message[data-role=assistant]")).toHaveCount(1, { timeout: 15000 });
+    await expect(page.locator(".message[data-role=user]")).toContainText("Computer, hello there");
+    expect(capture.requests).toHaveLength(1);
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+  } finally { release(); }
 });
 
-test("opening the microphone does not discard an arrival sound that is still loading", async ({ playwright }) => {
-  const browser = await playwright.chromium.launch({ args: [
-    "--disable-audio-output", "--autoplay-policy=no-user-gesture-required",
-    "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream",
-  ] });
+test("leaving for settings while the arrival loads preserves it for the first completed opening", async ({ page }) => {
+  await controlledMicrophone(page, [0.5]);
+  await page.addInitScript(() => {
+    let openings = 0;
+    const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = (constraints) => {
+      Object.assign(window, { microphoneOpenings: ++openings });
+      return getUserMedia(constraints);
+    };
+  });
   let release!: () => void;
   const ready = new Promise<void>((done) => { release = done; });
   try {
-    const page = await browser.newPage({ permissions: ["microphone"] });
-    await controlledMicrophone(page, [0.5]);
     await page.route("**/api/sounds/startup", async (route) => { await ready; await route.continue(); });
     await launch(page);
-    await startListening(page);
+    await expect(page.locator("#voice-channel")).toHaveText("Starting");
+    await expect(page.locator("#listen-toggle")).toHaveAttribute("aria-label", "Switch microphone off");
+    await page.locator("a.readout[href='#settings/voice']").click();
+    await expect(page.locator("#drawer-settings")).toBeVisible();
+    await page.keyboard.press("Escape");
+    // Returning must start a fresh opening, without waiting for a cancelled download.
+    await expect.poll(() => page.evaluate(() => (window as unknown as { microphoneOpenings: number }).microphoneOpenings)).toBe(2);
     const loaded = page.waitForResponse("**/api/sounds/startup");
     release();
     await (await loaded).finished();
     const arrivals = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
-    await expect.poll(arrivals).toHaveLength(1);
-  } finally { release(); await browser.close(); }
+    await startListening(page);
+    expect(await arrivals()).toHaveLength(1);
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+  } finally { release(); }
+});
+
+test("first start keeps the channel closed through paused audio and the arrival call", async ({ page }) => {
+  await controlledMicrophone(page, [0.5]);
+  await page.addInitScript(() => {
+    let allowed = false;
+    document.addEventListener("pointerdown", (event) => {
+      if (event.target instanceof Element && event.target.closest("#open-channel")?.textContent === "Resume listening") allowed = true;
+    }, true);
+    const Context = window.AudioContext;
+    window.AudioContext = class extends Context {
+      private suspended: Promise<void>;
+      constructor(options?: AudioContextOptions) { super(options); this.suspended = this.suspend(); }
+      override resume() { return allowed ? this.suspended.then(() => super.resume()) : Promise.resolve(); }
+    };
+  });
+  await launch(page, "example", ["--model-setup"]);
+  await page.getByRole("button", { name: "Begin start-up" }).click();
+  await page.getByRole("button", { name: "Open a channel" }).click();
+  await expect(page.getByRole("button", { name: "Resume listening", exact: true })).toBeVisible();
+  await expect(page.locator("#first-run-title")).toHaveText("Open a channel");
+  await expect(page.locator("#open-channel-hint")).toHaveText("The browser paused sound. Choose Resume listening.");
+  expect(await page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds)).toEqual([]);
+  await page.getByRole("button", { name: "Resume listening", exact: true }).click();
+  await expect(page.locator("#first-run-title")).toHaveText("All systems online");
+  await expect(page.locator("#voice-channel")).toHaveText("Listening");
+  const timeline = await page.evaluate(() => (window as unknown as {
+    audioTimeline: { name: string; at: number; end: number; capture: boolean }[];
+  }).audioTimeline);
+  const arrival = timeline.filter((item) => item.name === "startup");
+  expect(arrival).toHaveLength(1);
+  expect(arrival[0]!.capture).toBe(false);
+  expect(timeline.find((item) => item.name === "speech")!.at).toBeGreaterThanOrEqual(arrival[0]!.end);
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
+test("two channels opening together share one arrival call", async ({ page }) => {
+  let release!: () => void;
+  const ready = new Promise<void>((done) => { release = done; });
+  await page.context().route("**/api/sounds/startup", async (route) => { await ready; await route.continue(); });
+  try {
+    await launch(page);
+    await expect(page.locator("#voice-channel")).toHaveText("Starting");
+    const other = await page.context().newPage();
+    await other.goto(page.url());
+    await expect(other.locator("#voice-channel")).toHaveText("Starting");
+    release();
+    await Promise.all([startListening(page), startListening(other)]);
+    const sounds = await Promise.all([page, other].map((tab) => tab.evaluate(() =>
+      (window as unknown as { audioTimeline: { name: string; capture: boolean }[] }).audioTimeline.filter((item) => item.name === "startup"))));
+    expect(sounds.flat()).toEqual([expect.objectContaining({ name: "startup", capture: false })]);
+    await other.close();
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+  } finally { release(); }
 });
 
 test("start-up: the first answer brings the senior officers to report, and Dismissed returns the bridge", async ({ page }) => {
