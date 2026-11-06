@@ -1,5 +1,17 @@
 # Picard Code release notes
 
+## 1701.4.10
+
+### Patch Changes
+
+- [#97](https://github.com/sbroenne/picard-code/pull/97) [`2a75dc5`](https://github.com/sbroenne/picard-code/commit/2a75dc53d2f928257a994464499fe47519cc596b) - Render graphs, maths and coloured code in replies, and keep OpenCode work results available on screen. Add read-only previews for documents, spreadsheets, slides and other reply files.
+
+- [#97](https://github.com/sbroenne/picard-code/pull/97) [`2a75dc5`](https://github.com/sbroenne/picard-code/commit/2a75dc53d2f928257a994464499fe47519cc596b) - Align log entries, work status and approval controls with the left edge of the main screen instead of leaving a large gap beside the tiles. Let rich results use the available screen width while keeping paragraphs easy to read.
+
+- [#97](https://github.com/sbroenne/picard-code/pull/97) [`2a75dc5`](https://github.com/sbroenne/picard-code/commit/2a75dc53d2f928257a994464499fe47519cc596b) - Keep graphs, file previews and separate work results readable after later replies arrive. Restore page and slide navigation after preview errors, preserve mathematical notation, and resume listening when media playback fails.
+
+- [#97](https://github.com/sbroenne/picard-code/pull/97) [`2a75dc5`](https://github.com/sbroenne/picard-code/commit/2a75dc53d2f928257a994464499fe47519cc596b) - Open website documents in a separate browser tab instead of offering an unavailable preview.
+
 ## 1701.4.9
 
 ### Patch Changes
