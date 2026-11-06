@@ -199,6 +199,7 @@ export class VoiceConversation {
     if (this.startupReady) return;
     this.startupReady = true;
     const context = this.audioContext();
+    void this.loadCue(context, "startup");
     void context.resume().catch(() => undefined);
     this.startup();
   }
@@ -235,7 +236,7 @@ export class VoiceConversation {
     this.opening = true;
     this.failed = false;
     this.hooks.changed();
-    const revision = ++this.revision;
+    const revision = this.revision;
     try {
       if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error("This browser cannot capture live speech. Use a current Chrome, Edge, Firefox or Safari.");
       const context = this.audioContext();

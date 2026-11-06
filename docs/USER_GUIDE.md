@@ -692,7 +692,8 @@ on-screen button.
   again. If a download fails, startup reports the error rather than silently
   leaving sounds out. They are kept in `.picard-code/sounds` in your home folder.
   The TNG-era ship-wide call welcomes the Captain once when the app opens,
-  after a click if the browser requires one, even before speech is set up. It does not play
+  without waiting for OpenCode or speech setup. The sound loads ahead of a
+  click if the browser requires one before playback. It does not play
   for new log entries or when the microphone is switched back on.
   During spoken conversation the other sounds play quietly, once
   each: a beep when a spoken request is accepted, when you say "Computer"

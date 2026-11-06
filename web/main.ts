@@ -1284,10 +1284,11 @@ async function loadHistory() {
 
 /** A quiet reopen keeps the current connection readout until the server reports it. */
 function openEvents(quiet = false) {
+  const firstConnection = !events;
   events?.close();
   if (!quiet) connected = false;
-  // A quiet reconnect leaves an error that is already on screen in place.
-  let keepNotice = quiet;
+  // Keep start-up errors on the first connection, and existing errors on a quiet reconnect.
+  let keepNotice = quiet || firstConnection;
   events = new EventSource("/api/events");
   events.addEventListener("message", (message: MessageEvent<string>) => {
     void perform(async () => {
@@ -1303,7 +1304,6 @@ function openEvents(quiet = false) {
           await loadHistory();
         }
         controls();
-        if (connected) voice.arrive();
       } else handleEvent(data);
     });
   });
@@ -1316,7 +1316,7 @@ function openEvents(quiet = false) {
   });
 }
 
-async function selectConversation(id: string) {
+async function selectConversation(id: string, keepNotice = false) {
   players.stop();
   cancelTributeSpeech();
   if (selected && id !== selected) { voiceTurn = undefined; spokenQuestionID = undefined; voice.close(); }
@@ -1329,7 +1329,7 @@ async function selectConversation(id: string) {
   clearTimeout(historyTimer);
   live.clear();
   messages = [];
-  notice();
+  if (!keepNotice) notice();
   if (openDrawer() === "records") closeDrawer();
   renderState();
   renderMessages();
@@ -1416,13 +1416,14 @@ async function boot() {
     await api("connect", { token });
     history.replaceState(null, "", location.pathname);
   }
+  voice.arrive();
   await refreshState();
   // Anyone who already chose a model has been aboard before; the start-up is only for a first run.
   if (state && !firstRun && (state.savedModel || state.modelError)) setFirstRun("done");
   firstRunChecked = !!state;
   if (state && !state.selectedModel && !wizardStep()) location.hash = `settings/${modelSetupPart()}`;
   controls();
-  if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id);
+  if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id, true);
   openEvents();
 }
 
