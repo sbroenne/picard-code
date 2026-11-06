@@ -671,10 +671,11 @@ function controls() {
   element("model-problem").textContent = problem;
   element("model-problem").hidden = !problem;
   element("refresh-model").hidden = !unavailable && !state?.modelError && !!state?.models.length;
-  for (const id of ["refresh-provider", "refresh-model"]) {
+  for (const id of ["refresh-provider", "refresh-model", "refresh-mcp"]) {
     const refresh = element<HTMLButtonElement>(id);
     refresh.disabled = !state || !connected || activeWork || savingModel || refreshingProvider;
-    refresh.textContent = refreshingProvider ? "Refreshing connection" : "Refresh connection";
+    refresh.textContent = id === "refresh-mcp" ? refreshingProvider ? "Refreshing connections" : "Refresh connections"
+      : refreshingProvider ? "Refreshing connection" : "Refresh connection";
   }
   const modelStatus = element("model-status");
   modelStatus.dataset.state = unavailable || state?.modelError ? "unavailable" : unchanged ? "saved" : "pending";
@@ -723,6 +724,7 @@ function renderState() {
   if (!state) { controls(); return; }
   if (document.activeElement !== element("project-path")) element<HTMLInputElement>("project-path").value = state.project;
   element("workspace-caption").textContent = `OpenCode ${state.version} · ${state.project}`;
+  element("mcp-project").textContent = state.project;
   const savedValue = state.selectedModel ? modelValue(state.selectedModel) : "";
   const currentModel = displayedModel === savedValue ? model.value : savedValue;
   displayedModel = savedValue;
@@ -1806,7 +1808,7 @@ function startVoiceSystems() {
 }
 
 // Each part of Ship's systems carries a short panel code, as on an LCARS console. The codes are decoration only.
-const settingsParts = { provider: ["Connect your AI provider", "orange", "SYS 01"], model: ["Computer intelligence", "blue", "SYS 02"], project: ["Project folder", "tan", "SYS 03"], voice: ["Speech", "lilac", "SYS 04"], about: ["About", "red", "SYS 05"] } as const;
+const settingsParts = { provider: ["Connect your AI provider", "orange", "SYS 01"], model: ["Computer intelligence", "blue", "SYS 02"], project: ["Project folder", "tan", "SYS 03"], voice: ["Speech", "lilac", "SYS 04"], about: ["About", "red", "SYS 05"], mcp: ["MCP servers", "orange", "SYS 06"] } as const;
 type SettingsPart = keyof typeof settingsParts;
 /** Each side panel tile opens its own part, for example #settings/voice. Without one, open what still needs doing. */
 function showSettingsPart(requested?: string) {
@@ -1951,22 +1953,28 @@ element("stop").addEventListener("click", () => {
   });
 });
 element("retry").addEventListener("click", () => { void perform(async () => { await route(); await boot(); await route(); }); });
-async function refreshProvider() {
+async function refreshProvider(mcp = false) {
   if (refreshingProvider) return;
   refreshingProvider = true;
+  if (mcp) element("mcp-refresh-result").textContent = "Reloading OpenCode settings.";
   controls();
   try {
     await api("refresh", {});
     await refreshState();
     notice();
-    if (!state?.selectedModel) location.hash = `settings/${modelSetupPart()}`;
+    if (!mcp && !state?.selectedModel) location.hash = `settings/${modelSetupPart()}`;
     openEvents();
+    if (mcp) element("mcp-refresh-result").textContent = "OpenCode settings reloaded. Run the list command to check each MCP connection.";
+  } catch (error) {
+    if (mcp) element("mcp-refresh-result").textContent = errorMessage(error);
+    throw error;
   } finally { refreshingProvider = false; controls(); }
 }
 for (const id of ["refresh-provider", "refresh-model"]) {
   element(id).addEventListener("click", () => { void perform(refreshProvider); });
 }
-for (const [buttonID, commandID, resultID] of [["copy-provider-command", "provider-command", "provider-copy-result"], ["copy-wizard-command", "wizard-command", "wizard-copy-result"]]) {
+element("refresh-mcp").addEventListener("click", () => { void perform(() => refreshProvider(true)); });
+for (const [buttonID, commandID, resultID] of [["copy-provider-command", "provider-command", "provider-copy-result"], ["copy-wizard-command", "wizard-command", "wizard-copy-result"], ["copy-mcp-list", "mcp-list-command", "mcp-list-copy-result"], ["copy-mcp-auth", "mcp-auth-command", "mcp-auth-copy-result"]]) {
   element(buttonID!).addEventListener("click", () => { void perform(async () => {
     const copy = element<HTMLButtonElement>(buttonID!);
     if (copy.disabled) return;
@@ -1977,6 +1985,9 @@ for (const [buttonID, commandID, resultID] of [["copy-provider-command", "provid
       await navigator.clipboard.writeText(element(commandID!).innerText);
       element(resultID!).textContent = buttonID === "copy-wizard-command" ? "Order copied" : "Command copied";
       notice();
+    } catch (error) {
+      if (buttonID?.startsWith("copy-mcp-")) element(resultID!).textContent = errorMessage(error);
+      throw error;
     } finally { copy.disabled = false; }
   }); });
 }

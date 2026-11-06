@@ -13,7 +13,7 @@ import { setupSounds, soundFolder } from "../../scripts/setup-sounds.mjs";
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
   if (command === "opencode") {
-    // The OpenCode included with Picard Code, for signing in to model providers.
+    // Reuse the same OpenCode selection for provider sign-in and MCP management.
     const openCode = await openCodeCommand();
     const child = spawn(openCode.command, [...openCode.prefix, ...rest], { stdio: "inherit" });
     await new Promise<void>((done, fail) => {

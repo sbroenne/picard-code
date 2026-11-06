@@ -2973,7 +2973,7 @@ test("the side panel keeps every tile readable on a short laptop screen", async 
   await launch(page);
   for (const font of ["", "Arial, sans-serif"]) {
     await page.evaluate((font) => document.documentElement.style.setProperty("--lcars", font), font);
-    for (const height of [590, 657]) {
+    for (const height of [590, 640, 657, 720]) {
       await page.setViewportSize({ width: 1280, height });
       const tiles = await page.locator("#sidebar .rail-button, #sidebar .readout").evaluateAll((nodes) => nodes.map((node) => {
         const tile = node.getBoundingClientRect();
@@ -2983,6 +2983,7 @@ test("the side panel keeps every tile readable on a short laptop screen", async 
         return { text: node.textContent, clipped: text.top < tile.top - 1 || text.bottom > tile.bottom + 1, bottom: tile.bottom };
       }));
       expect(tiles.filter((tile) => tile.clipped)).toEqual([]);
+      expect(tiles.some((tile) => tile.text?.includes("MCP servers"))).toBe(true);
       expect(Math.max(...tiles.map((tile) => tile.bottom))).toBeLessThanOrEqual(height);
     }
   }
