@@ -17,6 +17,7 @@ import { EARLIER_SPEECH_SETTINGS, saveSpeechSettings, speechSettingsFile } from 
 import { BRIDGE_CREW } from "../shared/crew.js";
 import { saveModelSettings } from "../server/model-settings.js";
 import { CREW_KEPT, crewBriefing } from "../server/instructions.js";
+import { officeFile, pdfFile } from "./output-files.js";
 
 async function setup(extra: Partial<AppOptions> = {}, initialSpeech?: Record<string, unknown>) {
   const temporary = await mkdtemp(resolve(".picard-test-"));
@@ -231,6 +232,155 @@ test("settings errors are visible, block sends, and never become a fallback mode
   state = await (await context.request("state")).json() as AppState;
   assert.match(state.modelError ?? "", /Could not read the saved model choice/);
   assert.equal(state.selectedModel, undefined);
+});
+
+test("reply files require authentication, actual reply references and Project containment", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  const root = context.fixture.createSession(context.directory);
+  const child = context.fixture.createSession(context.directory, "Officer files", root.id);
+  const foreign = context.fixture.createSession(context.other);
+  await writeFile(join(context.directory, "report.md"), "# TEST ONLY report");
+  await writeFile(join(context.directory, "binary.txt"), Buffer.from([0, 1, 2]));
+  await writeFile(join(context.directory, ".env"), "TEST ONLY private value");
+  await writeFile(join(context.directory, "invalid.pdf"), "not a PDF");
+  await writeFile(join(context.other, "outside.md"), "TEST ONLY outside");
+  await symlink(context.other, join(context.directory, "escape"), "junction");
+  await symlink(join(context.directory, ".env"), join(context.directory, "disguised.txt"));
+  const large = await fs.open(join(context.directory, "large.txt"), "w");
+  await large.truncate(33 * 1024 * 1024); await large.close();
+  const refs = ["report.md", "binary.txt", "invalid.pdf", "escape/outside.md", "disguised.txt", "large.txt", "missing.md", "../other/outside.md"];
+  for (const session of [root, child, foreign]) context.fixture.messages.get(session.id)!.push({
+    id: "files", type: "assistant", time: { created: 1 }, content: [{ type: "text", text: refs.map((href) => `[TEST ONLY](${href})`).join("\n") }],
+  });
+  const path = (href = "report.md", session = root.id, project = context.directory) =>
+    `conversations/${session}/file/files?${new URLSearchParams({ href, project })}`;
+  assert.equal((await context.request(path())).status, 401);
+  await context.login();
+  const response = await context.request(path());
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-disposition"), "attachment");
+  assert.match(response.headers.get("content-security-policy")!, /sandbox/);
+  assert.equal(await response.text(), "# TEST ONLY report");
+  for (const [href, status] of [["binary.txt", 415], ["invalid.pdf", 415], ["escape/outside.md", 403], ["disguised.txt", 415], ["large.txt", 413], ["missing.md", 404], ["../other/outside.md", 403], ["not-mentioned.md", 403]] as const) {
+    assert.equal((await context.request(path(href))).status, status, href);
+  }
+  assert.equal((await context.request(path("report.md", child.id))).status, 200);
+  assert.equal((await context.request(path("report.md", foreign.id))).status, 403);
+  assert.equal((await context.request(path("report.md", root.id, context.other))).status, 403);
+  assert.equal((await context.request(path(), undefined, { "Sec-Fetch-Site": "cross-site" })).status, 403);
+  assert.equal((await context.request(path(), undefined, { Origin: "https://example.com" })).status, 403);
+});
+
+test("reply files keep MIME-only attachments and work links, and bound expanded Office documents", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  const session = context.fixture.createSession(context.directory);
+  const pdf = pdfFile(), docx = await officeFile("docx");
+  await writeFile(join(context.directory, "work.md"), "TEST ONLY work file");
+  await writeFile(join(context.directory, "valid.docx"), docx);
+  const expanded = Buffer.from(docx);
+  const central = expanded.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+  expanded.writeUInt32LE(256 * 1024 * 1024, central + 24);
+  await writeFile(join(context.directory, "expanded.docx"), expanded);
+  const forged = Buffer.from(docx);
+  const compressedEntry = forged.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]), central + 4);
+  forged.writeUInt32LE(1, compressedEntry + 24);
+  await writeFile(join(context.directory, "forged.docx"), forged);
+  context.fixture.messages.get(session.id)!.push({
+    id: "files", type: "assistant", time: { created: 1 }, content: [{
+      type: "tool", id: "files", name: "test-only", state: { status: "completed", content: [
+        { type: "text", text: "[Work file](work.md)\n[Office file](valid.docx)\n[Expanded file](expanded.docx)\n[Forged file](forged.docx)" },
+        { type: "file", uri: `data:application/pdf;base64,${pdf.toString("base64")}`, mime: "application/pdf", name: "PDF without a suffix" },
+        { type: "file", uri: "data:text/plain;base64,VEVTVCBPTkxZ", mime: "application/pdf", name: "Incorrect MIME" },
+      ] },
+    }],
+  });
+  await context.login();
+  const path = (parameters: Record<string, string>) => `conversations/${session.id}/file/files?${new URLSearchParams({ project: context.directory, ...parameters })}`;
+  assert.equal((await context.request(path({ href: "work.md" }))).status, 200);
+  assert.equal((await context.request(path({ href: "valid.docx" }))).status, 200);
+  assert.equal((await context.request(path({ href: "expanded.docx" }))).status, 413);
+  assert.equal((await context.request(path({ href: "forged.docx" }))).status, 415);
+  const attachment = await context.request(path({ part: "files:file:files:1" }));
+  assert.equal(attachment.status, 200);
+  assert.equal(attachment.headers.get("content-type"), "application/pdf");
+  assert.deepEqual(Buffer.from(await attachment.arrayBuffer()), pdf);
+  assert.equal((await context.request(path({ part: "files:file:files:2" }))).status, 415);
+  assert.equal((await context.request(path({ part: "unmentioned", href: "work.md" }))).status, 200);
+  assert.equal((await context.request(path({ href: `data:application/pdf;base64,${pdf.toString("base64")}` }))).status, 403);
+});
+
+test("reply files reject non-files before opening a potentially blocking handle", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  const session = context.fixture.createSession(context.directory);
+  const folder = join(context.directory, "folder.txt");
+  await mkdir(folder);
+  context.fixture.messages.get(session.id)!.push({ id: "files", type: "assistant", time: { created: 1 },
+    content: [{ type: "text", text: "[Not a regular file](folder.txt)" }] });
+  const originalOpen = fs.open;
+  const opening = t.mock.method(fs, "open", async (...args: Parameters<typeof fs.open>) => {
+    if (args[0] === folder) throw new Error("TEST ONLY: tried opening a non-file.");
+    return originalOpen(...args);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { opening.mock.restore(); syncBuiltinESMExports(); });
+  await context.login();
+  const response = await context.request(`conversations/${session.id}/file/files?${new URLSearchParams({ href: "folder.txt", project: context.directory })}`);
+  assert.equal(response.status, 415);
+  assert.match((await response.json()).error, /not a file/);
+});
+
+test("module workers are served as JavaScript without relaxing script policy", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await writeFile(join(context.temporary, "web", "worker.mjs"), "// TEST ONLY worker");
+  const response = await fetch(`${context.app.origin}/worker.mjs`);
+  assert.equal(response.headers.get("content-type"), "text/javascript; charset=utf-8");
+  assert.match(response.headers.get("content-security-policy")!, /worker-src 'self'/);
+  assert.doesNotMatch(response.headers.get("content-security-policy")!, /'unsafe-inline'|'unsafe-eval'/);
+});
+
+test("structured work history retains errors, file results, changes and command output", () => {
+  const at = { created: 1 };
+  const messages = chatMessages([{
+    id: "reply", type: "assistant", time: at, content: [{
+      type: "tool", id: "change", name: "edit", state: { status: "error", input: { file: "a.ts", apiKey: "TEST ONLY SECRET" },
+        error: { type: "test-only", message: "TEST ONLY failed edit" },
+        metadata: { credential: "TEST ONLY METADATA", files: [{ file: "a.ts", before: "old", after: "new" }] },
+        content: [{ type: "text", text: "\u001b[31mTEST ONLY partial output\u001b[0m" },
+          { type: "file", uri: "result.wav", mime: "audio/wav", name: "Audio" }] },
+    }],
+  }, { id: "command", type: "shell", command: "printf test", status: "exited", exit: 2,
+    output: { output: "\u001b[31mTEST ONLY command\u001b[0m", truncated: true, cursor: 15, size: 30 }, time: at }]);
+  const tool = messages[0]!.parts[0]!.tool!;
+  assert.equal(tool.error, "TEST ONLY failed edit");
+  assert.equal(tool.output, "TEST ONLY partial output");
+  assert.deepEqual(tool.changes, [{ file: "a.ts", before: "old", after: "new" }]);
+  assert.doesNotMatch(JSON.stringify(messages), /TEST ONLY SECRET|TEST ONLY METADATA/);
+  assert.equal(messages[0]!.parts[1]!.type, "file");
+  assert.equal(messages[0]!.parts[1]!.href, "result.wav");
+  assert.equal(messages[1]!.parts[0]!.status, "error");
+  assert.equal(messages[1]!.parts[0]!.tool!.exit, 2);
+  assert.match(messages[1]!.parts[0]!.tool!.output!, /TEST ONLY command\nMore command output/);
+  for (const type of ["session.shell.started", "session.shell.ended"]) assert.deepEqual(browserEvents({ type, data: { sessionID: "s" } }), [{ type: "changed", sessionID: "s" }]);
+});
+
+test("user-facing OpenCode notices keep their descriptions without forwarding system instructions", () => {
+  const at = { created: 1 };
+  const messages = chatMessages([
+    { id: "system", type: "system", text: "TEST ONLY PRIVATE INSTRUCTIONS", description: "TEST ONLY changed instructions", time: at },
+    { id: "hidden", type: "system", text: "TEST ONLY PRIVATE INSTRUCTIONS", time: at },
+    { id: "context", type: "synthetic", text: "TEST ONLY PRIVATE INSTRUCTIONS", description: "TEST ONLY context added", time: at },
+    { id: "skill", type: "skill", name: "TEST ONLY skill", time: at },
+    { id: "compact", type: "compaction", status: "failed", error: { type: "test", message: "TEST ONLY context failed" }, time: at },
+  ]);
+  assert.deepEqual(messages.map((message) => message.id), ["system", "context", "skill", "compact"]);
+  assert.match(JSON.stringify(messages), /TEST ONLY changed instructions/);
+  assert.doesNotMatch(JSON.stringify(messages), /PRIVATE INSTRUCTIONS/);
+  assert.equal(messages.at(-1)!.parts[0]!.status, "error");
+  assert.equal(messages.at(-1)!.parts[0]!.tool!.output, "TEST ONLY context failed");
 });
 
 test("reply media is authenticated, confined to its Project, validated, and seekable", async (t) => {

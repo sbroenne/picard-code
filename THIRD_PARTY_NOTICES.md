@@ -20,6 +20,26 @@ Their installed license files and notices must be preserved.
 | DOMPurify (built into the browser page) | Apache 2.0 or MPL 2.0, used under Apache 2.0; copyright Cure53 and other contributors | [Project](https://github.com/cure53/DOMPurify) |
 | Silero VAD v5 voice detector model (built into the browser page; taken from the `@ricky0123/vad-web` package, ISC) | MIT; copyright 2020-present Silero Team | [Project](https://github.com/snakers4/silero-vad), [vad-web](https://github.com/ricky0123/vad) |
 | ONNX Runtime Web (built into the browser page; runs the voice detector) | MIT; Microsoft Corporation; its bundled components keep their own notices | [Project](https://github.com/microsoft/onnxruntime), [Notices](https://github.com/microsoft/onnxruntime/blob/main/ThirdPartyNotices.txt) |
+| Pele (Mermaid diagrams) | MIT; copyright 2026 kepano | [Project](https://github.com/obsidianmd/pele) |
+| KaTeX (maths) | MIT; KaTeX contributors | [Project](https://github.com/KaTeX/KaTeX) |
+| Pierre Highlights (code colouring, Pierre Dark theme) | Apache 2.0; Pierre contributors; bundled theme notices retained | [Package](https://www.npmjs.com/package/@pierre/highlights) |
+| PDF.js | Apache 2.0; Mozilla Foundation and contributors | [Project](https://github.com/mozilla/pdf.js) |
+| docx-preview | Apache 2.0; docx-preview contributors | [Project](https://github.com/VolodymyrBaydalka/docxjs) |
+| BetterOffice XLSX and PPTX browser engines | Apache 2.0; BetterOffice contributors | [Project](https://github.com/openooxml/betteroffice) |
+| BetterOffice font assets | Apache 2.0 for the package; the included Liberation Sans font is under SIL Open Font License 1.1, with Google and Red Hat copyright notices | [Fonts](https://github.com/openooxml/betteroffice/tree/main/packages/fonts) |
+| JSZip and its browser helpers | JSZip is used under MIT, not its alternative GPL license; Stuart Knightley, David Duponchel, Franz Buchinger and Antonio Afonso; helper notices retained | [Project](https://github.com/Stuk/jszip) |
+
+The browser build includes the rendering libraries' full license files and
+available notices in `web-dist/renderer-notices.txt`, including the Liberation
+font license and JSZip's bundled helper licenses. The file ships with the npm
+package. These are separately loaded display engines, not a copy of OpenCode's
+complete application or its private `@opencode/session-ui` package.
+
+The integration follows OpenCode's browser choice of Pele, KaTeX and Pierre
+Highlights, inspected at OpenCode commit
+`21eaa626a37f77d7a8d80fa01997fa7d52506c97`. Picard's display adapters are
+original code. OpenCode's built-in browser and terminal panels, document editing
+and executable plugin hosting are not included.
 
 ## Local speech
 

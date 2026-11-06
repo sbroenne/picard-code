@@ -266,7 +266,22 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .markdown th, .markdown td { border: 1px solid #3a2f26; padding: 4px 10px; text-align: left; }
 .markdown th { color: var(--peach); font-weight: 600; }
 .markdown pre code { background: none; color: inherit; padding: 0; }
-.message pre { background: #120f0c; color: var(--text); border-left: 4px solid var(--peach); padding: 14px; line-height: 1.6; white-space: pre; overflow-x: auto; max-width: 100%; }
+.reply-output, .reply-file { display: block; max-width: 100%; margin: .7em 0; }
+.reply-output img { display: block; max-width: 100%; height: auto; background: #fff; border-radius: 8px; }
+.reply-output summary, .work-details > summary, .file-preview summary { cursor: pointer; color: var(--peach); }
+.work-details { margin-top: 1em; border-top: 1px solid var(--muted); padding-top: .5em; }
+.work-record { margin: 1em 0; padding: 1em; border-left: 4px solid var(--muted); }
+.work-details section { padding: .5em 0; overflow-wrap: anywhere; }
+.reply-file > span { display: block; color: var(--peach); }
+.reply-file > button, .reply-file > a, .file-preview button { margin: .4em .5em .4em 0; }
+.file-preview { max-height: 75vh; overflow: auto; background: #16121b; padding: 1em; contain: layout paint; }
+.file-preview iframe { width: 100%; min-height: 400px; background: white; border: 0; }
+.file-preview canvas, .file-preview img, .file-preview video { display: block; max-width: 100%; height: auto; }
+.file-preview table { border-collapse: collapse; }
+.file-preview td { border: 1px solid var(--muted); padding: .3em .6em; }
+.file-preview pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.markdown math { max-width: 100%; overflow-x: auto; }
+.message pre, .work-record pre { background: #120f0c; color: var(--text); border-left: 4px solid var(--peach); padding: 14px; line-height: 1.6; white-space: pre; overflow-x: auto; max-width: 100%; }
 .message-error { color: #ffd6cc; background: #3a1414; padding: 12px; border-radius: 0 16px 16px 0; }
 .tribute-fact, .tribute-invitation, .tribute-source, .wikipedia-source { margin: 14px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
 .tribute-fact { --record-color: var(--lilac); margin: 24px 0 28px; overflow-wrap: anywhere; background: var(--ink); color: var(--text); font-size: 16px; }

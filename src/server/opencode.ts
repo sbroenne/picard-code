@@ -40,12 +40,16 @@ export type ToolContent = { type: "text"; text: string } | { type: "file"; uri: 
 export type ContentItem =
   | { type: "text"; text: string }
   | { type: "reasoning"; text: string }
-  | { type: "tool"; id: string; name: string; state: { status: string; input?: unknown; content?: ToolContent[]; error?: OpenCodeError } };
+  | { type: "tool"; id: string; name: string; state: { status: string; input?: unknown; content?: ToolContent[]; metadata?: Record<string, unknown>; error?: OpenCodeError } };
 
 export type SessionMessage =
   | { id: string; type: "user"; text: string; time: { created: number } }
   | { id: string; type: "assistant"; agent?: string; content: ContentItem[]; error?: OpenCodeError; finish?: string; time: { created: number; completed?: number } }
   | { id: string; type: "idle"; outcome: "succeeded" | "failed" | "interrupted"; error?: OpenCodeError; time: { created: number } }
+  | { id: string; type: "shell"; command: string; status: string; exit?: number; output?: { output: string; cursor: number; size: number; truncated: boolean }; time: { created: number } }
+  | { id: string; type: "system" | "synthetic"; text: string; description?: string; time: { created: number } }
+  | { id: string; type: "skill"; name: string; time: { created: number } }
+  | { id: string; type: "compaction"; status: string; summary?: string; error?: OpenCodeError; time: { created: number } }
   | { id: string; type: string; time: { created: number } };
 
 /** One event from OpenCode's live stream. */

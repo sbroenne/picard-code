@@ -20,9 +20,9 @@ export function reconcile(parent: Node, wanted: Node) {
     if (!current) { parent.insertBefore(next, cursor); continue; }
     if (current !== cursor) parent.insertBefore(current, cursor);
     if (current instanceof HTMLElement && next instanceof HTMLElement) {
-      if (!current.classList.contains("reply-media")) {
-        for (const attr of Array.from(current.attributes)) if (!next.hasAttribute(attr.name)) current.removeAttribute(attr.name);
-        for (const attr of next.attributes) if (current.getAttribute(attr.name) !== attr.value) current.setAttribute(attr.name, attr.value);
+      if (!current.classList.contains("reply-media") && !current.classList.contains("reply-output") && !current.classList.contains("reply-file") && !current.classList.contains("reply-code")) {
+        for (const attr of Array.from(current.attributes)) if (attr.name !== "open" && !next.hasAttribute(attr.name)) current.removeAttribute(attr.name);
+        for (const attr of next.attributes) if (attr.name !== "open" && current.getAttribute(attr.name) !== attr.value) current.setAttribute(attr.name, attr.value);
         reconcile(current, next);
       }
     } else if (current.nodeValue !== next.nodeValue) current.nodeValue = next.nodeValue;
@@ -42,6 +42,22 @@ export class ReplyPlayers {
   private players = new Map<HTMLElement, { stop(): void }>();
   private active?: HTMLElement;
   constructor(private hooks: { paused(value: boolean): void }) {}
+
+  attach(element: HTMLElement, media: HTMLMediaElement) {
+    const start = () => this.start(element), end = () => this.end(element);
+    media.addEventListener("play", start);
+    media.addEventListener("pause", end);
+    media.addEventListener("ended", end);
+    const player = { stop: () => { media.pause(); this.end(element); } };
+    this.players.set(element, player);
+    return () => {
+      player.stop();
+      media.removeEventListener("play", start);
+      media.removeEventListener("pause", end);
+      media.removeEventListener("ended", end);
+      this.players.delete(element);
+    };
+  }
 
   stop() {
     for (const player of this.players.values()) player.stop();
