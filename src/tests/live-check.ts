@@ -8,6 +8,7 @@ import { startEngine, projectDirectory, openCodeCommand, freePort } from "../ser
 import { availableModels } from "../server/engine.js";
 import { BRIDGE_CREW } from "../shared/crew.js";
 import { verifiedCrew } from "../server/crew.js";
+import { startApp } from "../server/app.js";
 
 const temporary = await mkdtemp(resolve(".picard-live-check-"));
 const settings = await mkdtemp(join(tmpdir(), "picard-opencode-settings-"));
@@ -46,6 +47,31 @@ try {
     { name: "picard-global-check", status: "disabled" },
   ], "Picard Code must preserve globally configured MCP servers while loading the crew");
   const command = await openCodeCommand();
+  const app = await startApp({
+    client, project, openCodeSource: command.source, webRoot: temporary,
+    modelFile: join(settings, "picard-model.json"), speechFile: join(settings, "picard-speech.json"),
+    prepareCrew: engine.prepareCrew,
+  });
+  try {
+    const login = await fetch(`${app.origin}/api/connect`, {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Picard-Request": "1" },
+      body: JSON.stringify({ token: app.token }),
+    });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get("set-cookie")!.split(";")[0]!;
+    const expected = { project, servers: [{ name: "picard-global-check", status: "disabled" }] };
+    const connections = () => fetch(`${app.origin}/api/mcp`, { headers: { Cookie: cookie } });
+    let response = await connections();
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), expected, "the browser must receive real, Project-specific MCP states");
+    const refreshed = await fetch(`${app.origin}/api/refresh`, {
+      method: "POST", headers: { Cookie: cookie, "Content-Type": "application/json", "X-Picard-Request": "1" }, body: "{}",
+    });
+    assert.equal(refreshed.status, 200);
+    response = await connections();
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), expected, "refresh must show the actual MCP state, not claim a connection");
+  } finally { await app.close(); }
   const runOpenCode = (args: string[]) => promisify(execFile)(command.command, [...command.prefix, ...args], {
     cwd: project, timeout: 45_000,
   });

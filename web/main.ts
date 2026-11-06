@@ -1,5 +1,5 @@
 import "./style.css";
-import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings, SpeechSetupProgress } from "../src/shared/types";
+import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, McpConnections, ModelChoice, PermissionRequest, SpeechSettings, SpeechSetupProgress } from "../src/shared/types";
 import { errorMessage } from "../src/shared/messages";
 import { replyFailed, spokenSummary } from "../src/shared/speech";
 import { spokenParts, type SpokenPart } from "../src/shared/briefing";
@@ -641,6 +641,41 @@ function readouts() {
 
 let savingModel = false;
 let refreshingProvider = false;
+let mcpRevision = 0;
+async function refreshMcpServers() {
+  const revision = ++mcpRevision;
+  if (!state || location.hash !== "#settings/mcp") return;
+  const project = state.project;
+  const list = element("mcp-servers");
+  const message = element("mcp-status");
+  list.replaceChildren();
+  list.setAttribute("aria-busy", "true");
+  message.textContent = "Checking MCP servers.";
+  try {
+    const result = await api<McpConnections>("mcp");
+    if (revision !== mcpRevision || state.project !== project) return;
+    if (result.project !== project) throw new Error("The Project changed. Reopen this panel to check its connections.");
+    const labels: Record<string, string> = {
+      connected: "Connected", needs_auth: "Sign-in needed", disabled: "Disabled",
+      failed: "Connection failed", pending: "Connecting",
+    };
+    for (const server of result.servers) {
+      const row = make("li", "mcp-server");
+      const summary = make("div", "mcp-server-summary");
+      summary.append(make("strong", undefined, server.name), make("span", "mcp-server-state", labels[server.status] ?? `Unknown state: ${server.status}`));
+      row.append(summary);
+      if (server.error) row.append(make("p", undefined, server.error));
+      list.append(row);
+    }
+    message.textContent = result.servers.length
+      ? `${result.servers.length} MCP server${result.servers.length === 1 ? "" : "s"} configured for this Project.`
+      : "No MCP servers are configured for this Project.";
+  } catch (error) {
+    if (revision === mcpRevision && state.project === project) message.textContent = `Could not check MCP servers. ${errorMessage(error)}`;
+  } finally {
+    if (revision === mcpRevision) list.removeAttribute("aria-busy");
+  }
+}
 function modelSetupPart(current = state): "model" | "provider" {
   return current && !current.savedModel && !current.modelError && !current.hasConnectedProvider ? "provider" : "model";
 }
@@ -1307,7 +1342,9 @@ function scheduleHistory() {
 
 function handleEvent(event: BrowserEvent) {
   if (!state || event.type === "connection") return;
-  if (event.type === "delta") {
+  if (event.type === "mcp") {
+    void refreshMcpServers();
+  } else if (event.type === "delta") {
     if (event.sessionID !== selected) return;
     const piece = live.get(event.partID) ?? { sessionID: event.sessionID, messageID: event.messageID, partType: event.partType, text: "", speaker: event.speaker, background: event.background };
     piece.text += event.delta;
@@ -1350,9 +1387,11 @@ async function refreshState() {
   const lostModel = !!state?.selectedModel && !next.selectedModel;
   const finishedModelSetup = !!wizardStep() && !state?.selectedModel && !!next.selectedModel;
   const speechBecameReady = !state?.speech?.configured && !!next.speech?.configured;
+  const projectChanged = state?.project !== next.project;
   state = next;
   if (speechBecameReady && !speechSetupWatching) showSpeechPreparation(next.speech?.setup);
   renderState();
+  if (projectChanged) void refreshMcpServers();
   if (lostModel) location.hash = "settings/model";
   else if (finishedModelSetup) location.hash = "";
   completeVoiceReply();
@@ -1407,6 +1446,7 @@ function openEvents(quiet = false) {
           if (!keepNotice) notice();
           keepNotice = false;
           await refreshState();
+          void refreshMcpServers();
           await loadHistory();
         }
         controls();
@@ -1833,6 +1873,7 @@ function showSettingsPart(requested?: string) {
 
 let settingsLoaded = false;
 async function route() {
+  mcpRevision++;
   cancelTributeSpeech();
   const open = openDrawer();
   for (const name of drawers) element(`drawer-${name}`).hidden = name !== open;
@@ -1865,6 +1906,7 @@ async function route() {
     return;
   }
   showSettingsPart(location.hash.split("/")[1]);
+  void refreshMcpServers();
   if (location.hash.endsWith("/advanced")) element<HTMLDetailsElement>("advanced-speech").open = true;
   if (!settingsLoaded) {
     settingsLoaded = true;
@@ -1966,7 +2008,12 @@ element("retry").addEventListener("click", () => { void perform(async () => { aw
 async function refreshProvider(mcp = false) {
   if (refreshingProvider) return;
   refreshingProvider = true;
-  if (mcp) element("mcp-refresh-result").textContent = "Reloading OpenCode settings.";
+  if (mcp) {
+    mcpRevision++;
+    element("mcp-servers").replaceChildren();
+    element("mcp-status").textContent = "Reloading OpenCode settings.";
+    element("mcp-refresh-result").textContent = "";
+  }
   controls();
   try {
     await api("refresh", {});
@@ -1974,9 +2021,15 @@ async function refreshProvider(mcp = false) {
     notice();
     if (!mcp && !state?.selectedModel) location.hash = `settings/${modelSetupPart()}`;
     openEvents();
-    if (mcp) element("mcp-refresh-result").textContent = "OpenCode settings reloaded. Run the list command to check each MCP connection.";
+    if (mcp) {
+      element("mcp-refresh-result").textContent = "OpenCode settings reloaded.";
+      await refreshMcpServers();
+    }
   } catch (error) {
-    if (mcp) element("mcp-refresh-result").textContent = errorMessage(error);
+    if (mcp) {
+      element("mcp-status").textContent = "Connections were not refreshed.";
+      element("mcp-refresh-result").textContent = errorMessage(error);
+    }
     throw error;
   } finally { refreshingProvider = false; controls(); }
 }

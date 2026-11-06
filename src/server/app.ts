@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readFile, realpath } from "node:fs/promises";
 import { resolve, sep, extname } from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import type { AppState, BrowserEvent, FormField, FormValue, ModelSelection, OpenCodeSource } from "../shared/types.js";
+import type { AppState, BrowserEvent, FormField, FormValue, McpConnections, ModelSelection, OpenCodeSource } from "../shared/types.js";
 import { chatMessages, availableModels, errorMessage } from "./engine.js";
 import { partID } from "./history.js";
 import { modelSettingsFile, readModelSettings, saveModelSettings, modelSelection } from "./model-settings.js";
@@ -383,6 +383,10 @@ export async function startApp(options: AppOptions) {
       send({ type: "connection", connected: true });
       for await (const event of stream) {
         if (controller.signal.aborted || directory !== project) break;
+        if (event.type === "mcp.status.changed") {
+          send({ type: "mcp" });
+          continue;
+        }
         const id = eventSession(event);
         if (!id || event.type === "session.deleted" && !entries.has(id)) continue;
         if (event.type === "session.moved") {
@@ -457,6 +461,16 @@ export async function startApp(options: AppOptions) {
         }
         if (path === "/api/state" && method === "GET") {
           json(response, 200, await state(project));
+          return;
+        }
+        if (path === "/api/mcp" && method === "GET") {
+          const result: McpConnections = {
+            project,
+            servers: (await client.mcpServers(project)).map(({ name, status }) => ({
+              name, status: status.status, ...(status.error ? { error: status.error } : {}),
+            })),
+          };
+          json(response, 200, result);
           return;
         }
         if (path === "/api/model" && method === "POST") {

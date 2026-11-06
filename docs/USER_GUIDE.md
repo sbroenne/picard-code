@@ -428,7 +428,12 @@ not rank the models or select OpenCode's default for you.
 MCP servers give OpenCode tools and access to other services. Picard Code uses
 the servers configured in OpenCode; it does not maintain a separate server
 list or credential store. Open **MCP servers** under **Ship's systems** for
-copyable commands and **Advanced setup** guidance. The panel names the OpenCode
+the current server list, copyable commands and **Advanced setup** guidance.
+The list shows connected servers, servers needing sign-in, disabled servers,
+connections still starting, and failed connections with their actual errors.
+It updates when OpenCode reports a connection change and checks again whenever
+you open the panel. A failed lookup is shown as an error, never an empty list.
+The panel names the OpenCode
 copy and version this launch actually uses. This is optional, not part of
 first start-up.
 
@@ -459,8 +464,8 @@ passwords, keys or sign-in codes, or put them in a log entry.
 Return to the panel and choose **Refresh connections** after changes, while no
 work is running. This reloads OpenCode's settings without starting a new log
 entry or changing your confirmed AI model. Refresh success means the settings
-were reloaded, not that every server connected. Run `mcp list` again to see
-actual connection results and errors. If your AI model becomes unavailable,
+were reloaded, not that every server connected. The list is checked again to show
+the actual connection results and errors for the selected Project. If your AI model becomes unavailable,
 the existing model-recovery screen still asks you to choose a replacement.
 
 Adding and configuring servers is advanced OpenCode setup. Read

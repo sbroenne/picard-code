@@ -248,6 +248,118 @@ test("MCP commands report real clipboard success and failure", async ({ page }) 
   await expect(page.locator("#copy-mcp-auth")).toBeEnabled();
 });
 
+test("MCP connections show live states and exact errors, including through a direct link", async ({ page }) => {
+  let requests = 0;
+  await page.route("**/api/mcp", (route) => {
+    requests++;
+    return route.fulfill({ json: { project: process.cwd(), servers: [
+      { name: "Test connected service", status: "connected" },
+      { name: "Test sign-in service", status: "needs_auth", error: "Test sign-in expired." },
+      { name: "Test disabled service", status: "disabled" },
+      { name: "Test failed service", status: "failed", error: "Test connection refused." },
+      { name: "Test pending service", status: "pending" },
+      { name: "<script>Test unknown service</script>", status: "future_state", error: "<b>Test exact error</b>" },
+    ] } });
+  });
+  await page.evaluate(() => { location.hash = "settings/mcp"; });
+  const list = page.getByRole("list", { name: "MCP server connections" });
+  await expect(list.getByRole("listitem")).toHaveCount(6);
+  for (const [name, status] of [
+    ["Test connected service", "Connected"], ["Test sign-in service", "Sign-in needed"],
+    ["Test disabled service", "Disabled"], ["Test failed service", "Connection failed"],
+    ["Test pending service", "Connecting"], ["Test unknown service", "Unknown state: future_state"],
+  ]) await expect(list.getByRole("listitem").filter({ hasText: name })).toContainText(status);
+  await expect(list).toContainText("Test sign-in expired.");
+  await expect(list).toContainText("Test connection refused.");
+  await expect(list).toContainText("<b>Test exact error</b>");
+  await expect(list.locator("script, b")).toHaveCount(0);
+  await expect(page.locator("#mcp-status")).toContainText("6");
+  await page.keyboard.press("Escape");
+  const before = requests;
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await expect(list.getByRole("listitem")).toHaveCount(6);
+  expect(requests).toBeGreaterThan(before);
+});
+
+test("MCP connection lookup failures clear old results, keep work usable and recover on reopening", async ({ page }) => {
+  let fail = false;
+  let empty = false;
+  await page.route("**/api/mcp", (route) => fail
+    ? route.fulfill({ status: 502, json: { error: "Test MCP lookup unavailable." } })
+    : route.fulfill({ json: { project: process.cwd(), servers: empty ? [] : [{ name: "Test old service", status: "connected" }] } }));
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await expect(page.locator("#mcp-servers")).toContainText("Test old service");
+  fail = true;
+  await page.getByRole("button", { name: "Refresh connections", exact: true }).click();
+  await expect(page.locator("#mcp-status")).toHaveText("Could not check MCP servers. Test MCP lookup unavailable.");
+  await expect(page.locator("#mcp-servers").getByRole("listitem")).toHaveCount(0);
+  await expect(page.locator("#mcp-status")).not.toContainText("No MCP servers");
+  await expect(page.getByRole("link", { name: /^Computer intelligence/ })).toBeVisible();
+  await page.keyboard.press("Escape");
+  fail = false;
+  empty = true;
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await expect(page.locator("#mcp-status")).toHaveText("No MCP servers are configured for this Project.");
+});
+
+test("MCP live updates reject old results after a newer check or Project change", async ({ page }) => {
+  await page.addInitScript(() => {
+    const Native = window.EventSource;
+    window.EventSource = class extends Native {
+      constructor(url: string | URL, options?: EventSourceInit) {
+        super(url, options);
+        document.addEventListener("test-mcp-event", (event) => {
+          if (event instanceof CustomEvent) this.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(event.detail) }));
+        });
+      }
+    };
+  });
+  let project = process.cwd();
+  await page.route("**/api/state", async (route) => {
+    const state = await (await route.fetch()).json();
+    state.project = project;
+    await route.fulfill({ json: state });
+  });
+  await page.reload();
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await expect(page.locator("#refresh-mcp")).toBeEnabled();
+  let releaseOld = () => {};
+  let old = Promise.resolve();
+  let holdNext = false;
+  let held = false;
+  await page.route("**/api/mcp", async (route) => {
+    const requestedProject = project;
+    if (holdNext) {
+      holdNext = false;
+      held = true;
+      await old;
+      await route.fulfill({ json: { project: requestedProject, servers: [{ name: "Test stale service", status: "connected" }] } });
+    } else await route.fulfill({ json: { project, servers: [{ name: `Test current service in ${project}`, status: "needs_auth", error: "Test sign-in needed." }] } });
+  });
+  const notify = (type: "mcp" | "connection") => page.evaluate((type) => {
+    document.dispatchEvent(new CustomEvent("test-mcp-event", { detail: { type, connected: true } }));
+  }, type);
+  try {
+    for (const changeProject of [false, true]) {
+      old = new Promise<void>((resolve) => { releaseOld = resolve; });
+      holdNext = true;
+      held = false;
+      await notify("mcp");
+      await expect.poll(() => held).toBe(true);
+      if (changeProject) project = `${process.cwd()}/test-other-project`;
+      await notify(changeProject ? "connection" : "mcp");
+      await expect(page.locator("#mcp-project")).toHaveText(project);
+      await expect(page.locator("#mcp-servers")).toContainText(`Test current service in ${project}`);
+      const staleResponse = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/mcp");
+      releaseOld();
+      await (await staleResponse).finished();
+      await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+      await expect(page.locator("#mcp-servers")).not.toContainText("Test stale service");
+      await expect(page.locator("#mcp-servers")).toContainText("Sign-in needed");
+    }
+  } finally { releaseOld(); await page.unrouteAll({ behavior: "wait" }); }
+});
+
 test("MCP refresh keeps the current log entry and distinguishes reloads from sign-in", async ({ page }) => {
   await page.evaluate(async () => {
     await fetch("/api/conversations", { method: "POST",
@@ -268,7 +380,8 @@ test("MCP refresh keeps the current log entry and distinguishes reloads from sig
   page.on("request", (request) => { if (request.url().endsWith("/api/refresh")) refreshRequests.push(request.method()); });
   await page.getByRole("link", { name: /^MCP servers/ }).click();
   await page.getByRole("button", { name: "Refresh connections", exact: true }).click();
-  await expect(page.locator("#mcp-refresh-result")).toHaveText("OpenCode settings reloaded. Run the list command to check each MCP connection.");
+  await expect(page.locator("#mcp-refresh-result")).toHaveText("OpenCode settings reloaded.");
+  await expect(page.locator("#mcp-status")).toHaveText("No MCP servers are configured for this Project.");
   await reconnected;
   await expect(otherPage.locator("#refresh-mcp")).toBeEnabled();
   await expect(otherPage).toHaveURL(/#settings\/mcp$/);
@@ -299,6 +412,7 @@ test("MCP refresh stays unavailable while background work runs", async ({ page }
   await page.reload();
   await page.getByRole("link", { name: /^MCP servers/ }).click();
   await expect(page.getByRole("button", { name: "Refresh connections", exact: true })).toBeDisabled();
+  await expect(page.locator("#mcp-status")).toHaveText("No MCP servers are configured for this Project.");
   await expect(page.locator("#settings-mcp")).toContainText("Stop running work before refreshing");
 });
 
