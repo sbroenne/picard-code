@@ -345,6 +345,8 @@ test("several text questions can be asked aloud one at a time", () => {
   assert.equal(spokenField(form, { period: "today" })?.key, "topic");
   assert.equal(spokenQuestion(form, { period: "today" }), "Which topic should I cover?");
   assert.equal(spokenField(form, { period: "today", topic: "Do not include sport" }), undefined);
+  assert.equal(spokenField(form, { period: "", topic: "Do not include sport" })?.key, "period");
+  assert.equal(spokenQuestion(form, { period: " ", topic: "Do not include sport" }), "Which period should I cover? The options are Today.");
   assert.equal(canAskAloud({ ...form, fields: [...form.fields, { key: "many", type: "multiselect", options: [] }] }), false);
 });
 

@@ -78,6 +78,7 @@ let lastStoryID: string | undefined;
 const tributeDisplay = new Map<string, { fact?: TributeEntry; factShownAt?: Date; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] }>();
 let spokenDecision = "";
 let spokenQuestionID: string | undefined;
+let spokenQuestionKey: string | undefined;
 let spokenQuestionAnswers: Record<string, string> = {};
 const renderedQuestionFields = new Map<string, ReturnType<typeof formField>[]>();
 let answering = false;
@@ -221,13 +222,16 @@ function askedQuestion() {
 async function answerAloud(text: string) {
   const request = askedQuestion();
   if (!request) throw new Error("The question is no longer waiting. Check the log entry on screen.");
-  const field = spokenField(request, spokenQuestionAnswers)!;
+  const field = request.fields.find((item) => item.key === spokenQuestionKey);
+  if (field?.type !== "string") throw new Error("The question is no longer waiting. Check the log entry on screen.");
   const result = matchSpokenAnswer(field, text);
   if ("retry" in result) { voice.speak(result.retry); return; }
   renderedQuestionFields.get(request.id)?.find((item) => item.field.key === field.key)?.write?.(result.answer);
   const answer = { ...spokenQuestionAnswers, [field.key]: result.answer };
-  if (spokenField(request, answer)) {
+  const next = spokenField(request, answer);
+  if (next) {
     spokenQuestionAnswers = answer;
+    spokenQuestionKey = next.key;
     voice.speak([{ text: spokenQuestion(request, answer), speaker: request.officer }]);
     return;
   }
@@ -792,6 +796,7 @@ function renderState() {
     } else if (!state.permissions.some((item) => logEntryID(item) === selected) && waiting === 1 && canAskAloud(question)) {
       spokenQuestionID = question.id;
       spokenQuestionAnswers = {};
+      spokenQuestionKey = spokenField(question)?.key;
       voice.speak([{ text: spokenQuestion(question), speaker: question.officer }]);
     } else {
       voice.speak("Additional information is required. Please answer the questions on screen.");
@@ -1097,7 +1102,7 @@ function questionPanel(request: FormRequest) {
       if (spokenQuestionID === request.id && Object.hasOwn(spokenQuestionAnswers, item.field.key)) {
         const given = item.read();
         if (typeof given === "string") spokenQuestionAnswers[item.field.key] = given;
-        else delete spokenQuestionAnswers[item.field.key];
+        else spokenQuestionAnswers[item.field.key] = "";
       }
     }
   };
@@ -1325,7 +1330,9 @@ async function loadHistory() {
     if (selected !== id || revision !== historyRevision) return;
     messages = loaded;
     if (voiceTurn?.session === id && state?.questions.some((request) => logEntryID(request) === id)) {
-      rememberQuestionReplies(voiceTurn, loaded);
+      const questionAt = loaded.findLastIndex((message) => !message.background
+        && message.parts.some((part) => part.type === "tool" && part.text.startsWith("question\n")));
+      if (questionAt >= 0) rememberQuestionReplies(voiceTurn, loaded.slice(0, questionAt + 1));
     }
     pruneLive();
     renderMessages();

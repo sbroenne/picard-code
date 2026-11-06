@@ -59,6 +59,10 @@ const phrases = process.argv.includes("--refusal-idle") ? ["Computer, hello ther
     ...(process.argv.includes("--finish-on-screen") ? [] : ["Do not include sport", ...(process.argv.includes("--retry-answer") ? ["Do not include sport"] : [])]),
     "",
   ]
+  : process.argv.includes("--free-first-answer") ? [
+    "Computer, ask a paused question with two answers and free text", "A local summary", "Do not include sport",
+    ...(process.argv.includes("--reanswer-first") ? ["A wider summary"] : []), "",
+  ]
   : process.argv.includes("--paused-question") ? ["Computer, ask a paused question and let me choose", ...(process.argv.includes("--question") ? ["the second one"] : []), ""]
   : process.argv.includes("--question") ? ["Computer, ask a question and let me choose", "Not the small change", "the second one", ""]
   : process.argv.includes("--unclear") ? ["", "Is it raining outside", "Computer, hello there", ""]

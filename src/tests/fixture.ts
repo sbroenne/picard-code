@@ -389,6 +389,7 @@ export async function startFixture(project: string) {
           } else if (text.includes("question")) {
             const paused = text.includes("paused question");
             const multiple = text.includes("two answers");
+            const free = text.includes("free text");
             const input = { questions: [{ header: "Direction", question: "Which approach should I use?" }] };
             assistant(sessionID, [
               ...(paused ? [{ type: "text" as const, text: "Which approach should I use?" }] : []),
@@ -396,7 +397,7 @@ export async function startFixture(project: string) {
             ]);
             const form: FormRequest = { id: id("frm"), sessionID, title: "Questions", fields: [{
               key: "q0", type: "string", title: "Direction", description: "Which approach should I use?",
-              options: [{ value: "Small change", label: "Small change", description: "Keep the scope focused." }, { value: "Explain first", label: "Explain first", description: "Discuss before changing files." }],
+              options: free ? [] : [{ value: "Small change", label: "Small change", description: "Keep the scope focused." }, { value: "Explain first", label: "Explain first", description: "Discuss before changing files." }],
               custom: !text.includes("choose"),
             }] };
             if (multiple) form.fields.push({ key: "topic", type: "string", description: "Which topic should I cover?", required: true });

@@ -683,7 +683,10 @@ on-screen button.
   asked again. **Skip question** on screen declines the question; OpenCode then
   stops the work, and the computer says so. Your spoken choices also appear
   on screen, and you may finish there instead. The answers are sent together
-  after the last question. Forms with checkboxes, numbers, sign-in links or
+  after the last question. Editing an earlier answer does not change the
+  question you are answering aloud. If you leave an earlier answer empty,
+  the computer asks for it again before sending the answers.
+  Forms with checkboxes, numbers, sign-in links or
   questions that depend on earlier choices still need the screen.
 - "Stop listening" and switching the microphone off do not cancel OpenCode's work.
   **Belay that** cancels the current OpenCode request. These are separate

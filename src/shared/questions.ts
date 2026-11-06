@@ -20,7 +20,7 @@ type TextField = Extract<FormField, { type: "string" }>;
 export function spokenField(form: FormRequest, answers: Record<string, string> = {}): TextField | undefined {
   const visible = form.fields.filter((field) => !field.hidden);
   if (visible.some((field) => field.type !== "string" || field.when?.length)) return undefined;
-  const field = visible.find((item) => !Object.hasOwn(answers, item.key));
+  const field = visible.find((item) => !Object.hasOwn(answers, item.key) || !answers[item.key]!.trim());
   return field?.type === "string" ? field : undefined;
 }
 
