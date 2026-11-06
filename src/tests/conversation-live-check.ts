@@ -75,7 +75,7 @@ try {
       }
     }
   })().catch((error: unknown) => { if (!controller.signal.aborted) observationError = error; });
-  app = await startApp({ client: engine.client, project, speech, modelFile: resolve(temporary, "model.json"), speechFile: resolve(temporary, "speech.json"), webRoot: resolve("web-dist") });
+  app = await startApp({ client: engine.client, openCodeSource: engine.source, project, speech, modelFile: resolve(temporary, "model.json"), speechFile: resolve(temporary, "speech.json"), webRoot: resolve("web-dist") });
   browser = await chromium.launch({ args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream",
     "--mute-audio", `--use-file-for-fake-audio-capture=${recording}`] });
   const context = await browser.newContext({ permissions: ["microphone"], viewport: { width: 1360, height: 980 } });

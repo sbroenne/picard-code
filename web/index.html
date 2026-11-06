@@ -222,19 +222,22 @@
           <p>MCP servers give the computer tools and access to other services. OpenCode manages these connections, sign-ins and credentials. Nothing secret is entered here.</p>
           <div class="provider-connection">
             <p class="connection-label">Manage through OpenCode</p>
+            <p id="mcp-connection"></p>
             <p class="muted">In another terminal, open the selected Project folder:</p>
             <p id="mcp-project" class="mcp-project"></p>
-            <p class="muted">Started Picard Code with <code>--connect</code>? Read Advanced setup below before using these commands.</p>
+            <p class="muted">This selects the project's settings; it does not install OpenCode in that folder.</p>
+            <p id="mcp-custom-settings" class="muted" hidden>This launch uses custom OpenCode settings. Run these commands in a terminal with the same settings and environment variables as the terminal that launched Picard Code.</p>
+            <p id="mcp-server-guidance" class="muted" hidden></p>
             <p>Check configured servers and their actual connection status:</p>
             <div class="provider-command">
-              <code id="mcp-list-command">npx picard-code opencode mcp list</code>
-              <button id="copy-mcp-list" class="pill outline" type="button" aria-label="Copy MCP list command">Copy command</button>
+              <code id="mcp-list-command"></code>
+              <button id="copy-mcp-list" class="pill outline" type="button" aria-label="Copy MCP list command" disabled>Copy command</button>
             </div>
             <p id="mcp-list-copy-result" class="copy-result" aria-live="polite"></p>
             <p>If a remote server needs sign-in, run this command, choose the server and follow OpenCode's sign-in. Enter credentials only in the service's own sign-in flow, never by voice or in a log entry.</p>
             <div class="provider-command">
-              <code id="mcp-auth-command">npx picard-code opencode mcp auth</code>
-              <button id="copy-mcp-auth" class="pill outline" type="button" aria-label="Copy MCP sign-in command">Copy command</button>
+              <code id="mcp-auth-command"></code>
+              <button id="copy-mcp-auth" class="pill outline" type="button" aria-label="Copy MCP sign-in command" disabled>Copy command</button>
             </div>
             <p id="mcp-auth-copy-result" class="copy-result" aria-live="polite"></p>
             <p class="muted">Return here after changes. Stop running work before refreshing. The Current log entry and your confirmed AI model are kept.</p>
@@ -244,9 +247,7 @@
           </div>
           <details class="setup-details">
             <summary>Advanced setup</summary>
-            <p class="muted">These commands use your installed OpenCode 2, or Picard Code's bundled copy if none is installed. Keep any custom OpenCode settings and environment variables the same as in the terminal that launched Picard Code.</p>
             <p class="muted">Add, remove and configure servers in OpenCode. Use <code>npx picard-code opencode mcp add --help</code> for options. Adding a server normally writes into the current project; use <code>--global</code> to keep its configuration outside your project and make it available across Projects. Picard Code does not write this configuration for you.</p>
-            <p class="muted">If Picard Code was started with <code>--connect</code>, manage that same OpenCode server and its settings, not a different local copy. For the list and sign-in commands, add <code>--server</code> followed by the same local server address. Use the same <code>OPENCODE_SERVER_PASSWORD</code> and, if set, <code>OPENCODE_SERVER_USERNAME</code> in that terminal. Never put passwords in a command or browser address. Configuration files and environment variables belong to the server's environment.</p>
             <p class="muted">Servers that require an API key or other setup must be configured directly in OpenCode. Keep secrets out of project files and log entries. Only connect services you trust; a connected service may receive data when its tools are used. OpenCode's permission rules still apply. Signing in does not approve a pending action.</p>
             <p><a href="https://opencode.ai/v2/docs/mcp-servers/" target="_blank" rel="noopener noreferrer">OpenCode MCP setup guide</a></p>
           </details>

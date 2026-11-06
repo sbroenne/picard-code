@@ -61,8 +61,11 @@ Captain's log and the Project, Computer intelligence, and Listen · Speak tiles
 open in a slide-out, as do AI provider in the top bar and About from the header dedication.
 MCP servers opens an optional advanced setup drawer with the selected Project,
 copyable OpenCode list and sign-in commands, and Refresh connections.
-OpenCode owns server setup and credentials, using the installed or bundled
-copy; explicit `--connect` servers have their own connection instructions.
+OpenCode owns server setup and credentials. Show the actual installed,
+bundled or explicitly selected copy and its version, not a list of possible
+setups. Only explicit `--connect` launches show existing-server instructions;
+their copyable commands already include the known server address. Show custom
+settings guidance only when custom settings were used for this launch.
 Refresh reports only that settings reloaded, never an invented server status.
 Keep setup in OpenCode, with no credential fields or typed-request fallback.
 Choosing a tile again, Current log entry, Escape, or the log entry beside it closes

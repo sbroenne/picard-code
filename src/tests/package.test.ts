@@ -4,7 +4,15 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bundledOpenCode, openCodeCommand, openCodePackage } from "../server/process.js";
+import { bundledOpenCode, openCodeCommand, openCodePackage, usesCustomOpenCodeSettings } from "../server/process.js";
+
+test("custom OpenCode settings include inline settings and separate configuration or sign-in folders", () => {
+  assert.equal(usesCustomOpenCodeSettings({}), false);
+  for (const key of ["OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR", "OPENCODE_CONFIG_CONTENT", "PICARD_OPENCODE_PATH", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"]) {
+    assert.equal(usesCustomOpenCodeSettings({ [key]: "test-setting" }), true, key);
+    assert.equal(usesCustomOpenCodeSettings({ [key]: "" }), false, `${key} is empty`);
+  }
+});
 
 test("every computer the README promises maps to an OpenCode package Picard Code lists", () => {
   const { optionalDependencies } = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { optionalDependencies: Record<string, string> };
@@ -21,7 +29,11 @@ test("the included OpenCode is found on this computer and meets the minimum vers
   const saved = { path: process.env.PATH, openCode: process.env.PICARD_OPENCODE_PATH };
   delete process.env.PICARD_OPENCODE_PATH;
   process.env.PATH = "";
-  try { assert.equal((await openCodeCommand()).command, program, "With no OpenCode installed, the included one is used."); }
+  try {
+    const selected = await openCodeCommand();
+    assert.equal(selected.command, program, "With no OpenCode installed, the included one is used.");
+    assert.equal(selected.source, "bundled");
+  }
   finally {
     process.env.PATH = saved.path;
     if (saved.openCode !== undefined) process.env.PICARD_OPENCODE_PATH = saved.openCode;
@@ -43,12 +55,26 @@ test("an OpenCode 2 already installed is preferred; an older one is skipped", { 
   process.env.PATH = folder;
   try {
     writeFileSync(installed, "#!/bin/sh\necho opencode v2.9.0\n", { mode: 0o755 });
-    assert.equal((await openCodeCommand()).command, installed);
+    const selected = await openCodeCommand();
+    assert.equal(selected.command, installed);
+    assert.equal(selected.source, "installed");
     writeFileSync(installed, "#!/bin/sh\necho 1.14.0\n", { mode: 0o755 });
     assert.equal((await openCodeCommand()).command, bundledOpenCode());
   } finally {
     process.env.PATH = saved.path;
     if (saved.openCode !== undefined) process.env.PICARD_OPENCODE_PATH = saved.openCode;
     rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test("an explicitly selected OpenCode reports a custom source", async () => {
+  const saved = process.env.PICARD_OPENCODE_PATH;
+  process.env.PICARD_OPENCODE_PATH = process.execPath;
+  try {
+    const selected = await openCodeCommand();
+    assert.equal(selected.source, "custom");
+  } finally {
+    if (saved === undefined) delete process.env.PICARD_OPENCODE_PATH;
+    else process.env.PICARD_OPENCODE_PATH = saved;
   }
 });

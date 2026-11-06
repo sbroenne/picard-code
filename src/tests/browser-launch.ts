@@ -107,7 +107,7 @@ if (smartTurn && speech) speech.turnDetector = {
   };
 // Browser checks never download or start real speech: setup and start-up use labeled stand-ins.
 let speechSetupFailures = process.argv.includes("--speech-setup-fails") ? 1 : 0;
-const app = await startApp({ client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"), speech, soundFolder, speechFile, modelFile, readWikipedia: wikipediaFixture,
+const app = await startApp({ client: makeClient(fixture.url, fixture.password), openCodeSource: "installed", project, webRoot: resolve("web-dist"), speech, soundFolder, speechFile, modelFile, readWikipedia: wikipediaFixture,
   localSpeechReady: async () => settingsStandIn,
   setUpLocalSpeech: async (onStep) => {
     onStep("Downloading local speech — labeled test stand-in");
