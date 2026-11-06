@@ -538,7 +538,8 @@ rendering failures show an explanation instead of a blank or invented result.
 Saved command results marked incomplete by OpenCode remain labelled incomplete;
 Picard Code does not silently pretend the missing output was received.
 
-Website documents remain **Open source** links: Picard Code does not download
+Website documents have an **Open in browser** link, without a Preview button.
+They open in a separate browser tab, outside the LCARS screen. Picard Code does not download
 them through its server. The document previews above apply to Project files
 and supported inline attachments. A file must actually belong to that reply
 and stay inside the selected Project, including after following a file link.

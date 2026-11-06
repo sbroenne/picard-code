@@ -52,6 +52,12 @@ export class ReplyFiles {
       link.href = source;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
+      if (!reference?.local && !href.startsWith("data:")) {
+        link.textContent = "Open in browser";
+        element.replaceChildren(node("span", label), link);
+        this.mounted.set(element, () => {});
+        continue;
+      }
       const open = node("button", `Preview: ${label}`);
       open.type = "button";
       open.className = "peach-button";
@@ -82,9 +88,6 @@ export class ReplyFiles {
         open.hidden = true; close.hidden = false; preview.hidden = false;
         preview.textContent = "Preparing the preview.";
         void (async () => {
-          // Outside documents remain source links; no proxy or broader network
-          // access is added to the protected local app to fetch them.
-          if (!reference?.local && !href.startsWith("data:")) throw new Error("Preview is available for Project files. Use Open source for this website file.");
           const response = await fetch(source, { signal });
           if (!response.ok) {
             const result: unknown = await response.json();

@@ -413,7 +413,7 @@ test("font files use their real font and release it when the preview closes", as
   } finally { await context.cleanup(); }
 });
 
-test("damaged files and website-only previews report limits without disturbing a graph", async ({ page }) => {
+test("damaged files report errors and website documents open outside Picard without disturbing a graph", async ({ page }) => {
   const context = await setup(page, `TEST ONLY: preview errors.\n\n\`\`\`mermaid\n${chart}\n\`\`\`\n\n[Table](bad.csv)\n[Document](bad.pdf)\n[Website document](https://documents.example.com/test.pdf)`);
   try {
     const outsideRequests: string[] = [];
@@ -424,8 +424,12 @@ test("damaged files and website-only previews report limits without disturbing a
     await expect(page.locator(".file-preview [role=alert]")).toContainText("unfinished quoted field");
     await page.getByRole("button", { name: "Preview: Document" }).click();
     await expect(page.locator(".file-preview [role=alert]").last()).toContainText("does not match its format");
-    await page.getByRole("button", { name: "Preview: Website document" }).click();
-    await expect(page.locator(".file-preview [role=alert]").last()).toContainText("Use Open source");
+    const website = page.locator(".reply-file").filter({ hasText: "Website document" });
+    await expect(website.getByRole("button")).toHaveCount(0);
+    const link = website.getByRole("link", { name: "Open in browser" });
+    await expect(link).toHaveAttribute("href", "https://documents.example.com/test.pdf");
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", "noopener noreferrer");
     expect(outsideRequests).toEqual([]);
     await expect(page.getByRole("img", { name: /TEST ONLY: USD to EUR/ })).toBeVisible();
   } finally { await context.cleanup(); }
