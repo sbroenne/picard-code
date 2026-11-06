@@ -49,13 +49,12 @@ Alternatively, clone the repository. With Git and Node.js installed:
 ```sh
 git clone https://github.com/sbroenne/picard-code.git
 cd picard-code
-npm install
-npm run build
 npm start
 ```
 
-The same browser app and first-run setup open.
-For later starts, run `npm start` from the clone.
+`npm start` installs the needed packages, builds the app, then opens the
+same browser app and first-run setup. For later starts, run `npm start`
+from the clone; it checks the packages and builds again each time.
 [More about running from source](https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#run-from-source).
 
 ## Give an order

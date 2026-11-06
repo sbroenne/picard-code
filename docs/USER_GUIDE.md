@@ -201,10 +201,11 @@ newer. Open a terminal and run:
 ```sh
 git clone https://github.com/sbroenne/picard-code.git
 cd picard-code
-npm install
-npm run build
 npm start
 ```
+
+`npm start` installs the needed packages and builds the app before launching.
+If either step fails, it shows the error and does not launch the app.
 
 Your browser opens automatically. Keep the terminal open while using Picard
 Code; press **Ctrl+C** to stop it. Choose **Begin start-up** and bring the
@@ -216,8 +217,8 @@ Starting from this folder selects the Picard Code repository as the Project.
 Use the **Project** tile in the app to choose the folder you want to work on.
 
 For later starts, open a terminal in your `picard-code` folder and run
-`npm start` again. You only need to install and build again after updating
-the source.
+`npm start` again. It checks the packages and builds again each time,
+including after you update the source.
 
 Choose speech in the app as described in [Get started](#get-started).
 For changing Picard Code itself, see the

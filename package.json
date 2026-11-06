@@ -37,6 +37,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build",
+    "prestart": "npm install --include=dev && npm run build",
     "start": "node dist/server/cli.js",
     "dev": "npm run build && node tools/dev.mjs",
     "test": "node --test dist/tests/*.test.js",
