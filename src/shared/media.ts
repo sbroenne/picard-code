@@ -13,7 +13,7 @@ export interface ReplyMedia {
   embed?: string;
 }
 
-function publicUrl(href: string): URL | undefined {
+export function publicUrl(href: string): URL | undefined {
   let url: URL;
   try { url = new URL(href); } catch { return undefined; }
   const host = url.hostname.replace(/\.+$/, "");

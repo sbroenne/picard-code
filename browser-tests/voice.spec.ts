@@ -1228,7 +1228,7 @@ test("while work runs, the conversation says who is working and what they are do
   expect(line.y).toBeGreaterThan(request.y);
   await expect(page.locator(".message-error")).toHaveCount(0);
   await expect(page.locator(".message.current[data-role=assistant]").last()).toContainText("Test stand-in: Captain, no real news was searched.", { timeout: 15000 });
-  await expect(page.locator(".step-failures summary")).toHaveText("1 step did not work");
+  await expect(page.locator(".step-failures > summary")).toHaveText("1 step did not work");
   await expect(page.locator(".message.current[data-role=assistant] .message-header strong").last()).toHaveText("Data");
   await expect(working).toBeHidden();
   await expect(page.locator(".scan-bar")).toBeHidden();
@@ -1241,7 +1241,7 @@ test("while work runs, the conversation says who is working and what they are do
   // The real error stays readable, word for word, when opened.
   const note = page.locator(".step-failures");
   await expect(note.locator(".step-failure")).toBeHidden();
-  await note.locator("summary").click();
+  await note.locator(":scope > summary").click();
   await expect(note.locator(".step-failure")).toContainText("403 GET https://example.com/news");
   await expect(page.locator(".message-error")).toHaveCount(0);
 });

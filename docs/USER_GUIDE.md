@@ -494,6 +494,65 @@ error rather than switching to another model or provider.
 
 ## Use it
 
+### Graphs, documents and work results
+
+Ask for a graph or diagram and the computer can display Mermaid output as a
+picture, with **View source** beneath it. Maths, tables and coloured code also
+appear on screen. Replies still start with the spoken answer; inspecting a
+result never sends another request or grants an approval.
+
+Open **Work details** beneath a reply to inspect the actions OpenCode reported:
+their current state, command input and output, errors, exit codes, reasoning
+and reported file changes. Completed steps stay available beside the final
+answer. A failed action keeps both its exact error and any partial result.
+Command colours and terminal control codes are removed; this is a read-only
+report, not a terminal.
+
+Log entries line up with the left edge of the main screen. Graphs, tables,
+code and file previews can use the available width; ordinary paragraphs stay
+narrow enough to read comfortably. Earlier replies keep their graphs and open
+file previews fully visible when another reply arrives.
+
+Files explicitly linked or attached in a reply offer **Preview**,
+**Close preview** and **Open source**. Previews read the original Project file, without
+editing it or opening a new program:
+
+| Result | Preview |
+| --- | --- |
+| Markdown and Mermaid files | Formatted text or a rendered diagram |
+| CSV and TSV | A table, including quoted cells and embedded newlines |
+| HTML | A separate, script-disabled page; scripts, forms, outside resources and page styles are removed |
+| PDF | Pages and readable extracted text |
+| DOCX | Read-only pages |
+| XLSX | Read-only sheets, navigation and readable cell content |
+| PPTX | Read-only slides and readable text |
+| SVG and additional image formats | A picture, when the browser supports the format |
+| Audio and additional video formats | Browser playback controls, when the browser supports the encoding |
+| TTF, OTF, WOFF and WOFF2 fonts | A sample using that font |
+| Common text and source-code files | Exact readable text |
+
+Office fonts and layout can differ from the original. Macros, document scripts,
+embedded programs and interactive OpenCode plugins do not run. The computer
+does not embed OpenCode's full application, document editor, browser-control
+panel or interactive terminal. Browser screenshots, text and command results
+returned by its tools are displayed like other reply content.
+
+Previews are limited to 32 MB per file. Office files also have a 128 MB expanded
+limit and must not be encrypted. Unsupported formats, damaged files and
+rendering failures show an explanation instead of a blank or invented result.
+If one PDF page or presentation slide fails, navigation stays available so you
+can return to a readable page or slide. A playback failure resumes listening.
+Saved command results marked incomplete by OpenCode remain labelled incomplete;
+Picard Code does not silently pretend the missing output was received.
+
+Website documents have an **Open in browser** link, without a Preview button.
+They open in a separate browser tab, outside the LCARS screen. Picard Code does not download
+them through its server. The document previews above apply to Project files
+and supported inline attachments. A file must actually belong to that reply
+and stay inside the selected Project, including after following a file link.
+Reopening a log entry reads the original file again, so later changes or a
+deleted file affect the preview.
+
 ### Images and videos in replies
 
 The computer can show images and videos it creates or finds, with descriptions
@@ -501,8 +560,9 @@ and an **Open source** link. This displays real results; it does not add a new
 image or video creation service. Your chosen OpenCode model and tools still
 decide what can be created or found. Requests remain spoken.
 
-Supported Project files are PNG, JPEG, GIF, and WebP images, and MP4 and WebM
-videos. The browser must also support the video's encoding. Files are read
+PNG, JPEG, GIF and WebP images, and MP4 and WebM videos appear directly in
+replies. Additional formats use the **Preview** controls described above.
+The browser must also support the video's encoding. Files are read
 only when an actual reply refers to them, through the same protected local
 connection as the log entry. Files outside the selected Project are not shown.
 Nothing is copied into your Project. Reopening a log entry reads the original

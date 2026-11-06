@@ -122,6 +122,34 @@ pull-request suite so a faster earlier run cannot hide the test's timing mistake
 If Playwright reports a missing browser, run `npx playwright install chromium`
 and repeat the browser checks.
 
+## Reply rendering checks
+
+`browser-tests/outputs.spec.ts` uses original diagrams, generated PDF/Office
+files and silent audio, with a labelled OpenCode stand-in. It checks the actual
+decimal chart coordinates, several Mermaid families, maths, code colouring,
+work errors and partial results, document viewers, streamed/saved update order,
+reopening, a second page, microphone restarts and preview cancellation.
+`src/tests/app.test.ts` checks reply ownership, Project containment, inline
+attachments, file-size limits and Office archive expansion, including forged
+sizes. Build before running the compiled server tests.
+
+The installed OpenCode 2.2.0 connection was checked against its real local API.
+The display inventory was compared with OpenCode's 2.2.5 browser/schema sources
+at `21eaa626a37f77d7a8d80fa01997fa7d52506c97`: text/reasoning, all four tool
+states, text/file tool content (including failed content), shell reports,
+human-readable instruction notices, context summaries and the file kinds listed
+in the [user guide](USER_GUIDE.md#graphs-documents-and-work-results).
+Model/officer/Project selection entries remain settings changes, not spoken
+answers; private system instructions and provider replay metadata are not
+forwarded for display.
+
+This is not a promise to host arbitrary future OpenCode plugins. Heavy viewers
+load on demand. Mermaid, maths and code use Pele, KaTeX and Pierre Highlights;
+PDF uses PDF.js, DOCX uses docx-preview, and XLSX/PPTX use BetterOffice. A small
+DOM adapter avoids importing OpenCode's private Solid application and contexts.
+The build copies renderer licenses and available notices into
+`web-dist/renderer-notices.txt`; keep that file in the shipped package.
+
 ## Real service checks
 
 Build first. Confirm a current-generation model with

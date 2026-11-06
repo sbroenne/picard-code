@@ -8,6 +8,8 @@ import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../
 import { addressed, changedSpeed, isSpeedCommand, SPEAKING_SPEEDS, type SpeedCommand, voiceCommand } from "../src/shared/wake";
 import { VoiceConversation, type FollowOn } from "./voice";
 import { renderMarkdown } from "./markdown";
+import { markOutputs, mountOutputs, workDetails } from "./outputs";
+import { markFiles, ReplyFiles } from "./files";
 import { markMedia, reconcile, ReplyPlayers } from "./media";
 import { formatStardate, stardateGroup } from "../src/shared/stardate";
 import { TRIBUTE_ENTRIES, type TributeEntry } from "../src/shared/tribute-data";
@@ -34,6 +36,7 @@ function button(text: string, className: string, action: () => Promise<void> | v
 
 const model = element<HTMLSelectElement>("model");
 const readingArea = element("reading-area");
+const files = new ReplyFiles((element, media) => players.attach(element, media));
 let state: AppState | undefined;
 /** How far the first-run start-up has come. Kept for this browser address, so a reload resumes it. */
 type FirstRun = "started" | "listening" | "answered" | "done";
@@ -814,6 +817,8 @@ function renderText(container: HTMLElement, text: string, role: ChatMessage["rol
   const node = make("div", "message-text markdown");
   node.append(renderMarkdown(text));
   markMedia(node);
+  markFiles(node);
+  markOutputs(node);
   container.append(node);
 }
 
@@ -831,22 +836,34 @@ function renderMessages() {
   list.forEach((message, index) => {
     // A failed final action stays visible even when the officer wrote part of a report.
     const texts = message.parts.filter((part) => part.type === "text" && part.text.trim());
-    const media = message.parts.filter((part) => part.type === "media");
+    const media = message.parts.filter((part) => part.type === "media" || part.type === "file");
+    const work = workDetails(message.parts);
+    if (work) {
+      work.dataset.keep = `work:${message.sourceSessionID ?? selected}:${message.id}`;
+      work.dataset.messageId = message.id;
+      work.dataset.sessionId = message.sourceSessionID ?? selected;
+      work.dataset.mediaReady = "true";
+      work.dataset.outputComplete = String(!!message.outcome || !(selected && state?.statuses[selected]) && !live.size);
+      markFiles(work);
+      markMedia(work);
+    }
     const failures = texts.length && !failedReport(message) ? [] : message.parts.filter((part) => part.type === "tool" && part.status === "error");
-    if (message.role === "assistant" && !texts.length && !media.length && !failures.length && !message.error) return;
+    if (message.role === "assistant" && !texts.length && !media.length && !failures.length && !message.error && !work) return;
     if (isHeldBack(message)) return;
     if (!media.length && repeatsOfficer(list, index)) return;
-    if (!texts.length && !media.length && !message.error && message.role === "assistant" && recovered(list, index)) {
+    if (!texts.length && !media.length && failures.length && !message.error && message.role === "assistant" && recovered(list, index)) {
       // A step that failed before the answer arrived stays readable, folded away, without looking like the answer failed.
       const previous = wanted.lastElementChild;
       const note = previous?.classList.contains("step-failures") ? previous as HTMLDetailsElement : make("details", "step-failures");
       if (note !== previous) { note.append(make("summary")); wanted.append(note); }
       for (const part of failures) note.append(make("p", "step-failure", part.text));
+      if (work) note.append(work);
       const count = note.querySelectorAll(".step-failure").length;
       note.querySelector("summary")!.textContent = `${count} step${count === 1 ? "" : "s"} did not work`;
       return;
     }
-    const article = make("article", `message ${message.background ? "crew-report " : ""}${index >= latest ? "current" : "earlier"}`);
+    const onlyWork = message.role === "assistant" && !texts.length && !media.length && !failures.length && !message.error;
+    const article = make("article", `${onlyWork ? "work-record" : "message"} ${message.background && !onlyWork ? "crew-report " : ""}${index >= latest ? "current" : "earlier"}`);
     article.dataset.keep = message.id;
     article.dataset.messageId = message.id;
     article.dataset.sessionId = message.sourceSessionID ?? selected;
@@ -865,22 +882,31 @@ function renderMessages() {
       await navigator.clipboard.writeText(current.parts.filter((part) => part.type === "text").map((part) => part.text).join("\n"));
       copy.textContent = "Copied";
     });
-    header.append(copy);
+    if (!onlyWork) header.append(copy);
     article.append(header);
     for (const part of texts) {
       renderText(article, part.text, message.role);
       const textNode = article.lastElementChild as HTMLElement;
       textNode.dataset.keep = part.id;
       textNode.dataset.mediaReady = String(messages.find((item) => item.id === message.id)?.parts.some((item) => item.id === part.id && item.text === part.text) ?? false);
+      textNode.dataset.outputComplete = String(!!message.outcome || !(selected && state?.statuses[selected]) && !live.size);
     }
     for (const part of media) {
-      const item = make("span", "reply-media", part.text);
-      item.dataset.mediaHref = part.href;
-      item.dataset.mediaImage = String(part.mime?.startsWith("image/") ?? false);
+      const attachment = part.type === "file" || part.href?.startsWith("data:");
+      const item = make("span", attachment ? "reply-file" : "reply-media", part.text);
+      if (attachment) {
+        item.dataset.fileHref = part.href;
+        item.dataset.fileMime = part.mime;
+        item.dataset.filePart = part.id;
+      } else {
+        item.dataset.mediaHref = part.href;
+        item.dataset.mediaImage = String(part.mime?.startsWith("image/") ?? false);
+      }
       item.dataset.keep = part.id;
       item.dataset.mediaReady = "true";
       article.append(item);
     }
+    if (work) article.append(work);
     for (const part of failures) article.append(make("p", "message-error", part.text));
     if (message.error) article.append(make("p", "message-error", message.error));
     // A real failure in the reply shows in a red alert frame; the exact error text stays as it is.
@@ -927,6 +953,8 @@ function renderMessages() {
   });
   reconcile(container, wanted);
   players.mount(container, state?.project ?? "");
+  files.mount(container, state?.project ?? "");
+  mountOutputs(container);
   controls();
   if (nearBottom && element("main").dataset.speechSetup !== "true" && window.matchMedia("(min-width: 701px)").matches) readingArea.scrollTop = readingArea.scrollHeight;
 }

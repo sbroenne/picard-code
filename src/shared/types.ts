@@ -18,11 +18,19 @@ export interface ModelChoice extends ModelSelection {
 
 export interface ChatPart {
   id: string;
-  type: "text" | "reasoning" | "tool" | "media";
+  type: "text" | "reasoning" | "tool" | "media" | "file";
   text: string;
   status?: string;
   href?: string;
   mime?: string;
+  tool?: {
+    name: string;
+    input?: string;
+    output?: string;
+    changes?: { file: string; before?: string; after?: string; patch?: string }[];
+    exit?: number;
+    error?: string;
+  };
 }
 
 export interface ChatMessage {
