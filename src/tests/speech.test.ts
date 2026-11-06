@@ -8,7 +8,7 @@ import { resolve, join } from "node:path";
 import { firstSentence, replyFailed, speakable, spokenReply, spokenSummary, type SpeechEvent } from "../shared/speech.js";
 import { Utterance } from "../shared/utterance.js";
 import { addressed, changedSpeed, interruptsSpeech, voiceCommand } from "../shared/wake.js";
-import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
+import { canAskAloud, matchSpokenAnswer, spokenField, spokenQuestion } from "../shared/questions.js";
 import { errorMessage } from "../shared/messages.js";
 import type { FormField, FormRequest } from "../shared/types.js";
 import { speakingDocument } from "../server/azure-speech.js";
@@ -329,9 +329,25 @@ test("spoken question answers match only clear, offered choices and keep the use
   assert.deepEqual(matchSpokenAnswer(proceed, "Don't make it so."), { retry: "Please choose Yes, apply the fix or No." });
   assert.equal(canAskAloud(form(question)), true);
   assert.equal(canAskAloud(form({ key: "many", type: "multiselect", options: question.options })), false);
-  assert.equal(canAskAloud(form(question, { ...question, key: "q1" })), false);
+  assert.equal(canAskAloud(form(question, { ...question, key: "q1" })), true);
   assert.equal(canAskAloud(form({ ...question, when: [{ key: "x", op: "eq", value: "y" }] } as FormField)), false);
   assert.equal(canAskAloud(form(question, { ...question, key: "q1", hidden: true })), true);
+});
+
+test("several text questions can be asked aloud one at a time", () => {
+  const form: FormRequest = { id: "frm", sessionID: "ses", title: "Questions", fields: [
+    { key: "period", type: "string", description: "Which period should I cover?", options: [{ value: "today", label: "Today" }], custom: false },
+    { key: "topic", type: "string", description: "Which topic should I cover?" },
+  ] };
+  assert.equal(canAskAloud(form), true);
+  assert.equal(spokenField(form)?.key, "period");
+  assert.equal(spokenQuestion(form), "Which period should I cover? The options are Today.");
+  assert.equal(spokenField(form, { period: "today" })?.key, "topic");
+  assert.equal(spokenQuestion(form, { period: "today" }), "Which topic should I cover?");
+  assert.equal(spokenField(form, { period: "today", topic: "Do not include sport" }), undefined);
+  assert.equal(spokenField(form, { period: "", topic: "Do not include sport" })?.key, "period");
+  assert.equal(spokenQuestion(form, { period: " ", topic: "Do not include sport" }), "Which period should I cover? The options are Today.");
+  assert.equal(canAskAloud({ ...form, fields: [...form.fields, { key: "many", type: "multiselect", options: [] }] }), false);
 });
 
 test("Nemotron is the default and retired Whisper settings describe their replacement without rewriting", async () => {
@@ -510,9 +526,9 @@ test("spoken text keeps impossible dates, reads line breaks and quotations, and 
   assert.equal(spokenReply(skipped), "Question skipped. The work has stopped.");
 });
 
-test("a form with several questions is answered on screen, and silence asks again for an answer", () => {
+test("a form with a number needs the screen, and silence asks again for an answer", () => {
   const field = { key: "name", type: "string" as const, title: "Name" };
-  const form: FormRequest = { id: "form", sessionID: "ses", title: "Details", fields: [field, { key: "age", type: "string", title: "Age" }] };
+  const form: FormRequest = { id: "form", sessionID: "ses", title: "Details", fields: [field, { key: "age", type: "number", title: "Age" }] };
   assert.equal(canAskAloud(form), false);
   assert.equal(spokenQuestion(form), "Additional information is required. Please answer the questions on screen.");
   assert.deepEqual(matchSpokenAnswer(field, "  "), { retry: "Please give your answer." });

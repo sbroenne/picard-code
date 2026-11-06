@@ -57,7 +57,7 @@ let approvalKey = "";
 let renderScheduled = false;
 /** Reply text that is still being written, shown until the stored conversation catches up. */
 const live = new Map<string, { sessionID: string; messageID: string; partType: "text" | "reasoning"; text: string; speaker?: CrewID; background?: boolean }>();
-let voiceTurn: { session: string; known: Set<string>; request: string; storyID?: string; outcome?: ExecutionOutcome; reference?: TributeEntry["source"] } | undefined;
+let voiceTurn: { session: string; known: Set<string>; answeredQuestions?: Set<string>; request: string; storyID?: string; outcome?: ExecutionOutcome; reference?: TributeEntry["source"] } | undefined;
 /**
  * The voice leads: replies to a spoken request stay off screen until the voice starts saying them.
  * In a briefing, each officer's reply appears when that officer starts speaking (`shown`).
@@ -78,6 +78,9 @@ let lastStoryID: string | undefined;
 const tributeDisplay = new Map<string, { fact?: TributeEntry; factShownAt?: Date; invitation?: string; story?: TributeEntry; reference?: TributeEntry["source"] }>();
 let spokenDecision = "";
 let spokenQuestionID: string | undefined;
+let spokenQuestionKey: string | undefined;
+let spokenQuestionAnswers: Record<string, string> = {};
+const renderedQuestionFields = new Map<string, ReturnType<typeof formField>[]>();
 let answering = false;
 // After "Computer" alone, the next words are taken as the request.
 const GO_AHEAD = 8000;
@@ -208,7 +211,7 @@ async function stopByVoice() {
   voice.speak(busy() ? "Stop requested. The work is still finishing." : "Work stopped, Captain.");
 }
 
-/** The single OpenCode question that was asked aloud and may be answered by voice. */
+/** The OpenCode form whose current question may be answered by voice. */
 function askedQuestion() {
   if (!spokenQuestionID || answering || state?.permissions.some((item) => logEntryID(item) === selected)) return undefined;
   const waiting = state?.questions.filter((item) => logEntryID(item) === selected) ?? [];
@@ -219,17 +222,48 @@ function askedQuestion() {
 async function answerAloud(text: string) {
   const request = askedQuestion();
   if (!request) throw new Error("The question is no longer waiting. Check the log entry on screen.");
-  const field = spokenField(request)!;
+  const field = request.fields.find((item) => item.key === spokenQuestionKey);
+  if (field?.type !== "string") throw new Error("The question is no longer waiting. Check the log entry on screen.");
   const result = matchSpokenAnswer(field, text);
   if ("retry" in result) { voice.speak(result.retry); return; }
+  renderedQuestionFields.get(request.id)?.find((item) => item.field.key === field.key)?.write?.(result.answer);
+  const answer = { ...spokenQuestionAnswers, [field.key]: result.answer };
+  const next = spokenField(request, answer);
+  if (next) {
+    spokenQuestionAnswers = answer;
+    spokenQuestionKey = next.key;
+    voice.speak([{ text: spokenQuestion(request, answer), speaker: request.officer }]);
+    return;
+  }
+  await sendQuestionAnswer(request, answer);
+  await refreshState();
+}
+
+async function sendQuestionAnswer(request: FormRequest, answer: Record<string, FormValue>) {
   answering = true;
+  const turn = voiceTurn;
   try {
-    await api(`questions/${encodeURIComponent(request.id)}`, { answer: { [field.key]: result.answer } });
-    spokenQuestionID = undefined;
-    await refreshState();
+    // OpenCode can finish the question's step before resuming with the Captain's answer.
+    const before = await api<ChatMessage[]>(`conversations/${encodeURIComponent(logEntryID(request))}/messages`);
+    await api(`questions/${encodeURIComponent(request.id)}`, { answer });
+    if (turn && voiceTurn === turn) {
+      rememberQuestionReplies(turn, before);
+      turn.outcome = undefined;
+    }
+    if (spokenQuestionID === request.id) {
+      spokenQuestionID = undefined;
+      voice.stopSpeaking();
+    }
   } finally {
     answering = false;
     controls();
+  }
+}
+
+function rememberQuestionReplies(turn: NonNullable<typeof voiceTurn>, list: ChatMessage[]) {
+  turn.answeredQuestions ??= new Set();
+  for (const message of list) {
+    if (message.role === "assistant" && !message.background) turn.answeredQuestions.add(message.id);
   }
 }
 
@@ -414,8 +448,9 @@ function speakHeldBack(plan: SpokenPart[]) {
 }
 
 function completeVoiceReply() {
-  if (!voiceTurn || voiceTurn.session !== selected || busy() || pending() || submitting || historyLoading || historyDue) return;
-  const reply = messages.findLast((message) => message.role === "assistant" && !message.background && !voiceTurn!.known.has(message.id))
+  if (!voiceTurn || voiceTurn.session !== selected || busy() || pending() || submitting || answering || historyLoading || historyDue) return;
+  const reply = messages.findLast((message) => message.role === "assistant" && !message.background && !voiceTurn!.known.has(message.id)
+    && (!voiceTurn!.answeredQuestions?.has(message.id) || failedReport(message)))
     ?? messages.findLast((message) => message.background && failedReport(message) && !voiceTurn!.known.has(message.id));
   if (!reply) return;
   const outcome = reply.outcome ?? voiceTurn.outcome;
@@ -760,6 +795,8 @@ function renderState() {
       voice.speak("Captain, approval is required. Review the requested action on screen, then choose Allow once or Deny.");
     } else if (!state.permissions.some((item) => logEntryID(item) === selected) && waiting === 1 && canAskAloud(question)) {
       spokenQuestionID = question.id;
+      spokenQuestionAnswers = {};
+      spokenQuestionKey = spokenField(question)?.key;
       voice.speak([{ text: spokenQuestion(question), speaker: question.officer }]);
     } else {
       voice.speak("Additional information is required. Please answer the questions on screen.");
@@ -920,11 +957,11 @@ function scheduleRender() {
   requestAnimationFrame(() => { renderScheduled = false; renderMessages(); });
 }
 
-async function answerRequest(container: HTMLElement, path: string, data: unknown) {
+async function answerRequest(container: HTMLElement, send: () => Promise<unknown>) {
   const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
   buttons.forEach((node) => { node.disabled = true; });
   try {
-    await api(path, data);
+    await send();
     await refreshState();
   } finally {
     buttons.forEach((node) => { node.disabled = false; });
@@ -963,8 +1000,8 @@ function permissionPanel(request: PermissionRequest) {
   panel.append(make("pre", undefined, `${request.resources.join("\n")}${metadata}`.trim()));
   const buttons = make("div", "approval-actions");
   buttons.append(
-    button("Allow once", "peach-button", () => answerRequest(panel, `permissions/${encodeURIComponent(request.id)}`, { reply: "once" })),
-    button("Deny", "deny-button", () => answerRequest(panel, `permissions/${encodeURIComponent(request.id)}`, { reply: "reject" })),
+    button("Allow once", "peach-button", () => answerRequest(panel, () => api(`permissions/${encodeURIComponent(request.id)}`, { reply: "once" }))),
+    button("Deny", "deny-button", () => answerRequest(panel, () => api(`permissions/${encodeURIComponent(request.id)}`, { reply: "reject" }))),
   );
   panel.append(buttons);
   return panel;
@@ -998,6 +1035,7 @@ function formField(request: FormRequest, field: FormField, index: number) {
     return input;
   };
   let read: () => FormValue | undefined = () => undefined;
+  let write: ((value: string) => void) | undefined;
   if (field.type === "string") {
     const options = field.options ?? [];
     const inputs = options.map((option) => choice("radio", option.value, option.label, option.description, option.value === field.default));
@@ -1005,6 +1043,10 @@ function formField(request: FormRequest, field: FormField, index: number) {
     if (custom && !options.length && field.default) custom.value = field.default;
     if (custom && field.maxLength) custom.maxLength = Math.min(field.maxLength, 4096);
     read = () => custom?.value.trim() || inputs.find((input) => input.checked)?.value;
+    write = (value) => {
+      for (const input of inputs) input.checked = input.value === value;
+      if (custom) custom.value = inputs.some((input) => input.checked) ? "" : value;
+    };
   } else if (field.type === "multiselect") {
     const inputs = field.options.map((option) => choice("checkbox", option.value, option.label, option.description, field.default?.includes(option.value)));
     const custom = field.custom === true ? writeIn("Or add your own answer") : undefined;
@@ -1035,7 +1077,7 @@ function formField(request: FormRequest, field: FormField, index: number) {
     if (link instanceof HTMLAnchorElement) { link.href = field.url; link.target = "_blank"; link.rel = "noopener noreferrer"; }
     box.append(link, make("small", undefined, field.url));
   }
-  return { field, box, read };
+  return { field, box, read, write };
 }
 
 function questionPanel(request: FormRequest) {
@@ -1045,9 +1087,25 @@ function questionPanel(request: FormRequest) {
   form.append(make("h3", undefined, "Additional information required."));
   if (request.officer) form.append(make("p", "crew-request", `${crewMember(request.officer)!.name} asks:`));
   const fields = request.fields.filter((field) => !field.hidden).map((field, index) => formField(request, field, index));
+  renderedQuestionFields.set(request.id, fields);
+  if (spokenQuestionID === request.id) {
+    for (const item of fields) {
+      const answer = spokenQuestionAnswers[item.field.key];
+      if (answer !== undefined) item.write?.(answer);
+    }
+  }
   const value = (key: string) => fields.find((item) => item.field.key === key)?.read();
   const visible = (field: FormField) => (field.when ?? []).every((rule) => rule.op === "eq" ? value(rule.key) === rule.value : value(rule.key) !== rule.value);
-  const update = () => { for (const item of fields) item.box.hidden = !visible(item.field); };
+  const update = () => {
+    for (const item of fields) {
+      item.box.hidden = !visible(item.field);
+      if (spokenQuestionID === request.id && Object.hasOwn(spokenQuestionAnswers, item.field.key)) {
+        const given = item.read();
+        if (typeof given === "string") spokenQuestionAnswers[item.field.key] = given;
+        else spokenQuestionAnswers[item.field.key] = "";
+      }
+    }
+  };
   for (const item of fields) form.append(item.box);
   form.addEventListener("input", update);
   form.addEventListener("change", update);
@@ -1055,7 +1113,7 @@ function questionPanel(request: FormRequest) {
   const actions = make("div", "approval-actions");
   const submit = make("button", "peach-button", "Send answer");
   submit.type = "submit";
-  actions.append(submit, button("Skip question", "deny-button", () => answerRequest(form, `questions/${encodeURIComponent(request.id)}`, { skip: true })));
+  actions.append(submit, button("Skip question", "deny-button", () => answerRequest(form, () => api(`questions/${encodeURIComponent(request.id)}`, { skip: true }))));
   form.append(actions);
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -1067,7 +1125,7 @@ function questionPanel(request: FormRequest) {
         if (given !== undefined) answer[item.field.key] = given;
         else if (item.field.required || fields.length === 1) throw new Error("Choose or write an answer to each question.");
       }
-      await answerRequest(form, `questions/${encodeURIComponent(request.id)}`, { answer });
+      await answerRequest(form, () => sendQuestionAnswer(request, answer));
     });
   });
   return form;
@@ -1079,6 +1137,7 @@ function renderApprovals() {
   const key = `${selected}:${permissions.map((request) => request.id).join(",")}:${questions.map((request) => request.id).join(",")}`;
   if (key === approvalKey) return;
   approvalKey = key;
+  renderedQuestionFields.clear();
   const container = element("approvals");
   const nearBottom = readingArea.scrollHeight - readingArea.scrollTop - readingArea.clientHeight < 100;
   container.replaceChildren(...permissions.map(permissionPanel), ...questions.map(questionPanel));
@@ -1270,6 +1329,11 @@ async function loadHistory() {
     const loaded = await api<ChatMessage[]>(`conversations/${encodeURIComponent(id)}/messages`);
     if (selected !== id || revision !== historyRevision) return;
     messages = loaded;
+    if (voiceTurn?.session === id && state?.questions.some((request) => logEntryID(request) === id)) {
+      const questionAt = loaded.findLastIndex((message) => !message.background
+        && message.parts.some((part) => part.type === "tool" && part.text.startsWith("question\n")));
+      if (questionAt >= 0) rememberQuestionReplies(voiceTurn, loaded.slice(0, questionAt + 1));
+    }
     pruneLive();
     renderMessages();
   } finally {

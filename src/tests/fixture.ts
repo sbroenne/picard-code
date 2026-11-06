@@ -387,18 +387,44 @@ export async function startFixture(project: string) {
               : (completeTool(sessionID, "shell", "Test stand-in: no command was run."), reply(sessionID, "The test approval was answered. No command was executed.", generation)));
             later(() => publish(directory, "permission.asked", permission), 50);
           } else if (text.includes("question")) {
+            const paused = text.includes("paused question");
+            const multiple = text.includes("two answers");
+            const free = text.includes("free text");
             const input = { questions: [{ header: "Direction", question: "Which approach should I use?" }] };
-            assistant(sessionID, [{ type: "tool", id: "call_test", name: "question", state: { status: "running", input } }]);
+            assistant(sessionID, [
+              ...(paused ? [{ type: "text" as const, text: "Which approach should I use?" }] : []),
+              { type: "tool", id: "call_test", name: "question", state: { status: "running", input } },
+            ]);
             const form: FormRequest = { id: id("frm"), sessionID, title: "Questions", fields: [{
               key: "q0", type: "string", title: "Direction", description: "Which approach should I use?",
-              options: [{ value: "Small change", label: "Small change", description: "Keep the scope focused." }, { value: "Explain first", label: "Explain first", description: "Discuss before changing files." }],
+              options: free ? [] : [{ value: "Small change", label: "Small change", description: "Keep the scope focused." }, { value: "Explain first", label: "Explain first", description: "Discuss before changing files." }],
               custom: !text.includes("choose"),
             }] };
+            if (multiple) form.fields.push({ key: "topic", type: "string", description: "Which topic should I cover?", required: true });
             forms.push(form);
-            pending.set(sessionID, (answer) => answer.skip
-              ? stopWithFailedTool(sessionID, "question", input, "The user dismissed this question", generation)
-              : (completeTool(sessionID, "question", String((answer.answer as Record<string, unknown>).q0)), reply(sessionID, `Your test answer was received: ${JSON.stringify([[(answer.answer as Record<string, unknown>).q0]])}.`, generation)));
-            later(() => publish(directory, "form.created", { form }), 50);
+            pending.set(sessionID, (answer) => {
+              if (answer.skip) {
+                if (paused) active.add(sessionID);
+                stopWithFailedTool(sessionID, "question", input, "The user dismissed this question", generation);
+                return;
+              }
+              completeTool(sessionID, "question", String((answer.answer as Record<string, unknown>).q0));
+              const resume = () => {
+                if (paused) {
+                  active.add(sessionID);
+                  publish(directory, "session.execution.started", { sessionID });
+                }
+                reply(sessionID, multiple
+                  ? `Your test answers were received: ${JSON.stringify(answer.answer)}.`
+                  : `Your test answer was received: ${JSON.stringify([[(answer.answer as Record<string, unknown>).q0]])}.`, generation);
+              };
+              if (paused) later(resume, 1500);
+              else resume();
+            });
+            later(() => {
+              publish(directory, "form.created", { form });
+              if (paused) finish(sessionID, "succeeded");
+            }, 50);
           } else if (text.includes("broken")) {
             later(() => {
               if (!current(sessionID, generation)) return;

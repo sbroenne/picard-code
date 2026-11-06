@@ -274,10 +274,24 @@ Every bug fix and new behavior needs a test that fails without the change.
 Prove it before committing: run the new test against the code without the
 change and see it fail. A test must not pass by accident, for example because
 an unrelated background update refreshes the screen; set up the state so only
-the change under test can make it pass. For screens and step-by-step flows,
-test the side routes as well as the main one: arriving through a side-panel
-tile or link, leaving the app and coming back, a setting changed at a later
-step, another open page, and a failure while background work runs.
+the change under test can make it pass.
+
+For screens and step-by-step flows, identify and test the relevant side routes,
+not just the main path or the eventual result. Cover arriving through a
+side-panel tile or link, leaving and coming back, restarting the microphone,
+changing a setting at a later step, editing, clearing and re-entering an earlier
+answer, another open page, and a failure while background work runs. When
+updates can arrive independently, test both arrival orders, including a finished reply arriving
+before the question or work status catches up. Hold or reorder updates in the
+test so a timely background refresh cannot hide the bug. Check which question
+receives each answer and what is spoken, not only what eventually appears.
+
+Every review comment needs a recorded test outcome. For each reported bug or
+requested behavior change, add or extend a regression test for the exact case,
+show that it fails before the fix and passes afterward, and include that
+evidence in the review reply. This also applies to findings from your own
+review. If a comment has no testable behavior, or you decline it with evidence,
+explain why no regression test applies instead of silently skipping the rule.
 
 The browser checks use a labeled test stand-in for OpenCode, a fake
 microphone and silent stand-in sounds. When you change OpenCode, speech or conversation behavior, also run the

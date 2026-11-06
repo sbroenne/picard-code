@@ -675,14 +675,19 @@ on-screen button.
   repeated from the current spoken answer. If that also blocks your interruption,
   click the panel or **Stop speaking**. Both listening services provide live words.
   Listening still pauses for computer sounds.
-- When OpenCode asks a single question, the computer reads it aloud with its
-  choices and listens for your answer; no "Computer" is needed for the answer.
+- When OpenCode asks text questions, the computer reads them aloud one at a time
+  with their choices and listens for each answer; no "Computer" is needed.
   Say the option's name or, for example,
   "the second one". A reply containing "not" or "don't" is never taken as a
   choice, and when only the offered answers are allowed, anything else is
   asked again. **Skip question** on screen declines the question; OpenCode then
-  stops the work, and the computer says so. Several questions at once are
-  answered on screen.
+  stops the work, and the computer says so. Your spoken choices also appear
+  on screen, and you may finish there instead. The answers are sent together
+  after the last question. Editing an earlier answer does not change the
+  question you are answering aloud. If you leave an earlier answer empty,
+  the computer asks for it again before sending the answers.
+  Forms with checkboxes, numbers, sign-in links or
+  questions that depend on earlier choices still need the screen.
 - "Stop listening" and switching the microphone off do not cancel OpenCode's work.
   **Belay that** cancels the current OpenCode request. These are separate
   controls.

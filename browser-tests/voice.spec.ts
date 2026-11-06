@@ -2087,6 +2087,140 @@ test("a question can also be answered by choosing on screen", async ({ page }) =
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
+for (const answer of ["screen", "voice", "another page", "retry"] as const) {
+  test(`an answered question is not replayed while work resumes after a pause (${answer})`, async ({ page }) => {
+    const spoken = spokenText(page);
+    await launch(page, answer === "voice" ? "question" : "choose", ["--paused-question"]);
+    await startListening(page);
+    await expect.poll(() => spoken[0], { timeout: 15000 }).toBe("Which approach should I use? The options are Small change or Explain first.");
+    if (answer !== "voice") {
+      await expect(page.locator(".message[data-role=assistant]")).toContainText("Which approach should I use?");
+      const answeringPage = answer === "another page" ? await page.context().newPage() : page;
+      if (answeringPage !== page) {
+        await answeringPage.goto(page.url());
+        await expect(answeringPage.getByRole("heading", { name: "Additional information required." })).toBeVisible();
+      }
+      await answeringPage.getByRole("radio", { name: "Explain first" }).check();
+      if (answer === "retry") {
+        await page.route("**/api/questions/*", (route) => route.fulfill({
+          status: 503, contentType: "application/json", body: JSON.stringify({ error: "Test stand-in: the answer could not be sent." }),
+        }), { times: 1 });
+        await page.getByRole("button", { name: "Send answer" }).click();
+        await expect(page.locator("#notice-text")).toContainText("the answer could not be sent");
+        await expect(page.getByRole("heading", { name: "Additional information required." })).toBeVisible();
+      }
+      await answeringPage.getByRole("button", { name: "Send answer" }).click();
+      if (answeringPage !== page) {
+        await expect(answeringPage.getByRole("heading", { name: "Additional information required." })).toHaveCount(0);
+        await answeringPage.close();
+      }
+    }
+    await expect(page.getByRole("heading", { name: "Additional information required." })).toHaveCount(0, { timeout: 25000 });
+    await expect.poll(() => spoken, { timeout: 15000 }).toEqual([
+      "Which approach should I use? The options are Small change or Explain first.",
+      'Your test answer was received: [["Explain first"]].',
+    ]);
+    await expect(page.locator(".message[data-role=assistant]").last()).toContainText("Your test answer was received");
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+  });
+}
+
+for (const finish of ["voice", "screen", "retry"] as const) {
+  test(`several questions accept spoken answers in order (${finish})`, async ({ page }) => {
+    test.setTimeout(65000);
+    const spoken = spokenText(page);
+    await launch(page, "question", ["--multiple-questions",
+      ...(finish === "screen" ? ["--finish-on-screen"] : []),
+      ...(finish === "retry" ? ["--retry-answer"] : []),
+    ]);
+    if (finish === "retry") {
+      await page.route("**/api/questions/*", (route) => route.fulfill({
+        status: 503, contentType: "application/json", body: JSON.stringify({ error: "Test stand-in: the answer could not be sent." }),
+      }), { times: 1 });
+    }
+    await startListening(page);
+    await expect.poll(() => spoken[1], { timeout: 25000 }).toBe("Which topic should I cover?");
+    await expect(page.getByRole("radio", { name: "Explain first" })).toBeChecked();
+    await expect(page.getByRole("heading", { name: "Additional information required." })).toBeVisible();
+    if (finish === "screen") {
+      await page.getByRole("textbox", { name: "Your answer" }).fill("Do not include sport");
+      await page.getByRole("button", { name: "Send answer" }).click();
+    }
+    if (finish === "retry") {
+      await expect(page.locator("#notice-text")).toContainText("the answer could not be sent", { timeout: 20000 });
+      await expect(page.getByRole("radio", { name: "Explain first" })).toBeChecked();
+    }
+    const received = 'Your test answers were received: {"q0":"Explain first","topic":"Do not include sport"}.';
+    await expect.poll(() => spoken.at(-1), { timeout: 30000 }).toBe(received);
+    expect(spoken.filter((text) => text.startsWith("Which"))).toEqual([
+      "Which approach should I use? The options are Small change or Explain first.",
+      "Which topic should I cover?",
+    ]);
+    await expect(page.getByRole("heading", { name: "Additional information required." })).toHaveCount(0);
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+  });
+}
+
+for (const retype of [true, false]) {
+  test(retype ? "clearing and retyping an earlier answer does not redirect the next spoken answer"
+    : "a cleared earlier answer is asked again after the current spoken question", async ({ page }) => {
+    test.setTimeout(55000);
+    const spoken = spokenText(page);
+    await launch(page, "question", ["--free-first-answer", ...(retype ? [] : ["--reanswer-first"])]);
+    await startListening(page);
+    await expect.poll(() => spoken[1], { timeout: 25000 }).toBe("Which topic should I cover?");
+    const earlier = page.locator(".question-field").first().getByRole("textbox");
+    await expect(earlier).toHaveValue("A local summary");
+    await earlier.fill("");
+    if (retype) await earlier.fill("A wider summary");
+    else await expect.poll(() => spoken[2], { timeout: 15000 }).toBe("Which approach should I use?");
+    await expect.poll(() => spoken.at(-1), { timeout: 20000 }).toBe(
+      'Your test answers were received: {"q0":"A wider summary","topic":"Do not include sport"}.',
+    );
+    expect(spoken.filter((text) => text.startsWith("Which"))).toEqual([
+      "Which approach should I use?",
+      "Which topic should I cover?",
+      ...(retype ? [] : ["Which approach should I use?"]),
+    ]);
+    await page.getByRole("button", { name: "Switch microphone off" }).click();
+  });
+}
+
+test("a finished reply is still spoken when history arrives before the answered form's state refresh", async ({ page }) => {
+  const spoken = spokenText(page);
+  await launch(page, "choose", ["--paused-question"]);
+  await startListening(page);
+  await expect.poll(() => spoken[0], { timeout: 15000 }).toBe("Which approach should I use? The options are Small change or Explain first.");
+  await expect(page.locator(".message[data-role=assistant]")).toContainText("Which approach should I use?");
+  const answeringPage = await page.context().newPage();
+  await answeringPage.goto(page.url());
+  await expect(answeringPage.getByRole("heading", { name: "Additional information required." })).toBeVisible();
+  let releaseState!: () => void;
+  const stateReady = new Promise<void>((resolve) => { releaseState = resolve; });
+  await page.route("**/api/state", async (route) => {
+    const response = await route.fetch();
+    await stateReady;
+    await route.fulfill({ response });
+  });
+  try {
+    await answeringPage.getByRole("radio", { name: "Explain first" }).check();
+    await answeringPage.getByRole("button", { name: "Send answer" }).click();
+    await expect(answeringPage.getByRole("heading", { name: "Additional information required." })).toHaveCount(0);
+    await expect(page.locator(".message[data-role=assistant]").last()).toContainText("Your test answer was received", { timeout: 15000 });
+    await expect(page.getByRole("heading", { name: "Additional information required." })).toBeVisible();
+    releaseState();
+    await expect(page.getByRole("heading", { name: "Additional information required." })).toHaveCount(0);
+    await expect.poll(() => spoken, { timeout: 10000 }).toEqual([
+      "Which approach should I use? The options are Small change or Explain first.",
+      'Your test answer was received: [["Explain first"]].',
+    ]);
+  } finally {
+    releaseState();
+    await answeringPage.close();
+  }
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+});
+
 test("skipping a question stops the work and says so", async ({ page }) => {
   const spoken = spokenText(page);
   await launch(page, "choose");
