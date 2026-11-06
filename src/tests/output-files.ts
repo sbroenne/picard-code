@@ -34,14 +34,16 @@ export async function officeFile(kind: "docx" | "xlsx" | "pptx") {
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
 
-export function pdfFile() {
+export function pdfFile(pages: readonly (readonly [number, number])[] = [[300, 200]]) {
   const stream = "BT /F1 18 Tf 20 100 Td (TEST ONLY PDF) Tj ET";
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+    `<< /Type /Pages /Kids [${pages.map((_size, index) => `${4 + index * 2} 0 R`).join(" ")}] /Count ${pages.length} >>`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    ...pages.flatMap(([width, height], index) => [
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5 + index * 2} 0 R >>`,
+      `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    ]),
   ];
   let text = "%PDF-1.4\n";
   const offsets = [0];
@@ -51,5 +53,5 @@ export function pdfFile() {
   const xref = text.length;
   text += `xref\n0 ${offsets.length}\n0000000000 65535 f \n`;
   for (const offset of offsets.slice(1)) text += `${String(offset).padStart(10, "0")} 00000 n \n`;
-  return Buffer.from(`${text}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return Buffer.from(`${text}trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
 }

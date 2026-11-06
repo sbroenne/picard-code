@@ -149,10 +149,17 @@ async function previewPresentation(host: HTMLElement, bytes: ArrayBuffer, signal
       const exported = deck.exportMarkdown();
       if (!exported.ok) throw new Error("Readable slide text could not be prepared.");
       text.textContent = exported.content.markdown;
+      status.textContent = "Read-only preview. Fonts may differ from the original.";
+      status.removeAttribute("role");
       select.disabled = false;
     };
     select.addEventListener("change", () => {
-      void paint().catch((error: unknown) => { if (!signal.aborted) { status.textContent = errorMessage(error); status.setAttribute("role", "alert"); } });
+      void paint().catch((error: unknown) => {
+        if (signal.aborted) return;
+        status.textContent = errorMessage(error);
+        status.setAttribute("role", "alert");
+        select.disabled = false;
+      });
     });
     host.append(select, status, canvas, text);
     await paint();

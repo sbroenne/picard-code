@@ -56,14 +56,16 @@ const ALLOWED_TAGS = ["p", "br", "strong", "em", "del", "code", "pre", "ul", "ol
   "hr", "a", "table", "thead", "tbody", "tr", "th", "td", "input", "span",
   "math", "semantics", "annotation", "mrow", "mi", "mn", "mo", "mtext", "mspace", "msup", "msub", "msubsup", "mfrac", "msqrt", "mroot",
   "mover", "munder", "munderover", "mtable", "mtr", "mtd", "mstyle", "mpadded", "menclose", "mmultiscripts", "mprescripts", "none"];
+const MATH_ATTRIBUTES = ["display", "encoding", "mathvariant", "stretchy", "fence", "separator", "accent", "accentunder",
+  "columnalign", "rowspacing", "columnspacing", "linethickness"];
 
 /** Turns a Markdown reply into safe page elements. Model output is never trusted as HTML. */
 export function renderMarkdown(text: string): DocumentFragment {
   const html = reader.parse(text) as string;
   return purify.sanitize(html, {
     ALLOWED_TAGS,
-    ALLOWED_ATTR: ["href", "title", "class", "start", "type", "checked", "disabled", "align", "xmlns", "display", "encoding",
-      "mathvariant", "stretchy", "fence", "separator", "accent", "accentunder", "columnalign", "rowspacing", "columnspacing"],
+    ALLOWED_ATTR: ["href", "title", "class", "start", "type", "checked", "disabled", "align", "xmlns", ...MATH_ATTRIBUTES],
+    ADD_URI_SAFE_ATTR: MATH_ATTRIBUTES,
     ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|#)/i,
     RETURN_DOM_FRAGMENT: true,
   });

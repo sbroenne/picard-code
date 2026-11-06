@@ -839,6 +839,7 @@ function renderMessages() {
     const media = message.parts.filter((part) => part.type === "media" || part.type === "file");
     const work = workDetails(message.parts);
     if (work) {
+      work.dataset.keep = `work:${message.sourceSessionID ?? selected}:${message.id}`;
       work.dataset.messageId = message.id;
       work.dataset.sessionId = message.sourceSessionID ?? selected;
       work.dataset.mediaReady = "true";

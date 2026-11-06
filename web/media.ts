@@ -48,6 +48,7 @@ export class ReplyPlayers {
     media.addEventListener("play", start);
     media.addEventListener("pause", end);
     media.addEventListener("ended", end);
+    media.addEventListener("error", end);
     const player = { stop: () => { media.pause(); this.end(element); } };
     this.players.set(element, player);
     return () => {
@@ -55,6 +56,7 @@ export class ReplyPlayers {
       media.removeEventListener("play", start);
       media.removeEventListener("pause", end);
       media.removeEventListener("ended", end);
+      media.removeEventListener("error", end);
       this.players.delete(element);
     };
   }

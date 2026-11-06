@@ -239,8 +239,8 @@ a.tribute { text-decoration: none; }
 .message.current[data-role="assistant"] .message-text { font-size: 19px; line-height: 1.6; }
 .message.earlier { padding: 4px 0 6px 16px; margin-bottom: 8px; border-left-width: 4px; opacity: .5; }
 .message.earlier .message-text { font-size: 14px; line-height: 1.5; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.message.earlier:has(.reply-media) { opacity: 1; }
-.message.earlier .message-text:has(.reply-media) { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.message.earlier:has(.reply-media, .reply-output, .reply-file) { opacity: 1; }
+.message.earlier .message-text:has(.reply-media, .reply-output, .reply-file) { display: block; -webkit-line-clamp: unset; overflow: visible; }
 .message.earlier .message-header strong { font-size: 12px; }
 .message.earlier:hover, .message.earlier:focus-within { opacity: .85; }
 code, pre { font-family: "SF Mono", Consolas, monospace; font-size: .9em; }

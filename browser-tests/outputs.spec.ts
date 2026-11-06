@@ -163,6 +163,151 @@ test("OpenCode maths and code render without executing model HTML", async ({ pag
   } finally { await context.cleanup(); }
 });
 
+test("binomial maths keeps its zero-width fraction bar", async ({ page }) => {
+  const context = await setup(page, "TEST ONLY: mathematical notation.\n\n$\\binom{5}{2}$");
+  try {
+    await expect(page.locator("math mfrac")).toHaveAttribute("linethickness", "0px");
+    await expect(page.locator("math mo").first()).toHaveAttribute("fence", "true");
+  } finally { await context.cleanup(); }
+});
+
+test("PDF navigation recovers after an oversized page and clears the old error", async ({ page }) => {
+  const context = await setup(page, "TEST ONLY: PDF recovery.\n\n[Document](recovery.pdf)");
+  try {
+    await writeFile(join(context.project, "recovery.pdf"), pdfFile([[300, 200], [10000, 10000], [300, 200]]));
+    await page.getByRole("button", { name: "Preview: Document" }).click();
+    const preview = page.locator(".file-preview");
+    await expect(preview).toContainText("Page 1 of 3");
+    await page.getByRole("button", { name: "Next page" }).click();
+    await expect(preview.getByRole("alert")).toContainText("too large to preview");
+    await expect(page.getByRole("button", { name: "Previous page" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Next page" })).toBeEnabled();
+    await page.getByRole("button", { name: "Previous page" }).click();
+    await expect(preview).toContainText("Page 1 of 3");
+    await expect(preview.getByRole("alert")).toHaveCount(0);
+    await page.getByRole("button", { name: "Next page" }).click();
+    await expect(preview.getByRole("alert")).toContainText("too large to preview");
+    await page.getByRole("button", { name: "Next page" }).click();
+    await expect(preview).toContainText("Page 3 of 3");
+    await expect(preview.getByRole("alert")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Next page" })).toBeDisabled();
+  } finally { await context.cleanup(); }
+});
+
+test("slide navigation recovers after drawing fails and clears the old error", async ({ page }) => {
+  const context = await setup(page, "TEST ONLY: slide recovery.\n\n[Slides](recovery.pptx)");
+  try {
+    await writeFile(join(context.project, "recovery.pptx"), await officeFile("pptx"));
+    await page.getByRole("button", { name: "Preview: Slides" }).click();
+    const preview = page.locator(".file-preview"), select = page.getByRole("combobox", { name: "Slide", exact: true });
+    await expect(select).toBeEnabled();
+    await page.evaluate(() => {
+      const original = HTMLCanvasElement.prototype.getContext;
+      let fail = true;
+      HTMLCanvasElement.prototype.getContext = function(...args: Parameters<typeof original>) {
+        if (fail && this.getAttribute("aria-label") === "Presentation slide") {
+          fail = false;
+          throw new Error("TEST ONLY: slide drawing failed.");
+        }
+        return original.apply(this, args);
+      };
+    });
+    await select.selectOption("1");
+    await expect(preview.getByRole("alert")).toContainText("TEST ONLY: slide drawing failed.");
+    await expect(select).toBeEnabled();
+    await select.selectOption("0");
+    await expect(select).toBeEnabled();
+    await expect(preview.getByRole("alert")).toHaveCount(0);
+    await expect(preview).toContainText("Read-only preview.");
+  } finally { await context.cleanup(); }
+});
+
+test("recovered failures preserve each work block and open file changes through redraws", async ({ page }) => {
+  const context = await setup(page, "TEST ONLY: earlier answer.");
+  try {
+    const history = context.fixture.messages.get(context.session.id)!;
+    for (const [index, name] of ["first", "second"].entries()) history.push({
+      id: `failed-${name}`, type: "assistant", time: { created: index + 2 }, content: [{
+        type: "tool", id: `tool-${name}`, name: "patch", state: { status: "error",
+          error: { type: "test", message: `TEST ONLY: ${name} failure` },
+          content: [{ type: "text", text: `TEST ONLY: ${name} partial result` }],
+          metadata: { files: [{ file: `${name}.ts`, patch: `-old ${name}\n+new ${name}` }] } },
+      }],
+    });
+    history.push({ id: "recovered", type: "assistant", time: { created: 4 },
+      content: [{ type: "text", text: "TEST ONLY: recovered final answer." }] });
+    context.fixture.publish(context.project, "session.text.ended", { sessionID: context.session.id });
+    await expect(page.locator("#messages")).toContainText("TEST ONLY: recovered final answer.");
+    const note = page.locator(".step-failures");
+    await expect(note.locator(".work-details")).toHaveCount(2);
+    await note.locator(":scope > summary").click();
+    await note.evaluate((element) => {
+      for (const block of element.querySelectorAll<HTMLDetailsElement>(".work-details")) {
+        block.open = true;
+        block.querySelector<HTMLDetailsElement>("details")!.open = true;
+      }
+    });
+    history[history.length - 1] = { id: "recovered", type: "assistant", time: { created: 4 },
+      content: [{ type: "text", text: "TEST ONLY: refreshed final answer." }] };
+    context.fixture.publish(context.project, "session.text.ended", { sessionID: context.session.id });
+    await expect(page.locator("#messages")).toContainText("TEST ONLY: refreshed final answer.");
+    await expect(note.locator(".work-details")).toHaveCount(2);
+    for (const [index, name] of ["first", "second"].entries()) {
+      const block = note.locator(".work-details").nth(index);
+      await expect(block).toHaveAttribute("open", "");
+      await expect(block).toContainText(`TEST ONLY: ${name} partial result`);
+      await expect(block.locator("details")).toHaveAttribute("open", "");
+      await expect(block).toContainText(`+new ${name}`);
+    }
+  } finally { await context.cleanup(); }
+});
+
+test("earlier replies keep graphs and open file previews unclipped after a follow-up", async ({ page }) => {
+  const context = await setup(page, `TEST ONLY: earlier rich answer.\n\n\`\`\`mermaid\n${chart}\n\`\`\`\n\n[Table](earlier.csv)`);
+  try {
+    await writeFile(join(context.project, "earlier.csv"), "Name,Value\nSample,42");
+    const article = page.locator('.message[data-message-id="output-answer"]');
+    await page.getByRole("button", { name: "Preview: Table" }).click();
+    await expect(article.locator(".file-preview td")).toHaveCount(4);
+    context.fixture.messages.get(context.session.id)!.push(
+      { id: "follow-up", type: "user", time: { created: 2 }, text: "TEST ONLY: next request." },
+      { id: "answer", type: "assistant", time: { created: 3 }, content: [{ type: "text", text: "TEST ONLY: next answer." }] },
+    );
+    context.fixture.publish(context.project, "session.text.ended", { sessionID: context.session.id });
+    await expect(article).toHaveClass(/earlier/);
+    await expect(article.locator(".reply-output img")).toBeVisible();
+    const text = article.locator(".message-text");
+    await expect(text).toHaveCSS("overflow", "visible");
+    await expect(text).toHaveCSS("-webkit-line-clamp", "none");
+    const clipped = await text.evaluate((element) =>
+      element.getBoundingClientRect().height + 1 < element.scrollHeight);
+    expect(clipped).toBe(false);
+    await expect(article.locator(".file-preview td")).toHaveCount(4);
+    await page.getByRole("button", { name: "Close preview: Table" }).click();
+    await page.getByRole("button", { name: "Preview: Table" }).click();
+    await expect(article.locator(".file-preview td")).toHaveCount(4);
+  } finally { await context.cleanup(); }
+});
+
+test("a preview decoding error resumes listening without waiting for close", async ({ page }) => {
+  const context = await setup(page, "TEST ONLY: media recovery.\n\n[Audio](recovery.wav)");
+  try {
+    await writeFile(join(context.project, "recovery.wav"), silentWav(10));
+    await page.getByRole("button", { name: "Preview: Audio" }).click();
+    await page.locator("audio").evaluate((audio: HTMLAudioElement) => audio.play());
+    await expect(page.locator("#voice-channel")).toHaveText("Paused");
+    const channel = await page.locator("audio").evaluate((audio) => {
+      audio.dispatchEvent(new Event("error"));
+      return document.querySelector("#voice-channel")!.textContent;
+    });
+    expect(channel).toBe("Listening");
+    await expect(page.locator(".file-preview")).toContainText("The browser cannot display this file");
+    await expect(page.locator("#voice-channel")).toHaveText("Listening");
+    await page.getByRole("button", { name: "Close preview: Audio" }).click();
+    await expect(page.locator("#voice-channel")).toHaveText("Listening");
+  } finally { await context.cleanup(); }
+});
+
 for (const kind of ["docx", "xlsx", "pptx", "pdf"] as const) {
   test(`OpenCode ${kind} results have real read-only previews`, async ({ page }) => {
     const context = await setup(page, `TEST ONLY: document fixture.\n\n[Document](result.${kind})`);

@@ -510,7 +510,8 @@ report, not a terminal.
 
 Log entries line up with the left edge of the main screen. Graphs, tables,
 code and file previews can use the available width; ordinary paragraphs stay
-narrow enough to read comfortably.
+narrow enough to read comfortably. Earlier replies keep their graphs and open
+file previews fully visible when another reply arrives.
 
 Files explicitly linked or attached in a reply offer **Preview**,
 **Close preview** and **Open source**. Previews read the original Project file, without
@@ -539,6 +540,8 @@ returned by its tools are displayed like other reply content.
 Previews are limited to 32 MB per file. Office files also have a 128 MB expanded
 limit and must not be encrypted. Unsupported formats, damaged files and
 rendering failures show an explanation instead of a blank or invented result.
+If one PDF page or presentation slide fails, navigation stays available so you
+can return to a readable page or slide. A playback failure resumes listening.
 Saved command results marked incomplete by OpenCode remain labelled incomplete;
 Picard Code does not silently pretend the missing output was received.
 

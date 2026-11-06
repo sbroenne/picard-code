@@ -40,11 +40,18 @@ export async function previewPdf(host: HTMLElement, bytes: ArrayBuffer, signal: 
       if (signal.aborted || current !== revision) return;
       text.textContent = content.items.map((item) => "str" in item ? item.str : "").join(" ");
       label.textContent = `Page ${page} of ${pdf.numPages}`;
+      label.removeAttribute("role");
       previous.disabled = page === 1; next.disabled = page === pdf.numPages;
     };
     const change = (step: number) => {
       page += step;
-      void paint().catch((error: unknown) => { if (!signal.aborted) { label.textContent = String(error); label.setAttribute("role", "alert"); } });
+      void paint().catch((error: unknown) => {
+        if (signal.aborted) return;
+        label.textContent = String(error);
+        label.setAttribute("role", "alert");
+        previous.disabled = page === 1;
+        next.disabled = page === pdf.numPages;
+      });
     };
     previous.addEventListener("click", () => change(-1)); next.addEventListener("click", () => change(1));
     host.append(label, previous, next, canvas, text);
