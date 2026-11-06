@@ -1,5 +1,21 @@
 # Picard Code release notes
 
+## 1701.4.9
+
+### Patch Changes
+
+- [#94](https://github.com/sbroenne/picard-code/pull/94) [`0575f22`](https://github.com/sbroenne/picard-code/commit/0575f22b0331f10daaf0b7ba35e8066c105645c3) - Answer several text questions by voice, one at a time, without typing. Answered questions are no longer read again while the computer resumes work.
+
+- [#87](https://github.com/sbroenne/picard-code/pull/87) [`b70e2f0`](https://github.com/sbroenne/picard-code/commit/b70e2f0f22b67cca6b9b79bb65a5e9c33b6d7aed) - Refresh the website screenshots to show the current computer, bridge crew and Captain’s log.
+
+- [#95](https://github.com/sbroenne/picard-code/pull/95) [`add8f12`](https://github.com/sbroenne/picard-code/commit/add8f12d15dffd6d94e88840a2359757f58bb5e9) - Play the arrival call once when the first channel opens after starting Picard Code. Wait until it finishes before listening, without replaying it for microphone changes, page reloads or another open page.
+
+- [#93](https://github.com/sbroenne/picard-code/pull/93) [`a74fa9e`](https://github.com/sbroenne/picard-code/commit/a74fa9e19c85461392dd570a08d92ae1f7dbd5d9) - The Captain’s arrival call now plays when the app opens, without waiting for OpenCode or speech setup. If the browser needs a click before playing sound, the call is loaded ahead of that click.
+
+- [#91](https://github.com/sbroenne/picard-code/pull/91) [`db32d42`](https://github.com/sbroenne/picard-code/commit/db32d42ab08bea45ec9bd130eb71a82d5e517891) - Running from source now needs only npm start: it installs the needed packages and builds the app before opening it. The setup instructions on GitHub and the website now use the same command.
+
+- [#95](https://github.com/sbroenne/picard-code/pull/95) [`add8f12`](https://github.com/sbroenne/picard-code/commit/add8f12d15dffd6d94e88840a2359757f58bb5e9) - Microphone checks now explain missing devices, denied permission and other access problems on macOS, Windows and Linux while keeping the original error visible. After access is allowed, Picard Code retries browser audio so listening can start without an unnecessary extra click; microphone problems can be retried without restarting the app.
+
 ## 1701.4.8
 
 ### Patch Changes
