@@ -323,6 +323,7 @@ function consoleStatus(): [string, string, ConsoleActivity] {
   if (listening) return ["Standing by", voice.phase === "thinking" ? "Checking what you said."
     : Date.now() < goAheadUntil ? "Go ahead." : inTask() ? "Go ahead with the next request, or say “New log entry”." : "Say “Computer”, then your request.", "ready"];
   if (!state.speech?.configured) return ["Computer voice offline", "", "unavailable"];
+  if (voice.failed && voice.listeningError) return ["Not listening", voice.listeningError, "unavailable"];
   return ["Not listening", "The microphone is off. Click the microphone, or press M.", "unavailable"];
 }
 
@@ -1620,7 +1621,7 @@ function wizardStep(): WizardStep | undefined {
     if (view === "settings") return part === "provider" || part === "model" ? part : undefined;
     return modelSetupPart();
   }
-  return firstRun === "started" ? "comms" : firstRun === "listening" ? "online" : "crew";
+  return firstRun === "started" || voice.failed && !!voice.listeningError ? "comms" : firstRun === "listening" ? "online" : "crew";
 }
 function openDrawer(): Drawer | undefined {
   const name = location.hash.slice(1).split("/")[0] ?? "";
@@ -1672,7 +1673,7 @@ function showWizard(step: WizardStep) {
   const openCodeDefault = signedIn && !state.selectedModel ? state.defaultModel : undefined;
   const core = signedIn || !!state.selectedModel;
   const intelligence = !!state.selectedModel || step === "welcome" && !!openCodeDefault;
-  const comms = firstRun === "listening" || firstRun === "answered";
+  const comms = (firstRun === "listening" || firstRun === "answered") && !voice.failed;
   shipSystem("core", core, step === "provider", step === "welcome" && signedIn ? " · your OpenCode sign-in" : "");
   shipSystem("intelligence", intelligence, step === "model", step === "welcome" && openCodeDefault ? ` · ${openCodeDefault.name}, your OpenCode default` : "");
   shipSystem("comms", comms, step === "comms");
@@ -1685,7 +1686,7 @@ function showWizard(step: WizardStep) {
       ? "Select one of OpenCode's free models to power the computer. Sign in under AI provider at any time for more capable models."
       : state.defaultModel ? `Select the AI model that powers the computer. Your OpenCode default is ${state.defaultModel.name}. The most capable model gives the best answers.`
       : "OpenCode has no default AI model set, so select the one that powers the computer. The most capable model gives the best answers."],
-    comms: ["Open a channel", "The computer must be able to hear you. Your browser may ask to use the microphone; choose Allow."],
+    comms: ["Open a channel", "Opening the channel checks your microphone. Your browser may ask to use it; choose Allow. If it cannot be opened, the reason and next steps appear here."],
     online: ["All systems online", "Say “Computer”, then give your order."],
     crew: ["Senior officers reporting", "The computer answers by default. Address an officer by name for their judgment, or ask for “Options” to hold a briefing."],
   } satisfies Record<WizardStep, [string, string]>)[step];
@@ -1698,7 +1699,7 @@ function showWizard(step: WizardStep) {
   channel.disabled = !state.speech?.configured || !connected || voice.opening;
   element("open-channel-hint").textContent = voice.opening ? "Opening the channel"
     : !state.speech?.configured ? "Available once voice systems are online."
-    : voice.failed ? "To allow the microphone, use the site settings next to the address bar, then choose Open a channel again." : "";
+    : voice.failed ? voice.listeningError || "Read the error on screen, then choose Open a channel again." : "";
   element<HTMLButtonElement>("begin-startup").disabled = savingModel;
   if (step !== shownStep) {
     shownStep = step;
@@ -1980,7 +1981,15 @@ function muteMicrophone() {
 async function startListening() {
   if (!state?.speech?.configured || !state.selectedModel || !connected || openDrawer() === "settings") return;
   setMuted(false);
-  await voice.activate();
+  const previousError = voice.listeningError;
+  try { await voice.activate(); }
+  finally {
+    if (previousError && (voice.microphone || voice.listeningError && voice.listeningError !== previousError)) {
+      const text = element("notice-text");
+      for (const item of text.querySelectorAll("p")) if (item.textContent === previousError) item.remove();
+      element("notice").hidden = !text.childElementCount;
+    }
+  }
   if (firstRun === "started" && voice.microphone) {
     setFirstRun("listening");
     voice.speak("All systems online. Say “Computer”, then give your order.");

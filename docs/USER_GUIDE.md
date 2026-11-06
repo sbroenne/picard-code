@@ -112,7 +112,11 @@ screen shows three systems and which are already online; choose
    OpenCode, **Begin start-up** uses it and this step is skipped. Otherwise
    choose one and **Confirm this model**. For the best experience, choose the
    most capable model your provider offers; it may cost more or take longer.
-3. **Communications**: choose **Open a channel** and allow the microphone.
+3. **Communications**: choose **Open a channel** to check microphone access
+   and allow it if the browser asks. On macOS, Windows and Linux, a failed
+   check keeps this step open with the actual error and steps to try.
+   Connect a microphone or update its permissions, then choose **Open a channel**
+   again; you do not need to restart Picard Code.
 
 Steps already finished in OpenCode are skipped. Meanwhile the voice systems
 prepare on their own: a bar at the bottom of the screen shows each real step
@@ -136,6 +140,9 @@ which runs the same download. Later starts use your saved speech choices.
 The microphone starts automatically on later starts. While it starts, the
 console says **Not listening** and the label under the microphone says
 **Starting**; allow access if your browser asks.
+After microphone access is allowed, Picard Code tries to resume browser audio
+again so an earlier block does not leave listening paused. If the browser still
+requires a page interaction, choose **Resume listening** or press **M**.
 Whenever the computer cannot hear you, the console says **Not listening** and
 the line below it says why. The microphone button is the only control: when a
 click lets the computer hear, the button grows with an orange ring. If the
@@ -1141,6 +1148,14 @@ See [third-party notices](../THIRD_PARTY_NOTICES.md) for the model license.
   address, click the microphone button, allow microphone access,
   and check the input
   device. Speech must be set up and an available model explicitly confirmed.
+  The browser checks access when you choose **Open a channel** or switch the
+  microphone on, not before the browser opens. Missing devices, denied access
+  and devices that cannot be opened have different guidance; the original
+  browser error stays visible. Safari may report **Invalid constraint** when
+  no microphone is visible, rather than naming a missing device. A hidden
+  device list alone does not prove that no microphone is connected.
+  Check your computer's sound input and privacy settings as well as browser
+  permission. A Mac mini has no built-in microphone; connect one or a headset.
 - **Azure rejects speech:** check resource access, the deployed live listening
   model, supported region and voice, and service quota. A speech error does
   not mean OpenCode stopped; use **Belay that** separately when needed.

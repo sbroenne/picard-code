@@ -16,6 +16,33 @@ const CUE_VOLUME: Record<Cue, number> = { startup: 0.15, "request-accepted": 1, 
 export type ConsolePhase = "off" | "standby" | "listening" | "thinking" | "speaking";
 export interface FollowOn { text: string; valid(): boolean; started?(): void }
 
+async function microphoneFailure(error: unknown) {
+  const name = error instanceof Error ? error.name : "";
+  const detail = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  const constraint = error instanceof Error && "constraint" in error && typeof error.constraint === "string" && error.constraint
+    ? ` Requested setting: ${error.constraint}.` : "";
+  let help = "Check that a microphone is connected and allowed in your browser and computer settings, then try again.";
+  if (name === "NotFoundError") {
+    help = "No microphone is available to this browser. Connect a microphone or headset, check your computer's input settings, then try again.";
+  } else if (name === "NotAllowedError" || name === "SecurityError") {
+    help = "Microphone access was denied. Allow it in the site settings next to the address bar and in your computer's privacy settings, then try again.";
+  } else if (name === "NotReadableError") {
+    help = "The browser could not open the microphone. Check your input device and close other apps that may be using it, then try again.";
+  } else if (name === "OverconstrainedError") {
+    help = "The browser could not use the requested microphone settings. Check the input device in your browser and computer settings, then try again.";
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      // Some browsers hide devices before permission; this is not proof that no hardware is connected.
+      if (!devices.some((device) => device.kind === "audioinput")) {
+        help = "The browser cannot see a microphone. Connect a microphone or headset and allow microphone access in your browser and computer settings, then try again.";
+      }
+    } catch (deviceError) {
+      help += ` The microphone device list could not be read: ${deviceError instanceof Error ? deviceError.message : String(deviceError)}`;
+    }
+  }
+  return `${help} Browser error: ${detail}${constraint}`;
+}
+
 export class VoiceConversation {
   microphone = false;
   phase: ConsolePhase = "off";
@@ -26,6 +53,7 @@ export class VoiceConversation {
   opening = false;
   /** True after listening stopped because of an error; it then starts again only when asked. */
   failed = false;
+  listeningError = "";
   mediaPaused = false;
   private speechRevision = 0;
   private followOn?: FollowOn;
@@ -227,7 +255,7 @@ export class VoiceConversation {
     this.clearAudio();
     this.hooks.error(message);
   }
-  /** Browsers allow sound only after a click or key press; call this from one. */
+  /** Retry browser audio after a user action or microphone access. */
   unlock() {
     if (this.context?.state === "suspended") void this.context.resume().catch(() => undefined);
   }
@@ -235,6 +263,7 @@ export class VoiceConversation {
     if (this.opening || this.microphone) return;
     this.opening = true;
     this.failed = false;
+    this.listeningError = "";
     this.hooks.changed();
     const revision = this.revision;
     try {
@@ -243,16 +272,23 @@ export class VoiceConversation {
       // Without a recent click the browser keeps sound suspended until the next one; do not wait for it here.
       void context.resume().catch(() => undefined);
       for (const name of Object.keys(CUE_VOLUME) as Cue[]) void this.loadCue(context, name);
-      const detecting = loadSpeechDetector();
-      detecting.catch(() => undefined);
-      const media = await navigator.mediaDevices.getUserMedia({ audio: {
-        channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
-      } });
+      let media: MediaStream;
+      try {
+        media = await navigator.mediaDevices.getUserMedia({ audio: {
+          channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
+        } });
+      } catch (error) {
+        throw new Error(await microphoneFailure(error));
+      }
       if (revision !== this.revision) { media.getTracks().forEach((track) => track.stop()); return; }
       this.media = media;
+      // Microphone access can unblock audio that the browser paused before capture began.
+      this.unlock();
       media.getTracks().forEach((track) => { track.onended = () => {
         if (this.microphone) { this.failed = true; this.microphoneOff(); this.hooks.error("The microphone disconnected. Check your device, then click the microphone button to listen again."); }
       }; });
+      const detecting = loadSpeechDetector();
+      detecting.catch(() => undefined);
       await context.audioWorklet.addModule("/microphone-worklet.js");
       this.detector = await detecting;
       if (revision !== this.revision) return;
@@ -272,9 +308,11 @@ export class VoiceConversation {
       this.waitingForClick = context.state === "suspended";
       this.resume();
     } catch (error) {
+      if (revision !== this.revision) return;
       this.failed = true;
+      this.listeningError = `Could not start listening. ${error instanceof Error ? error.message : "Check microphone permissions and the selected speech setup."}`;
       this.microphoneOff();
-      throw new Error(`Could not start listening. ${error instanceof Error ? error.message : "Check microphone permissions and the selected speech setup."}`);
+      throw new Error(this.listeningError);
     } finally {
       this.opening = false;
       this.startup();

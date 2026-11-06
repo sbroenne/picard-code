@@ -579,7 +579,7 @@ for (const action of ["click", "M", "Enter", "Space"]) {
   });
 }
 
-test("console clarity: microphone permission does not ask for an unrelated sound-unlocking click", async ({ page }) => {
+test("console clarity: a browser that still blocks sound after microphone permission keeps Resume listening available", async ({ page }) => {
   await blockAudioUntilInteraction(page);
   await page.addInitScript(() => {
     const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
@@ -607,6 +607,74 @@ test("console clarity: microphone permission does not ask for an unrelated sound
   await expect(page.getByRole("heading", { name: "Please specify your request." })).toBeVisible();
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
+
+for (const firstRun of [false, true]) {
+  for (const blocked of ["pending", "rejected"] as const) {
+    test(`microphone permission resumes audio without another click (${firstRun ? "first start" : "saved setup"}, ${blocked} audio)`, async ({ page }) => {
+      const microphone = await controlledMicrophone(page, [0.5]);
+      await page.addInitScript((blocked) => {
+        let capturing = false;
+        let allow!: () => void;
+        const permission = new Promise<void>((done) => { allow = done; });
+        window.addEventListener("test-microphone-allowed", allow);
+        const NativeAudioContext = window.AudioContext;
+        window.AudioContext = class extends NativeAudioContext {
+          private suspended: Promise<void>;
+          constructor(options?: AudioContextOptions) {
+            super(options);
+            this.suspended = this.suspend();
+          }
+          override resume() {
+            if (!capturing) return blocked === "pending" ? new Promise<void>(() => undefined)
+              : Promise.reject(new DOMException("Test audio waits for microphone permission", "NotAllowedError"));
+            return this.suspended.then(() => super.resume());
+          }
+        };
+        const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        navigator.mediaDevices.getUserMedia = async (constraints) => {
+          await permission;
+          const stream = await getUserMedia(constraints);
+          capturing = true;
+          for (const track of stream.getTracks()) {
+            const stop = track.stop.bind(track);
+            track.stop = () => { capturing = false; stop(); };
+          }
+          return stream;
+        };
+      }, blocked);
+      const startup = page.waitForResponse("**/api/sounds/startup");
+      await launch(page, "example", firstRun ? ["--model-setup"] : []);
+      if (firstRun) {
+        await page.getByRole("button", { name: "Begin start-up" }).click();
+        await page.getByRole("button", { name: "Open a channel" }).click();
+      }
+      await expect(page.locator("#voice-channel")).toHaveText("Starting");
+      const arrivals = () => page.evaluate(() => (window as unknown as { acceptedSounds: string[] }).acceptedSounds.filter((sound) => sound.startsWith("startup:")));
+      expect(await arrivals()).toHaveLength(0);
+      // Granting a browser prompt is not a second click on the web page.
+      await page.evaluate(() => window.dispatchEvent(new Event("test-microphone-allowed")));
+      await expect(page.locator("#voice-channel")).toHaveText("Listening");
+      await (await startup).finished();
+      await expect(status(page)).toHaveText("Standing by");
+      await expect.poll(arrivals).toHaveLength(1);
+      await microphone.start();
+      await expect(page.locator(".message[data-role=user]")).toContainText("Computer, why is the settings test failing?", { timeout: 15000 });
+      await expect(page.locator(".message[data-role=assistant]")).toContainText("The settings test fails", { timeout: 15000 });
+      await expect(status(page)).toHaveText("Standing by", { timeout: 15000 });
+      await page.getByRole("button", { name: "Switch microphone off" }).click();
+      await page.getByRole("button", { name: "Switch microphone on" }).click();
+      await expect(page.locator("#voice-channel")).toHaveText("Listening");
+      await page.locator("a.readout[href='#settings/voice']").click();
+      await expect(page.locator("#drawer-settings")).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.locator("#voice-channel")).toHaveText("Listening");
+      await page.getByRole("button", { name: "New log entry", exact: true }).click();
+      await expect(page.locator(".message")).toHaveCount(0);
+      expect(await arrivals()).toHaveLength(1);
+      await page.getByRole("button", { name: "Switch microphone off" }).click();
+    });
+  }
+}
 
 test("console clarity: startup waits for permission and the open channel stays stable through speech and recognition", async ({ page }) => {
   const headings = await watchStatus(page);
@@ -1986,6 +2054,29 @@ test("a denied action plays the failure sound once, then speaks the result", asy
   await expect.poll(() => spoken.at(-1), { timeout: 10000 }).toBe("Request denied. The action was not carried out.");
   await page.getByRole("button", { name: "Switch microphone off" }).click();
   expect(await soundNames(page)).toEqual(["request-accepted", "request-failed"]);
+});
+
+test("a failed microphone restart explains the device problem without cancelling running work", async ({ page }) => {
+  let stops = 0;
+  page.on("request", (request) => { if (/\/api\/conversations\/[^/]+\/stop$/.test(request.url())) stops++; });
+  await launch(page, "long");
+  await startListening(page);
+  await expect(page.locator("#status-detail")).toHaveText("Say “Belay that” to cancel.", { timeout: 15000 });
+  const entry = page.locator('.conversation-button[aria-current="page"]');
+  const name = await entry.textContent();
+  await page.getByRole("button", { name: "Switch microphone off" }).click();
+  await page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = async () => { throw new DOMException("Test input is busy", "NotReadableError"); };
+  });
+  await page.getByRole("button", { name: "Switch microphone on" }).click();
+  await expect(page.locator("#notice-text")).toContainText("The browser could not open the microphone.");
+  await expect(page.locator("#notice-text")).toContainText("NotReadableError: Test input is busy");
+  await expect(status(page)).toHaveText("Accessing");
+  await expect(page.locator("#status-detail")).toHaveText("Choose Belay that to cancel.");
+  await expect(page.getByRole("button", { name: "Belay that" })).toBeVisible();
+  await expect(entry).toHaveText(name!);
+  await expect(page.locator(".message[data-role=user]")).toHaveCount(1);
+  expect(stops).toBe(0);
 });
 
 test("Allow once lets the requested action go ahead", async ({ page }, info) => {
