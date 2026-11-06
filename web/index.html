@@ -36,7 +36,7 @@
         <span id="tribute-status" class="visually-hidden" aria-live="polite"></span>
         <label class="rail-button blue rail-switch bridge-switch"><input id="bridge-toggle" type="checkbox" role="switch" aria-label="Bridge crew" checked /><b id="bridge-toggle-state" aria-hidden="true">On</b><span>Bridge crew</span></label>
         <span id="bridge-status" class="visually-hidden" aria-live="polite"></span>
-        <span class="rail-fill"><span class="rail-label" aria-hidden="true">Ship’s systems</span><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Computer intelligence"><small>Computer intelligence</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a><a class="readout orange" href="#settings/mcp" title="MCP server setup"><small>MCP servers</small><b>Advanced setup</b></a></span>
+        <span class="rail-fill"><span class="rail-label" aria-hidden="true">Ship’s systems</span><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Computer intelligence"><small>Computer intelligence</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a><a class="readout orange" href="#settings/mcp" title="MCP server connections"><small>MCP servers</small><b id="readout-mcp">Checking</b></a></span>
         <span id="rail-end" class="readout blue"><small>Stardate</small><b id="readout-stardate">—</b></span>
       </nav>
 
@@ -219,41 +219,36 @@
         </section>
 
         <section id="settings-mcp" class="panel" hidden>
-          <p>MCP servers give the computer tools and access to other services. OpenCode manages these connections, sign-ins and credentials. Nothing secret is entered here.</p>
-          <div class="provider-connection">
-            <p class="connection-label">Current connections</p>
-            <p class="muted">OpenCode's connections for the selected Project:</p>
-            <p id="mcp-project" class="mcp-project"></p>
-            <p id="mcp-status" class="connection-status" role="status">Checking MCP servers.</p>
-            <ul id="mcp-servers" class="mcp-servers" role="list" aria-label="MCP server connections"></ul>
-            <p class="muted">Connection states update as OpenCode reports changes. Connected services can provide tools; OpenCode's permission rules still apply.</p>
+          <div class="mcp-toolbar">
+            <p class="muted">Project: <strong id="mcp-project-name"></strong></p>
             <button id="refresh-mcp" class="pill orange" type="button">Refresh connections</button>
-            <p id="mcp-refresh-result" class="connection-status" aria-live="polite" aria-atomic="true"></p>
-            <p class="muted">Stop running work before refreshing after sign-in or setup changes. This reloads OpenCode's settings and checks the list again. The Current log entry and your confirmed AI model are kept.</p>
           </div>
-          <div class="provider-connection">
-            <p class="connection-label">Manage through OpenCode</p>
+          <p id="mcp-status" class="connection-status" role="status">Checking MCP servers.</p>
+          <ul id="mcp-servers" class="mcp-servers" role="list" aria-label="MCP server connections"></ul>
+          <p id="mcp-action-result" class="connection-status mcp-feedback" role="status"></p>
+          <a id="mcp-sign-in-link" class="pill outline" target="_blank" rel="noopener noreferrer" hidden>Continue sign-in</a>
+          <p id="mcp-refresh-result" class="connection-status mcp-feedback" aria-live="polite" aria-atomic="true"></p>
+          <p id="mcp-work-note" class="muted" hidden>Stop running work before refreshing or changing connections.</p>
+          <details id="mcp-advanced" class="setup-details">
+            <summary>Advanced setup</summary>
             <p id="mcp-connection"></p>
-            <p class="muted">For setup or sign-in, open the selected Project folder shown above in another terminal.</p>
-            <p class="muted">This selects the project's settings; it does not install OpenCode in that folder.</p>
-            <p id="mcp-custom-settings" class="muted" hidden>This launch uses custom OpenCode settings. Run these commands in a terminal with the same settings and environment variables as the terminal that launched Picard Code.</p>
-            <p>You can also check the configured servers from the terminal:</p>
+            <p class="muted">Run OpenCode commands from this Project folder. This does not install OpenCode there.</p>
+            <p id="mcp-project" class="mcp-project"></p>
+            <p id="mcp-custom-settings" class="muted" hidden>This launch uses custom OpenCode settings. Use a terminal with the same settings and environment variables as the terminal that launched Picard Code.</p>
             <div class="provider-command">
               <code id="mcp-list-command"></code>
               <button id="copy-mcp-list" class="pill outline" type="button" aria-label="Copy MCP list command" disabled>Copy command</button>
             </div>
             <p id="mcp-list-copy-result" class="copy-result" aria-live="polite"></p>
-            <p>If a remote server needs sign-in, run this command, choose the server and follow OpenCode's sign-in. Enter credentials only in the service's own sign-in flow, never by voice or in a log entry.</p>
+            <p>For sign-in that cannot open here, use OpenCode:</p>
             <div class="provider-command">
               <code id="mcp-auth-command"></code>
               <button id="copy-mcp-auth" class="pill outline" type="button" aria-label="Copy MCP sign-in command" disabled>Copy command</button>
             </div>
             <p id="mcp-auth-copy-result" class="copy-result" aria-live="polite"></p>
-          </div>
-          <details class="setup-details">
-            <summary>Advanced setup</summary>
-            <p class="muted">Add, remove and configure servers in OpenCode. Use <code>npx picard-code opencode mcp add --help</code> for options. Adding a server normally writes into the current project; use <code>--global</code> to keep its configuration outside your project and make it available across Projects. Picard Code does not write this configuration for you.</p>
-            <p class="muted">Servers that require an API key or other setup must be configured directly in OpenCode. Keep secrets out of project files and log entries. Only connect services you trust; a connected service may receive data when its tools are used. OpenCode's permission rules still apply. Signing in does not approve a pending action.</p>
+            <p class="muted">Add or configure servers with <code>npx picard-code opencode mcp add --help</code>. Use <code>--global</code> to keep configuration outside your Project. Picard Code does not edit these files.</p>
+            <p class="muted">OpenCode owns sign-in and credentials. Enter secrets only in the service's sign-in flow or OpenCode, never by voice or in a log entry. Configure API keys in OpenCode.</p>
+            <p class="muted">Only connect services you trust; their tools may receive project data. OpenCode's permission rules still apply. Signing in does not approve an action.</p>
             <p><a href="https://opencode.ai/v2/docs/mcp-servers/" target="_blank" rel="noopener noreferrer">OpenCode MCP setup guide</a></p>
           </details>
         </section>
