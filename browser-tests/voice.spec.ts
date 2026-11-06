@@ -1336,6 +1336,33 @@ test("a missing arrival sound is reported, without preventing listening", async 
   await page.getByRole("button", { name: "Switch microphone off" }).click();
 });
 
+test("a missing arrival sound stays visible when startup reopens a saved log entry", async ({ page }) => {
+  await launch(page, "no-speech");
+  await page.evaluate(async () => {
+    const response = await fetch("/api/conversations", {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Picard-Request": "1" },
+      body: JSON.stringify({ title: "Saved arrival check" }),
+    });
+    if (!response.ok) throw new Error(`Could not create the test log entry: HTTP ${response.status}`);
+  });
+  let release!: () => void;
+  const ready = new Promise<void>((done) => { release = done; });
+  await page.route("**/api/state", async (route) => { await ready; await route.continue(); });
+  await page.route("**/api/sounds/startup", (route) => route.fulfill({ status: 404, body: "This sound is not set up." }));
+  const reloading = page.reload();
+  reloading.catch(() => undefined);
+  const warning = page.getByText("The startup sound could not be loaded: HTTP 404. Restart Picard Code to check and download its sounds.", { exact: true });
+  try {
+    await expect(warning).toBeVisible();
+    await expect(page.locator("#status")).toHaveText("Starting up");
+    release();
+    await reloading;
+    await expect(page.locator("#status")).toHaveText("Computer voice offline");
+    await expect(page.locator(".conversation-button[aria-current=page]")).toContainText("Saved arrival check");
+    await expect(warning).toBeVisible();
+  } finally { release(); }
+});
+
 for (const mode of [undefined, "no-speech", "broken"] as const) {
   test(`the arrival call plays before systems finish loading (${mode ?? "saved speech"})`, async ({ playwright }) => {
     const browser = await playwright.chromium.launch({ args: [

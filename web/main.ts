@@ -1316,7 +1316,7 @@ function openEvents(quiet = false) {
   });
 }
 
-async function selectConversation(id: string) {
+async function selectConversation(id: string, keepNotice = false) {
   players.stop();
   cancelTributeSpeech();
   if (selected && id !== selected) { voiceTurn = undefined; spokenQuestionID = undefined; voice.close(); }
@@ -1329,7 +1329,7 @@ async function selectConversation(id: string) {
   clearTimeout(historyTimer);
   live.clear();
   messages = [];
-  notice();
+  if (!keepNotice) notice();
   if (openDrawer() === "records") closeDrawer();
   renderState();
   renderMessages();
@@ -1423,7 +1423,7 @@ async function boot() {
   firstRunChecked = !!state;
   if (state && !state.selectedModel && !wizardStep()) location.hash = `settings/${modelSetupPart()}`;
   controls();
-  if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id);
+  if (!selected && state?.conversations[0]) await selectConversation(state.conversations[0].id, true);
   openEvents();
 }
 
