@@ -403,6 +403,7 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .provider-command { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; background: #17121e; border-radius: 0 24px 24px 0; }
 .provider-command code { flex: 1 1 auto; overflow-wrap: anywhere; color: var(--peach); }
 .provider-command .pill { flex: none; }
+.mcp-project { overflow-wrap: anywhere; color: var(--peach); }
 .copy-result { min-height: 1.7em; margin: 4px 0 0; color: var(--lilac); }
 .connection-status { color: var(--peach); }
 .provider-alternative { margin: 24px 0 0 26px; }
@@ -418,9 +419,10 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
   .console-actions .pill { min-width: 190px; }
 }
 /* Short laptop screens, such as 1280 × 720 at 150% scale: a tighter side panel. */
-@media (max-height: 640px) {
+@media (max-height: 720px) {
+  :root { --elbow: 36px; }
   .sidebar, .rail-fill { gap: 4px; }
-  .rail-button { padding: 6px 12px; }
+  .rail-button { padding: 4px 12px; }
   .rail-fill .readout { min-height: 36px; padding: 4px 12px; }
   .rail-label { padding-top: 2px; }
   #rail-end { min-height: 40px; }

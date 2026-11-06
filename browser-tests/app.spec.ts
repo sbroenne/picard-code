@@ -143,6 +143,107 @@ test("the main screen shows only the conversation; the side panel tiles open the
   await expect(page.getByRole("heading", { name: "Computer voice offline" })).toBeVisible();
 });
 
+test("MCP guidance opens from Ship's systems and a direct link without adding a typing flow", async ({ page }) => {
+  const tile = page.getByRole("link", { name: /^MCP servers/ });
+  await tile.click();
+  await expect(page.getByRole("region", { name: "Ship’s systems MCP servers" })).toBeVisible();
+  await expect(tile).toHaveAttribute("aria-current", "true");
+  await expect(page.locator("#mcp-project")).toHaveText(process.cwd());
+  await expect(page.locator("#mcp-list-command")).toHaveText("npx picard-code opencode mcp list");
+  await expect(page.locator("#mcp-auth-command")).toHaveText("npx picard-code opencode mcp auth");
+  await expect(page.locator("#settings-mcp").getByRole("textbox")).toHaveCount(0);
+  await expect(page.locator("#settings-mcp")).toContainText("installed OpenCode 2");
+  await expect(page.locator("#settings-mcp")).toContainText("bundled copy");
+  await page.locator("#settings-mcp").getByText("Advanced setup", { exact: true }).click();
+  await expect(page.locator("#settings-mcp")).toContainText("--connect");
+  await expect(page.locator("#settings-mcp")).toContainText("--global");
+  await expect(page.getByRole("link", { name: "OpenCode MCP setup guide" })).toHaveAttribute("href", "https://opencode.ai/v2/docs/mcp-servers/");
+  await tile.click();
+  await expect(page.locator("#drawer-settings")).toBeHidden();
+  await page.evaluate(() => { location.hash = "settings/mcp"; });
+  await expect(page.getByRole("heading", { name: "MCP servers", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#drawer-settings")).toBeHidden();
+  await tile.click();
+  await page.getByRole("link", { name: "Current log entry", exact: true }).click();
+  await expect(page.locator("#drawer-settings")).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("MCP commands report real clipboard success and failure", async ({ page }) => {
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+      writeText: async (text: string) => { sessionStorage.setItem("testCopiedCommand", text); },
+    } });
+  });
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  for (const action of ["list", "auth"]) {
+    const copy = page.locator(`#copy-mcp-${action}`);
+    await copy.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(`#mcp-${action}-copy-result`)).toHaveText("Command copied");
+    expect(await page.evaluate(() => sessionStorage.getItem("testCopiedCommand"))).toBe(`npx picard-code opencode mcp ${action}`);
+  }
+  await page.evaluate(() => { navigator.clipboard.writeText = async () => { throw new Error("Test MCP clipboard access refused."); }; });
+  await page.locator("#copy-mcp-auth").click();
+  await expect(page.locator("#mcp-auth-copy-result")).toHaveText("Test MCP clipboard access refused.");
+  await expect(page.locator("#copy-mcp-auth")).toBeEnabled();
+});
+
+test("MCP refresh keeps the current log entry and distinguishes reloads from sign-in", async ({ page }) => {
+  await page.evaluate(async () => {
+    await fetch("/api/conversations", { method: "POST",
+      headers: { "Content-Type": "application/json", "X-Picard-Request": "1" },
+      body: JSON.stringify({ title: "Keep this MCP log entry" }),
+    });
+  });
+  await page.reload();
+  await page.getByRole("link", { name: "Captain’s log" }).click();
+  const entry = page.getByRole("button", { name: /^Keep this MCP log entry,/ });
+  await entry.click();
+  const stardate = await page.locator("#entry-stardate").textContent();
+  const otherPage = await page.context().newPage();
+  await otherPage.goto(new URL("#settings/mcp", page.url()).href);
+  await expect(otherPage.locator("#refresh-mcp")).toBeEnabled();
+  const reconnected = otherPage.waitForEvent("request", { predicate: (request) => new URL(request.url()).pathname === "/api/events" });
+  const refreshRequests: string[] = [];
+  page.on("request", (request) => { if (request.url().endsWith("/api/refresh")) refreshRequests.push(request.method()); });
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await page.getByRole("button", { name: "Refresh connections", exact: true }).click();
+  await expect(page.locator("#mcp-refresh-result")).toHaveText("OpenCode settings reloaded. Run the list command to check each MCP connection.");
+  await reconnected;
+  await expect(otherPage.locator("#refresh-mcp")).toBeEnabled();
+  await expect(otherPage).toHaveURL(/#settings\/mcp$/);
+  await otherPage.close();
+  expect(refreshRequests).toEqual(["POST"]);
+  await expect(page).toHaveURL(/#settings\/mcp$/);
+  await expect(page.locator("#entry-stardate")).toHaveText(stardate!);
+  await page.getByRole("link", { name: "Captain’s log" }).click();
+  await expect(entry).toHaveAttribute("aria-current", "page");
+
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await page.route("**/api/refresh", (route) => route.fulfill({ status: 502, json: { error: "Test MCP reload failed." } }));
+  await page.getByRole("button", { name: "Refresh connections", exact: true }).click();
+  await expect(page.locator("#mcp-refresh-result")).toHaveText("Test MCP reload failed.");
+  await expect(page.getByRole("button", { name: "Refresh connections", exact: true })).toBeEnabled();
+  await page.unroute("**/api/refresh");
+  await page.getByRole("button", { name: "Refresh connections", exact: true }).click();
+  await expect(page.locator("#mcp-refresh-result")).toContainText("OpenCode settings reloaded.");
+});
+
+test("MCP refresh stays unavailable while background work runs", async ({ page }) => {
+  await page.route("**/api/state", async (route) => {
+    const response = await route.fetch();
+    const state = await response.json();
+    state.statuses = { "test-background-entry": { type: "busy" } };
+    await route.fulfill({ json: state });
+  });
+  await page.reload();
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await expect(page.getByRole("button", { name: "Refresh connections", exact: true })).toBeDisabled();
+  await expect(page.locator("#settings-mcp")).toContainText("Stop running work before refreshing");
+});
+
 test("Nemotron download details follow the chosen services without writing settings", async ({ page }) => {
   let writes = 0;
   await page.route("**/api/settings", async (route) => {

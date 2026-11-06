@@ -423,6 +423,60 @@ not rank the models or select OpenCode's default for you.
 
 `npx picard-code opencode auth list` shows which providers are signed in.
 
+## MCP servers and sign-in
+
+MCP servers give OpenCode tools and access to other services. Picard Code uses
+the servers configured in OpenCode; it does not maintain a separate server
+list or credential store. Open **MCP servers** under **Ship's systems** for
+copyable commands and **Advanced setup** guidance. This is optional, not part
+of first start-up.
+
+In another terminal, open the selected **Project** folder shown in the panel.
+Use the same custom OpenCode settings and environment variables as in the
+terminal that launched Picard Code. Check the configured servers:
+
+```sh
+npx picard-code opencode mcp list
+```
+
+For a remote server that needs sign-in:
+
+```sh
+npx picard-code opencode mcp auth
+```
+
+Choose the server and follow OpenCode's sign-in. These commands use the same
+selection as Picard Code: your installed OpenCode 2 if available, otherwise
+the bundled copy. OpenCode stores the sign-in, not Picard Code. Never speak
+passwords, keys or sign-in codes, or put them in a log entry.
+
+Return to the panel and choose **Refresh connections** after changes, while no
+work is running. This reloads OpenCode's settings without starting a new log
+entry or changing your confirmed AI model. Refresh success means the settings
+were reloaded, not that every server connected. Run `mcp list` again to see
+actual connection results and errors. If your AI model becomes unavailable,
+the existing model-recovery screen still asks you to choose a replacement.
+
+Adding and configuring servers is advanced OpenCode setup. Read
+[OpenCode's MCP guide](https://opencode.ai/v2/docs/mcp-servers/), or run
+`npx picard-code opencode mcp add --help`. OpenCode's add command normally
+writes project configuration; use `--global` to keep it outside the project
+and make it available across Projects. Picard Code does not add or edit these
+files for you. Servers needing an API key must be configured in OpenCode;
+keep keys out of project files. Use environment-variable references as
+described in its guide, and restart the server if you change its environment.
+
+If you started Picard Code with **`--connect`**, manage that same server and
+its settings. Add `--server` followed by the same local OpenCode address to
+the list and sign-in commands. Use the same `OPENCODE_SERVER_PASSWORD` and,
+if set, `OPENCODE_SERVER_USERNAME` in the terminal, never in the command or
+browser address. Configuration files and environment variables must be
+available to that server; changing a different local copy will not configure it.
+
+Connect only services you trust. A service may receive data when its tools
+are used. OpenCode's permission rules still apply: signing in does not grant
+a pending approval, and voice cannot approve one.
+
 ## The main screen and Ship’s systems
 
 The main screen shows only the current log entry: the messages, any
@@ -476,9 +530,10 @@ screen; there is no phone layout.
   deleted until it is stopped.
 - **Ship’s systems** (`#settings/…`): there is no Settings button. Each tile in the
   side panel opens its own part of the ship’s systems, with a short LCARS panel
-  code (SYS 01 to SYS 05): **AI provider** the sign-in steps,
+  code (SYS 01 to SYS 06): **AI provider** the sign-in steps,
   **Computer intelligence** the AI model, **Project** the folder,
-  **Listen · Speak** the speech services, and the tribute badge **About**.
+  **Listen · Speak** the speech services, **MCP servers** the OpenCode connection
+  guidance, and the tribute badge **About**.
   Choosing the same tile again
   closes it. Without a saved model choice, the first start-up takes the
   centre of the screen (see [Get started](#get-started)). An unavailable saved model opens Computer intelligence for recovery,

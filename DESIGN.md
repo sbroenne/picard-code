@@ -59,7 +59,13 @@ when installed speech starts without a download.
 
 Captain's log and the Project, Computer intelligence, and Listen · Speak tiles
 open in a slide-out, as do AI provider in the top bar and About from the header dedication.
-Choosing it again, Current log entry, Escape, or the log entry beside it closes
+MCP servers opens an optional advanced setup drawer with the selected Project,
+copyable OpenCode list and sign-in commands, and Refresh connections.
+OpenCode owns server setup and credentials, using the installed or bundled
+copy; explicit `--connect` servers have their own connection instructions.
+Refresh reports only that settings reloaded, never an invented server status.
+Keep setup in OpenCode, with no credential fields or typed-request fallback.
+Choosing a tile again, Current log entry, Escape, or the log entry beside it closes
 the slide-out. The Tribute tile is an On/Off switch, not a slide-out. Stardate
 shows the fan-formula stardate, including its hover text.
 
