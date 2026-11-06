@@ -39,11 +39,12 @@ fs.writeFileSync("dist/server/cli.js", 'import { appendFileSync } from "node:fs"
         scripts,
         devDependencies: { "source-build-stand-in": failure === "install" ? "file:./missing.tgz" : "file:./tools" },
       }));
-      const result = spawnSync(process.platform === "win32" ? "npm.cmd" : "npm",
-        ["start", "--", "--no-open", "--project", process.platform === "win32" ? '"Captain project"' : "Captain project"], {
+      const npmCli = process.env.npm_execpath;
+      assert.ok(npmCli, "Run this test through npm so its CLI path is available.");
+      const result = spawnSync(process.execPath,
+        [npmCli, "start", "--", "--no-open", "--project", "Captain project"], {
           cwd: folder,
           encoding: "utf8",
-          shell: process.platform === "win32",
           timeout: 60_000,
           env: {
             ...process.env,
