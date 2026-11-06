@@ -508,6 +508,10 @@ answer. A failed action keeps both its exact error and any partial result.
 Command colours and terminal control codes are removed; this is a read-only
 report, not a terminal.
 
+Log entries line up with the left edge of the main screen. Graphs, tables,
+code and file previews can use the available width; ordinary paragraphs stay
+narrow enough to read comfortably.
+
 Files explicitly linked or attached in a reply offer **Preview**,
 **Close preview** and **Open source**. Previews read the original Project file, without
 editing it or opening a new program:

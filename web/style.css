@@ -50,7 +50,7 @@ a { color: var(--peach); text-underline-offset: 4px; }
 
 /* Frame: an upper header frame and a main frame, each joined to the side panel by an elbow. */
 .shell {
-  height: 100dvh; max-width: 1700px; margin: 0 auto; padding: 14px 18px 14px 14px;
+  height: 100dvh; padding: 14px 18px 14px 14px;
   display: grid; grid-template-columns: var(--rail) minmax(0, 1fr);
   grid-template-rows: auto var(--elbow) var(--elbow) minmax(0, 1fr);
   grid-template-areas: "top-rail header" "elbow-top bar-top" "elbow-main bar-main" "sidebar main";
@@ -175,7 +175,7 @@ a.tribute { text-decoration: none; }
 .crew b { display: block; font: 600 23px/1.1 var(--lcars); letter-spacing: .05em; text-transform: uppercase; }
 .crew span { display: block; margin: 4px 0 8px; font-size: 14px; line-height: 1.35; }
 .crew q { font: 500 15px/1.2 var(--lcars); letter-spacing: .06em; quotes: none; }
-.voice-bar { flex: none; width: min(920px, 100%); margin: 12px auto 0; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 8px 14px 8px 0; color: var(--lilac); font: 500 15px/1.3 var(--lcars); letter-spacing: .1em; text-transform: uppercase; }
+.voice-bar { flex: none; width: min(920px, 100%); margin: 12px auto 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 8px 14px 8px 0; color: var(--lilac); font: 500 15px/1.3 var(--lcars); letter-spacing: .1em; text-transform: uppercase; }
 .voice-bar[hidden] { display: none; }
 .voice-bar-meter { flex: 0 0 180px; height: 14px; border-radius: 7px 0 0 7px; background: #2a1f30; overflow: hidden; }
 .voice-bar-meter i { display: block; height: 100%; width: 35%; background: var(--lilac); }
@@ -221,7 +221,8 @@ a.tribute { text-decoration: none; }
   .preparation-progress i:nth-child(8) { animation-delay: 1.05s; }
   @keyframes preparation-scan { 0%, 100% { opacity: .3; } 50% { opacity: 1; } }
 }
-.messages, .approvals { max-width: 920px; margin: 0 auto; }
+.messages { margin: 0; }
+.approvals { max-width: 920px; margin: 0; }
 .message { position: relative; padding: 12px 0 14px 22px; margin: 0 0 14px; overflow-wrap: anywhere; border-left: 8px solid var(--orange); }
 .message[data-role="user"] { border-left-color: var(--blue); }
 .message-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
@@ -245,6 +246,8 @@ a.tribute { text-decoration: none; }
 code, pre { font-family: "SF Mono", Consolas, monospace; font-size: .9em; }
 code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius: 3px; }
 .markdown { white-space: normal; }
+.message-text.markdown { max-width: none; }
+.message-text.markdown > :is(p, ul, ol, blockquote):not(:has(.reply-file, .reply-media)) { max-width: 76ch; }
 .reply-media { display: block; max-width: 100%; margin: .8em 0; }
 .reply-media img, .reply-media video { display: block; max-width: 100%; max-height: 65vh; margin: .5em 0; }
 .reply-media iframe { display: block; width: min(100%, 800px); aspect-ratio: 16 / 9; border: 0; margin: .5em 0; }
@@ -454,7 +457,7 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
   @keyframes level { from { height: 10px; } to { height: 60px; } }
 }
 /* While a request runs, a line at the end of the conversation says so, and who is on it. */
-.working { max-width: 920px; margin: 0 auto 14px; padding: 10px 0 10px 22px; border-left: 8px solid var(--blue); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font: 500 18px/1.4 var(--lcars); letter-spacing: .04em; color: #d9d4ff; }
+.working { max-width: 920px; margin: 0 auto 14px 0; padding: 10px 0 10px 22px; border-left: 8px solid var(--blue); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font: 500 18px/1.4 var(--lcars); letter-spacing: .04em; color: #d9d4ff; }
 .working[hidden] { display: none; }
 .working-mark { display: inline-flex; gap: 5px; }
 .working-mark i { width: 9px; height: 9px; border-radius: 50%; background: var(--blue); }
@@ -476,7 +479,7 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .message.current.crew-report .message-text { font-size: 18px; }
 
 /* Each log entry opens like a captain's log, with its stardate. */
-.log-header { max-width: 920px; margin: 0 auto 14px; padding: 6px 0 6px 18px; border-left: 8px solid var(--peach); border-radius: 18px 0 0 0; color: var(--peach); font: 500 17px/1.3 var(--lcars); letter-spacing: .12em; text-transform: uppercase; }
+.log-header { max-width: 920px; margin: 0 auto 14px 0; padding: 6px 0 6px 18px; border-left: 8px solid var(--peach); border-radius: 18px 0 0 0; color: var(--peach); font: 500 17px/1.3 var(--lcars); letter-spacing: .12em; text-transform: uppercase; }
 /* The Captain's log is grouped by stardate. */
 .log-group { margin: 14px 0 2px; padding: 0 0 0 18px; color: var(--muted); font: 500 14px/1.4 var(--lcars); letter-spacing: .14em; text-transform: uppercase; }
 .log-group:first-child { margin-top: 0; }

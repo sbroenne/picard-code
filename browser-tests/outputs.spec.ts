@@ -90,6 +90,68 @@ test("OpenCode completed work remains inspectable instead of being hidden", asyn
   } finally { await context.cleanup(); }
 });
 
+test("log content uses the desktop width with left-aligned results and readable paragraphs after returning", async ({ page }, testInfo) => {
+  const context = await setup(page, "TEST ONLY: left-aligned sample result.\n\n[Table](sample.csv)\n\n```typescript\nconst sample = 42;\n```\n\n| Sample | Value |\n| --- | --- |\n| First | 42 |");
+  try {
+    await writeFile(join(context.project, "sample.csv"), "Name,Value\nSample,42\n");
+    const aligned = async () => {
+      const positions = await page.evaluate(() => {
+        const left = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().left;
+        return { reading: left("#reading-area"), messages: left("#messages"), heading: left("#entry-stardate"),
+          working: document.querySelector<HTMLElement>("#working")!.hidden ? undefined : left("#working"),
+          approvals: left("#approvals"), width: document.querySelector("#messages")!.getBoundingClientRect().width,
+          available: document.querySelector("#reading-area")!.clientWidth - parseFloat(getComputedStyle(document.querySelector("#reading-area")!).paddingRight),
+          frame: document.querySelector(".shell")!.getBoundingClientRect().width, viewport: innerWidth,
+          body: document.querySelector(".message-text.markdown")!.getBoundingClientRect().width,
+          code: document.querySelector(".reply-code")!.getBoundingClientRect().width,
+          table: document.querySelector(".message-text.markdown > table")!.getBoundingClientRect().width,
+          paragraph: document.querySelector(".message-text.markdown > p")!.getBoundingClientRect().width,
+          overflow: document.documentElement.scrollWidth > innerWidth };
+      });
+      for (const x of [positions.messages, positions.heading, positions.working, positions.approvals]) {
+        if (x !== undefined) expect(Math.abs(x - positions.reading)).toBeLessThanOrEqual(1);
+      }
+      expect(Math.abs(positions.width - positions.available)).toBeLessThanOrEqual(1);
+      expect(positions.frame).toBe(positions.viewport);
+      expect(Math.abs(positions.code - positions.body)).toBeLessThanOrEqual(1);
+      expect(Math.abs(positions.table - positions.body)).toBeLessThanOrEqual(1);
+      expect(positions.paragraph).toBeLessThanOrEqual(900);
+      expect(positions.overflow).toBe(false);
+    };
+    context.fixture.active.add(context.session.id);
+    context.fixture.publish(context.project, "session.execution.started", { sessionID: context.session.id });
+    await expect(page.locator("#working")).toBeVisible();
+    await aligned();
+    context.fixture.permissions.push({ id: "alignment-decision", sessionID: context.session.id, action: "shell", resources: ["TEST ONLY command"] });
+    context.fixture.publish(context.project, "permission.asked", { sessionID: context.session.id });
+    await expect(page.getByRole("button", { name: "Allow once" })).toBeVisible();
+    for (const width of [1280, 1600, 1920, 2560]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await aligned();
+    }
+    await page.getByRole("button", { name: "Preview: Table" }).click();
+    await expect(page.locator(".file-preview td")).toHaveCount(4);
+    const previewWidths = await page.evaluate(() => ({
+      preview: document.querySelector(".file-preview")!.getBoundingClientRect().width,
+      body: document.querySelector(".message-text.markdown")!.getBoundingClientRect().width,
+    }));
+    expect(Math.abs(previewWidths.preview - previewWidths.body)).toBeLessThanOrEqual(1);
+    await page.getByRole("link", { name: /^Computer intelligence/ }).click();
+    await page.getByRole("link", { name: "Current log entry", exact: true }).click();
+    await aligned();
+    await expect(page.locator(".file-preview td")).toHaveCount(4);
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Allow once" })).toBeVisible();
+    await expect(page.locator("#messages")).toContainText("TEST ONLY: left-aligned sample result.");
+    await expect(page.locator("#entry-stardate")).toBeVisible();
+    await aligned();
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await page.getByRole("button", { name: "Preview: Table" }).click();
+    await expect(page.locator(".file-preview td")).toHaveCount(4);
+    await page.screenshot({ path: testInfo.outputPath("left-aligned-log.png") });
+  } finally { await context.cleanup(); }
+});
+
 test("OpenCode maths and code render without executing model HTML", async ({ page }) => {
   const context = await setup(page, "TEST ONLY: maths and code.\n\n$x^2 + y^2 = z^2$\n\n"
     + "```typescript\nconst safe = true;\n```\n\n<img src=x onerror=alert(1)>");
