@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const { scripts } = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
-  scripts: { start: string; build: string };
+  scripts: { prestart: string; start: string; build: string };
 };
 
 for (const failure of [undefined, "install", "build"] as const) {
