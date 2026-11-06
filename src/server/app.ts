@@ -473,6 +473,40 @@ export async function startApp(options: AppOptions) {
           json(response, 200, result);
           return;
         }
+        if ((path === "/api/mcp/sign-in" || path === "/api/mcp/connect") && method === "POST") {
+          const data = await body(request);
+          if (!sameDirectory(textField(data, "project", 4096), project)) throw new HttpError(409, "The Project changed. Open its MCP servers before trying again.");
+          if ((await working(project)).length) throw new HttpError(409, "Finish or stop the current work before changing MCP connections.");
+          const name = textField(data, "name", 512);
+          const server = (await client.mcpServers(project)).find((item) => item.name === name);
+          if (!server) throw new HttpError(404, "That MCP server is not configured for this Project.");
+          if (path === "/api/mcp/connect") {
+            if (server.status.status !== "failed") throw new HttpError(409, "Only a failed MCP connection can be retried here.");
+            await client.connectMcp(name, project);
+            const current = (await client.mcpServers(project)).find((item) => item.name === name);
+            if (!current) throw new HttpError(409, "That MCP server is no longer configured.");
+            if (current.status.status === "failed") throw new HttpError(502, current.status.error ?? "OpenCode could not connect this MCP server.");
+            json(response, 200, { requested: true });
+            return;
+          }
+          if (server.status.status !== "needs_auth") throw new HttpError(409, "That MCP server is not waiting for sign-in.");
+          const manual = "This server needs sign-in through OpenCode. Open Advanced setup for the command.";
+          if (!server.integrationID) throw new HttpError(409, manual);
+          const integration = await client.integration(server.integrationID, project);
+          const auth = integration.methods.find((item) => item.type === "oauth" && item.id && !item.form?.length);
+          if (!auth?.id) throw new HttpError(409, manual);
+          const attempt = await client.startOAuth(server.integrationID, auth.id, project);
+          let target: URL | undefined;
+          try { target = new URL(attempt.url); } catch { /* Rejected below. */ }
+          const webAddress = target && !target.username && !target.password
+            && (target.protocol === "https:" || target.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname));
+          if (attempt.mode !== "auto" || !target || !webAddress) {
+            await client.cancelOAuth(server.integrationID, attempt.attemptID, project);
+            throw new HttpError(409, attempt.mode !== "auto" ? manual : "OpenCode returned an unsafe sign-in address. Check this server in Advanced setup.");
+          }
+          json(response, 200, { url: target.href });
+          return;
+        }
         if (path === "/api/model" && method === "POST") {
           const data = await body(request);
           let choice;

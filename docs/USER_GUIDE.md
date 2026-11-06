@@ -429,15 +429,29 @@ MCP servers give OpenCode tools and access to other services. Picard Code uses
 the servers configured in OpenCode; it does not maintain a separate server
 list or credential store. Open **MCP servers** under **Ship's systems** for
 the current server list, copyable commands and **Advanced setup** guidance.
+The tile shows a live connection count or what needs attention, without opening
+the panel. The panel puts server names, states and actions first; terminal
+commands and explanations stay under **Advanced setup**. Choose **Error details**
+beside a server to read its actual error.
 The list shows connected servers, servers needing sign-in, disabled servers,
-connections still starting, and failed connections with their actual errors.
+connections still starting, and failed connections.
 It updates when OpenCode reports a connection change and checks again whenever
 you open the panel. A failed lookup is shown as an error, never an empty list.
 The panel names the OpenCode
 copy and version this launch actually uses. This is optional, not part of
 first start-up.
 
-In another terminal, open the selected **Project** folder shown in the panel.
+Choose **Sign in** beside a server to open its own sign-in page through
+OpenCode. Finish there and return; the list and tile update from the real
+connection state. If the browser blocks the tab, choose **Continue sign-in**.
+Choose **Retry** to retry a failed connection. These actions do not enable
+servers you disabled or change your saved configuration.
+
+Some services need a sign-in code, extra fields or an API key that must be
+handled directly in OpenCode. The panel explains when this is needed; open
+**Advanced setup** for the commands. Picard Code never asks you to type credentials.
+
+In another terminal, open the selected **Project** folder shown in Advanced setup.
 This selects the project's settings; it does not install OpenCode there.
 The panel shows a reminder about matching terminal settings only when this
 launch uses custom OpenCode settings. Check the configured servers:
@@ -461,7 +475,7 @@ project settings. You do not need to start OpenCode separately.
 OpenCode stores the sign-in, not Picard Code. Never speak
 passwords, keys or sign-in codes, or put them in a log entry.
 
-Return to the panel and choose **Refresh connections** after changes, while no
+Return to the panel and choose **Refresh connections** after configuration changes, while no
 work is running. This reloads OpenCode's settings without starting a new log
 entry or changing your confirmed AI model. Refresh success means the settings
 were reloaded, not that every server connected. The list is checked again to show
