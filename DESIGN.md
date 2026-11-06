@@ -59,8 +59,10 @@ when installed speech starts without a download.
 
 Captain's log and the Project, Computer intelligence, and Listen · Speak tiles
 open in a slide-out, as do AI provider in the top bar and About from the header dedication.
-MCP servers opens an optional advanced setup drawer with the selected Project,
-copyable OpenCode list and sign-in commands, and Refresh connections.
+MCP servers opens an optional drawer with live connection states and actual
+errors for the selected Project. OpenCode status changes update the list;
+opening the drawer or choosing Refresh connections checks it again.
+Copyable OpenCode commands and advanced guidance handle setup and sign-in.
 OpenCode owns server setup and credentials. Show the actual installed,
 bundled or explicitly selected copy and its version, not a list of possible
 setups. Picard Code starts and stops OpenCode itself. Show custom settings

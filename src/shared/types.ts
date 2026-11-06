@@ -46,6 +46,11 @@ export interface OpenCodeConnection {
   customSettings: boolean;
 }
 
+export interface McpConnections {
+  project: string;
+  servers: { name: string; status: string; error?: string }[];
+}
+
 export interface AppState {
   project: string;
   version: string;
@@ -119,6 +124,7 @@ export type FormValue = string | number | boolean | string[];
 /** Events the local server sends to the browser. */
 export type BrowserEvent =
   | { type: "connection"; connected: boolean; message?: string }
+  | { type: "mcp" }
   /** A piece of a reply that is still being written. */
   | { type: "delta"; sessionID: string; messageID: string; partID: string; partType: "text" | "reasoning"; delta: string; speaker?: CrewID; background?: boolean }
   /** The stored conversation changed; reload it. */

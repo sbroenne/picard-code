@@ -221,13 +221,23 @@
         <section id="settings-mcp" class="panel" hidden>
           <p>MCP servers give the computer tools and access to other services. OpenCode manages these connections, sign-ins and credentials. Nothing secret is entered here.</p>
           <div class="provider-connection">
+            <p class="connection-label">Current connections</p>
+            <p class="muted">OpenCode's connections for the selected Project:</p>
+            <p id="mcp-project" class="mcp-project"></p>
+            <p id="mcp-status" class="connection-status" role="status">Checking MCP servers.</p>
+            <ul id="mcp-servers" class="mcp-servers" role="list" aria-label="MCP server connections"></ul>
+            <p class="muted">Connection states update as OpenCode reports changes. Connected services can provide tools; OpenCode's permission rules still apply.</p>
+            <button id="refresh-mcp" class="pill orange" type="button">Refresh connections</button>
+            <p id="mcp-refresh-result" class="connection-status" aria-live="polite" aria-atomic="true"></p>
+            <p class="muted">Stop running work before refreshing after sign-in or setup changes. This reloads OpenCode's settings and checks the list again. The Current log entry and your confirmed AI model are kept.</p>
+          </div>
+          <div class="provider-connection">
             <p class="connection-label">Manage through OpenCode</p>
             <p id="mcp-connection"></p>
-            <p class="muted">In another terminal, open the selected Project folder:</p>
-            <p id="mcp-project" class="mcp-project"></p>
+            <p class="muted">For setup or sign-in, open the selected Project folder shown above in another terminal.</p>
             <p class="muted">This selects the project's settings; it does not install OpenCode in that folder.</p>
             <p id="mcp-custom-settings" class="muted" hidden>This launch uses custom OpenCode settings. Run these commands in a terminal with the same settings and environment variables as the terminal that launched Picard Code.</p>
-            <p>Check configured servers and their actual connection status:</p>
+            <p>You can also check the configured servers from the terminal:</p>
             <div class="provider-command">
               <code id="mcp-list-command"></code>
               <button id="copy-mcp-list" class="pill outline" type="button" aria-label="Copy MCP list command" disabled>Copy command</button>
@@ -239,10 +249,6 @@
               <button id="copy-mcp-auth" class="pill outline" type="button" aria-label="Copy MCP sign-in command" disabled>Copy command</button>
             </div>
             <p id="mcp-auth-copy-result" class="copy-result" aria-live="polite"></p>
-            <p class="muted">Return here after changes. Stop running work before refreshing. The Current log entry and your confirmed AI model are kept.</p>
-            <button id="refresh-mcp" class="pill orange" type="button">Refresh connections</button>
-            <p id="mcp-refresh-result" class="connection-status" aria-live="polite" aria-atomic="true"></p>
-            <p class="muted">Refreshing reloads OpenCode's settings; it does not prove that a server is connected. Run the list command again to check.</p>
           </div>
           <details class="setup-details">
             <summary>Advanced setup</summary>
