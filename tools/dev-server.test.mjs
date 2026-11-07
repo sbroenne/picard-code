@@ -75,7 +75,9 @@ test("Vite updates styles and keeps the real app's local connection checks", { t
   t.after(() => browser.close());
   const page = await browser.newPage();
   await page.goto(`${dev.origin}/#token=${app.token}`);
-  await expect(page.locator("#status")).toHaveText(/Standing by|Microphone off|Starting microphone/);
+  await expect(page.locator("#status")).toHaveText(/^(Standing by|Not listening)$/);
+  await expect(page.locator("#status-detail")).toBeVisible();
+  await expect(page.locator("#status-detail")).toHaveText(/\S/);
   const cssName = `.picard-dev-check-${process.pid}.css`;
   const cssPath = resolve("web", cssName);
   t.after(() => rm(cssPath, { force: true }));
