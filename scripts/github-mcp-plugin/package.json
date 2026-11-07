@@ -1,0 +1,7 @@
+{
+  "name": "picard-github-mcp",
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs"
+  }
+}

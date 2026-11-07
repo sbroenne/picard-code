@@ -2,4 +2,4 @@
 "picard-code": patch
 ---
 
-See your MCP connection state on the Ship's systems tile, sign in beside a server, and retry failed connections from a compact list. Setup instructions stay under Advanced setup, and your existing OpenCode settings, current log entry and saved AI model are kept.
+See MCP connection states, sign in and retry failed connections from a compact list, with setup instructions kept under Advanced setup. GitHub's hosted server uses a one-time code without a personal app or client secret; OpenCode keeps and renews the sign-in, and refused or expired attempts are shown clearly.

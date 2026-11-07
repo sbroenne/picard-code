@@ -643,7 +643,41 @@ let savingModel = false;
 let refreshingProvider = false;
 let mcpRevision = 0;
 let mcpAction: string | undefined;
-let mcpSigningIn: { name: string; project: string } | undefined;
+let mcpSigningIn: { name: string; project: string; attemptID?: string } | undefined;
+let mcpSignInTimer: ReturnType<typeof setTimeout> | undefined;
+function clearMcpSignIn() {
+  clearTimeout(mcpSignInTimer);
+  mcpSigningIn = undefined;
+  element("mcp-sign-in-code").hidden = true;
+  element("mcp-device-code").textContent = "";
+  element("mcp-sign-in-link").hidden = true;
+  element("mcp-sign-in-link").removeAttribute("href");
+}
+async function followMcpSignIn() {
+  const attempt = mcpSigningIn;
+  if (!attempt?.attemptID) return;
+  try {
+    const result = await api<{ status: string; error?: string }>(`mcp/sign-in?${new URLSearchParams({ name: attempt.name, project: attempt.project, attempt: attempt.attemptID })}`);
+    if (mcpSigningIn !== attempt || state?.project !== attempt.project) return;
+    if (result.status === "complete") {
+      attempt.attemptID = undefined;
+      element("mcp-sign-in-code").hidden = true;
+      element("mcp-device-code").textContent = "";
+      element("mcp-sign-in-link").hidden = true;
+      element("mcp-sign-in-link").removeAttribute("href");
+      element("mcp-action-result").textContent = "Sign-in approved. Connecting.";
+      await refreshMcpServers();
+    } else if (result.status === "pending") {
+      mcpSignInTimer = setTimeout(() => { void followMcpSignIn(); }, 2000);
+    } else {
+      throw new Error(result.error ?? (result.status === "expired" ? "GitHub sign-in expired. Choose Sign in to try again." : `GitHub sign-in ended with status ${result.status}.`));
+    }
+  } catch (error) {
+    if (mcpSigningIn !== attempt || state?.project !== attempt.project) return;
+    clearMcpSignIn();
+    element("mcp-action-result").textContent = errorMessage(error);
+  }
+}
 async function mcpServerAction(name: string, action: "sign-in" | "connect") {
   if (mcpAction) return;
   const project = state?.project;
@@ -651,19 +685,21 @@ async function mcpServerAction(name: string, action: "sign-in" | "connect") {
   const popup = action === "sign-in" ? window.open("about:blank", "_blank") : null;
   if (popup) popup.opener = null;
   mcpAction = name;
-  mcpSigningIn = undefined;
+  clearMcpSignIn();
   const result = element("mcp-action-result");
   const link = element<HTMLAnchorElement>("mcp-sign-in-link");
-  link.hidden = true;
-  link.removeAttribute("href");
   result.textContent = action === "sign-in" ? "Opening sign-in." : "Retrying connection.";
   controls();
   try {
-    const response = await api<{ url?: string }>(`mcp/${action}`, { name, project });
+    const response = await api<{ url?: string; code?: string; attemptID?: string }>(`mcp/${action}`, { name, project });
     if (state?.project !== project) throw new Error("The Project changed. Sign in again from its MCP servers.");
     if (action === "sign-in") {
       if (!response.url) throw new Error("OpenCode did not provide a sign-in address.");
-      mcpSigningIn = { name, project };
+      mcpSigningIn = { name, project, attemptID: response.attemptID };
+      if (response.code) {
+        element("mcp-device-code").textContent = response.code;
+        element("mcp-sign-in-code").hidden = false;
+      }
       if (popup && !popup.closed) {
         popup.location.replace(response.url);
         result.textContent = "Complete sign-in in the opened tab.";
@@ -674,8 +710,10 @@ async function mcpServerAction(name: string, action: "sign-in" | "connect") {
       }
     } else result.textContent = "Connection requested.";
     await refreshMcpServers();
+    if (mcpSigningIn?.attemptID) void followMcpSignIn();
   } catch (error) {
     popup?.close();
+    clearMcpSignIn();
     result.textContent = errorMessage(error);
   } finally { mcpAction = undefined; controls(); }
 }
@@ -726,11 +764,10 @@ async function refreshMcpServers() {
       : servers.some((item) => item.status === "failed" || !labels[item.status]) ? "Needs attention"
       : servers.some((item) => item.status === "pending") ? "Connecting"
       : count ? `${count} connected` : servers.length ? "Disabled" : "None configured";
-    if (mcpSigningIn?.project === project && servers.some((item) => item.name === mcpSigningIn?.name && item.status === "connected")) {
-      mcpSigningIn = undefined;
-      element("mcp-action-result").textContent = "Connected.";
-      element("mcp-sign-in-link").hidden = true;
-      element("mcp-sign-in-link").removeAttribute("href");
+    const signingIn = mcpSigningIn?.project === project ? servers.find(item => item.name === mcpSigningIn?.name) : undefined;
+    if (signingIn?.status === "connected" || signingIn?.status === "failed") {
+      clearMcpSignIn();
+      element("mcp-action-result").textContent = signingIn.status === "connected" ? "Connected." : signingIn.error ?? "OpenCode could not connect this MCP server.";
     }
     message.textContent = result.servers.length
       ? `${result.servers.length} MCP server${result.servers.length === 1 ? "" : "s"} configured for this Project.`
@@ -1469,10 +1506,8 @@ async function refreshState() {
   const speechBecameReady = !state?.speech?.configured && !!next.speech?.configured;
   const projectChanged = state?.project !== next.project;
   if (projectChanged) {
-    mcpSigningIn = undefined;
+    clearMcpSignIn();
     element("mcp-action-result").textContent = "";
-    element("mcp-sign-in-link").hidden = true;
-    element("mcp-sign-in-link").removeAttribute("href");
   }
   state = next;
   if (speechBecameReady && !speechSetupWatching) showSpeechPreparation(next.speech?.setup);

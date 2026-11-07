@@ -216,6 +216,96 @@ test("MCP sign-in handles blocked windows and real failures without claiming suc
   await expect(link).toBeHidden();
 });
 
+test("GitHub MCP shows the public code across panel changes and waits for the real connection after approval", async ({ page }) => {
+  let status = "needs_auth";
+  let attempt = "pending";
+  await page.route("**/api/mcp", route => route.fulfill({ json: { project: process.cwd(), servers: [{ name: "Test GitHub", status }] } }));
+  await page.route("**/api/mcp/sign-in**", route => route.fulfill({ json: route.request().method() === "POST"
+    ? { url: "https://github.com/login/device", code: "ABCD-1234", attemptID: "test-attempt" }
+    : { status: attempt } }));
+  await page.reload();
+  await page.evaluate(() => { window.open = () => null; });
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await page.getByRole("button", { name: "Sign in to Test GitHub" }).click();
+  await expect(page.locator("#mcp-sign-in-code")).toContainText("ABCD-1234");
+  await page.keyboard.press("Escape");
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await expect(page.locator("#mcp-sign-in-code")).toContainText("ABCD-1234");
+  attempt = "complete";
+  await expect(page.locator("#mcp-action-result")).toHaveText("Sign-in approved. Connecting.");
+  await expect(page.locator("#mcp-sign-in-code")).toBeHidden();
+  await expect(page.locator("#readout-mcp")).toHaveText("Sign-in needed");
+  status = "connected";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.locator("#mcp-action-result")).toHaveText("Connected.");
+});
+
+for (const status of ["failed", "expired"]) {
+  test(`GitHub MCP ${status} attempts remove stale codes and links without claiming success`, async ({ page }) => {
+    let result = "pending";
+    await page.route("**/api/mcp", route => route.fulfill({ json: { project: process.cwd(), servers: [{ name: "Test GitHub", status: "needs_auth" }] } }));
+    await page.route("**/api/mcp/sign-in**", route => route.fulfill({ json: route.request().method() === "POST"
+      ? { url: "https://github.com/login/device", code: "ABCD-1234", attemptID: "test-attempt" }
+      : { status: result, ...(result === "failed" ? { error: "GitHub sign-in failed: access_denied" } : {}) } }));
+    await page.reload();
+    await page.evaluate(() => { window.open = () => null; });
+    await page.getByRole("link", { name: /^MCP servers/ }).click();
+    await page.getByRole("button", { name: "Sign in to Test GitHub" }).click();
+    await expect(page.locator("#mcp-sign-in-code")).toBeVisible();
+    result = status;
+    await expect(page.locator("#mcp-action-result")).toHaveText(status === "failed" ? "GitHub sign-in failed: access_denied" : "GitHub sign-in expired. Choose Sign in to try again.");
+    await expect(page.locator("#mcp-sign-in-code")).toBeHidden();
+    await expect(page.locator("#mcp-sign-in-link")).toBeHidden();
+  });
+}
+
+test("an old GitHub attempt result cannot replace a connected result", async ({ page }) => {
+  let connected = false;
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  let polling = false;
+  await page.route("**/api/mcp", route => route.fulfill({ json: { project: process.cwd(), servers: [{ name: "Test GitHub", status: connected ? "connected" : "needs_auth" }] } }));
+  await page.route("**/api/mcp/sign-in**", async route => {
+    if (route.request().method() === "POST") return route.fulfill({ json: { url: "https://github.com/login/device", code: "ABCD-1234", attemptID: "test-attempt" } });
+    polling = true;
+    await held;
+    await route.fulfill({ json: { status: "failed", error: "An obsolete sign-in failure." } });
+  });
+
+  await page.reload();
+  await page.evaluate(() => { window.open = () => null; });
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await page.getByRole("button", { name: "Sign in to Test GitHub" }).click();
+  await expect.poll(() => polling).toBe(true);
+  connected = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.locator("#mcp-action-result")).toHaveText("Connected.");
+  const oldResponse = page.waitForResponse(response => response.request().method() === "GET" && new URL(response.url()).pathname === "/api/mcp/sign-in");
+  release();
+  await (await oldResponse).finished();
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+  await expect(page.locator("#mcp-sign-in-code")).toBeHidden();
+  await expect(page.locator("#mcp-action-result")).toHaveText("Connected.");
+});
+
+test("GitHub MCP explains a connection failure after successful sign-in", async ({ page }) => {
+  let status = "needs_auth";
+  await page.route("**/api/mcp", route => route.fulfill({ json: { project: process.cwd(), servers: [
+    { name: "Test GitHub", status, ...(status === "failed" ? { error: "Test GitHub refused the MCP connection." } : {}) },
+  ] } }));
+  await page.route("**/api/mcp/sign-in**", route => route.fulfill({ json: route.request().method() === "POST"
+    ? { url: "https://github.com/login/device", code: "ABCD-1234", attemptID: "test-attempt" } : { status: "complete" } }));
+  await page.reload();
+  await page.evaluate(() => { window.open = () => null; });
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await page.getByRole("button", { name: "Sign in to Test GitHub" }).click();
+  await expect(page.locator("#mcp-action-result")).toHaveText("Sign-in approved. Connecting.");
+  status = "failed";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.locator("#mcp-action-result")).toHaveText("Test GitHub refused the MCP connection.");
+  await expect(page.locator("#mcp-sign-in-code")).toBeHidden();
+});
+
 test("MCP retry waits for the server state and the tile follows updates while the panel is closed", async ({ page }) => {
   let status = "failed";
   await page.route("**/api/mcp", (route) => route.fulfill({ json: { project: process.cwd(), servers: [

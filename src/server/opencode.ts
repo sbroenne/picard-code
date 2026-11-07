@@ -132,7 +132,11 @@ export class OpenCode {
   }
 
   async startOAuth(id: string, methodID: string, directory: string) {
-    return (await this.call<{ data: { attemptID: string; url: string; mode: string } }>("POST", `/api/integration/${encodeURIComponent(id)}/connect/oauth`, { directory, body: { methodID } })).data;
+    return (await this.call<{ data: { attemptID: string; url: string; mode: string; instructions?: string } }>("POST", `/api/integration/${encodeURIComponent(id)}/connect/oauth`, { directory, body: { methodID } })).data;
+  }
+
+  async oauthStatus(id: string, attemptID: string, directory: string) {
+    return (await this.call<{ data: { status: string; message?: string } }>("GET", `/api/integration/${encodeURIComponent(id)}/connect/oauth/${encodeURIComponent(attemptID)}`, { directory })).data;
   }
 
   cancelOAuth(id: string, attemptID: string, directory: string) {
