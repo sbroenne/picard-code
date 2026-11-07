@@ -85,8 +85,7 @@ test("OpenCode completed work remains inspectable instead of being hidden", asyn
   const context = await setup(page, "TEST ONLY: the result is on screen.");
   try {
     await page.getByRole("link", { name: /^MCP servers/ }).click();
-    await page.locator("#mcp-advanced > summary").click();
-    await expect(page.locator("#mcp-connection")).toContainText("your installed OpenCode");
+    await expect(page.getByRole("link", { name: "Setup help", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     await page.getByText("Work details", { exact: true }).click();
     await expect(page.locator(".work-details")).toContainText("TEST ONLY command result");

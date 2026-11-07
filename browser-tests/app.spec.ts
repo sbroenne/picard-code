@@ -156,15 +156,11 @@ test("MCP starts with a compact list and a live tile, not setup instructions", a
   await tile.click();
   await expect(page.locator("#mcp-servers").getByRole("listitem")).toHaveCount(2);
   await expect(page.getByRole("button", { name: "Sign in to Test remote tools" })).toBeVisible();
-  await expect(page.locator("#mcp-auth-command")).toBeHidden();
-  await expect(page.locator("#mcp-list-command")).toBeHidden();
-  await expect(page.locator("#mcp-connection")).toBeHidden();
+  await expect(page.locator("#settings-mcp code, #settings-mcp details.setup-details")).toHaveCount(0);
   await expect(page.locator("#settings-mcp").getByRole("textbox")).toHaveCount(0);
   const text = await page.locator("#settings-mcp").innerText();
-  expect(text.trim().split(/\s+/).length).toBeLessThan(85);
-  await expect(page.locator("#mcp-advanced > summary")).toBeInViewport();
-  await page.locator("#mcp-advanced > summary").click();
-  await expect(page.locator("#mcp-auth-command")).toBeVisible();
+  expect(text.trim().split(/\s+/).length).toBeLessThan(45);
+  await expect(page.getByRole("link", { name: "Setup help", exact: true })).toBeInViewport();
 });
 
 test("MCP sign-in opens the service and waits for an actual connected result", async ({ page }) => {
@@ -232,7 +228,7 @@ test("the Project form clears a blocked MCP sign-in when switching folders", asy
   const link = page.locator("#mcp-sign-in-link");
   for (const [current, next, address] of [[first, second, "first"], [second, first, "second"]]) {
     await page.getByRole("link", { name: /^MCP servers/ }).click();
-    await expect(page.locator("#mcp-project")).toHaveText(current!);
+    await expect(page.locator("#mcp-project-name")).toHaveAttribute("title", current!);
     await page.getByRole("button", { name: "Sign in to Test remote" }).click();
     await expect(link).toHaveAttribute("href", `https://example.test/${address}`);
     await expect(link).toBeVisible();
@@ -248,7 +244,7 @@ test("the Project form clears a blocked MCP sign-in when switching folders", asy
     await expect(page.locator("#project-path")).toHaveValue(next!);
     await page.getByRole("link", { name: /^MCP servers/ }).click();
     await expect(page.getByRole("heading", { name: "MCP servers", exact: true })).toBeVisible();
-    await expect(page.locator("#mcp-project")).toHaveText(next!);
+    await expect(page.locator("#mcp-project-name")).toHaveAttribute("title", next!);
     await expect(link).toBeHidden();
     await expect(link).not.toHaveAttribute("href");
     await expect(page.locator("#mcp-action-result")).toBeEmpty();
@@ -327,17 +323,10 @@ test("MCP guidance opens from Ship's systems and a direct link without adding a 
   await tile.click();
   await expect(page.getByRole("region", { name: "Ship’s systems MCP servers" })).toBeVisible();
   await expect(tile).toHaveAttribute("aria-current", "true");
-  await expect(page.locator("#mcp-project")).toHaveText(process.cwd());
-  await expect(page.locator("#mcp-list-command")).toHaveText("npx picard-code opencode mcp list");
-  await expect(page.locator("#mcp-auth-command")).toHaveText("npx picard-code opencode mcp auth");
+  await expect(page.locator("#mcp-project-name")).toHaveAttribute("title", process.cwd());
   await expect(page.locator("#settings-mcp").getByRole("textbox")).toHaveCount(0);
-  await expect(page.locator("#mcp-connection")).toBeHidden();
-  await page.locator("#mcp-advanced > summary").click();
-  await expect(page.locator("#mcp-connection")).toContainText("your installed OpenCode");
-  await expect(page.locator("#mcp-server-guidance")).toHaveCount(0);
   await expect(page.locator("#settings-mcp")).not.toContainText("--connect");
-  await expect(page.locator("#settings-mcp")).toContainText("--global");
-  await expect(page.getByRole("link", { name: "OpenCode MCP setup guide" })).toHaveAttribute("href", "https://opencode.ai/v2/docs/mcp-servers/");
+  await expect(page.getByRole("link", { name: "Setup help", exact: true })).toHaveAttribute("href", "https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#mcp-servers-and-sign-in");
   await tile.click();
   await expect(page.locator("#drawer-settings")).toBeHidden();
   await page.evaluate(() => { location.hash = "settings/mcp"; });
@@ -351,85 +340,27 @@ test("MCP guidance opens from Ship's systems and a direct link without adding a 
 });
 
 for (const source of ["installed", "bundled", "custom"] as const) {
-  test(`MCP instructions describe only the ${source} OpenCode used by this launch`, async ({ page }) => {
-    let openCodeVersion = "";
+  test(`MCP stays simple with ${source} OpenCode and custom settings`, async ({ page }) => {
     await page.route("**/api/state", async (route) => {
       const state = await (await route.fetch()).json();
-      openCodeVersion = state.version;
-      state.openCode = { source, customSettings: false };
+      state.openCode = { source, customSettings: true };
       await route.fulfill({ json: state });
     });
     await page.reload();
     await page.getByRole("link", { name: /^MCP servers/ }).click();
-    await page.locator("#mcp-advanced > summary").click();
-    const description = page.locator("#mcp-connection");
     const panel = page.locator("#settings-mcp");
-    if (source === "installed") await expect(description).toContainText("your installed OpenCode");
-    if (source === "bundled") await expect(description).toContainText("Picard Code's bundled OpenCode");
-    if (source === "custom") await expect(description).toContainText("selected with PICARD_OPENCODE_PATH");
-    await expect(page.locator("#mcp-server-guidance")).toHaveCount(0);
-    await expect(panel).not.toContainText("--connect");
-    await expect(panel).not.toContainText("OPENCODE_SERVER_PASSWORD");
-    await expect(description).toContainText(`OpenCode ${openCodeVersion}`);
-    await expect(panel).not.toContainText("if none is installed");
-    await expect(page.locator("#mcp-custom-settings")).toBeHidden();
-    for (const action of ["list", "auth"]) {
-      const command = `npx picard-code opencode mcp ${action}`;
-      await expect(page.locator(`#mcp-${action}-command`)).toHaveText(command);
-      await page.evaluate(() => {
-        Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
-          writeText: async (text: string) => { sessionStorage.setItem("testCopiedCommand", text); },
-        } });
-      });
-      await page.locator(`#copy-mcp-${action}`).click();
-      expect(await page.evaluate(() => sessionStorage.getItem("testCopiedCommand"))).toBe(command);
-    }
+    await expect(panel.locator("code, .setup-details")).toHaveCount(0);
+    await expect(panel).not.toContainText(/OPENCODE_|PICARD_OPENCODE_PATH|npx|bundled|installed/);
+    const help = page.getByRole("link", { name: "Setup help", exact: true });
+    await expect(help).toBeVisible();
+    await expect(help).toHaveAttribute("target", "_blank");
+    await expect(help).toHaveAttribute("rel", "noopener noreferrer");
     await page.keyboard.press("Escape");
     await page.getByRole("link", { name: /^MCP servers/ }).click();
-    await expect(description).toBeVisible();
+    await expect(help).toBeVisible();
     await page.unrouteAll({ behavior: "wait" });
   });
 }
-
-test("MCP custom-settings advice appears only when this launch uses custom settings", async ({ page }) => {
-  let customSettings = true;
-  await page.route("**/api/state", async (route) => {
-    const state = await (await route.fetch()).json();
-    state.openCode = { source: "installed", customSettings };
-    await route.fulfill({ json: state });
-  });
-  await page.reload();
-  await page.getByRole("link", { name: /^MCP servers/ }).click();
-  await page.locator("#mcp-advanced > summary").click();
-  await expect(page.locator("#mcp-custom-settings")).toBeVisible();
-  await expect(page.locator("#mcp-custom-settings")).toContainText("This launch uses custom OpenCode settings.");
-  customSettings = false;
-  await page.reload();
-  await expect(page.locator("#mcp-custom-settings")).toBeHidden();
-  await page.unrouteAll({ behavior: "wait" });
-});
-
-test("MCP commands report real clipboard success and failure", async ({ page }) => {
-  await page.evaluate(() => {
-    Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
-      writeText: async (text: string) => { sessionStorage.setItem("testCopiedCommand", text); },
-    } });
-  });
-  await page.getByRole("link", { name: /^MCP servers/ }).click();
-  await page.locator("#mcp-advanced > summary").click();
-  for (const action of ["list", "auth"]) {
-    const copy = page.locator(`#copy-mcp-${action}`);
-    await expect(copy).toBeVisible();
-    await expect(copy).toBeEnabled();
-    await copy.press("Enter");
-    await expect(page.locator(`#mcp-${action}-copy-result`)).toHaveText("Command copied");
-    expect(await page.evaluate(() => sessionStorage.getItem("testCopiedCommand"))).toBe(`npx picard-code opencode mcp ${action}`);
-  }
-  await page.evaluate(() => { navigator.clipboard.writeText = async () => { throw new Error("Test MCP clipboard access refused."); }; });
-  await page.locator("#copy-mcp-auth").click();
-  await expect(page.locator("#mcp-auth-copy-result")).toHaveText("Test MCP clipboard access refused.");
-  await expect(page.locator("#copy-mcp-auth")).toBeEnabled();
-});
 
 test("MCP connections show live states and exact errors, including through a direct link", async ({ page }) => {
   let requests = 0;
@@ -459,7 +390,9 @@ test("MCP connections show live states and exact errors, including through a dir
   await expect(page.locator("#mcp-status")).toContainText("6");
   await page.keyboard.press("Escape");
   const before = requests;
+  const refreshed = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/mcp");
   await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await (await refreshed).finished();
   await expect(list.getByRole("listitem")).toHaveCount(6);
   expect(requests).toBeGreaterThan(before);
 });
@@ -531,7 +464,7 @@ test("MCP live updates reject old results after a newer check or Project change"
       await expect.poll(() => held).toBe(true);
       if (changeProject) project = `${process.cwd()}/test-other-project`;
       await notify(changeProject ? "connection" : "mcp");
-      await expect(page.locator("#mcp-project")).toHaveText(project);
+      await expect(page.locator("#mcp-project-name")).toHaveAttribute("title", project);
       await expect(page.locator("#mcp-servers")).toContainText(`Test current service in ${project}`);
       const staleResponse = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/mcp");
       releaseOld();

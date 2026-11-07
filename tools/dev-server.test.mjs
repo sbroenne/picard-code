@@ -79,8 +79,7 @@ test("Vite updates styles and keeps the real app's local connection checks", { t
   await expect(page.locator("#status-detail")).toBeVisible();
   await expect(page.locator("#status-detail")).toHaveText(/\S/);
   await page.getByRole("link", { name: /^MCP servers/ }).click();
-  await page.locator("#mcp-advanced > summary").click();
-  await expect(page.locator("#mcp-connection")).toContainText("your installed OpenCode");
+  await expect(page.getByRole("link", { name: "Setup help", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   const cssName = `.picard-dev-check-${process.pid}.css`;
   const cssPath = resolve("web", cssName);
