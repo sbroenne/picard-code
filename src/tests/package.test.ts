@@ -5,10 +5,23 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { bundledOpenCode, openCodeCommand, openCodePackage, usesCustomOpenCodeSettings } from "../server/process.js";
+import { bundledOpenCode, engineConfiguration, openCodeCommand, openCodePackage, usesCustomOpenCodeSettings } from "../server/process.js";
 
 const launcher = fileURLToPath(new URL("../server/cli.js", import.meta.url));
 
+test("startup and crew reload include the packaged GitHub extension without supplying user settings or credentials", () => {
+  const permissions = [{ action: "shell", resource: "*", effect: "ask" as const }];
+  const config = engineConfiguration(permissions);
+  assert.equal(config.plugins.length, 1);
+  const directory = new URL(config.plugins[0]!);
+  const manifest = JSON.parse(readFileSync(new URL("package.json", directory), "utf8"));
+  assert.equal(manifest.name, "picard-github-mcp");
+  assert.equal(manifest.exports["."], "./index.mjs");
+  assert.ok(readFileSync(new URL("index.mjs", directory), "utf8").includes("githubDeviceSignIn"));
+  assert.equal("mcp" in config, false);
+  assert.equal("providers" in config, false);
+  assert.deepEqual(config.agents["picard-data"]?.permissions, permissions);
+});
 test("launch help describes automatic startup without an existing-server option", () => {
   const help = execFileSync(process.execPath, [launcher, "--help"], { encoding: "utf8", timeout: 10_000 });
   assert.match(help, /--project/);

@@ -59,7 +59,8 @@ export async function startFixture(project: string) {
   let integrationError: string | undefined;
   const mcpServers = new Map<string, Awaited<ReturnType<OpenCode["mcpServers"]>>>();
   let mcpError: string | undefined;
-  let mcpSignIn = { mode: "auto", url: "https://example.test/authorize" };
+  let mcpSignIn: { mode: string; url: string; instructions?: string } = { mode: "auto", url: "https://example.test/authorize" };
+  let mcpAttempt: { status: string; message?: string } = { status: "pending" };
   let mcpMethods: { id: string; type: string; form: unknown[] }[] = [{ id: "browser", type: "oauth", form: [] }];
   const buildPermissions: PermissionRule[] = [{ action: "*", resource: "*", effect: "allow" }, { action: "read", resource: "*.env", effect: "ask" }];
   const agents: AgentInfo[] = [
@@ -177,9 +178,10 @@ export async function startFixture(project: string) {
       if (path === "/api/mcp") { send(mcpError ? 502 : 200, mcpError ? { message: mcpError } : { data: mcpServers.get(directory) ?? [] }); return; }
       if (path === "/api/integration/mcp-fixture") { send(200, { data: { methods: mcpMethods } }); return; }
       if (path === "/api/integration/mcp-fixture/connect/oauth") {
-        send(200, { data: { attemptID: "test-attempt", ...mcpSignIn, instructions: "Test-only sign-in instructions." } }); return;
+        send(200, { data: { attemptID: "test-attempt", instructions: "Test-only sign-in instructions.", ...mcpSignIn } }); return;
       }
       if (path === "/api/integration/mcp-fixture/connect/oauth/test-attempt" && request.method === "DELETE") { send(204); return; }
+      if (path === "/api/integration/mcp-fixture/connect/oauth/test-attempt" && request.method === "GET") { send(200, { data: mcpAttempt }); return; }
       const mcpConnect = /^\/api\/experimental\/mcp\/([^/]+)\/connect$/.exec(path);
       if (mcpConnect && request.method === "POST") {
         const server = mcpServers.get(directory)?.find(({ name }) => name === decodeURIComponent(mcpConnect[1]!));
@@ -484,6 +486,7 @@ export async function startFixture(project: string) {
     setMcpServers: (servers: Awaited<ReturnType<OpenCode["mcpServers"]>>, directory = project) => { mcpServers.set(directory, servers); },
     setMcpError: (message?: string) => { mcpError = message; },
     setMcpSignIn: (attempt: typeof mcpSignIn) => { mcpSignIn = attempt; },
+    setMcpAttempt: (attempt: typeof mcpAttempt) => { mcpAttempt = attempt; },
     setMcpMethods: (methods: typeof mcpMethods) => { mcpMethods = methods; },
     close: async () => {
       for (const timer of timers) clearTimeout(timer);

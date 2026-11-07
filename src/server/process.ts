@@ -13,6 +13,10 @@ import { CREW_UNAVAILABLE, crewConfiguration, loadedAgents, verifiedCrew } from 
 const execute = promisify(execFile);
 const require = createRequire(import.meta.url);
 
+export function engineConfiguration(permissions?: import("./opencode.js").PermissionRule[]) {
+  return { ...crewConfiguration(permissions), plugins: [new URL("../../scripts/github-mcp-plugin/", import.meta.url).href] };
+}
+
 export function usesCustomOpenCodeSettings(env: NodeJS.ProcessEnv = process.env): boolean {
   return ["OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR", "OPENCODE_CONFIG_CONTENT", "PICARD_OPENCODE_PATH", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"].some((key) => !!env[key]);
 }
@@ -146,9 +150,12 @@ export async function startEngine(directory: string, signal?: AbortSignal) {
   // An extra file preserves OpenCode's global settings; replacing its settings folder would hide them.
   let crewBlocked: string | undefined;
   if (!env.OPENCODE_CONFIG) env.OPENCODE_CONFIG = configFile;
-  else crewBlocked = "The bridge crew needs its own temporary OpenCode settings file, but OPENCODE_CONFIG is already set. Keep your settings in OPENCODE_CONFIG_DIR and unset OPENCODE_CONFIG to use the crew.";
+  else {
+    crewBlocked = "The bridge crew needs its own temporary OpenCode settings file, but OPENCODE_CONFIG is already set. Keep your settings in OPENCODE_CONFIG_DIR and unset OPENCODE_CONFIG to use the crew.";
+    if (!env.OPENCODE_CONFIG_CONTENT) env.OPENCODE_CONFIG_CONTENT = JSON.stringify({ plugins: engineConfiguration().plugins });
+  }
   if (!crewBlocked) {
-    try { await writeFile(configFile, JSON.stringify(crewConfiguration()), { mode: 0o600 }); }
+    try { await writeFile(configFile, JSON.stringify(engineConfiguration()), { mode: 0o600 }); }
     catch (error) {
       await rm(configuration, { recursive: true });
       throw error;
@@ -174,7 +181,7 @@ export async function startEngine(directory: string, signal?: AbortSignal) {
     for (let attempt = 0; attempt < 3; attempt++) {
       const build = agents.find((agent) => agent.id === "build");
       if (!build) throw new Error("OpenCode did not provide the current coding agent's permission rules.");
-      await writeFile(configFile, JSON.stringify(crewConfiguration(build.permissions)), { mode: 0o600 });
+      await writeFile(configFile, JSON.stringify(engineConfiguration(build.permissions)), { mode: 0o600 });
       await client.reload(project);
       agents = await loadedAgents(client, project, true, signal);
       if (verifiedCrew(agents)) return undefined;

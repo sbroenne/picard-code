@@ -433,6 +433,7 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .mcp-error summary { cursor: pointer; font-size: 13px; }
 .mcp-feedback { margin: 8px 0; }
 .mcp-feedback:empty { margin: 0; }
+#mcp-device-code { color: var(--peach); font-size: 20px; letter-spacing: .08em; white-space: nowrap; }
 .copy-result { min-height: 1.7em; margin: 4px 0 0; color: var(--lilac); }
 .connection-status { color: var(--peach); }
 .provider-alternative { margin: 24px 0 0 26px; }
