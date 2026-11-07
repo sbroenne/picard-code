@@ -1,5 +1,11 @@
 # Picard Code release notes
 
+## 1701.4.11
+
+### Patch Changes
+
+- [#104](https://github.com/sbroenne/picard-code/pull/104) [`c49d823`](https://github.com/sbroenne/picard-code/commit/c49d823366054d986ad606308b0cc9e60d73d826) - Reopening Picard Code during speech preparation keeps following the same job without briefly starting the microphone or loading computer sounds.
+
 ## 1701.4.10
 
 ### Patch Changes
