@@ -306,6 +306,78 @@ test("GitHub MCP explains a connection failure after successful sign-in", async 
   await expect(page.locator("#mcp-sign-in-code")).toBeHidden();
 });
 
+for (const github of [false, true]) {
+  test(github ? "the Project form clears a GitHub code and ignores its old sign-in response" : "the Project form clears a blocked MCP sign-in when switching folders", async ({ page }) => {
+    const first = process.cwd();
+    const second = `${first}/docs`;
+    let held = Promise.resolve();
+    let release!: () => void;
+    let polling = false;
+    await page.route("**/api/mcp", async (route) => {
+      const connections = await (await route.fetch()).json();
+      await route.fulfill({ json: { ...connections, servers: [{ name: "Test remote", status: "needs_auth" }] } });
+    });
+    await page.route("**/api/mcp/sign-in**", async (route) => {
+      if (route.request().method() === "GET") {
+        polling = true;
+        await held;
+        return route.fulfill({ json: { status: "failed", error: "The previous Project's sign-in failed." } });
+      }
+      const { project } = route.request().postDataJSON();
+      if (github) {
+        polling = false;
+        held = new Promise<void>(resolve => { release = resolve; });
+      }
+      return route.fulfill({ json: github
+        ? { url: "https://github.com/login/device", code: "ABCD-1234", attemptID: "test-attempt" }
+        : { url: `https://example.test/${project === first ? "first" : "second"}` } });
+    });
+    await page.reload();
+    await page.evaluate(() => { window.open = () => null; });
+    const link = page.locator("#mcp-sign-in-link");
+    for (const [current, next, address] of [[first, second, "first"], [second, first, "second"]]) {
+      await page.getByRole("link", { name: /^MCP servers/ }).click();
+      await expect(page.locator("#mcp-project")).toHaveText(current!);
+      await page.getByRole("button", { name: "Sign in to Test remote" }).click();
+      await expect(link).toHaveAttribute("href", github ? "https://github.com/login/device" : `https://example.test/${address}`);
+      await expect(link).toBeVisible();
+      if (github) {
+        await expect(page.locator("#mcp-sign-in-code")).toContainText("ABCD-1234");
+        await expect.poll(() => polling).toBe(true);
+      }
+      await page.keyboard.press("Escape");
+      await page.getByRole("link", { name: /^MCP servers/ }).click();
+      await expect(link).toBeVisible();
+      if (github) await expect(page.locator("#mcp-sign-in-code")).toContainText("ABCD-1234");
+      await page.getByRole("link", { name: /^Project/ }).click();
+      await page.getByLabel("Full folder path").fill(next!);
+      const changed = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/project");
+      await page.locator("#project-form").evaluate((form: HTMLFormElement) => form.requestSubmit());
+      await (await changed).finished();
+      await expect(page.locator("#drawer-settings")).toBeHidden();
+      await expect(page.locator("#project-path")).toHaveValue(next!);
+      if (github) {
+        const oldResponse = page.waitForResponse(response => response.request().method() === "GET" && new URL(response.url()).pathname === "/api/mcp/sign-in");
+        release();
+        await (await oldResponse).finished();
+        await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
+      }
+      await page.getByRole("link", { name: /^MCP servers/ }).click();
+      await expect(page.getByRole("heading", { name: "MCP servers", exact: true })).toBeVisible();
+      await expect(page.locator("#mcp-project")).toHaveText(next!);
+      await expect(link).toBeHidden();
+      await expect(link).not.toHaveAttribute("href");
+      await expect(page.locator("#mcp-action-result")).toBeEmpty();
+      if (github) {
+        await expect(page.locator("#mcp-sign-in-code")).toBeHidden();
+        await expect(page.locator("#mcp-device-code")).toBeEmpty();
+      }
+      await expect(page.getByRole("button", { name: "Sign in to Test remote" })).toBeEnabled();
+      await page.keyboard.press("Escape");
+    }
+  });
+}
+
 test("MCP retry waits for the server state and the tile follows updates while the panel is closed", async ({ page }) => {
   let status = "failed";
   await page.route("**/api/mcp", (route) => route.fulfill({ json: { project: process.cwd(), servers: [
