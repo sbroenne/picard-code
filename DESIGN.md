@@ -62,7 +62,8 @@ open in a slide-out, as do AI provider in the top bar and About from the header 
 The MCP servers tile shows the live connected count or the state that needs
 attention. Its drawer starts with a compact server list, Sign in and Retry
 actions, and Refresh connections. Keep errors behind Error details.
-One Setup help link opens the user guide; no commands, long explanations or
+One Setup help link opens OpenCode's MCP guide in the same page; Back returns
+to the connections. No commands, long explanations or
 OpenCode settings details belong in the drawer.
 OpenCode status changes update both the tile and list. Sign in opens the
 service's own page through OpenCode; returning checks the real state.

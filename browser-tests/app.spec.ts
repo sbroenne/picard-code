@@ -326,7 +326,7 @@ test("MCP guidance opens from Ship's systems and a direct link without adding a 
   await expect(page.locator("#mcp-project-name")).toHaveAttribute("title", process.cwd());
   await expect(page.locator("#settings-mcp").getByRole("textbox")).toHaveCount(0);
   await expect(page.locator("#settings-mcp")).not.toContainText("--connect");
-  await expect(page.getByRole("link", { name: "Setup help", exact: true })).toHaveAttribute("href", "https://github.com/sbroenne/picard-code/blob/main/docs/USER_GUIDE.md#mcp-servers-and-sign-in");
+  await expect(page.getByRole("link", { name: "Setup help", exact: true })).toHaveAttribute("href", "https://opencode.ai/docs/mcp-servers/");
   await tile.click();
   await expect(page.locator("#drawer-settings")).toBeHidden();
   await page.evaluate(() => { location.hash = "settings/mcp"; });
@@ -337,6 +337,22 @@ test("MCP guidance opens from Ship's systems and a direct link without adding a 
   await page.getByRole("link", { name: "Current log entry", exact: true }).click();
   await expect(page.locator("#drawer-settings")).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test("Setup help opens visibly in the same page and Back returns to MCP connections", async ({ page }) => {
+  const address = "https://opencode.ai/docs/mcp-servers/";
+  await page.route(address, (route) => route.fulfill({ body: "<!doctype html><h1>Test-only MCP setup help</h1>" }));
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  const help = page.getByRole("link", { name: "Setup help", exact: true });
+  await expect(help).not.toHaveAttribute("target", "_blank");
+  await help.press("Enter");
+  await expect(page).toHaveURL(address);
+  await expect(page.getByRole("heading", { name: "Test-only MCP setup help" })).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/#settings\/mcp$/);
+  await expect(page.getByRole("heading", { name: "MCP servers", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Refresh connections", exact: true })).toBeEnabled();
+  expect(page.context().pages()).toHaveLength(1);
 });
 
 for (const source of ["installed", "bundled", "custom"] as const) {
@@ -353,8 +369,8 @@ for (const source of ["installed", "bundled", "custom"] as const) {
     await expect(panel).not.toContainText(/OPENCODE_|PICARD_OPENCODE_PATH|npx|bundled|installed/);
     const help = page.getByRole("link", { name: "Setup help", exact: true });
     await expect(help).toBeVisible();
-    await expect(help).toHaveAttribute("target", "_blank");
-    await expect(help).toHaveAttribute("rel", "noopener noreferrer");
+    await expect(help).not.toHaveAttribute("target", "_blank");
+    await expect(help).toHaveAttribute("rel", "noreferrer");
     await page.keyboard.press("Escape");
     await page.getByRole("link", { name: /^MCP servers/ }).click();
     await expect(help).toBeVisible();
