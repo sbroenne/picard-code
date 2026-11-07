@@ -500,7 +500,7 @@ export async function startApp(options: AppOptions) {
             return;
           }
           if (server.status.status !== "needs_auth") throw new HttpError(409, "That MCP server is not waiting for sign-in.");
-          const manual = "This server needs sign-in through OpenCode. Open Advanced setup for the command.";
+          const manual = "This server needs sign-in through OpenCode. Choose Setup help for instructions.";
           if (!server.integrationID) throw new HttpError(409, manual);
           const integration = await client.integration(server.integrationID, project);
           const methods = integration.methods.filter(item => item.type === "oauth" && item.id && !item.form?.length);
@@ -513,7 +513,7 @@ export async function startApp(options: AppOptions) {
             && (target.protocol === "https:" || target.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname));
           if (attempt.mode !== "auto" || !target || !webAddress) {
             await client.cancelOAuth(server.integrationID, attempt.attemptID, project);
-            throw new HttpError(409, attempt.mode !== "auto" ? manual : "OpenCode returned an unsafe sign-in address. Check this server in Advanced setup.");
+            throw new HttpError(409, attempt.mode !== "auto" ? manual : "OpenCode returned an unsafe sign-in address. Choose Setup help to check this server.");
           }
           const code = auth.id === GITHUB_DEVICE_METHOD ? /^Enter code: ([A-Z0-9]{4}-[A-Z0-9]{4})$/.exec(attempt.instructions ?? "")?.[1] : undefined;
           if (auth.id === GITHUB_DEVICE_METHOD && (!code || target.href !== "https://github.com/login/device")) {

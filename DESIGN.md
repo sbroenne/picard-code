@@ -61,18 +61,17 @@ Captain's log and the Project, Computer intelligence, and Listen · Speak tiles
 open in a slide-out, as do AI provider in the top bar and About from the header dedication.
 The MCP servers tile shows the live connected count or the state that needs
 attention. Its drawer starts with a compact server list, Sign in and Retry
-actions, and Refresh connections. Keep errors behind Error details and all
-commands and explanations behind Advanced setup, not above the list.
+actions, and Refresh connections. Keep errors behind Error details.
+One Setup help link opens the user guide; no commands, long explanations or
+OpenCode settings details belong in the drawer.
 OpenCode status changes update both the tile and list. Sign in opens the
 service's own page through OpenCode; returning checks the real state.
 GitHub's hosted server uses the packaged OpenCode extension and a displayed
 one-time code. Clear that code after approval, expiry or failure; show
 Connected only after the actual server connection succeeds. Other sign-ins
 needing pasted codes or extra fields stay in OpenCode's advanced flow.
-OpenCode owns server setup and credentials. Show the actual installed,
-bundled or explicitly selected copy and its version, not a list of possible
-setups. Picard Code starts and stops OpenCode itself. Show custom settings
-guidance only when custom settings were used for this launch.
+OpenCode owns server setup and credentials. Picard Code starts and stops
+OpenCode itself. Keep terminal and custom-settings guidance in the user guide.
 Refresh reports only that settings reloaded, never an invented server status.
 Keep setup in OpenCode, with no credential fields or typed-request fallback.
 Choosing a tile again, Current log entry, Escape, or the log entry beside it closes

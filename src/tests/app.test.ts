@@ -202,7 +202,7 @@ test("MCP actions preserve disabled servers and running work and explain unsuppo
   context.fixture.setMcpMethods([{ id: "needs-fields", type: "oauth", form: [{ key: "secret" }] }]);
   const unsupported = await context.request("mcp/sign-in", body);
   assert.equal(unsupported.status, 409);
-  assert.match((await unsupported.json()).error, /Advanced setup/);
+  assert.match((await unsupported.json()).error, /Setup help/);
   const session = context.fixture.createSession(context.directory);
   context.fixture.active.add(session.id);
   assert.equal((await context.request("mcp/sign-in", body)).status, 409);

@@ -825,7 +825,6 @@ function controls() {
     refresh.textContent = id === "refresh-mcp" ? refreshingProvider ? "Refreshing connections" : "Refresh connections"
       : refreshingProvider ? "Refreshing connection" : "Refresh connection";
   }
-  for (const id of ["copy-mcp-list", "copy-mcp-auth"]) element<HTMLButtonElement>(id).disabled = !state;
   for (const control of document.querySelectorAll<HTMLButtonElement>("[data-mcp-action]")) control.disabled = !connected || activeWork || savingModel || refreshingProvider || !!mcpAction;
   element("mcp-work-note").hidden = !activeWork;
   const modelStatus = element("model-status");
@@ -871,26 +870,18 @@ function controls() {
 }
 
 let displayedModel: string | undefined;
+let displayedProject: string | undefined;
 function renderState() {
   if (!state) { controls(); return; }
-  if (element("mcp-project").textContent !== state.project) {
+  if (displayedProject !== state.project) {
     clearMcpSignIn();
     element("mcp-action-result").textContent = "";
   }
+  displayedProject = state.project;
   if (document.activeElement !== element("project-path")) element<HTMLInputElement>("project-path").value = state.project;
   element("workspace-caption").textContent = `OpenCode ${state.version} · ${state.project}`;
-  element("mcp-project").textContent = state.project;
   element("mcp-project-name").textContent = state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project;
   element("mcp-project-name").title = state.project;
-  const openCode = state.openCode;
-  const descriptions = {
-    installed: `Using your installed OpenCode ${state.version}.`,
-    bundled: `Using Picard Code's bundled OpenCode ${state.version}.`,
-    custom: `Using OpenCode ${state.version} selected with PICARD_OPENCODE_PATH.`,
-  };
-  element("mcp-connection").textContent = descriptions[openCode.source];
-  element("mcp-custom-settings").hidden = !openCode.customSettings;
-  for (const action of ["list", "auth"]) element(`mcp-${action}-command`).textContent = `npx picard-code opencode mcp ${action}`;
   const savedValue = state.selectedModel ? modelValue(state.selectedModel) : "";
   const currentModel = displayedModel === savedValue ? model.value : savedValue;
   displayedModel = savedValue;
@@ -2162,7 +2153,7 @@ for (const id of ["refresh-provider", "refresh-model"]) {
   element(id).addEventListener("click", () => { void perform(refreshProvider); });
 }
 element("refresh-mcp").addEventListener("click", () => { void perform(() => refreshProvider(true)); });
-for (const [buttonID, commandID, resultID] of [["copy-provider-command", "provider-command", "provider-copy-result"], ["copy-wizard-command", "wizard-command", "wizard-copy-result"], ["copy-mcp-list", "mcp-list-command", "mcp-list-copy-result"], ["copy-mcp-auth", "mcp-auth-command", "mcp-auth-copy-result"]]) {
+for (const [buttonID, commandID, resultID] of [["copy-provider-command", "provider-command", "provider-copy-result"], ["copy-wizard-command", "wizard-command", "wizard-copy-result"]]) {
   element(buttonID!).addEventListener("click", () => { void perform(async () => {
     const copy = element<HTMLButtonElement>(buttonID!);
     if (copy.disabled) return;
@@ -2173,9 +2164,6 @@ for (const [buttonID, commandID, resultID] of [["copy-provider-command", "provid
       await navigator.clipboard.writeText(element(commandID!).innerText);
       element(resultID!).textContent = buttonID === "copy-wizard-command" ? "Order copied" : "Command copied";
       notice();
-    } catch (error) {
-      if (buttonID?.startsWith("copy-mcp-")) element(resultID!).textContent = errorMessage(error);
-      throw error;
     } finally { copy.disabled = false; }
   }); });
 }

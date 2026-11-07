@@ -421,7 +421,6 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .provider-command { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; background: #17121e; border-radius: 0 24px 24px 0; }
 .provider-command code { flex: 1 1 auto; overflow-wrap: anywhere; color: var(--peach); }
 .provider-command .pill { flex: none; }
-.mcp-project { overflow-wrap: anywhere; color: var(--peach); }
 .mcp-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .mcp-toolbar p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .mcp-servers { list-style: none; padding: 0; }
