@@ -216,6 +216,47 @@ test("MCP sign-in handles blocked windows and real failures without claiming suc
   await expect(link).toBeHidden();
 });
 
+test("the Project form clears a blocked MCP sign-in when switching folders", async ({ page }) => {
+  const first = process.cwd();
+  const second = `${first}/docs`;
+  await page.route("**/api/mcp", async (route) => {
+    const connections = await (await route.fetch()).json();
+    await route.fulfill({ json: { ...connections, servers: [{ name: "Test remote", status: "needs_auth" }] } });
+  });
+  await page.route("**/api/mcp/sign-in", (route) => {
+    const { project } = route.request().postDataJSON();
+    return route.fulfill({ json: { url: `https://example.test/${project === first ? "first" : "second"}` } });
+  });
+  await page.reload();
+  await page.evaluate(() => { window.open = () => null; });
+  const link = page.locator("#mcp-sign-in-link");
+  for (const [current, next, address] of [[first, second, "first"], [second, first, "second"]]) {
+    await page.getByRole("link", { name: /^MCP servers/ }).click();
+    await expect(page.locator("#mcp-project")).toHaveText(current!);
+    await page.getByRole("button", { name: "Sign in to Test remote" }).click();
+    await expect(link).toHaveAttribute("href", `https://example.test/${address}`);
+    await expect(link).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.getByRole("link", { name: /^MCP servers/ }).click();
+    await expect(link).toBeVisible();
+    await page.getByRole("link", { name: /^Project/ }).click();
+    await page.getByLabel("Full folder path").fill(next!);
+    const changed = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/project");
+    await page.locator("#project-form").evaluate((form: HTMLFormElement) => form.requestSubmit());
+    await (await changed).finished();
+    await expect(page.locator("#drawer-settings")).toBeHidden();
+    await expect(page.locator("#project-path")).toHaveValue(next!);
+    await page.getByRole("link", { name: /^MCP servers/ }).click();
+    await expect(page.getByRole("heading", { name: "MCP servers", exact: true })).toBeVisible();
+    await expect(page.locator("#mcp-project")).toHaveText(next!);
+    await expect(link).toBeHidden();
+    await expect(link).not.toHaveAttribute("href");
+    await expect(page.locator("#mcp-action-result")).toBeEmpty();
+    await expect(page.getByRole("button", { name: "Sign in to Test remote" })).toBeEnabled();
+    await page.keyboard.press("Escape");
+  }
+});
+
 test("MCP retry waits for the server state and the tile follows updates while the panel is closed", async ({ page }) => {
   let status = "failed";
   await page.route("**/api/mcp", (route) => route.fulfill({ json: { project: process.cwd(), servers: [

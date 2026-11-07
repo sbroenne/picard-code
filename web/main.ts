@@ -836,6 +836,12 @@ function controls() {
 let displayedModel: string | undefined;
 function renderState() {
   if (!state) { controls(); return; }
+  if (element("mcp-project").textContent !== state.project) {
+    mcpSigningIn = undefined;
+    element("mcp-action-result").textContent = "";
+    element("mcp-sign-in-link").hidden = true;
+    element("mcp-sign-in-link").removeAttribute("href");
+  }
   if (document.activeElement !== element("project-path")) element<HTMLInputElement>("project-path").value = state.project;
   element("workspace-caption").textContent = `OpenCode ${state.version} · ${state.project}`;
   element("mcp-project").textContent = state.project;
@@ -1468,12 +1474,6 @@ async function refreshState() {
   const finishedModelSetup = !!wizardStep() && !state?.selectedModel && !!next.selectedModel;
   const speechBecameReady = !state?.speech?.configured && !!next.speech?.configured;
   const projectChanged = state?.project !== next.project;
-  if (projectChanged) {
-    mcpSigningIn = undefined;
-    element("mcp-action-result").textContent = "";
-    element("mcp-sign-in-link").hidden = true;
-    element("mcp-sign-in-link").removeAttribute("href");
-  }
   state = next;
   if (speechBecameReady && !speechSetupWatching) showSpeechPreparation(next.speech?.setup);
   renderState();
