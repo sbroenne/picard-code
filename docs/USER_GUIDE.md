@@ -431,7 +431,9 @@ list or credential store. Open **MCP servers** under **Ship's systems** for
 the current server list and connection actions.
 The tile shows a live connection count or what needs attention, without opening
 the panel. The panel puts server names, states and actions first; terminal
-commands and explanations stay in this guide, reached through **Setup help**. Choose **Error details**
+commands and explanations stay in this guide and OpenCode's guide.
+**Setup help** opens OpenCode's MCP guide in the same page; use your browser's
+Back button to return to the connections. Choose **Error details**
 beside a server to read its actual error.
 The list shows connected servers, servers needing sign-in, disabled servers,
 connections still starting, and failed connections.
