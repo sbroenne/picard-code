@@ -11,6 +11,7 @@ import { chatMessages } from "../server/history.js";
 import type { FormRequest, PermissionRequest } from "../shared/types.js";
 import { canAskAloud, matchSpokenAnswer, spokenQuestion } from "../shared/questions.js";
 import type { TributeRequest } from "../shared/tribute.js";
+import { mentionsTributeExtras } from "./behavior-checks.js";
 
 // Real multi-turn check: Picard Code's own API, its always-supplied instructions, OpenCode and a signed-in model provider.
 // Model wording varies, so this records the full transcript and checks behavior that must hold every time.
@@ -170,7 +171,7 @@ try {
   check(!self.tools.some((tool) => tool.tool === "edit" || tool.tool === "shell"), "Self-reference: no file changes or commands");
   const factsOnly = await turn("Tribute off", "Tell me about myself, strictly factual and without jokes.", undefined, { mode: "off" });
   check(/picard/i.test(factsOnly.reply), "Tribute off: preserves Picard identity");
-  check(!/vanity|vain|ego|i can tell you a short story/i.test(factsOnly.reply), "Tribute off: no vanity joke or unsolicited story offer");
+  check(!mentionsTributeExtras(factsOnly.reply), "Tribute off: no vanity joke or unsolicited story offer");
   const birthplace = await turn("Wikipedia Picard answer", "Computer, where was Jean-Luc Picard born?", undefined, { mode: "off" });
   check(/la barre/i.test(birthplace.reply) && /france/i.test(birthplace.reply), "Wikipedia Picard: answers the birthplace question from the article");
   check(/en\.wikipedia\.org\/wiki\/Jean-Luc_Picard/i.test(birthplace.reply), "Wikipedia Picard: cites the fetched article on screen");
