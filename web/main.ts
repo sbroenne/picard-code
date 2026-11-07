@@ -1339,7 +1339,7 @@ async function refreshState() {
   const finishedModelSetup = !!wizardStep() && !state?.selectedModel && !!next.selectedModel;
   const speechBecameReady = !state?.speech?.configured && !!next.speech?.configured;
   state = next;
-  if (speechBecameReady && !speechSetupWatching) showSpeechPreparation();
+  if (speechBecameReady && !speechSetupWatching) showSpeechPreparation(next.speech?.setup);
   renderState();
   if (lostModel) location.hash = "settings/model";
   else if (finishedModelSetup) location.hash = "";

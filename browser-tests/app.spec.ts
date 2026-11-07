@@ -243,6 +243,58 @@ test("speech setup retry rejoins a running download after a connection failure",
   await expect(page.locator("#voice-console")).toBeVisible();
 });
 
+for (const readyAt of ["opening", "connection"] as const) test(`reopening keeps running speech preparation when configured speech arrives at ${readyAt}`, async ({ page }) => {
+  const state = await (await page.request.get(new URL("/api/state", page.url()).href)).json();
+  const setup = { state: "running", step: "Installing local speech - labeled test download" };
+  let stateReads = 0;
+  let writes = 0;
+  let sounds = 0;
+  await page.addInitScript(() => {
+    let starts = 0;
+    Object.assign(window, { microphoneStarts: () => starts });
+    const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = (constraints) => { starts++; return getUserMedia(constraints); };
+  });
+  let releaseConnection!: () => void;
+  const connection = new Promise<void>((resolve) => { releaseConnection = resolve; });
+  let releaseUpdates!: () => void;
+  const updates = new Promise<void>((resolve) => { releaseUpdates = resolve; });
+  await page.route("**/api/events", async (route) => { await connection; await route.continue(); });
+  await page.route("**/api/state", async (route) => {
+    const read = ++stateReads;
+    if (read > 2) await updates;
+    await route.fulfill({ json: { ...state, speech: {
+      ...state.speech, configured: readyAt === "opening" || read > 1,
+      ...(readyAt === "opening" || read > 1 ? { setup } : {}),
+    } } });
+  });
+  // Hold later progress and state updates so they cannot repair a cleared setup before the assertions.
+  await page.route("**/api/speech-setup", async (route) => { await updates; await route.fulfill({ json: setup }); });
+  await page.route("**/api/settings", (route) => { if (route.request().method() === "POST") writes++; return route.continue(); });
+  await page.route("**/api/sounds/*", (route) => { sounds++; return route.continue(); });
+  try {
+    await page.reload();
+    if (readyAt === "opening") await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuetext", setup.step);
+    else await expect(page.getByRole("heading", { name: "Computer voice offline" })).toBeVisible();
+    releaseConnection();
+    await expect.poll(() => stateReads).toBeGreaterThanOrEqual(2);
+    await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuetext", setup.step);
+    await expect(page.locator("#voice-console")).toBeHidden();
+    await expect(page.locator("#notice")).toBeHidden();
+    await page.getByRole("link", { name: /^Listen/ }).click();
+    await expect(page.getByRole("heading", { name: "Speech", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("m");
+    await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuetext", setup.step);
+    expect(await page.evaluate(() => (window as unknown as { microphoneStarts(): number }).microphoneStarts())).toBe(0);
+    expect(sounds).toBe(0);
+    expect(writes).toBe(0);
+  } finally {
+    releaseConnection();
+    releaseUpdates();
+  }
+});
+
 test("reopening during automatic speech setup follows the same job without starting another", async ({ page }) => {
   let writes = 0;
   const setup = { state: "running", step: "Installing local speech — labeled test download" };
