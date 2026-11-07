@@ -608,6 +608,25 @@ test("a failed refresh from Computer intelligence preserves the saved choice and
   await expect(page.locator("#model")).toHaveValue("");
 });
 
+test("MCP guidance pauses listening and returning restores it without changing the model", async ({ page }) => {
+  await launch(page, ["--speech"]);
+  await page.getByRole("button", { name: "Begin start-up" }).click();
+  await page.getByRole("button", { name: "Open a channel" }).click();
+  await expect(page.locator("#voice-channel")).toHaveText("Listening");
+  const chosen = await page.locator("#readout-model").textContent();
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await expect(page.getByRole("heading", { name: "MCP servers", exact: true })).toBeVisible();
+  await expect(page.locator("#voice-channel")).toHaveText("Microphone off");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#voice-channel")).toHaveText("Listening");
+  await expect(page.locator("#readout-model")).toHaveText(chosen!);
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await page.getByRole("link", { name: /^Computer intelligence/ }).click();
+  await expect(page.getByRole("heading", { name: "Computer intelligence", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Current log entry", exact: true }).click();
+  await expect(page.locator("#voice-channel")).toHaveText("Listening");
+});
+
 test("saved setup opens directly and later provider, model and speech settings remain available", async ({ page }, testInfo) => {
   const folder = await mkdtemp(join(tmpdir(), "picard-later-settings-"));
   const file = join(folder, "model.json");

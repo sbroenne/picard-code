@@ -40,7 +40,7 @@ async function setup(page: import("@playwright/test").Page, text: string, extra:
   const modelFile = join(project, "model.json");
   for (const name of ["startup", "request-accepted", "input-failed", "request-failed"]) await writeFile(join(project, `${name}.mp3`), silentWav(0.1));
   await saveModelSettings(modelFile, { providerID: "github-copilot", modelID: "fixture-model" });
-  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project,
+  const app = await startApp({ client: makeClient(fixture.url, fixture.password), openCodeSource: "installed", project,
     webRoot: resolve(process.env.PICARD_OUTPUT_BASELINE_WEB ?? "web-dist"), modelFile, speech: speechFixture([""]).service,
     soundFolder: project, speechFile: join(project, "unused.json") });
   try {
@@ -84,6 +84,10 @@ test("OpenCode charts render as graphs rather than source and survive reopening"
 test("OpenCode completed work remains inspectable instead of being hidden", async ({ page }) => {
   const context = await setup(page, "TEST ONLY: the result is on screen.");
   try {
+    await page.getByRole("link", { name: /^MCP servers/ }).click();
+    await page.locator("#mcp-advanced > summary").click();
+    await expect(page.locator("#mcp-connection")).toContainText("your installed OpenCode");
+    await page.keyboard.press("Escape");
     await page.getByText("Work details", { exact: true }).click();
     await expect(page.locator(".work-details")).toContainText("TEST ONLY command result");
     await expect(page.locator(".work-details")).toContainText("printf");

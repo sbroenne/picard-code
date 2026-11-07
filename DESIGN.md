@@ -59,7 +59,20 @@ when installed speech starts without a download.
 
 Captain's log and the Project, Computer intelligence, and Listen · Speak tiles
 open in a slide-out, as do AI provider in the top bar and About from the header dedication.
-Choosing it again, Current log entry, Escape, or the log entry beside it closes
+The MCP servers tile shows the live connected count or the state that needs
+attention. Its drawer starts with a compact server list, Sign in and Retry
+actions, and Refresh connections. Keep errors behind Error details and all
+commands and explanations behind Advanced setup, not above the list.
+OpenCode status changes update both the tile and list. Sign in opens the
+service's own page through OpenCode; returning checks the real state.
+Sign-ins needing codes or extra fields stay in OpenCode's advanced flow.
+OpenCode owns server setup and credentials. Show the actual installed,
+bundled or explicitly selected copy and its version, not a list of possible
+setups. Picard Code starts and stops OpenCode itself. Show custom settings
+guidance only when custom settings were used for this launch.
+Refresh reports only that settings reloaded, never an invented server status.
+Keep setup in OpenCode, with no credential fields or typed-request fallback.
+Choosing a tile again, Current log entry, Escape, or the log entry beside it closes
 the slide-out. The Tribute tile is an On/Off switch, not a slide-out. Stardate
 shows the fan-formula stardate, including its hover text.
 

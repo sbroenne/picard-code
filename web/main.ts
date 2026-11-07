@@ -1,5 +1,5 @@
 import "./style.css";
-import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, ModelChoice, PermissionRequest, SpeechSettings, SpeechSetupProgress } from "../src/shared/types";
+import type { AppState, BrowserEvent, ChatMessage, Conversation, FormField, FormRequest, FormValue, McpConnections, ModelChoice, PermissionRequest, SpeechSettings, SpeechSetupProgress } from "../src/shared/types";
 import { errorMessage } from "../src/shared/messages";
 import { replyFailed, spokenSummary } from "../src/shared/speech";
 import { spokenParts, type SpokenPart } from "../src/shared/briefing";
@@ -641,6 +641,117 @@ function readouts() {
 
 let savingModel = false;
 let refreshingProvider = false;
+let mcpRevision = 0;
+let mcpAction: string | undefined;
+let mcpSigningIn: { name: string; project: string } | undefined;
+async function mcpServerAction(name: string, action: "sign-in" | "connect") {
+  if (mcpAction) return;
+  const project = state?.project;
+  if (!project) throw new Error("Wait for the Project to load.");
+  const popup = action === "sign-in" ? window.open("about:blank", "_blank") : null;
+  if (popup) popup.opener = null;
+  mcpAction = name;
+  mcpSigningIn = undefined;
+  const result = element("mcp-action-result");
+  const link = element<HTMLAnchorElement>("mcp-sign-in-link");
+  link.hidden = true;
+  link.removeAttribute("href");
+  result.textContent = action === "sign-in" ? "Opening sign-in." : "Retrying connection.";
+  controls();
+  try {
+    const response = await api<{ url?: string }>(`mcp/${action}`, { name, project });
+    if (state?.project !== project) throw new Error("The Project changed. Sign in again from its MCP servers.");
+    if (action === "sign-in") {
+      if (!response.url) throw new Error("OpenCode did not provide a sign-in address.");
+      mcpSigningIn = { name, project };
+      if (popup && !popup.closed) {
+        popup.location.replace(response.url);
+        result.textContent = "Complete sign-in in the opened tab.";
+      } else {
+        link.href = response.url;
+        link.hidden = false;
+        result.textContent = "The browser blocked the sign-in tab. Choose Continue sign-in.";
+      }
+    } else result.textContent = "Connection requested.";
+    await refreshMcpServers();
+  } catch (error) {
+    popup?.close();
+    result.textContent = errorMessage(error);
+  } finally { mcpAction = undefined; controls(); }
+}
+async function refreshMcpServers() {
+  const revision = ++mcpRevision;
+  if (!state) return;
+  const project = state.project;
+  const list = element("mcp-servers");
+  const message = element("mcp-status");
+  if (list.dataset.project !== project) list.replaceChildren();
+  list.dataset.project = project;
+  list.setAttribute("aria-busy", "true");
+  message.textContent = "Checking MCP servers.";
+  element("readout-mcp").textContent = "Checking";
+  let focused = "";
+  try {
+    const result = await api<McpConnections>("mcp");
+    if (revision !== mcpRevision || state.project !== project) return;
+    if (result.project !== project) throw new Error("The Project changed. Reopen this panel to check its connections.");
+    focused = list.querySelector("button:focus")?.getAttribute("aria-label") ?? "";
+    list.replaceChildren();
+    const labels: Record<string, string> = {
+      connected: "Connected", needs_auth: "Sign-in needed", disabled: "Disabled",
+      failed: "Connection failed", pending: "Connecting",
+    };
+    for (const server of result.servers) {
+      const row = make("li", "mcp-server");
+      const summary = make("div", "mcp-server-summary");
+      summary.append(make("strong", undefined, server.name), make("span", "mcp-server-state", labels[server.status] ?? `Unknown state: ${server.status}`));
+      const action = server.status === "needs_auth" ? "sign-in" : server.status === "failed" ? "connect" : undefined;
+      if (action) {
+        const control = button(action === "sign-in" ? "Sign in" : "Retry", "pill outline", () => mcpServerAction(server.name, action));
+        control.dataset.mcpAction = server.name;
+        control.setAttribute("aria-label", `${action === "sign-in" ? "Sign in to" : "Retry"} ${server.name}`);
+        summary.append(control);
+      }
+      row.append(summary);
+      if (server.error) {
+        const detail = make("details", "mcp-error");
+        detail.append(make("summary", undefined, "Error details"), make("p", undefined, server.error));
+        row.append(detail);
+      }
+      list.append(row);
+    }
+    const servers = result.servers;
+    const count = servers.filter((item) => item.status === "connected").length;
+    element("readout-mcp").textContent = servers.some((item) => item.status === "needs_auth") ? "Sign-in needed"
+      : servers.some((item) => item.status === "failed" || !labels[item.status]) ? "Needs attention"
+      : servers.some((item) => item.status === "pending") ? "Connecting"
+      : count ? `${count} connected` : servers.length ? "Disabled" : "None configured";
+    if (mcpSigningIn?.project === project && servers.some((item) => item.name === mcpSigningIn?.name && item.status === "connected")) {
+      mcpSigningIn = undefined;
+      element("mcp-action-result").textContent = "Connected.";
+      element("mcp-sign-in-link").hidden = true;
+      element("mcp-sign-in-link").removeAttribute("href");
+    }
+    message.textContent = result.servers.length
+      ? `${result.servers.length} MCP server${result.servers.length === 1 ? "" : "s"} configured for this Project.`
+      : "No MCP servers are configured for this Project.";
+  } catch (error) {
+    if (revision === mcpRevision && state.project === project) {
+      list.replaceChildren();
+      element("readout-mcp").textContent = "Unavailable";
+      message.textContent = `Could not check MCP servers. ${errorMessage(error)}`;
+    }
+  } finally {
+    if (revision === mcpRevision) {
+      list.removeAttribute("aria-busy");
+      controls();
+      if (focused && document.activeElement === document.body) {
+        [...list.querySelectorAll<HTMLButtonElement>("button")]
+          .find((control) => control.getAttribute("aria-label") === focused && !control.disabled)?.focus({ preventScroll: true });
+      }
+    }
+  }
+}
 function modelSetupPart(current = state): "model" | "provider" {
   return current && !current.savedModel && !current.modelError && !current.hasConnectedProvider ? "provider" : "model";
 }
@@ -648,7 +759,7 @@ function controls() {
   const working = busy() || submitting;
   const ready = !!state?.models.length && connected && !historyLoading;
   const activeWork = working || Object.keys(state?.statuses ?? {}).length > 0;
-  model.disabled = !ready || activeWork || savingModel || refreshingProvider;
+  model.disabled = !ready || activeWork || savingModel || refreshingProvider || !!mcpAction;
   const selectedModel = state?.selectedModel;
   const savedModel = state?.savedModel;
   const unchanged = !!selectedModel && model.value === modelValue(selectedModel);
@@ -671,11 +782,15 @@ function controls() {
   element("model-problem").textContent = problem;
   element("model-problem").hidden = !problem;
   element("refresh-model").hidden = !unavailable && !state?.modelError && !!state?.models.length;
-  for (const id of ["refresh-provider", "refresh-model"]) {
+  for (const id of ["refresh-provider", "refresh-model", "refresh-mcp"]) {
     const refresh = element<HTMLButtonElement>(id);
-    refresh.disabled = !state || !connected || activeWork || savingModel || refreshingProvider;
-    refresh.textContent = refreshingProvider ? "Refreshing connection" : "Refresh connection";
+    refresh.disabled = !state || !connected || activeWork || savingModel || refreshingProvider || !!mcpAction;
+    refresh.textContent = id === "refresh-mcp" ? refreshingProvider ? "Refreshing connections" : "Refresh connections"
+      : refreshingProvider ? "Refreshing connection" : "Refresh connection";
   }
+  for (const id of ["copy-mcp-list", "copy-mcp-auth"]) element<HTMLButtonElement>(id).disabled = !state;
+  for (const control of document.querySelectorAll<HTMLButtonElement>("[data-mcp-action]")) control.disabled = !connected || activeWork || savingModel || refreshingProvider || !!mcpAction;
+  element("mcp-work-note").hidden = !activeWork;
   const modelStatus = element("model-status");
   modelStatus.dataset.state = unavailable || state?.modelError ? "unavailable" : unchanged ? "saved" : "pending";
   modelStatus.textContent = savingModel ? "Saving your choice"
@@ -721,8 +836,26 @@ function controls() {
 let displayedModel: string | undefined;
 function renderState() {
   if (!state) { controls(); return; }
+  if (element("mcp-project").textContent !== state.project) {
+    mcpSigningIn = undefined;
+    element("mcp-action-result").textContent = "";
+    element("mcp-sign-in-link").hidden = true;
+    element("mcp-sign-in-link").removeAttribute("href");
+  }
   if (document.activeElement !== element("project-path")) element<HTMLInputElement>("project-path").value = state.project;
   element("workspace-caption").textContent = `OpenCode ${state.version} · ${state.project}`;
+  element("mcp-project").textContent = state.project;
+  element("mcp-project-name").textContent = state.project.split(/[\\/]/).filter(Boolean).at(-1) ?? state.project;
+  element("mcp-project-name").title = state.project;
+  const openCode = state.openCode;
+  const descriptions = {
+    installed: `Using your installed OpenCode ${state.version}.`,
+    bundled: `Using Picard Code's bundled OpenCode ${state.version}.`,
+    custom: `Using OpenCode ${state.version} selected with PICARD_OPENCODE_PATH.`,
+  };
+  element("mcp-connection").textContent = descriptions[openCode.source];
+  element("mcp-custom-settings").hidden = !openCode.customSettings;
+  for (const action of ["list", "auth"]) element(`mcp-${action}-command`).textContent = `npx picard-code opencode mcp ${action}`;
   const savedValue = state.selectedModel ? modelValue(state.selectedModel) : "";
   const currentModel = displayedModel === savedValue ? model.value : savedValue;
   displayedModel = savedValue;
@@ -1295,7 +1428,9 @@ function scheduleHistory() {
 
 function handleEvent(event: BrowserEvent) {
   if (!state || event.type === "connection") return;
-  if (event.type === "delta") {
+  if (event.type === "mcp") {
+    void refreshMcpServers();
+  } else if (event.type === "delta") {
     if (event.sessionID !== selected) return;
     const piece = live.get(event.partID) ?? { sessionID: event.sessionID, messageID: event.messageID, partType: event.partType, text: "", speaker: event.speaker, background: event.background };
     piece.text += event.delta;
@@ -1338,9 +1473,11 @@ async function refreshState() {
   const lostModel = !!state?.selectedModel && !next.selectedModel;
   const finishedModelSetup = !!wizardStep() && !state?.selectedModel && !!next.selectedModel;
   const speechBecameReady = !state?.speech?.configured && !!next.speech?.configured;
+  const projectChanged = state?.project !== next.project;
   state = next;
   if (speechBecameReady && !speechSetupWatching) showSpeechPreparation(next.speech?.setup);
   renderState();
+  if (projectChanged) void refreshMcpServers();
   if (lostModel) location.hash = "settings/model";
   else if (finishedModelSetup) location.hash = "";
   completeVoiceReply();
@@ -1395,6 +1532,7 @@ function openEvents(quiet = false) {
           if (!keepNotice) notice();
           keepNotice = false;
           await refreshState();
+          void refreshMcpServers();
           await loadHistory();
         }
         controls();
@@ -1758,7 +1896,10 @@ async function checkSignIn() {
   }
 }
 for (const name of ["focus", "visibilitychange"] as const) {
-  (name === "focus" ? window : document).addEventListener(name, () => { void perform(checkSignIn); });
+  (name === "focus" ? window : document).addEventListener(name, () => {
+    void perform(checkSignIn);
+    if (!document.hidden && !mcpAction && !refreshingProvider) void refreshMcpServers();
+  });
 }
 
 /** Voice systems start on their own during start-up; the bar below the panel reports each real step. */
@@ -1806,7 +1947,7 @@ function startVoiceSystems() {
 }
 
 // Each part of Ship's systems carries a short panel code, as on an LCARS console. The codes are decoration only.
-const settingsParts = { provider: ["Connect your AI provider", "orange", "SYS 01"], model: ["Computer intelligence", "blue", "SYS 02"], project: ["Project folder", "tan", "SYS 03"], voice: ["Speech", "lilac", "SYS 04"], about: ["About", "red", "SYS 05"] } as const;
+const settingsParts = { provider: ["Connect your AI provider", "orange", "SYS 01"], model: ["Computer intelligence", "blue", "SYS 02"], project: ["Project folder", "tan", "SYS 03"], voice: ["Speech", "lilac", "SYS 04"], about: ["About", "red", "SYS 05"], mcp: ["MCP servers", "orange", "SYS 06"] } as const;
 type SettingsPart = keyof typeof settingsParts;
 /** Each side panel tile opens its own part, for example #settings/voice. Without one, open what still needs doing. */
 function showSettingsPart(requested?: string) {
@@ -1853,6 +1994,7 @@ async function route() {
     return;
   }
   showSettingsPart(location.hash.split("/")[1]);
+  if (location.hash === "#settings/mcp") void refreshMcpServers();
   if (location.hash.endsWith("/advanced")) element<HTMLDetailsElement>("advanced-speech").open = true;
   if (!settingsLoaded) {
     settingsLoaded = true;
@@ -1951,22 +2093,41 @@ element("stop").addEventListener("click", () => {
   });
 });
 element("retry").addEventListener("click", () => { void perform(async () => { await route(); await boot(); await route(); }); });
-async function refreshProvider() {
+async function refreshProvider(mcp = false) {
   if (refreshingProvider) return;
   refreshingProvider = true;
+  if (mcp) {
+    mcpRevision++;
+    element("mcp-servers").replaceChildren();
+    element("mcp-status").textContent = "Reloading OpenCode settings.";
+    element("readout-mcp").textContent = "Checking";
+    element("mcp-refresh-result").textContent = "";
+  }
   controls();
   try {
     await api("refresh", {});
     await refreshState();
     notice();
-    if (!state?.selectedModel) location.hash = `settings/${modelSetupPart()}`;
+    if (!mcp && !state?.selectedModel) location.hash = `settings/${modelSetupPart()}`;
     openEvents();
+    if (mcp) {
+      element("mcp-refresh-result").textContent = "OpenCode settings reloaded.";
+      await refreshMcpServers();
+    }
+  } catch (error) {
+    if (mcp) {
+      element("mcp-status").textContent = "Connections were not refreshed.";
+      element("readout-mcp").textContent = "Unavailable";
+      element("mcp-refresh-result").textContent = errorMessage(error);
+    }
+    throw error;
   } finally { refreshingProvider = false; controls(); }
 }
 for (const id of ["refresh-provider", "refresh-model"]) {
   element(id).addEventListener("click", () => { void perform(refreshProvider); });
 }
-for (const [buttonID, commandID, resultID] of [["copy-provider-command", "provider-command", "provider-copy-result"], ["copy-wizard-command", "wizard-command", "wizard-copy-result"]]) {
+element("refresh-mcp").addEventListener("click", () => { void perform(() => refreshProvider(true)); });
+for (const [buttonID, commandID, resultID] of [["copy-provider-command", "provider-command", "provider-copy-result"], ["copy-wizard-command", "wizard-command", "wizard-copy-result"], ["copy-mcp-list", "mcp-list-command", "mcp-list-copy-result"], ["copy-mcp-auth", "mcp-auth-command", "mcp-auth-copy-result"]]) {
   element(buttonID!).addEventListener("click", () => { void perform(async () => {
     const copy = element<HTMLButtonElement>(buttonID!);
     if (copy.disabled) return;
@@ -1977,6 +2138,9 @@ for (const [buttonID, commandID, resultID] of [["copy-provider-command", "provid
       await navigator.clipboard.writeText(element(commandID!).innerText);
       element(resultID!).textContent = buttonID === "copy-wizard-command" ? "Order copied" : "Command copied";
       notice();
+    } catch (error) {
+      if (buttonID?.startsWith("copy-mcp-")) element(resultID!).textContent = errorMessage(error);
+      throw error;
     } finally { copy.disabled = false; }
   }); });
 }

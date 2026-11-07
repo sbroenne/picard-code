@@ -57,7 +57,7 @@ try {
   }
   // Like the real app, check the downloaded computer sounds; without them every sound shows a red alert.
   await setupSounds(soundFolder, controller.signal);
-  app = await startApp({ client: engine.client, project, speech, modelFile, speechFile, soundFolder, webRoot: join(root, "web-dist"), prepareCrew: engine.prepareCrew });
+  app = await startApp({ client: engine.client, openCodeSource: engine.source, project, speech, modelFile, speechFile, soundFolder, webRoot: join(root, "web-dist"), prepareCrew: engine.prepareCrew });
   browser = await chromium.launch({ args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--mute-audio", "--autoplay-policy=no-user-gesture-required"] });
   const context = await browser.newContext({ permissions: ["microphone"], viewport: { width: FOOTAGE.width, height: FOOTAGE.height }, deviceScaleFactor: FOOTAGE.scale });
   const page = await context.newPage();

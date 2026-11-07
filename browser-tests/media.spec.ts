@@ -96,7 +96,7 @@ async function setup(page: Page, phrase: string | string[] = "") {
   for (const name of ["startup", "request-accepted", "input-failed", "request-failed"]) await writeFile(join(project, `${name}.mp3`), sound);
   const modelFile = join(project, "model.json");
   await saveModelSettings(modelFile, { providerID: "github-copilot", modelID: "fixture-model" });
-  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"), speech: speech.service, soundFolder: project, speechFile: join(project, "unused-settings.json"), modelFile });
+  const app = await startApp({ client: makeClient(fixture.url, fixture.password), openCodeSource: "installed", project, webRoot: resolve("web-dist"), speech: speech.service, soundFolder: project, speechFile: join(project, "unused-settings.json"), modelFile });
   await page.route("https://media.example.com/**", async (route) => {
     if (route.request().url().endsWith(".webm")) await route.fulfill({ contentType: "video/webm", body: Buffer.from(videoBytes) });
     else await route.fulfill({ contentType: "image/png", body: pixel });

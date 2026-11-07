@@ -1,17 +1,39 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, readdir, rm } from "node:fs/promises";
-import { resolve } from "node:path";
-import { startEngine, projectDirectory } from "../server/process.js";
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm } from "node:fs/promises";
+import { resolve, join } from "node:path";
+import { tmpdir } from "node:os";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { startEngine, projectDirectory, openCodeCommand, freePort } from "../server/process.js";
 import { availableModels } from "../server/engine.js";
 import { BRIDGE_CREW } from "../shared/crew.js";
 import { verifiedCrew } from "../server/crew.js";
+import { startApp } from "../server/app.js";
 
 const temporary = await mkdtemp(resolve(".picard-live-check-"));
+const settings = await mkdtemp(join(tmpdir(), "picard-opencode-settings-"));
+const savedEnvironment = Object.fromEntries(
+  ["XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME", "OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR", "OPENCODE_CONFIG_CONTENT", "OPENCODE_PASSWORD"]
+    .map((key) => [key, process.env[key]]),
+);
 const project = await projectDirectory(temporary);
 let engine: Awaited<ReturnType<typeof startEngine>> | undefined;
 let sessionID: string | undefined;
 const controller = new AbortController();
 try {
+  process.env.XDG_CONFIG_HOME = join(settings, "config");
+  process.env.XDG_DATA_HOME = join(settings, "data");
+  process.env.XDG_STATE_HOME = join(settings, "state");
+  delete process.env.OPENCODE_CONFIG;
+  delete process.env.OPENCODE_CONFIG_DIR;
+  delete process.env.OPENCODE_CONFIG_CONTENT;
+  delete process.env.OPENCODE_PASSWORD;
+  const globalSettings = join(process.env.XDG_CONFIG_HOME, "opencode");
+  await mkdir(globalSettings, { recursive: true });
+  const globalConfig = JSON.stringify({
+    mcp: { servers: { "picard-global-check": { type: "remote", url: "http://127.0.0.1:1/mcp", disabled: true } } },
+  });
+  await writeFile(join(globalSettings, "opencode.json"), globalConfig);
   await writeFile(resolve(project, "opencode.json"), JSON.stringify({
     agents: { build: { permissions: [{ action: "shell", resource: "*", effect: "ask" }, { action: "edit", resource: "*", effect: "deny" }] } },
   }));
@@ -20,6 +42,52 @@ try {
   const { client } = engine;
   const info = await client.info();
   assert.match(info.version, /^2\./);
+  const servers = await client.mcpServers(project);
+  assert.deepEqual(servers.map(({ name, status }) => ({ name, status: status.status })), [
+    { name: "picard-global-check", status: "disabled" },
+  ], "Picard Code must preserve globally configured MCP servers while loading the crew");
+  const command = await openCodeCommand();
+  const app = await startApp({
+    client, project, openCodeSource: command.source, webRoot: temporary,
+    modelFile: join(settings, "picard-model.json"), speechFile: join(settings, "picard-speech.json"),
+    prepareCrew: engine.prepareCrew,
+  });
+  try {
+    const login = await fetch(`${app.origin}/api/connect`, {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Picard-Request": "1" },
+      body: JSON.stringify({ token: app.token }),
+    });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get("set-cookie")!.split(";")[0]!;
+    const expected = { project, servers: [{ name: "picard-global-check", status: "disabled" }] };
+    const connections = () => fetch(`${app.origin}/api/mcp`, { headers: { Cookie: cookie } });
+    let response = await connections();
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), expected, "the browser must receive real, Project-specific MCP states");
+    const refreshed = await fetch(`${app.origin}/api/refresh`, {
+      method: "POST", headers: { Cookie: cookie, "Content-Type": "application/json", "X-Picard-Request": "1" }, body: "{}",
+    });
+    assert.equal(refreshed.status, 200);
+    response = await connections();
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), expected, "refresh must show the actual MCP state, not claim a connection");
+  } finally { await app.close(); }
+  const runOpenCode = (args: string[]) => promisify(execFile)(command.command, [...command.prefix, ...args], {
+    cwd: project, timeout: 45_000,
+  });
+  await runOpenCode(["service", "set", "port", String(await freePort())]);
+  try {
+    let listed = "";
+    const deadline = Date.now() + 15_000;
+    do {
+      listed = (await runOpenCode(["mcp", "list"])).stdout;
+      if (listed.includes("picard-global-check")) break;
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    } while (Date.now() < deadline);
+    assert.match(listed, /picard-global-check\s+disabled/, "the normal OpenCode command must see the same MCP server");
+  } finally {
+    await runOpenCode(["service", "stop"]);
+  }
   const location = await client.location(project);
   assert.equal(location.directory, project);
   const timeout = setTimeout(() => controller.abort(), 5000);
@@ -54,26 +122,40 @@ try {
   await engine.prepareCrew(other);
   assert.equal(verifiedCrew(await client.agents(other)), true, "the new project's coding rules apply to every officer");
   await engine.prepareCrew(project);
-  const saved = { config: process.env.OPENCODE_CONFIG, dir: process.env.OPENCODE_CONFIG_DIR };
+  assert.equal((await client.mcpServers(project))[0]?.name, "picard-global-check", "refreshing the crew must preserve MCP settings");
+  assert.equal(await readFile(join(globalSettings, "opencode.json"), "utf8"), globalConfig, "global settings must not be changed");
   const blockedSettings = resolve(temporary, "blocked-settings");
   await mkdir(blockedSettings);
-  process.env.OPENCODE_CONFIG = resolve(blockedSettings, "opencode.json");
-  process.env.OPENCODE_CONFIG_DIR = blockedSettings;
-  await writeFile(process.env.OPENCODE_CONFIG, "{}");
-  try {
+  const explicitFile = resolve(blockedSettings, "opencode.json");
+  const explicitConfig = JSON.stringify({
+    mcp: { servers: { "picard-explicit-check": { type: "remote", url: "http://127.0.0.1:1/mcp", disabled: true } } },
+  });
+  await writeFile(explicitFile, explicitConfig);
+  for (const customFolder of [false, true]) {
+    process.env.OPENCODE_CONFIG = explicitFile;
+    if (customFolder) process.env.OPENCODE_CONFIG_DIR = globalSettings;
     const withoutCrew = await startEngine(project);
     try {
-      assert.match(withoutCrew.crewProblem ?? "", /OPENCODE_CONFIG and OPENCODE_CONFIG_DIR/, "a crew problem is explained instead of stopping OpenCode");
+      assert.match(withoutCrew.crewProblem ?? "", /OPENCODE_CONFIG/, "an occupied explicit settings file must not hide normal global settings");
       assert.equal((await withoutCrew.client.info()).version, info.version, "the computer stays available without the crew");
       assert.equal(verifiedCrew(await withoutCrew.client.agents(project)), false);
+      assert.deepEqual((await withoutCrew.client.mcpServers(project)).map(({ name }) => name).sort(),
+        ["picard-explicit-check", "picard-global-check"]);
+      assert.equal(await readFile(explicitFile, "utf8"), explicitConfig);
     } finally { await withoutCrew.close(); }
-  } finally {
-    if (saved.config === undefined) delete process.env.OPENCODE_CONFIG; else process.env.OPENCODE_CONFIG = saved.config;
-    if (saved.dir === undefined) delete process.env.OPENCODE_CONFIG_DIR; else process.env.OPENCODE_CONFIG_DIR = saved.dir;
   }
+  delete process.env.OPENCODE_CONFIG;
+  process.env.OPENCODE_CONFIG_DIR = globalSettings;
+  process.env.OPENCODE_PASSWORD = "picard-live-check-inherited-password";
+  const customDirectory = await startEngine(project);
+  try {
+    assert.equal(customDirectory.crewProblem, undefined, "a custom settings folder must still support the crew");
+    assert.equal((await customDirectory.client.mcpServers(project))[0]?.name, "picard-global-check");
+  } finally { await customDirectory.close(); }
   const models = await availableModels(client, project);
   console.log(`Real OpenCode ${info.version}: startup, project context, saved conversation, event stream, and approval/question endpoints passed.`);
-  console.log("All six crew agents, selection, child ownership, project-specific permission inheritance and setup without project files passed. Without a separate settings location, OpenCode still starts and the crew problem is explained.");
+  console.log("Global MCP settings match OpenCode's management command and survive crew refresh without changing the saved file. Custom settings folders and inherited passwords passed. An occupied settings file preserves MCP connections and explains why the crew is unavailable.");
+  console.log("All six crew agents, selection, child ownership, project-specific permission inheritance and setup without project files passed.");
   console.log(models.models.length
     ? `OpenCode reports ${models.models.length} models from ${[...new Set(models.models.map((model) => model.provider))].join(", ")}. No paid model request was made.`
     : "No model provider is signed in to OpenCode. A real model reply still needs a sign-in.");
@@ -84,6 +166,11 @@ try {
   } finally {
     await engine?.close();
     await rm(temporary, { recursive: true });
+    await rm(settings, { recursive: true });
+    for (const [key, value] of Object.entries(savedEnvironment)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
     if (engine?.child.pid) {
       assert.ok(engine.child.exitCode !== null || engine.child.signalCode !== null, "The owned OpenCode process must stop.");
     }

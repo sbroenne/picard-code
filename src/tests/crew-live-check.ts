@@ -31,7 +31,7 @@ try {
   const model = models.find((item) => `${item.providerID}/${item.modelID}` === requestedModel);
   assert.ok(model, `The requested test model ${requestedModel} is not available.`);
   console.log(`Real crew check model: ${model.providerID}/${model.modelID}`);
-  app = await startApp({ client: engine.client, project, prepareCrew: engine.prepareCrew, webRoot: resolve("web-dist"), speechFile: join(temporary, "speech.json"), modelFile: join(temporary, "model.json") });
+  app = await startApp({ client: engine.client, openCodeSource: engine.source, project, prepareCrew: engine.prepareCrew, webRoot: resolve("web-dist"), speechFile: join(temporary, "speech.json"), modelFile: join(temporary, "model.json") });
   const connected = await fetch(`${app.origin}/api/connect`, {
     method: "POST", headers: { "Content-Type": "application/json", "X-Picard-Request": "1" }, body: JSON.stringify({ token: app.token }),
   });
