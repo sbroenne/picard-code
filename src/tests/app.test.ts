@@ -125,6 +125,51 @@ test("MCP sign-in uses only the selected server's OpenCode browser method", asyn
   assert.deepEqual(context.fixture.requests.find(({ path }) => path.endsWith("/connect/oauth"))?.data, { methodID: "browser" });
 });
 
+test("GitHub MCP sign-in prefers the packaged device method and forwards only its public code", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  context.fixture.setMcpServers([{ name: "Any server name", status: { status: "needs_auth" }, integrationID: "mcp-fixture" }]);
+  context.fixture.setMcpMethods([
+    { id: "browser", type: "oauth", form: [] },
+    { id: "picard-github-device", type: "oauth", form: [] },
+  ]);
+  context.fixture.setMcpSignIn({ mode: "auto", url: "https://github.com/login/device", instructions: "Enter code: ABCD-1234" });
+  const response = await context.request("mcp/sign-in", { name: "Any server name", project: context.directory });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { url: "https://github.com/login/device", code: "ABCD-1234", attemptID: "test-attempt" });
+  assert.equal(context.fixture.requests.find(({ path }) => path.endsWith("/connect/oauth"))?.data.methodID, "picard-github-device");
+});
+
+for (const instructions of ["Enter code: not-a-code secret", "Test-only unexpected instructions."]) {
+  test(`GitHub MCP rejects an invalid public code: ${instructions}`, async (t) => {
+    const context = await setup();
+    t.after(context.cleanup);
+    await context.login();
+    context.fixture.setMcpServers([{ name: "Test GitHub", status: { status: "needs_auth" }, integrationID: "mcp-fixture" }]);
+    context.fixture.setMcpMethods([{ id: "picard-github-device", type: "oauth", form: [] }]);
+    context.fixture.setMcpSignIn({ mode: "auto", url: "https://github.com/login/device", instructions });
+    const response = await context.request("mcp/sign-in", { name: "Test GitHub", project: context.directory });
+    assert.equal(response.status, 502);
+    assert.equal("code" in await response.json(), false);
+    assert.ok(context.fixture.requests.some(({ method }) => method === "DELETE"));
+  });
+}
+
+test("GitHub MCP attempt status preserves Project guards and reports native failures without credential details", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  context.fixture.setMcpServers([{ name: "Test GitHub", status: { status: "needs_auth" }, integrationID: "mcp-fixture" }]);
+  const query = `mcp/sign-in?${new URLSearchParams({ project: context.directory, name: "Test GitHub", attempt: "test-attempt" })}`;
+  assert.equal((await context.request(query)).status, 401);
+  await context.login();
+  assert.equal((await context.request(query.replace(encodeURIComponent(context.directory), encodeURIComponent(context.other)))).status, 409);
+  context.fixture.setMcpAttempt({ status: "failed", message: "GitHub sign-in failed: access_denied" });
+  const response = await context.request(query);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { status: "failed", error: "GitHub sign-in failed: access_denied" });
+});
+
 for (const attempt of [
   { mode: "code", url: "https://example.test/authorize" },
   { mode: "auto", url: "javascript:alert(1)" },

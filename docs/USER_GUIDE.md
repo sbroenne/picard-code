@@ -447,8 +447,25 @@ connection state. If the browser blocks the tab, choose **Continue sign-in**.
 Choose **Retry** to retry a failed connection. These actions do not enable
 servers you disabled or change your saved configuration.
 
-Some services need a sign-in code, extra fields or an API key that must be
-handled directly in OpenCode. The panel explains when this is needed; open
+GitHub's hosted MCP server uses Picard Code's shared sign-in app. Choose
+**Sign in**, enter the displayed one-time code on GitHub, and approve access
+there. You do not need to register an app, create a key, or install a local
+GitHub server. OpenCode stores and renews the sign-in. The code disappears
+after approval or expiry; **Connected** appears only after the MCP connection
+succeeds. A refused or expired sign-in is explained in the panel.
+By default, this requests basic profile access, not private repository access.
+To request other access, set `oauth.scope` for that server in OpenCode's
+settings; GitHub asks you to approve those permissions. An explicitly
+configured app or Authorization header keeps its own authentication.
+This flow is supplied by the extension in Picard Code's OpenCode launch,
+not by the ordinary `opencode mcp auth` command. If both `OPENCODE_CONFIG`
+and `OPENCODE_CONFIG_CONTENT` are already occupied, Picard Code leaves them
+unchanged; include `scripts/github-mcp-plugin` from your Picard Code
+installation in OpenCode's `plugins` setting to use this flow.
+
+Other services may need extra fields, a pasted authorization code or an API
+key that must be handled directly in OpenCode. The panel explains when this
+is needed; open
 **Setup help** for the commands. Picard Code never asks you to type credentials.
 
 In another terminal, open the selected **Project** folder. The **Project** tile

@@ -67,7 +67,10 @@ to the connections. No commands, long explanations or
 OpenCode settings details belong in the drawer.
 OpenCode status changes update both the tile and list. Sign in opens the
 service's own page through OpenCode; returning checks the real state.
-Sign-ins needing codes or extra fields stay in OpenCode's advanced flow.
+GitHub's hosted server uses the packaged OpenCode extension and a displayed
+one-time code. Clear that code after approval, expiry or failure; show
+Connected only after the actual server connection succeeds. Other sign-ins
+needing pasted codes or extra fields stay in OpenCode's advanced flow.
 OpenCode owns server setup and credentials. Picard Code starts and stops
 OpenCode itself. Keep terminal and custom-settings guidance in the user guide.
 Refresh reports only that settings reloaded, never an invented server status.

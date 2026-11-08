@@ -12,6 +12,7 @@ import { serveFile } from "./files.js";
 import { fileReferences, replyFile } from "../shared/files.js";
 import type { OpenCode, OpenCodeEvent, SessionInfo } from "./opencode.js";
 import { projectDirectory } from "./process.js";
+import { GITHUB_DEVICE_METHOD } from "./github-device.js";
 import { computerManner, crewChoice } from "./instructions.js";
 import { checkTributeRequest, explicitStorySubject, storyAcceptance, tributeSubject } from "../shared/tribute.js";
 import { TRIBUTE_ENTRIES } from "../shared/tribute-data.js";
@@ -473,6 +474,15 @@ export async function startApp(options: AppOptions) {
           json(response, 200, result);
           return;
         }
+        if (path === "/api/mcp/sign-in" && method === "GET") {
+          const data = Object.fromEntries(url.searchParams);
+          if (!sameDirectory(textField(data, "project", 4096), project)) throw new HttpError(409, "The Project changed. Sign in again from its MCP servers.");
+          const server = (await client.mcpServers(project)).find(item => item.name === textField(data, "name", 512));
+          if (!server?.integrationID) throw new HttpError(404, "That MCP server is no longer configured for this Project.");
+          const attempt = await client.oauthStatus(server.integrationID, textField(data, "attempt", 512), project);
+          json(response, 200, { status: attempt.status, ...(attempt.message ? { error: attempt.message } : {}) });
+          return;
+        }
         if ((path === "/api/mcp/sign-in" || path === "/api/mcp/connect") && method === "POST") {
           const data = await body(request);
           if (!sameDirectory(textField(data, "project", 4096), project)) throw new HttpError(409, "The Project changed. Open its MCP servers before trying again.");
@@ -493,7 +503,8 @@ export async function startApp(options: AppOptions) {
           const manual = "This server needs sign-in through OpenCode. Choose Setup help for instructions.";
           if (!server.integrationID) throw new HttpError(409, manual);
           const integration = await client.integration(server.integrationID, project);
-          const auth = integration.methods.find((item) => item.type === "oauth" && item.id && !item.form?.length);
+          const methods = integration.methods.filter(item => item.type === "oauth" && item.id && !item.form?.length);
+          const auth = methods.find(item => item.id === GITHUB_DEVICE_METHOD) ?? methods[0];
           if (!auth?.id) throw new HttpError(409, manual);
           const attempt = await client.startOAuth(server.integrationID, auth.id, project);
           let target: URL | undefined;
@@ -504,7 +515,12 @@ export async function startApp(options: AppOptions) {
             await client.cancelOAuth(server.integrationID, attempt.attemptID, project);
             throw new HttpError(409, attempt.mode !== "auto" ? manual : "OpenCode returned an unsafe sign-in address. Choose Setup help to check this server.");
           }
-          json(response, 200, { url: target.href });
+          const code = auth.id === GITHUB_DEVICE_METHOD ? /^Enter code: ([A-Z0-9]{4}-[A-Z0-9]{4})$/.exec(attempt.instructions ?? "")?.[1] : undefined;
+          if (auth.id === GITHUB_DEVICE_METHOD && (!code || target.href !== "https://github.com/login/device")) {
+            await client.cancelOAuth(server.integrationID, attempt.attemptID, project);
+            throw new HttpError(502, "OpenCode did not provide a valid GitHub sign-in code.");
+          }
+          json(response, 200, { url: target.href, ...(code ? { code, attemptID: attempt.attemptID } : {}) });
           return;
         }
         if (path === "/api/model" && method === "POST") {
