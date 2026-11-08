@@ -39,7 +39,7 @@ try {
   const { models } = await availableModels(client, project);
   const model = models.find((item) => `${item.providerID}/${item.modelID}` === requestedModel);
   assert.ok(model, `The requested test model ${requestedModel} is not available.`);
-  app = await startApp({ client, project, webRoot: resolve("web-dist"), modelFile: resolve(temporary, "model.json"), speechFile: resolve(temporary, "speech.json") });
+  app = await startApp({ client, openCodeSource: engine.source, project, webRoot: resolve("web-dist"), modelFile: resolve(temporary, "model.json"), speechFile: resolve(temporary, "speech.json") });
   const origin = app.origin;
   const connected = await fetch(`${origin}/api/connect`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json", "x-picard-request": "1" }, body: JSON.stringify({ token: app.token }) });
   assert.equal(connected.status, 200);

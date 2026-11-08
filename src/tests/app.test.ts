@@ -32,7 +32,7 @@ async function setup(extra: Partial<AppOptions> = {}, initialSpeech?: Record<str
   if (!extra.modelFile) await saveModelSettings(modelFile, { providerID: "github-copilot", modelID: "fixture-model" });
   if (initialSpeech) await writeFile(join(temporary, "speech.json"), JSON.stringify(initialSpeech));
   const wikipediaRequests: string[] = [];
-  const app = await startApp({ client: makeClient(fixture.url, fixture.password), project: directory, webRoot, modelFile, speechFile: join(temporary, "speech.json"),
+  const app = await startApp({ client: makeClient(fixture.url, fixture.password), openCodeSource: "installed", project: directory, webRoot, modelFile, speechFile: join(temporary, "speech.json"),
     readWikipedia: async (subject) => { wikipediaRequests.push(subject); return wikipediaFixture(subject); }, ...extra });
   let cookie = "";
   const request = (path: string, data?: unknown, headers: Record<string, string> = {}) => fetch(`${app.origin}/api/${path}`, {
@@ -59,6 +59,152 @@ async function setup(extra: Partial<AppOptions> = {}, initialSpeech?: Record<str
   };
   return { app, fixture, request, raw, login, cleanup, directory, other, temporary, modelFile, wikipediaRequests };
 }
+
+for (const source of ["installed", "bundled", "custom"] as const) {
+  test(`state reports the actual ${source} OpenCode without exposing credentials or settings`, async (t) => {
+    const context = await setup({ openCodeSource: source, customOpenCodeSettings: true });
+    t.after(context.cleanup);
+    await context.login();
+    const read = async () => {
+      const state = await (await context.request("state")).json() as AppState;
+      assert.deepEqual(state.openCode, {
+        source, customSettings: true,
+      });
+      assert.equal(JSON.stringify(state).includes(context.fixture.password), false);
+      return state;
+    };
+    await read();
+    assert.equal((await context.request("refresh", {})).status, 200);
+    await read();
+    assert.equal((await context.request("project", { path: context.other })).status, 200);
+    await read();
+  });
+}
+
+test("MCP connections show only names, states and errors for the selected Project", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  assert.equal((await context.request("mcp")).status, 401);
+  await context.login();
+  const servers = [
+    { name: "test-connected", status: { status: "connected", credential: "must-not-reach-browser" }, config: { headers: { Authorization: "must-not-reach-browser" } } },
+    { name: "test-sign-in", status: { status: "needs_auth", error: "Test sign-in required." } },
+    { name: "test-disabled", status: { status: "disabled" } },
+    { name: "test-failed", status: { status: "failed", error: "Test service refused the connection." } },
+    { name: "test-pending", status: { status: "pending" } },
+  ];
+  context.fixture.setMcpServers(servers);
+  let response = await context.request("mcp");
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    project: context.directory,
+    servers: servers.map(({ name, status }) => ({ name, status: status.status, ...(status.error ? { error: status.error } : {}) })),
+  });
+  assert.equal((await context.request("mcp", undefined, { Origin: "https://example.invalid" })).status, 403);
+  assert.equal((await context.request("project", { path: context.other })).status, 200);
+  response = await context.request("mcp");
+  assert.deepEqual(await response.json(), { project: context.other, servers: [] });
+  assert.equal(context.fixture.requests.filter(({ path }) => path === "/api/mcp").at(-1)?.directory, context.other);
+});
+
+test("MCP sign-in uses only the selected server's OpenCode browser method", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  const servers = [{ name: "Test remote", status: { status: "needs_auth" }, integrationID: "mcp-fixture" }];
+  context.fixture.setMcpServers(servers);
+  const body = { name: "Test remote", project: context.directory };
+  assert.equal((await context.request("mcp/sign-in", body)).status, 401);
+  await context.login();
+  assert.equal((await context.request("mcp/sign-in", body, { "X-Picard-Request": "" })).status, 403);
+  assert.equal((await context.request("mcp/sign-in", { ...body, project: context.other })).status, 409);
+  assert.equal((await context.request("mcp/sign-in", { ...body, name: "Not configured" })).status, 404);
+  assert.equal(context.fixture.requests.some(({ path }) => path.endsWith("/connect/oauth")), false);
+  const result = await context.request("mcp/sign-in", body);
+  assert.equal(result.status, 200);
+  assert.deepEqual(await result.json(), { url: "https://example.test/authorize" });
+  assert.deepEqual(context.fixture.requests.find(({ path }) => path.endsWith("/connect/oauth"))?.data, { methodID: "browser" });
+});
+
+for (const attempt of [
+  { mode: "code", url: "https://example.test/authorize" },
+  { mode: "auto", url: "javascript:alert(1)" },
+  { mode: "auto", url: "https://user:password@example.test/authorize" },
+]) {
+  test(`MCP sign-in rejects unsupported or unsafe authorization details: ${attempt.mode} ${new URL(attempt.url).protocol}`, async (t) => {
+    const context = await setup();
+    t.after(context.cleanup);
+    await context.login();
+    const servers = [{ name: "Test remote", status: { status: "needs_auth" }, integrationID: "mcp-fixture" }];
+    context.fixture.setMcpServers(servers);
+    context.fixture.setMcpSignIn(attempt);
+    const result = await context.request("mcp/sign-in", { name: "Test remote", project: context.directory });
+    assert.equal(result.status, 409);
+    assert.equal("url" in await result.json(), false);
+    assert.ok(context.fixture.requests.some(({ method, path }) => method === "DELETE" && path.endsWith("/test-attempt")));
+  });
+}
+
+test("MCP actions preserve disabled servers and running work and explain unsupported sign-in", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const servers = [{ name: "Test remote", status: { status: "disabled" }, integrationID: "mcp-fixture" }];
+  context.fixture.setMcpServers(servers);
+  const body = { name: "Test remote", project: context.directory };
+  assert.equal((await context.request("mcp/sign-in", body)).status, 409);
+  assert.equal((await context.request("mcp/connect", body)).status, 409);
+  servers[0]!.status = { status: "needs_auth" };
+  context.fixture.setMcpMethods([{ id: "needs-fields", type: "oauth", form: [{ key: "secret" }] }]);
+  const unsupported = await context.request("mcp/sign-in", body);
+  assert.equal(unsupported.status, 409);
+  assert.match((await unsupported.json()).error, /Setup help/);
+  const session = context.fixture.createSession(context.directory);
+  context.fixture.active.add(session.id);
+  assert.equal((await context.request("mcp/sign-in", body)).status, 409);
+  assert.equal(context.fixture.requests.some(({ path }) => path.endsWith("/connect/oauth")), false);
+});
+
+test("MCP retry reconnects only a failed server in the selected Project", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  context.fixture.setMcpServers([{ name: "Test failed", status: { status: "failed", error: "Test old failure." } }]);
+  const body = { name: "Test failed", project: context.directory };
+  const response = await context.request("mcp/connect", body);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { requested: true });
+  const connections = await (await context.request("mcp")).json();
+  assert.equal(connections.servers[0].status, "connected");
+  assert.equal((await context.request("mcp/connect", body)).status, 409);
+});
+
+test("MCP lookup failures stay errors without preventing model or log entry discovery", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  context.fixture.setMcpError("Test MCP status lookup failed.");
+  const failed = await context.request("mcp");
+  assert.equal(failed.status, 502);
+  assert.equal((await failed.json()).error, "OpenCode could not complete this request. Test MCP status lookup failed.");
+  assert.equal((await context.request("state")).status, 200);
+  context.fixture.setMcpError();
+  assert.deepEqual(await (await context.request("mcp")).json(), { project: context.directory, servers: [] });
+});
+
+test("MCP status changes reach open pages without a log entry or server details", async (t) => {
+  const context = await setup();
+  t.after(context.cleanup);
+  await context.login();
+  const reader = (await context.request("events")).body!.getReader();
+  await reader.read();
+  context.fixture.publish(context.directory, "mcp.status.changed", { server: "private-name-not-needed-in-event" });
+  const timeout = setTimeout(() => { void reader.cancel(); }, 1000);
+  try {
+    const change = new TextDecoder().decode((await reader.read()).value);
+    assert.match(change, /"type":"mcp"/);
+    assert.doesNotMatch(change, /private-name/);
+  } finally { clearTimeout(timeout); await reader.cancel(); }
+});
 
 test("available models, including free models, never count as a confirmed model choice", async (t) => {
   const context = await setup();

@@ -28,7 +28,7 @@ test("Vite updates styles and keeps the real app's local connection checks", { t
   const modelFile = join(project, "model.json");
   await saveModelSettings(modelFile, { providerID: "github-copilot", modelID: "fixture-model" });
   const app = await startApp({
-    client: makeClient(fixture.url, fixture.password), project, webRoot: resolve("web-dist"),
+    client: makeClient(fixture.url, fixture.password), openCodeSource: "installed", project, webRoot: resolve("web-dist"),
     speechFile: join(project, "speech.json"), speech: speechFixture([""]).service, modelFile,
   });
   t.after(() => app.close());
@@ -78,6 +78,9 @@ test("Vite updates styles and keeps the real app's local connection checks", { t
   await expect(page.locator("#status")).toHaveText(/^(Standing by|Not listening)$/);
   await expect(page.locator("#status-detail")).toBeVisible();
   await expect(page.locator("#status-detail")).toHaveText(/\S/);
+  await page.getByRole("link", { name: /^MCP servers/ }).click();
+  await expect(page.getByRole("link", { name: "Setup help", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
   const cssName = `.picard-dev-check-${process.pid}.css`;
   const cssPath = resolve("web", cssName);
   t.after(() => rm(cssPath, { force: true }));

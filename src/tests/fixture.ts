@@ -1,7 +1,7 @@
 import { createServer, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import type { FormRequest, PermissionRequest } from "../shared/types.js";
-import type { ContentItem, IntegrationInfo, ModelInfo, ProviderInfo, SessionInfo, SessionMessage } from "../server/opencode.js";
+import type { ContentItem, IntegrationInfo, ModelInfo, OpenCode, ProviderInfo, SessionInfo, SessionMessage } from "../server/opencode.js";
 import type { WikipediaArticle } from "../server/wikipedia.js";
 
 export async function wikipediaFixture(subject: WikipediaArticle["subject"]): Promise<WikipediaArticle> {
@@ -57,6 +57,10 @@ export async function startFixture(project: string) {
   let configuredModel: { providerID: string; model: string } | undefined = { providerID: "github-copilot", model: "fixture-model" };
   let providerError: string | undefined;
   let integrationError: string | undefined;
+  const mcpServers = new Map<string, Awaited<ReturnType<OpenCode["mcpServers"]>>>();
+  let mcpError: string | undefined;
+  let mcpSignIn = { mode: "auto", url: "https://example.test/authorize" };
+  let mcpMethods: { id: string; type: string; form: unknown[] }[] = [{ id: "browser", type: "oauth", form: [] }];
   const buildPermissions: PermissionRule[] = [{ action: "*", resource: "*", effect: "allow" }, { action: "read", resource: "*.env", effect: "ask" }];
   const agents: AgentInfo[] = [
     { id: "build", mode: "primary", permissions: buildPermissions },
@@ -170,6 +174,20 @@ export async function startFixture(project: string) {
       if (path === "/api/model") { send(200, { data: models }); return; }
       if (path === "/api/provider") { send(providerError ? 502 : 200, providerError ? { message: providerError } : { data: providers }); return; }
       if (path === "/api/integration") { send(integrationError ? 502 : 200, integrationError ? { message: integrationError } : { data: listedIntegrations }); return; }
+      if (path === "/api/mcp") { send(mcpError ? 502 : 200, mcpError ? { message: mcpError } : { data: mcpServers.get(directory) ?? [] }); return; }
+      if (path === "/api/integration/mcp-fixture") { send(200, { data: { methods: mcpMethods } }); return; }
+      if (path === "/api/integration/mcp-fixture/connect/oauth") {
+        send(200, { data: { attemptID: "test-attempt", ...mcpSignIn, instructions: "Test-only sign-in instructions." } }); return;
+      }
+      if (path === "/api/integration/mcp-fixture/connect/oauth/test-attempt" && request.method === "DELETE") { send(204); return; }
+      const mcpConnect = /^\/api\/experimental\/mcp\/([^/]+)\/connect$/.exec(path);
+      if (mcpConnect && request.method === "POST") {
+        const server = mcpServers.get(directory)?.find(({ name }) => name === decodeURIComponent(mcpConnect[1]!));
+        if (!server) { send(404, { message: "Test MCP server not found." }); return; }
+        server.status = { status: "connected" };
+        publish(directory, "mcp.status.changed", { server: server.name });
+        send(204); return;
+      }
       if (path === "/api/agent") { send(200, { data: agents }); return; }
       // Like OpenCode, name the user's model when set, otherwise pick one of the listed models itself.
       if (path === "/api/model/default") { send(200, { data: models.find((model) => model.providerID === configuredModel?.providerID && model.id === configuredModel.model) ?? models[0] ?? null }); return; }
@@ -463,6 +481,10 @@ export async function startFixture(project: string) {
     setIntegrations: (integrations: IntegrationInfo[]) => { listedIntegrations = integrations; },
     setProviderError: (message?: string) => { providerError = message; },
     setIntegrationError: (message?: string) => { integrationError = message; },
+    setMcpServers: (servers: Awaited<ReturnType<OpenCode["mcpServers"]>>, directory = project) => { mcpServers.set(directory, servers); },
+    setMcpError: (message?: string) => { mcpError = message; },
+    setMcpSignIn: (attempt: typeof mcpSignIn) => { mcpSignIn = attempt; },
+    setMcpMethods: (methods: typeof mcpMethods) => { mcpMethods = methods; },
     close: async () => {
       for (const timer of timers) clearTimeout(timer);
       for (const listener of listeners) listener.end();

@@ -360,21 +360,21 @@ It also appears after 20 seconds if the voice has not started. There is no
 lasting shared crew memory or automatic issue watching.
 
 When Picard Code starts its own OpenCode server, it loads the crew from a
-temporary settings folder outside your project and removes that folder on
-normal shutdown. Each officer receives the current coding agent's effective
+temporary settings file outside your project and removes it on
+normal shutdown. That file adds the crew without replacing OpenCode's normal
+global settings or MCP connections. Each officer receives the current coding agent's effective
 permission rules unchanged, including project-specific rules. Changing projects
 or refreshing the connection refreshes those rules. No crew settings, agent
 files or team memory are added to your project or global settings.
 These temporary crew definitions are separate from your saved speech settings
 in `~/.picard-code/speech.json`.
 
-If both `OPENCODE_CONFIG` and `OPENCODE_CONFIG_DIR` are already set, keep one
-unset so Picard Code can use a separate settings location without replacing
-yours. Settings that override the reserved `picard-` agents are reported rather
+If `OPENCODE_CONFIG` is already set, Picard Code preserves that file and the
+normal global settings, but cannot add its temporary crew file. To use the crew,
+keep your settings in a folder selected with `OPENCODE_CONFIG_DIR` and leave
+`OPENCODE_CONFIG` unset. Settings that override the reserved `picard-` agents are reported rather
 than bypassed. In both cases Picard Code still starts: the terminal explains
-why the crew is unavailable, and the computer answers every request itself. With `--connect`, ordinary computer requests remain available;
-crew requests require the server to have the matching crew definitions and
-permission rules. Naming an officer then reports that the crew is unavailable.
+why the crew is unavailable, and the computer answers every request itself.
 
 ## Connect a model provider
 
@@ -422,6 +422,78 @@ More capable models may cost more or take longer to answer. Picard Code does
 not rank the models or select OpenCode's default for you.
 
 `npx picard-code opencode auth list` shows which providers are signed in.
+
+## MCP servers and sign-in
+
+MCP servers give OpenCode tools and access to other services. Picard Code uses
+the servers configured in OpenCode; it does not maintain a separate server
+list or credential store. Open **MCP servers** under **Ship's systems** for
+the current server list and connection actions.
+The tile shows a live connection count or what needs attention, without opening
+the panel. The panel puts server names, states and actions first; terminal
+commands and explanations stay in this guide and OpenCode's guide.
+**Setup help** opens OpenCode's MCP guide in the same page; use your browser's
+Back button to return to the connections. Choose **Error details**
+beside a server to read its actual error.
+The list shows connected servers, servers needing sign-in, disabled servers,
+connections still starting, and failed connections.
+It updates when OpenCode reports a connection change and checks again whenever
+you open the panel. A failed lookup is shown as an error, never an empty list.
+MCP setup is optional, not part of first start-up.
+
+Choose **Sign in** beside a server to open its own sign-in page through
+OpenCode. Finish there and return; the list and tile update from the real
+connection state. If the browser blocks the tab, choose **Continue sign-in**.
+Choose **Retry** to retry a failed connection. These actions do not enable
+servers you disabled or change your saved configuration.
+
+Some services need a sign-in code, extra fields or an API key that must be
+handled directly in OpenCode. The panel explains when this is needed; open
+**Setup help** for the commands. Picard Code never asks you to type credentials.
+
+In another terminal, open the selected **Project** folder. The **Project** tile
+shows its full folder path.
+This selects the project's settings; it does not install OpenCode there.
+If this launch uses custom OpenCode settings, use the same settings and
+environment variables in that terminal. Check the configured servers:
+
+```sh
+npx picard-code opencode mcp list
+```
+
+For a remote server that needs sign-in:
+
+```sh
+npx picard-code opencode mcp auth
+```
+
+Choose the server and follow OpenCode's sign-in. Picard Code prefers an
+installed OpenCode 2 and uses its bundled copy only when no suitable
+installation is found; `PICARD_OPENCODE_PATH` can explicitly select a copy.
+Picard Code starts and stops OpenCode for you, using your existing global and
+project settings. You do not need to start OpenCode separately.
+OpenCode stores the sign-in, not Picard Code. Never speak
+passwords, keys or sign-in codes, or put them in a log entry.
+
+Return to the panel and choose **Refresh connections** after configuration changes, while no
+work is running. This reloads OpenCode's settings without starting a new log
+entry or changing your confirmed AI model. Refresh success means the settings
+were reloaded, not that every server connected. The list is checked again to show
+the actual connection results and errors for the selected Project. If your AI model becomes unavailable,
+the existing model-recovery screen still asks you to choose a replacement.
+
+Adding and configuring servers is advanced OpenCode setup. Read
+[OpenCode's MCP guide](https://opencode.ai/v2/docs/mcp-servers/), or run
+`npx picard-code opencode mcp add --help`. OpenCode's add command normally
+writes project configuration; use `--global` to keep it outside the project
+and make it available across Projects. Picard Code does not add or edit these
+files for you. Servers needing an API key must be configured in OpenCode;
+keep keys out of project files. Use environment-variable references as
+described in its guide, and restart the server if you change its environment.
+
+Connect only services you trust. A service may receive data when its tools
+are used. OpenCode's permission rules still apply: signing in does not grant
+a pending approval, and voice cannot approve one.
 
 ## The main screen and Ship’s systems
 
@@ -476,9 +548,10 @@ screen; there is no phone layout.
   deleted until it is stopped.
 - **Ship’s systems** (`#settings/…`): there is no Settings button. Each tile in the
   side panel opens its own part of the ship’s systems, with a short LCARS panel
-  code (SYS 01 to SYS 05): **AI provider** the sign-in steps,
+  code (SYS 01 to SYS 06): **AI provider** the sign-in steps,
   **Computer intelligence** the AI model, **Project** the folder,
-  **Listen · Speak** the speech services, and the tribute badge **About**.
+  **Listen · Speak** the speech services, **MCP servers** the OpenCode connection
+  guidance, and the tribute badge **About**.
   Choosing the same tile again
   closes it. Without a saved model choice, the first start-up takes the
   centre of the screen (see [Get started](#get-started)). An unavailable saved model opens Computer intelligence for recovery,
@@ -1097,27 +1170,6 @@ This changes phrasing, not OpenCode's tools or approval rules. The voice is a
 prebuilt voice, not a performer's clone or a show recording. The
 [bridge crew notes](research/bridge-crew-voices.md) explain the current
 officer instructions, voice choices and evidence limits.
-
-## Reuse an existing OpenCode server
-
-Reuse is explicit; Picard Code never assumes an unrelated server on port 4096
-belongs to it. The server must be OpenCode 2. Start OpenCode bound to this
-computer with a password. Set the
-same password in the Picard Code terminal, then:
-
-```sh
-npx picard-code --connect http://127.0.0.1:4096 --project "full project path"
-```
-
-For example, in PowerShell, set `$env:OPENCODE_SERVER_PASSWORD` before running
-`opencode serve --hostname 127.0.0.1 --port 4096` and before starting Picard Code
-in its separate terminal. On macOS/Linux, use `export OPENCODE_SERVER_PASSWORD`.
-Use a strong password; do not put it in the URL, shell history, or source files.
-`OPENCODE_SERVER_USERNAME` defaults to `opencode` and can be set in both terminals.
-
-Picard Code checks the server's health, password protection, and selected
-folder. Only addresses on this computer are accepted. It leaves a reused
-server running when Picard Code stops.
 
 ## Local protections
 

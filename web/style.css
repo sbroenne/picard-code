@@ -421,6 +421,17 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
 .provider-command { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; background: #17121e; border-radius: 0 24px 24px 0; }
 .provider-command code { flex: 1 1 auto; overflow-wrap: anywhere; color: var(--peach); }
 .provider-command .pill { flex: none; }
+.mcp-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.mcp-toolbar p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.mcp-servers { list-style: none; padding: 0; }
+.mcp-server { margin: 0; padding: 12px 0; border-bottom: 1px solid #3a2f26; overflow-wrap: anywhere; }
+.mcp-server-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px 16px; }
+.mcp-server-state { color: var(--peach); }
+.mcp-server p { margin: 8px 0 0; }
+.mcp-error { margin-top: 6px; color: var(--muted); }
+.mcp-error summary { cursor: pointer; font-size: 13px; }
+.mcp-feedback { margin: 8px 0; }
+.mcp-feedback:empty { margin: 0; }
 .copy-result { min-height: 1.7em; margin: 4px 0 0; color: var(--lilac); }
 .connection-status { color: var(--peach); }
 .provider-alternative { margin: 24px 0 0 26px; }
@@ -436,9 +447,10 @@ code { color: var(--peach); background: #221a14; padding: 2px 5px; border-radius
   .console-actions .pill { min-width: 190px; }
 }
 /* Short laptop screens, such as 1280 × 720 at 150% scale: a tighter side panel. */
-@media (max-height: 640px) {
+@media (max-height: 720px) {
+  :root { --elbow: 36px; }
   .sidebar, .rail-fill { gap: 4px; }
-  .rail-button { padding: 6px 12px; }
+  .rail-button { padding: 4px 12px; }
   .rail-fill .readout { min-height: 36px; padding: 4px 12px; }
   .rail-label { padding-top: 2px; }
   #rail-end { min-height: 40px; }

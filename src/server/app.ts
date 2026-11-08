@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readFile, realpath } from "node:fs/promises";
 import { resolve, sep, extname } from "node:path";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import type { AppState, BrowserEvent, FormField, FormValue, ModelSelection } from "../shared/types.js";
+import type { AppState, BrowserEvent, FormField, FormValue, McpConnections, ModelSelection, OpenCodeSource } from "../shared/types.js";
 import { chatMessages, availableModels, errorMessage } from "./engine.js";
 import { partID } from "./history.js";
 import { modelSettingsFile, readModelSettings, saveModelSettings, modelSelection } from "./model-settings.js";
@@ -130,6 +130,8 @@ function eventSession(event: OpenCodeEvent) {
 
 export interface AppOptions {
   client: OpenCode;
+  openCodeSource: OpenCodeSource;
+  customOpenCodeSettings?: boolean;
   project: string;
   webRoot: string;
   port?: number;
@@ -153,6 +155,8 @@ export interface AppOptions {
 
 export async function startApp(options: AppOptions) {
   const { client } = options;
+  const customSettings = options.customOpenCodeSettings ?? false;
+  const openCode: AppState["openCode"] = { source: options.openCodeSource, customSettings };
   let directory = options.project;
   const token = randomBytes(32).toString("hex");
   const cookie = randomBytes(32).toString("hex");
@@ -332,6 +336,7 @@ export async function startApp(options: AppOptions) {
     return {
       project,
       version: info.version,
+      openCode,
       ...models,
       savedModel, selectedModel, modelError,
       conversations: conversations.map((session) => ({ id: session.id, title: session.title, created: session.time.created, updated: session.time.updated })),
@@ -378,6 +383,10 @@ export async function startApp(options: AppOptions) {
       send({ type: "connection", connected: true });
       for await (const event of stream) {
         if (controller.signal.aborted || directory !== project) break;
+        if (event.type === "mcp.status.changed") {
+          send({ type: "mcp" });
+          continue;
+        }
         const id = eventSession(event);
         if (!id || event.type === "session.deleted" && !entries.has(id)) continue;
         if (event.type === "session.moved") {
@@ -452,6 +461,50 @@ export async function startApp(options: AppOptions) {
         }
         if (path === "/api/state" && method === "GET") {
           json(response, 200, await state(project));
+          return;
+        }
+        if (path === "/api/mcp" && method === "GET") {
+          const result: McpConnections = {
+            project,
+            servers: (await client.mcpServers(project)).map(({ name, status }) => ({
+              name, status: status.status, ...(status.error ? { error: status.error } : {}),
+            })),
+          };
+          json(response, 200, result);
+          return;
+        }
+        if ((path === "/api/mcp/sign-in" || path === "/api/mcp/connect") && method === "POST") {
+          const data = await body(request);
+          if (!sameDirectory(textField(data, "project", 4096), project)) throw new HttpError(409, "The Project changed. Open its MCP servers before trying again.");
+          if ((await working(project)).length) throw new HttpError(409, "Finish or stop the current work before changing MCP connections.");
+          const name = textField(data, "name", 512);
+          const server = (await client.mcpServers(project)).find((item) => item.name === name);
+          if (!server) throw new HttpError(404, "That MCP server is not configured for this Project.");
+          if (path === "/api/mcp/connect") {
+            if (server.status.status !== "failed") throw new HttpError(409, "Only a failed MCP connection can be retried here.");
+            await client.connectMcp(name, project);
+            const current = (await client.mcpServers(project)).find((item) => item.name === name);
+            if (!current) throw new HttpError(409, "That MCP server is no longer configured.");
+            if (current.status.status === "failed") throw new HttpError(502, current.status.error ?? "OpenCode could not connect this MCP server.");
+            json(response, 200, { requested: true });
+            return;
+          }
+          if (server.status.status !== "needs_auth") throw new HttpError(409, "That MCP server is not waiting for sign-in.");
+          const manual = "This server needs sign-in through OpenCode. Choose Setup help for instructions.";
+          if (!server.integrationID) throw new HttpError(409, manual);
+          const integration = await client.integration(server.integrationID, project);
+          const auth = integration.methods.find((item) => item.type === "oauth" && item.id && !item.form?.length);
+          if (!auth?.id) throw new HttpError(409, manual);
+          const attempt = await client.startOAuth(server.integrationID, auth.id, project);
+          let target: URL | undefined;
+          try { target = new URL(attempt.url); } catch { /* Rejected below. */ }
+          const webAddress = target && !target.username && !target.password
+            && (target.protocol === "https:" || target.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname));
+          if (attempt.mode !== "auto" || !target || !webAddress) {
+            await client.cancelOAuth(server.integrationID, attempt.attemptID, project);
+            throw new HttpError(409, attempt.mode !== "auto" ? manual : "OpenCode returned an unsafe sign-in address. Choose Setup help to check this server.");
+          }
+          json(response, 200, { url: target.href });
           return;
         }
         if (path === "/api/model" && method === "POST") {

@@ -7,10 +7,15 @@ import { randomBytes } from "node:crypto";
 import { promisify } from "node:util";
 import { createRequire } from "node:module";
 import { makeClient } from "./engine.js";
+import type { OpenCodeSource } from "../shared/types.js";
 import { CREW_UNAVAILABLE, crewConfiguration, loadedAgents, verifiedCrew } from "./crew.js";
 
 const execute = promisify(execFile);
 const require = createRequire(import.meta.url);
+
+export function usesCustomOpenCodeSettings(env: NodeJS.ProcessEnv = process.env): boolean {
+  return ["OPENCODE_CONFIG", "OPENCODE_CONFIG_DIR", "OPENCODE_CONFIG_CONTENT", "PICARD_OPENCODE_PATH", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME"].some((key) => !!env[key]);
+}
 
 export async function projectDirectory(path: string): Promise<string> {
   const directory = await realpath(path);
@@ -39,21 +44,21 @@ async function exists(file: string) {
   }
 }
 
-export async function openCodeCommand(): Promise<{ command: string; prefix: string[] }> {
+export async function openCodeCommand(): Promise<{ command: string; prefix: string[]; source: OpenCodeSource }> {
   if (process.env.PICARD_OPENCODE_PATH) {
     const file = await realpath(process.env.PICARD_OPENCODE_PATH);
     if ([".cmd", ".bat"].includes(extname(file).toLowerCase())) {
       throw new Error("PICARD_OPENCODE_PATH must point to OpenCode's executable or JavaScript entry, not a command wrapper.");
     }
     return extname(file) === ".js" || extname(file) === ".mjs" || extname(file) === "" && process.platform === "win32"
-      ? { command: process.execPath, prefix: [file] }
-      : { command: file, prefix: [] };
+      ? { command: process.execPath, prefix: [file], source: "custom" }
+      : { command: file, prefix: [], source: "custom" };
   }
   // An OpenCode 2 already installed comes first; the copy included with Picard Code is the fallback.
   const installed = await installedOpenCode();
-  if (installed) return { command: installed, prefix: [] };
+  if (installed) return { command: installed, prefix: [], source: "installed" };
   const bundled = bundledOpenCode();
-  if (bundled && await exists(bundled)) return { command: bundled, prefix: [] };
+  if (bundled && await exists(bundled)) return { command: bundled, prefix: [], source: "bundled" };
   throw new Error("OpenCode was not found. Picard Code includes it for Windows, macOS and Linux on x64 and arm64 processors; if this computer is one of those, install Picard Code again. Otherwise install OpenCode 2 from https://opencode.ai, then restart your terminal.");
 }
 
@@ -137,12 +142,11 @@ export async function startEngine(directory: string, signal?: AbortSignal) {
   const command = await openCodeCommand();
   const configuration = await mkdtemp(join(tmpdir(), "picard-crew-"));
   const configFile = join(configuration, "opencode.json");
-  const env: NodeJS.ProcessEnv = { ...process.env, OPENCODE_SERVER_PASSWORD: password, OPENCODE_SERVER_USERNAME: "opencode" };
-  // Without a separate settings location the crew cannot be loaded, but the computer still works.
+  const env: NodeJS.ProcessEnv = { ...process.env, OPENCODE_PASSWORD: password, OPENCODE_SERVER_PASSWORD: password, OPENCODE_SERVER_USERNAME: "opencode" };
+  // An extra file preserves OpenCode's global settings; replacing its settings folder would hide them.
   let crewBlocked: string | undefined;
-  if (!env.OPENCODE_CONFIG_DIR) env.OPENCODE_CONFIG_DIR = configuration;
-  else if (!env.OPENCODE_CONFIG) env.OPENCODE_CONFIG = configFile;
-  else crewBlocked = "The bridge crew needs a separate OpenCode settings location, but both OPENCODE_CONFIG and OPENCODE_CONFIG_DIR are already set. Keep one unset to use the crew.";
+  if (!env.OPENCODE_CONFIG) env.OPENCODE_CONFIG = configFile;
+  else crewBlocked = "The bridge crew needs its own temporary OpenCode settings file, but OPENCODE_CONFIG is already set. Keep your settings in OPENCODE_CONFIG_DIR and unset OPENCODE_CONFIG to use the crew.";
   if (!crewBlocked) {
     try { await writeFile(configFile, JSON.stringify(crewConfiguration()), { mode: 0o600 }); }
     catch (error) {
@@ -196,7 +200,7 @@ export async function startEngine(directory: string, signal?: AbortSignal) {
       let crewProblem: string | undefined;
       try { crewProblem = await prepareCrew(directory); }
       catch (error) { crewProblem = `The bridge crew could not be loaded. ${error instanceof Error ? error.message : String(error)}`; }
-      return { client, child, prepareCrew, crewProblem, close: async () => {
+      return { client, child, source: command.source, prepareCrew, crewProblem, close: async () => {
         try { await stopOwnedProcess(child); }
         finally { await rm(configuration, { recursive: true, force: true }); }
       } };

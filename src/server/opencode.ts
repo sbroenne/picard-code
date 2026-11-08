@@ -119,6 +119,26 @@ export class OpenCode {
     return (await this.call<{ data: IntegrationInfo[] }>("GET", "/api/integration", { directory })).data;
   }
 
+  async mcpServers(directory: string) {
+    return (await this.call<{ data: { name: string; status: { status: string; error?: string }; integrationID?: string }[] }>("GET", "/api/mcp", { directory })).data;
+  }
+
+  connectMcp(name: string, directory: string) {
+    return this.call<void>("POST", `/api/experimental/mcp/${encodeURIComponent(name)}/connect`, { directory });
+  }
+
+  async integration(id: string, directory: string) {
+    return (await this.call<{ data: { methods: { id?: string; type: string; form?: unknown[] }[] } }>("GET", `/api/integration/${encodeURIComponent(id)}`, { directory })).data;
+  }
+
+  async startOAuth(id: string, methodID: string, directory: string) {
+    return (await this.call<{ data: { attemptID: string; url: string; mode: string } }>("POST", `/api/integration/${encodeURIComponent(id)}/connect/oauth`, { directory, body: { methodID } })).data;
+  }
+
+  cancelOAuth(id: string, attemptID: string, directory: string) {
+    return this.call<void>("DELETE", `/api/integration/${encodeURIComponent(id)}/connect/oauth/${encodeURIComponent(attemptID)}`, { directory });
+  }
+
   async agents(directory: string) {
     return (await this.call<{ data: AgentInfo[] }>("GET", "/api/agent", { directory })).data;
   }

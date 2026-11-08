@@ -36,7 +36,7 @@
         <span id="tribute-status" class="visually-hidden" aria-live="polite"></span>
         <label class="rail-button blue rail-switch bridge-switch"><input id="bridge-toggle" type="checkbox" role="switch" aria-label="Bridge crew" checked /><b id="bridge-toggle-state" aria-hidden="true">On</b><span>Bridge crew</span></label>
         <span id="bridge-status" class="visually-hidden" aria-live="polite"></span>
-        <span class="rail-fill"><span class="rail-label" aria-hidden="true">Ship’s systems</span><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Computer intelligence"><small>Computer intelligence</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a></span>
+        <span class="rail-fill"><span class="rail-label" aria-hidden="true">Ship’s systems</span><a class="readout tan" href="#settings/project" title="Project folder"><small>Project</small><b id="readout-project">—</b></a><a class="readout blue" href="#settings/model" title="Computer intelligence"><small>Computer intelligence</small><b id="readout-model">—</b></a><a class="readout lilac" href="#settings/voice" title="Speech"><small>Listen · Speak</small><b id="readout-speech">—</b></a><a class="readout orange" href="#settings/mcp" title="MCP server connections"><small>MCP servers</small><b id="readout-mcp">Checking</b></a></span>
         <span id="rail-end" class="readout blue"><small>Stardate</small><b id="readout-stardate">—</b></span>
       </nav>
 
@@ -216,6 +216,20 @@
             <p class="muted">Your confirmed choice is remembered on this computer for every Project. OpenCode's own default is not changed. If your model becomes unavailable, the computer asks you to choose again; it never switches models for you.</p>
             <p class="muted">Models are grouped by AI provider, not ranked by capability.</p>
           </details>
+        </section>
+
+        <section id="settings-mcp" class="panel" hidden>
+          <div class="mcp-toolbar">
+            <p class="muted">Project: <strong id="mcp-project-name"></strong></p>
+            <button id="refresh-mcp" class="pill orange" type="button">Refresh connections</button>
+          </div>
+          <p id="mcp-status" class="connection-status" role="status">Checking MCP servers.</p>
+          <ul id="mcp-servers" class="mcp-servers" role="list" aria-label="MCP server connections"></ul>
+          <p id="mcp-action-result" class="connection-status mcp-feedback" role="status"></p>
+          <a id="mcp-sign-in-link" class="pill outline" target="_blank" rel="noopener noreferrer" hidden>Continue sign-in</a>
+          <p id="mcp-refresh-result" class="connection-status mcp-feedback" aria-live="polite" aria-atomic="true"></p>
+          <p id="mcp-work-note" class="muted" hidden>Stop running work before refreshing or changing connections.</p>
+          <p><a href="https://opencode.ai/docs/mcp-servers/" rel="noreferrer">Setup help</a></p>
         </section>
 
         <section id="settings-project" class="panel" hidden>
