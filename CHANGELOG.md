@@ -1,5 +1,17 @@
 # Picard Code release notes
 
+## 1701.4.11
+
+### Patch Changes
+
+- [#108](https://github.com/sbroenne/picard-code/pull/108) [`5882b49`](https://github.com/sbroenne/picard-code/commit/5882b492706a1b9f185ab3c7d8b24f3b34296ecb) - Sign in to GitHub's hosted MCP server with a one-time code, without registering your own app or creating a client secret. OpenCode keeps and renews the sign-in, and refused, expired or failed connections are explained clearly.
+
+- [#104](https://github.com/sbroenne/picard-code/pull/104) [`c49d823`](https://github.com/sbroenne/picard-code/commit/c49d823366054d986ad606308b0cc9e60d73d826) - Reopening Picard Code during speech preparation keeps following the same job without briefly starting the microphone or loading computer sounds.
+
+- [#107](https://github.com/sbroenne/picard-code/pull/107) [`fd771f0`](https://github.com/sbroenne/picard-code/commit/fd771f06cb5547ffae6ef18e660fc36489f0745e) - See your MCP connection state on the Ship's systems tile, sign in beside a server, and retry failed connections from a compact list. A single Setup help link keeps instructions out of the panel, while your existing OpenCode settings, current log entry and saved AI model are kept.
+
+- [#107](https://github.com/sbroenne/picard-code/pull/107) [`fd771f0`](https://github.com/sbroenne/picard-code/commit/fd771f06cb5547ffae6ef18e660fc36489f0745e) - Picard Code now always starts and stops OpenCode for you. The advanced --connect option and its setup instructions have been removed.
+
 ## 1701.4.10
 
 ### Patch Changes
