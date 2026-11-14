@@ -76,7 +76,7 @@
     "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.3",
     "@playwright/test": "^1.58.0",
-    "@pierre/highlights": "0.3.0",
+    "@pierre/highlights": "0.4.0",
     "@ricky0123/vad-web": "^0.0.31",
     "@types/node": "^24.0.0",
     "@types/katex": "^0.16.8",
@@ -90,7 +90,7 @@
     "pdfjs-dist": "^6.2.108",
     "pele": "1.13.0",
     "typescript": "^7.0.2",
-    "vite": "8.3.5"
+    "vite": "8.3.6"
   },
   "overrides": {
     "vite": {
