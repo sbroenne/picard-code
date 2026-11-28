@@ -124,7 +124,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@8126d6cb07dea9221848de275af8a41474d839ca # v1.3.0
+        uses: github/gh-aw-actions/setup@b907753c079ddd7d6829a0d8c24e02e818b4b45f # v1.4.0
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
@@ -486,7 +486,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@8126d6cb07dea9221848de275af8a41474d839ca # v1.3.0
+        uses: github/gh-aw-actions/setup@b907753c079ddd7d6829a0d8c24e02e818b4b45f # v1.4.0
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
@@ -1326,7 +1326,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@8126d6cb07dea9221848de275af8a41474d839ca # v1.3.0
+        uses: github/gh-aw-actions/setup@b907753c079ddd7d6829a0d8c24e02e818b4b45f # v1.4.0
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
@@ -1345,7 +1345,7 @@ jobs:
         env:
           GH_AW_IGNORE_IF_MISSING_PRIVATE_KEY: ${{ secrets.GH_AW_APP_PRIVATE_KEY }}
         if: ${{ vars.GH_AW_APP_CLIENT_ID != '' && env.GH_AW_IGNORE_IF_MISSING_PRIVATE_KEY != '' }}
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ vars.GH_AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.GH_AW_APP_PRIVATE_KEY }}
@@ -1698,7 +1698,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@8126d6cb07dea9221848de275af8a41474d839ca # v1.3.0
+        uses: github/gh-aw-actions/setup@b907753c079ddd7d6829a0d8c24e02e818b4b45f # v1.4.0
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
@@ -2043,7 +2043,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@8126d6cb07dea9221848de275af8a41474d839ca # v1.3.0
+        uses: github/gh-aw-actions/setup@b907753c079ddd7d6829a0d8c24e02e818b4b45f # v1.4.0
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
@@ -2137,7 +2137,7 @@ jobs:
     steps:
       - name: Setup Scripts
         id: setup
-        uses: github/gh-aw-actions/setup@8126d6cb07dea9221848de275af8a41474d839ca # v1.3.0
+        uses: github/gh-aw-actions/setup@b907753c079ddd7d6829a0d8c24e02e818b4b45f # v1.4.0
         with:
           destination: ${{ runner.temp }}/gh-aw/actions
           job-name: ${{ github.job }}
@@ -2181,7 +2181,7 @@ jobs:
         env:
           GH_AW_IGNORE_IF_MISSING_PRIVATE_KEY: ${{ secrets.GH_AW_APP_PRIVATE_KEY }}
         if: ${{ vars.GH_AW_APP_CLIENT_ID != '' && env.GH_AW_IGNORE_IF_MISSING_PRIVATE_KEY != '' }}
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
           client-id: ${{ vars.GH_AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.GH_AW_APP_PRIVATE_KEY }}
