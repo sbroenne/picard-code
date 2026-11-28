@@ -76,7 +76,7 @@
     "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.3",
     "@playwright/test": "^1.58.0",
-    "@pierre/highlights": "0.5.1",
+    "@pierre/highlights": "0.5.2",
     "@ricky0123/vad-web": "^0.0.31",
     "@types/node": "^24.0.0",
     "@types/katex": "^0.16.8",
